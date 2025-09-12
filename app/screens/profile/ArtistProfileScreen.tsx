@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { createArtist } from '../../services/supabase/artistService';
 import { getCurrentUser } from '../../services/supabase/authService';
+import * as ImagePicker from 'expo-image-picker';
 
 export default function ArtistProfileScreen() {
   const [name, setName] = useState('');
@@ -23,8 +24,31 @@ export default function ArtistProfileScreen() {
   const [loading, setLoading] = useState(false);
 
   const pickImage = async () => {
-    // Temporariamente desabilitado - será implementado depois
-    Alert.alert('Em breve', 'Funcionalidade de upload de foto será implementada em breve!');
+    try {
+      // Solicitar permissão
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert('Permissão negada', 'Precisamos de permissão para acessar sua galeria.');
+        return;
+      }
+
+      // Abrir galeria
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setProfileUrl(result.assets[0].uri);
+        Alert.alert('Sucesso', 'Foto do artista selecionada com sucesso!');
+      }
+    } catch (error) {
+      console.error('Erro ao selecionar imagem:', error);
+      Alert.alert('Erro', 'Erro ao selecionar imagem da galeria');
+    }
   };
 
   const handleFinalizarCadastro = async () => {

@@ -10,7 +10,11 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.APP-MOBILE-MARCA-AI"
+      "bundleIdentifier": "com.anonymous.APP-MOBILE-MARCA-AI",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Este app precisa acessar sua galeria de fotos para permitir que você selecione uma foto de perfil.",
+        "NSCameraUsageDescription": "Este app precisa acessar sua câmera para permitir que você tire uma foto para o perfil."
+      }
     },
     "android": {
       "package": "com.anonymous.APP_MOBILE_MARCA_AI",
@@ -21,7 +25,11 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "output": "static",
@@ -39,6 +47,13 @@
           "dark": {
             "backgroundColor": "#000000"
           }
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Este app precisa acessar sua galeria de fotos para permitir que você selecione uma foto de perfil.",
+          "cameraPermission": "Este app precisa acessar sua câmera para permitir que você tire uma foto para o perfil."
         }
       ]
     ],

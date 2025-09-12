@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   FlatList,
   Alert,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -63,6 +64,7 @@ export default function AgendaScreen() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [hasArtists, setHasArtists] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
+  const [currentArtist, setCurrentArtist] = useState<{name: string, profile_url?: string} | null>(null);
 
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
@@ -88,6 +90,13 @@ export default function AgendaScreen() {
         setHasArtists(false);
       } else {
         setHasArtists(artists && artists.length > 0);
+        // Definir o primeiro artista como o atual
+        if (artists && artists.length > 0) {
+          setCurrentArtist({
+            name: artists[0].name,
+            profile_url: artists[0].profile_url
+          });
+        }
       }
     } catch (error) {
       console.error('Erro ao verificar artistas:', error);
@@ -173,7 +182,28 @@ export default function AgendaScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Agenda de Shows</Text>
+        {/* Header do Artista */}
+        {currentArtist && (
+          <View style={styles.artistHeader}>
+            <View style={styles.artistInfo}>
+              {currentArtist.profile_url ? (
+                <Image source={{ uri: currentArtist.profile_url }} style={styles.artistAvatar} />
+              ) : (
+                <View style={styles.artistAvatarPlaceholder}>
+                  <Ionicons name="musical-notes" size={24} color="#667eea" />
+                </View>
+              )}
+              <View style={styles.artistDetails}>
+                <Text style={styles.artistName}>{currentArtist.name}</Text>
+                <Text style={styles.artistSubtitle}>Agenda de Shows</Text>
+              </View>
+            </View>
+          </View>
+        )}
+        
+        {!currentArtist && (
+          <Text style={styles.title}>Agenda de Shows</Text>
+        )}
         
         {/* Navegação do mês */}
         <View style={styles.monthNavigation}>
@@ -280,6 +310,43 @@ const styles = StyleSheet.create({
     paddingBottom: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
+  },
+  artistHeader: {
+    marginBottom: 15,
+  },
+  artistInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  artistAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 12,
+  },
+  artistAvatarPlaceholder: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#f8f9fa',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    borderWidth: 2,
+    borderColor: '#e9ecef',
+  },
+  artistDetails: {
+    flex: 1,
+  },
+  artistName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 2,
+  },
+  artistSubtitle: {
+    fontSize: 14,
+    color: '#666',
   },
   title: {
     fontSize: 24,
