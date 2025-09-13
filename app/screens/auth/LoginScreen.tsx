@@ -13,8 +13,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { loginUser } from '../../services/supabase/authService';
-import { checkUserExists } from '../../services/supabase/userService';
+import { loginUser } from '../../../services/supabase/authService';
+import { checkUserExists } from '../../../services/supabase/userService';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');

@@ -1,4 +1,4 @@
-import { supabase } from '../../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import * as ImagePicker from 'expo-image-picker';
 
 export interface UploadImageResult {

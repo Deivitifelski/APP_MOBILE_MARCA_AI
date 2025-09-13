@@ -14,8 +14,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { createArtist } from '../../services/supabase/artistService';
-import { getCurrentUser } from '../../services/supabase/authService';
+import { createArtist } from '../../../services/supabase/artistService';
+import { getCurrentUser } from '../../../services/supabase/authService';
 import * as ImagePicker from 'expo-image-picker';
 
 export default function ArtistProfileScreen() {

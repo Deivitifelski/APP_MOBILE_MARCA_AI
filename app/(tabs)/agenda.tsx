@@ -12,8 +12,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { getArtists } from '../services/supabase/artistService';
-import { getCurrentUser } from '../services/supabase/authService';
+import { getArtists } from '../../services/supabase/artistService';
+import { getCurrentUser } from '../../services/supabase/authService';
+import { getEventsByMonth } from '../../services/supabase/eventService';
 
 // Dados mockados de shows
 const mockShows = [
@@ -64,7 +65,8 @@ export default function AgendaScreen() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [hasArtists, setHasArtists] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentArtist, setCurrentArtist] = useState<{name: string, profile_url?: string} | null>(null);
+  const [currentArtist, setCurrentArtist] = useState<{id: string, name: string, profile_url?: string} | null>(null);
+  const [events, setEvents] = useState<any[]>([]);
 
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
@@ -72,6 +74,12 @@ export default function AgendaScreen() {
   useEffect(() => {
     checkArtists();
   }, []);
+
+  useEffect(() => {
+    if (hasArtists) {
+      loadEvents();
+    }
+  }, [hasArtists, currentMonth, currentYear]);
 
   const checkArtists = async () => {
     try {
@@ -93,6 +101,7 @@ export default function AgendaScreen() {
         // Definir o primeiro artista como o atual
         if (artists && artists.length > 0) {
           setCurrentArtist({
+            id: artists[0].id,
             name: artists[0].name,
             profile_url: artists[0].profile_url
           });
@@ -103,6 +112,31 @@ export default function AgendaScreen() {
       setHasArtists(false);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadEvents = async () => {
+    try {
+      // Obter o usuário atual
+      const { user, error: userError } = await getCurrentUser();
+      
+      if (userError || !user) {
+        console.error('Erro ao obter usuário:', userError);
+        setEvents([]);
+        return;
+      }
+
+      const result = await getEventsByMonth(user.id, currentYear, currentMonth);
+      
+      if (result.success) {
+        setEvents(result.events || []);
+      } else {
+        console.error('Erro ao carregar eventos:', result.error);
+        setEvents([]);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar eventos:', error);
+      setEvents([]);
     }
   };
 
@@ -143,41 +177,50 @@ export default function AgendaScreen() {
     );
   };
 
-  const renderShow = ({ item }: { item: any }) => (
-    <View style={styles.showCard}>
-      <View style={styles.showHeader}>
-        <View style={styles.showDateContainer}>
-          <Text style={styles.showDate}>{item.date}</Text>
-          <Text style={styles.showDayOfWeek}>{item.dayOfWeek}</Text>
+  const renderShow = ({ item }: { item: any }) => {
+    const eventDate = new Date(item.event_date);
+    const dayOfWeek = eventDate.toLocaleDateString('pt-BR', { weekday: 'short' });
+    
+    return (
+      <View style={styles.showCard}>
+        <View style={styles.showHeader}>
+          <View style={styles.showDateContainer}>
+            <Text style={styles.showDate}>{eventDate.getDate()}</Text>
+            <Text style={styles.showDayOfWeek}>{dayOfWeek}</Text>
+          </View>
+          <View style={styles.showTimeContainer}>
+            <Ionicons name="time-outline" size={16} color="#666" />
+            <Text style={styles.showTime}>{item.start_time}</Text>
+          </View>
         </View>
-        <View style={styles.showTimeContainer}>
-          <Ionicons name="time-outline" size={16} color="#666" />
-          <Text style={styles.showTime}>{item.time}</Text>
-        </View>
-      </View>
-      
-      <Text style={styles.showName}>{item.name}</Text>
-      
-      <View style={styles.showLocationContainer}>
-        <Ionicons name="location-outline" size={16} color="#666" />
-        <Text style={styles.showVenue}>{item.venue}</Text>
-      </View>
-      
-      <Text style={styles.showLocation}>{item.location}</Text>
-      
-      <View style={styles.showActions}>
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="ticket-outline" size={16} color="#667eea" />
-          <Text style={styles.actionButtonText}>Ingressos</Text>
-        </TouchableOpacity>
         
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="share-outline" size={16} color="#667eea" />
-          <Text style={styles.actionButtonText}>Compartilhar</Text>
-        </TouchableOpacity>
+        <Text style={styles.showName}>{item.name}</Text>
+        
+        {item.city && (
+          <View style={styles.showLocationContainer}>
+            <Ionicons name="location-outline" size={16} color="#666" />
+            <Text style={styles.showVenue}>{item.city}</Text>
+          </View>
+        )}
+        
+        {item.value && (
+          <Text style={styles.showLocation}>R$ {item.value.toLocaleString('pt-BR')}</Text>
+        )}
+        
+        <View style={styles.showActions}>
+          <TouchableOpacity style={styles.actionButton}>
+            <Ionicons name="receipt-outline" size={16} color="#667eea" />
+            <Text style={styles.actionButtonText}>Despesas</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.actionButton}>
+            <Ionicons name="share-outline" size={16} color="#667eea" />
+            <Text style={styles.actionButtonText}>Compartilhar</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -266,9 +309,9 @@ export default function AgendaScreen() {
         ) : (
           /* Lista de shows do mês */
           <View style={styles.showsSection}>
-            {mockShows.length > 0 ? (
+            {events.length > 0 ? (
               <FlatList
-                data={mockShows}
+                data={events}
                 renderItem={renderShow}
                 keyExtractor={(item) => item.id}
                 scrollEnabled={false}

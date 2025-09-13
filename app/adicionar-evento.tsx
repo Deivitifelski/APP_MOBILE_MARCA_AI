@@ -13,6 +13,11 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import { createEvent, CreateExpenseData } from '../services/supabase/eventService';
+import { getCurrentUser } from '../services/supabase/authService';
+import { getArtists } from '../services/supabase/artistService';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 
 interface EventoForm {
   nome: string;
@@ -23,6 +28,14 @@ interface EventoForm {
   horarioInicio: Date;
   horarioFim: Date;
   status: 'confirmado' | 'a_confirmar';
+  descricao: string;
+}
+
+interface DespesaForm {
+  nome: string;
+  valor: string;
+  arquivo_url?: string;
+  arquivo_tipo?: 'image' | 'document';
 }
 
 // Componente para seleção de data
@@ -201,14 +214,18 @@ export default function AdicionarEventoScreen() {
     horarioInicio: new Date(),
     horarioFim: new Date(),
     status: 'a_confirmar',
+    descricao: '',
   });
+
+  const [despesas, setDespesas] = useState<DespesaForm[]>([]);
 
   const [showDateModal, setShowDateModal] = useState(false);
   const [showTimeInicioModal, setShowTimeInicioModal] = useState(false);
   const [showTimeFimModal, setShowTimeFimModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
 
-  const handleSave = () => {
+  const handleSave = async () => {
     // Validações básicas
     if (!form.nome.trim()) {
       Alert.alert('Erro', 'Nome do evento é obrigatório');
@@ -227,17 +244,76 @@ export default function AdicionarEventoScreen() {
       return;
     }
 
-    // TODO: Salvar no banco de dados
-    Alert.alert(
-      'Sucesso',
-      'Evento adicionado com sucesso!',
-      [
-        {
-          text: 'OK',
-          onPress: () => router.back(),
-        },
-      ]
-    );
+    if (isNaN(parseFloat(form.valor))) {
+      Alert.alert('Erro', 'Valor deve ser um número válido');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      // Obter o usuário atual e seu artista
+      const { user, error: userError } = await getCurrentUser();
+      
+      if (userError || !user) {
+        Alert.alert('Erro', 'Usuário não encontrado. Faça login novamente.');
+        return;
+      }
+
+      const { artists, error: artistsError } = await getArtists(user.id);
+      
+      if (artistsError || !artists || artists.length === 0) {
+        Alert.alert('Erro', 'Nenhum artista encontrado. Crie um perfil de artista primeiro.');
+        return;
+      }
+
+      const artistId = artists[0].id;
+
+      // Preparar despesas
+      const expensesData: CreateExpenseData[] = despesas
+        .filter(despesa => despesa.nome.trim() && despesa.valor.trim())
+        .map(despesa => ({
+          name: despesa.nome.trim(),
+          value: parseFloat(despesa.valor),
+          receipt_url: despesa.arquivo_url
+        }));
+
+      const eventData = {
+        artist_id: artistId,
+        user_id: user.id,
+        name: form.nome.trim(),
+        description: form.descricao.trim() || undefined,
+        event_date: form.data.toISOString().split('T')[0], // YYYY-MM-DD
+        start_time: form.horarioInicio.toTimeString().split(' ')[0].substring(0, 5), // HH:MM
+        end_time: form.horarioFim.toTimeString().split(' ')[0].substring(0, 5), // HH:MM
+        value: form.valor ? parseFloat(form.valor) : undefined,
+        city: form.cidade.trim() || undefined,
+        contractor_phone: form.telefoneContratante.trim() || undefined,
+        confirmed: form.status === 'confirmado',
+        expenses: expensesData
+      };
+
+      const result = await createEvent(eventData);
+
+      if (result.success && result.event) {
+        Alert.alert(
+          'Sucesso',
+          'Evento adicionado com sucesso!',
+          [
+            {
+              text: 'OK',
+              onPress: () => router.back(),
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Erro', result.error || 'Erro ao salvar evento');
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Erro ao salvar evento');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const formatDate = (date: Date) => {
@@ -253,6 +329,68 @@ export default function AdicionarEventoScreen() {
 
   const updateForm = (field: keyof EventoForm, value: any) => {
     setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const addDespesa = () => {
+    setDespesas(prev => [...prev, { nome: '', valor: '' }]);
+  };
+
+  const removeDespesa = (index: number) => {
+    setDespesas(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const updateDespesa = (index: number, field: keyof DespesaForm, value: any) => {
+    setDespesas(prev => prev.map((despesa, i) => 
+      i === index ? { ...despesa, [field]: value } : despesa
+    ));
+  };
+
+  const pickImageForDespesa = async (index: number) => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert('Permissão necessária', 'Precisamos de permissão para acessar suas fotos.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        updateDespesa(index, 'arquivo_url', asset.uri);
+        updateDespesa(index, 'arquivo_tipo', 'image');
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Erro ao selecionar imagem');
+    }
+  };
+
+  const pickDocumentForDespesa = async (index: number) => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        updateDespesa(index, 'arquivo_url', asset.uri);
+        updateDespesa(index, 'arquivo_tipo', 'document');
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Erro ao selecionar documento');
+    }
+  };
+
+  const removeFileFromDespesa = (index: number) => {
+    updateDespesa(index, 'arquivo_url', undefined);
+    updateDespesa(index, 'arquivo_tipo', undefined);
   };
 
   const openDatePicker = () => {
@@ -325,6 +463,21 @@ export default function AdicionarEventoScreen() {
             placeholder="Ex: (21) 99999-9999"
             placeholderTextColor="#999"
             keyboardType="phone-pad"
+          />
+        </View>
+
+        {/* Descrição */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Descrição (Opcional)</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            value={form.descricao}
+            onChangeText={(text) => updateForm('descricao', text)}
+            placeholder="Detalhes sobre o evento..."
+            placeholderTextColor="#999"
+            multiline
+            numberOfLines={4}
+            textAlignVertical="top"
           />
         </View>
 
@@ -413,21 +566,129 @@ export default function AdicionarEventoScreen() {
           </View>
         </View>
 
+        {/* Seção de Despesas */}
+        <View style={styles.inputGroup}>
+          <View style={styles.despesasHeader}>
+            <Text style={styles.label}>Despesas do Evento</Text>
+            <TouchableOpacity style={styles.addDespesaButton} onPress={addDespesa}>
+              <Ionicons name="add" size={20} color="#667eea" />
+              <Text style={styles.addDespesaText}>Adicionar</Text>
+            </TouchableOpacity>
+          </View>
+
+          {despesas.map((despesa, index) => (
+            <View key={index} style={styles.despesaItem}>
+              <View style={styles.despesaHeader}>
+                <Text style={styles.despesaTitle}>Despesa {index + 1}</Text>
+                <TouchableOpacity onPress={() => removeDespesa(index)}>
+                  <Ionicons name="trash" size={20} color="#ff4444" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.despesaFields}>
+                <View style={styles.despesaField}>
+                  <Text style={styles.despesaLabel}>Nome *</Text>
+                  <TextInput
+                    style={styles.despesaInput}
+                    value={despesa.nome}
+                    onChangeText={(text) => updateDespesa(index, 'nome', text)}
+                    placeholder="Ex: Transporte, Alimentação"
+                    placeholderTextColor="#999"
+                  />
+                </View>
+
+                <View style={styles.despesaField}>
+                  <Text style={styles.despesaLabel}>Valor (R$) *</Text>
+                  <TextInput
+                    style={styles.despesaInput}
+                    value={despesa.valor}
+                    onChangeText={(text) => updateDespesa(index, 'valor', text)}
+                    placeholder="0,00"
+                    placeholderTextColor="#999"
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+
+              {/* Upload de arquivo */}
+              <View style={styles.despesaFileSection}>
+                <Text style={styles.despesaLabel}>Comprovante (Opcional)</Text>
+                
+                {despesa.arquivo_url ? (
+                  <View style={styles.filePreview}>
+                    <View style={styles.fileInfo}>
+                      <Ionicons 
+                        name={despesa.arquivo_tipo === 'image' ? 'image' : 'document'} 
+                        size={20} 
+                        color="#667eea" 
+                      />
+                      <Text style={styles.fileName}>
+                        {despesa.arquivo_tipo === 'image' ? 'Foto anexada' : 'Documento anexado'}
+                      </Text>
+                      <TouchableOpacity onPress={() => removeFileFromDespesa(index)}>
+                        <Ionicons name="close-circle" size={20} color="#ff4444" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.uploadButtons}>
+                    <TouchableOpacity 
+                      style={styles.uploadButton} 
+                      onPress={() => pickImageForDespesa(index)}
+                    >
+                      <Ionicons name="camera" size={18} color="#667eea" />
+                      <Text style={styles.uploadButtonText}>Foto</Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity 
+                      style={styles.uploadButton} 
+                      onPress={() => pickDocumentForDespesa(index)}
+                    >
+                      <Ionicons name="document" size={18} color="#667eea" />
+                      <Text style={styles.uploadButtonText}>Documento</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            </View>
+          ))}
+
+          {despesas.length === 0 && (
+            <View style={styles.emptyDespesas}>
+              <Ionicons name="receipt-outline" size={32} color="#ccc" />
+              <Text style={styles.emptyDespesasText}>
+                Nenhuma despesa adicionada
+              </Text>
+              <Text style={styles.emptyDespesasSubtext}>
+                Toque em "Adicionar" para incluir despesas do evento
+              </Text>
+            </View>
+          )}
+        </View>
+
         {/* Botões */}
         <View style={styles.buttonContainer}>
           <TouchableOpacity
             style={styles.cancelButton}
             onPress={() => router.back()}
+            disabled={isLoading}
           >
             <Text style={styles.cancelButtonText}>Cancelar</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.saveButton}
+            style={[styles.saveButton, isLoading && styles.saveButtonDisabled]}
             onPress={handleSave}
+            disabled={isLoading}
           >
-            <Ionicons name="checkmark" size={20} color="#fff" />
-            <Text style={styles.saveButtonText}>Salvar Evento</Text>
+            {isLoading ? (
+              <Text style={styles.saveButtonText}>Salvando...</Text>
+            ) : (
+              <>
+                <Ionicons name="checkmark" size={20} color="#fff" />
+                <Text style={styles.saveButtonText}>Salvar Evento</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -696,6 +957,136 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
     marginLeft: 8,
+  },
+  saveButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  textArea: {
+    height: 100,
+  },
+  despesasHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  addDespesaButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#667eea',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  addDespesaText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  despesaItem: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  despesaHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  despesaTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  despesaFields: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  despesaField: {
+    flex: 1,
+  },
+  despesaLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    marginBottom: 6,
+  },
+  despesaInput: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    color: '#333',
+  },
+  despesaFileSection: {
+    marginTop: 8,
+  },
+  uploadButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  uploadButton: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  uploadButtonText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#667eea',
+    marginLeft: 4,
+  },
+  filePreview: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  fileInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  fileName: {
+    fontSize: 14,
+    color: '#667eea',
+    marginLeft: 8,
+    flex: 1,
+  },
+  emptyDespesas: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    borderStyle: 'dashed',
+  },
+  emptyDespesasText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#666',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  emptyDespesasSubtext: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
   },
   modalOverlay: {
     flex: 1,

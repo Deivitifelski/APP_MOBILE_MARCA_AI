@@ -14,8 +14,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { getCurrentUser } from '../../services/supabase/authService';
-import { createUserProfile } from '../../services/supabase/userService';
+import { getCurrentUser } from '../../../services/supabase/authService';
+import { createUserProfile } from '../../../services/supabase/userService';
 import * as ImagePicker from 'expo-image-picker';
 
 const estadosBrasil = [
