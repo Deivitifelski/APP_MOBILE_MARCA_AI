@@ -23,6 +23,8 @@ export default function RootLayout() {
         <Stack.Screen name="cadastro-artista" options={{ headerShown: false }} />
         <Stack.Screen name="adicionar-evento" options={{ headerShown: false }} />
         <Stack.Screen name="editar-usuario" options={{ headerShown: false }} />
+        <Stack.Screen name="configuracoes-artista" options={{ headerShown: false }} />
+        <Stack.Screen name="colaboradores-artista" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>

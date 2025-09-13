@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { getCurrentUser } from '../../services/supabase/authService';
 import { getUserProfile, UserProfile } from '../../services/supabase/userService';
+import { getArtists } from '../../services/supabase/artistService';
 
 export default function ConfiguracoesScreen() {
   const [notifications, setNotifications] = useState(true);
@@ -21,9 +22,12 @@ export default function ConfiguracoesScreen() {
   const [autoSync, setAutoSync] = useState(true);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [hasArtist, setHasArtist] = useState(false);
+  const [currentArtist, setCurrentArtist] = useState<any>(null);
 
   useEffect(() => {
     loadUserProfile();
+    loadArtistData();
   }, []);
 
   const loadUserProfile = async () => {
@@ -52,8 +56,31 @@ export default function ConfiguracoesScreen() {
     }
   };
 
+  const loadArtistData = async () => {
+    try {
+      const { user, error: userError } = await getCurrentUser();
+      
+      if (userError || !user) {
+        return;
+      }
+
+      const { artists, error: artistsError } = await getArtists(user.id);
+      
+      if (!artistsError && artists && artists.length > 0) {
+        setHasArtist(true);
+        setCurrentArtist(artists[0]);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar dados do artista:', error);
+    }
+  };
+
   const handleEditUser = () => {
     router.push('/editar-usuario');
+  };
+
+  const handleArtistSettings = () => {
+    router.push('/configuracoes-artista');
   };
 
   const handleLogout = () => {
@@ -136,6 +163,42 @@ export default function ConfiguracoesScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Configurações do Artista */}
+        {hasArtist && currentArtist && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Artista</Text>
+            
+            <View style={styles.artistCard}>
+              <View style={styles.artistAvatar}>
+                <Ionicons name="musical-notes" size={24} color="#667eea" />
+              </View>
+              <View style={styles.artistInfo}>
+                <Text style={styles.artistName}>{currentArtist.name}</Text>
+                <Text style={styles.artistRole}>
+                  {currentArtist.role === 'owner' ? 'Proprietário' : 'Colaborador'}
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.editButton} onPress={handleArtistSettings}>
+                <Ionicons name="settings" size={16} color="#667eea" />
+              </TouchableOpacity>
+            </View>
+
+            {renderSettingItem(
+              'people',
+              'Colaboradores',
+              'Gerenciar colaboradores do artista',
+              () => router.push('/colaboradores-artista')
+            )}
+            
+            {renderSettingItem(
+              'musical-notes',
+              'Configurações do Artista',
+              'Editar informações do artista',
+              handleArtistSettings
+            )}
+          </View>
+        )}
 
         {/* Preferências */}
         <View style={styles.section}>
@@ -319,6 +382,46 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 8,
     backgroundColor: '#f0f0f0',
+  },
+  artistCard: {
+    backgroundColor: '#fff',
+    marginHorizontal: 20,
+    marginBottom: 15,
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  artistAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  artistInfo: {
+    flex: 1,
+  },
+  artistName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  artistRole: {
+    fontSize: 12,
+    color: '#667eea',
+    fontWeight: '600',
   },
   settingItem: {
     backgroundColor: '#fff',

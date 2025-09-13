@@ -1,0 +1,816 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+  Modal,
+  TextInput,
+  FlatList,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import { getCurrentUser } from '../services/supabase/authService';
+import { getArtists } from '../services/supabase/artistService';
+import { getCollaborators, addCollaborator, removeCollaborator, updateCollaboratorRole, searchUsers, Collaborator } from '../services/supabase/collaboratorService';
+
+export default function ColaboradoresArtistaScreen() {
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isOwner, setIsOwner] = useState(false);
+  const [currentArtist, setCurrentArtist] = useState<any>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [newCollaboratorRole, setNewCollaboratorRole] = useState<'admin' | 'editor' | 'viewer'>('viewer');
+  const [isAdding, setIsAdding] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+      
+      const { user, error: userError } = await getCurrentUser();
+      
+      if (userError || !user) {
+        Alert.alert('Erro', 'Usuário não encontrado. Faça login novamente.');
+        router.back();
+        return;
+      }
+
+      // Buscar artistas do usuário
+      const { artists, error: artistsError } = await getArtists(user.id);
+      
+      if (artistsError || !artists || artists.length === 0) {
+        Alert.alert('Erro', 'Nenhum artista encontrado.');
+        router.back();
+        return;
+      }
+
+      const artist = artists[0];
+      setCurrentArtist(artist);
+      
+      // Verificar se é owner
+      const isUserOwner = artist.role === 'owner';
+      setIsOwner(isUserOwner);
+
+      // Buscar colaboradores
+      const { collaborators, error: collaboratorsError } = await getCollaborators(artist.id);
+      
+      if (collaboratorsError) {
+        Alert.alert('Erro', 'Erro ao carregar colaboradores');
+        return;
+      }
+
+      setCollaborators(collaborators || []);
+    } catch (error) {
+      Alert.alert('Erro', 'Erro ao carregar dados');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSearchUsers = async (term: string) => {
+    if (term.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    try {
+      setIsSearching(true);
+      const { users, error } = await searchUsers(term);
+      
+      if (error) {
+        console.error('Erro ao buscar usuários:', error);
+        return;
+      }
+
+      // Filtrar usuários que já são colaboradores
+      const existingCollaboratorIds = collaborators.map(c => c.user_id);
+      const filteredUsers = users?.filter(user => !existingCollaboratorIds.includes(user.id)) || [];
+      
+      setSearchResults(filteredUsers);
+    } catch (error) {
+      console.error('Erro ao buscar usuários:', error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSelectUser = (user: any) => {
+    setSelectedUser(user);
+    setSearchResults([]);
+    setSearchTerm(user.name);
+  };
+
+  const handleAddCollaborator = async () => {
+    if (!selectedUser) {
+      Alert.alert('Erro', 'Selecione um usuário');
+      return;
+    }
+
+    if (!currentArtist) return;
+
+    try {
+      setIsAdding(true);
+
+      const { success, error } = await addCollaborator(currentArtist.id, {
+        userId: selectedUser.id,
+        role: newCollaboratorRole
+      });
+
+      if (success) {
+        Alert.alert('Sucesso', 'Colaborador adicionado com sucesso!');
+        setShowAddModal(false);
+        setSearchTerm('');
+        setSearchResults([]);
+        setSelectedUser(null);
+        setNewCollaboratorRole('viewer');
+        loadData(); // Recarregar dados
+      } else {
+        Alert.alert('Erro', error || 'Erro ao adicionar colaborador');
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Erro ao adicionar colaborador');
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const handleRemoveCollaborator = (userId: string, userName: string) => {
+    if (!currentArtist) return;
+
+    Alert.alert(
+      'Remover Colaborador',
+      `Tem certeza que deseja remover ${userName}?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Remover',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { success, error } = await removeCollaborator(userId, currentArtist.id);
+              
+              if (success) {
+                Alert.alert('Sucesso', 'Colaborador removido com sucesso!');
+                loadData(); // Recarregar dados
+              } else {
+                Alert.alert('Erro', error || 'Erro ao remover colaborador');
+              }
+            } catch (error) {
+              Alert.alert('Erro', 'Erro ao remover colaborador');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleUpdateRole = (userId: string, currentRole: string, userName: string) => {
+    if (!currentArtist) return;
+
+    const roles = [
+      { label: 'Admin', value: 'admin' },
+      { label: 'Editor', value: 'editor' },
+      { label: 'Visualizador', value: 'viewer' }
+    ];
+
+    const currentRoleLabel = roles.find(r => r.value === currentRole)?.label || currentRole;
+
+    Alert.alert(
+      'Alterar Permissão',
+      `Alterar permissão de ${userName} (atual: ${currentRoleLabel})`,
+      roles.map(role => ({
+        text: role.label,
+        onPress: async () => {
+          try {
+            const { success, error } = await updateCollaboratorRole(userId, currentArtist.id, role.value as any);
+            
+            if (success) {
+              Alert.alert('Sucesso', 'Permissão alterada com sucesso!');
+              loadData(); // Recarregar dados
+            } else {
+              Alert.alert('Erro', error || 'Erro ao alterar permissão');
+            }
+          } catch (error) {
+            Alert.alert('Erro', 'Erro ao alterar permissão');
+          }
+        }
+      })).concat([{ text: 'Cancelar', onPress: async () => {} }])
+    );
+  };
+
+  const getRoleIcon = (role: string) => {
+    switch (role) {
+      case 'owner':
+        return 'crown';
+      case 'admin':
+        return 'shield-checkmark';
+      case 'editor':
+        return 'create';
+      case 'viewer':
+        return 'eye';
+      default:
+        return 'person';
+    }
+  };
+
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'owner':
+        return '#FFD700'; // Dourado
+      case 'admin':
+        return '#FF6B35'; // Laranja
+      case 'editor':
+        return '#4ECDC4'; // Verde água
+      case 'viewer':
+        return '#95A5A6'; // Cinza
+      default:
+        return '#667eea';
+    }
+  };
+
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case 'owner':
+        return 'Proprietário';
+      case 'admin':
+        return 'Administrador';
+      case 'editor':
+        return 'Editor';
+      case 'viewer':
+        return 'Visualizador';
+      default:
+        return role;
+    }
+  };
+
+  const renderCollaborator = ({ item }: { item: Collaborator }) => (
+    <View style={styles.collaboratorCard}>
+      <View style={styles.collaboratorInfo}>
+        <View style={styles.collaboratorAvatar}>
+          <Text style={styles.avatarText}>
+            {item.user.name.charAt(0).toUpperCase()}
+          </Text>
+        </View>
+        <View style={styles.collaboratorDetails}>
+          <Text style={styles.collaboratorName}>{item.user.name}</Text>
+          <Text style={styles.collaboratorEmail}>{item.user.email}</Text>
+          <View style={styles.roleContainer}>
+            <Ionicons 
+              name={getRoleIcon(item.role) as any} 
+              size={16} 
+              color={getRoleColor(item.role)} 
+            />
+            <Text style={[styles.roleText, { color: getRoleColor(item.role) }]}>
+              {getRoleLabel(item.role)}
+            </Text>
+          </View>
+        </View>
+      </View>
+      
+      {isOwner && item.role !== 'owner' && (
+        <View style={styles.collaboratorActions}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => handleUpdateRole(item.user_id, item.role, item.user.name)}
+          >
+            <Ionicons name="swap-horizontal" size={20} color="#667eea" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => handleRemoveCollaborator(item.user_id, item.user.name)}
+          >
+            <Ionicons name="trash" size={20} color="#F44336" />
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="#333" />
+          </TouchableOpacity>
+          <Text style={styles.title}>Colaboradores</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#667eea" />
+          <Text style={styles.loadingText}>Carregando colaboradores...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <Text style={styles.title}>Colaboradores</Text>
+        {isOwner && (
+          <TouchableOpacity 
+            style={styles.addButton}
+            onPress={() => setShowAddModal(true)}
+          >
+            <Ionicons name="add" size={24} color="#667eea" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <ScrollView style={styles.content}>
+        {/* Informações do artista */}
+        {currentArtist && (
+          <View style={styles.artistInfo}>
+            <Text style={styles.artistName}>{currentArtist.name}</Text>
+            <Text style={styles.collaboratorCount}>
+              {collaborators.length} colaborador{collaborators.length !== 1 ? 'es' : ''}
+            </Text>
+          </View>
+        )}
+
+        {/* Lista de colaboradores */}
+        {collaborators.length > 0 ? (
+          <FlatList
+            data={collaborators}
+            renderItem={renderCollaborator}
+            keyExtractor={(item) => `${item.user_id}-${item.artist_id}`}
+            scrollEnabled={false}
+            style={styles.collaboratorsList}
+          />
+        ) : (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="people-outline" size={48} color="#ccc" />
+            <Text style={styles.emptyText}>
+              Nenhum colaborador encontrado
+            </Text>
+            {isOwner && (
+              <Text style={styles.emptySubtext}>
+                Toque no botão + para adicionar colaboradores
+              </Text>
+            )}
+          </View>
+        )}
+      </ScrollView>
+
+      {/* Modal para adicionar colaborador */}
+      <Modal
+        visible={showAddModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity 
+              onPress={() => setShowAddModal(false)}
+              style={styles.modalCloseButton}
+            >
+              <Text style={styles.modalCloseText}>Cancelar</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Adicionar Colaborador</Text>
+            <TouchableOpacity 
+              onPress={handleAddCollaborator}
+              style={styles.modalSaveButton}
+              disabled={isAdding}
+            >
+              {isAdding ? (
+                <ActivityIndicator size="small" color="#667eea" />
+              ) : (
+                <Text style={styles.modalSaveText}>Adicionar</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Buscar usuário</Text>
+              <TextInput
+                style={styles.input}
+                value={searchTerm}
+                onChangeText={(text) => {
+                  setSearchTerm(text);
+                  handleSearchUsers(text);
+                }}
+                placeholder="Digite nome ou email do usuário"
+                autoCapitalize="none"
+              />
+              
+              {/* Resultados da busca */}
+              {searchResults.length > 0 && (
+                <View style={styles.searchResults}>
+                  {searchResults.map((user) => (
+                    <TouchableOpacity
+                      key={user.id}
+                      style={styles.searchResultItem}
+                      onPress={() => handleSelectUser(user)}
+                    >
+                      <View style={styles.userAvatar}>
+                        <Text style={styles.userAvatarText}>
+                          {user.name.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={styles.userInfo}>
+                        <Text style={styles.userName}>{user.name}</Text>
+                        <Text style={styles.userEmail}>{user.email}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+              
+              {isSearching && (
+                <View style={styles.searchLoading}>
+                  <ActivityIndicator size="small" color="#667eea" />
+                  <Text style={styles.searchLoadingText}>Buscando usuários...</Text>
+                </View>
+              )}
+              
+              {searchTerm.length >= 2 && searchResults.length === 0 && !isSearching && (
+                <Text style={styles.noResultsText}>Nenhum usuário encontrado</Text>
+              )}
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Permissão</Text>
+              <View style={styles.roleOptions}>
+                {[
+                  { label: 'Administrador', value: 'admin', description: 'Pode gerenciar colaboradores e editar tudo' },
+                  { label: 'Editor', value: 'editor', description: 'Pode editar eventos e despesas' },
+                  { label: 'Visualizador', value: 'viewer', description: 'Pode apenas visualizar' }
+                ].map((role) => (
+                  <TouchableOpacity
+                    key={role.value}
+                    style={[
+                      styles.roleOption,
+                      newCollaboratorRole === role.value && styles.roleOptionSelected
+                    ]}
+                    onPress={() => setNewCollaboratorRole(role.value as any)}
+                  >
+                    <View style={styles.roleOptionContent}>
+                      <Text style={[
+                        styles.roleOptionLabel,
+                        newCollaboratorRole === role.value && styles.roleOptionLabelSelected
+                      ]}>
+                        {role.label}
+                      </Text>
+                      <Text style={[
+                        styles.roleOptionDescription,
+                        newCollaboratorRole === role.value && styles.roleOptionDescriptionSelected
+                      ]}>
+                        {role.description}
+                      </Text>
+                    </View>
+                    <View style={[
+                      styles.roleRadio,
+                      newCollaboratorRole === role.value && styles.roleRadioSelected
+                    ]}>
+                      {newCollaboratorRole === role.value && (
+                        <View style={styles.roleRadioInner} />
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+  },
+  header: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    padding: 8,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  addButton: {
+    padding: 8,
+  },
+  placeholder: {
+    width: 40,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666',
+  },
+  content: {
+    flex: 1,
+  },
+  artistInfo: {
+    backgroundColor: '#fff',
+    margin: 20,
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  artistName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  collaboratorCount: {
+    fontSize: 14,
+    color: '#666',
+  },
+  collaboratorsList: {
+    paddingHorizontal: 20,
+  },
+  collaboratorCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  collaboratorInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  collaboratorAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#667eea',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  avatarText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  collaboratorDetails: {
+    flex: 1,
+  },
+  collaboratorName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 2,
+  },
+  collaboratorEmail: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+  },
+  roleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  roleText: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  collaboratorActions: {
+    flexDirection: 'row',
+  },
+  actionButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#666',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+  },
+  modalHeader: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  modalCloseButton: {
+    padding: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  modalSaveButton: {
+    padding: 8,
+  },
+  modalCloseText: {
+    fontSize: 16,
+    color: '#666',
+  },
+  modalSaveText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#667eea',
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  inputContainer: {
+    marginBottom: 24,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    backgroundColor: '#fff',
+  },
+  searchResults: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    maxHeight: 200,
+  },
+  searchResultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  userAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#667eea',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  userAvatarText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 2,
+  },
+  userEmail: {
+    fontSize: 14,
+    color: '#666',
+  },
+  searchLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  searchLoadingText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#666',
+  },
+  noResultsText: {
+    textAlign: 'center',
+    padding: 16,
+    fontSize: 14,
+    color: '#999',
+  },
+  roleOptions: {
+    gap: 12,
+  },
+  roleOption: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  roleOptionSelected: {
+    borderColor: '#667eea',
+    backgroundColor: '#f8f9ff',
+  },
+  roleOptionContent: {
+    flex: 1,
+  },
+  roleOptionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  roleOptionLabelSelected: {
+    color: '#667eea',
+  },
+  roleOptionDescription: {
+    fontSize: 14,
+    color: '#666',
+  },
+  roleOptionDescriptionSelected: {
+    color: '#667eea',
+  },
+  roleRadio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#ddd',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 12,
+  },
+  roleRadioSelected: {
+    borderColor: '#667eea',
+  },
+  roleRadioInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#667eea',
+  },
+});
