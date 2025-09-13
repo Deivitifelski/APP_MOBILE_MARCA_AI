@@ -125,14 +125,6 @@ export default function FinanceiroScreen() {
   const totalExpenses = events.reduce((sum, event) => sum + event.totalExpenses, 0);
   const netProfit = totalRevenue - totalExpenses;
 
-  // Todas as despesas de todos os eventos
-  const allExpenses = events.flatMap(event => 
-    event.expenses.map(expense => ({
-      ...expense,
-      eventName: event.name,
-      eventDate: event.event_date
-    }))
-  );
 
   const renderExpense = ({ item }: { item: any }) => (
     <View style={styles.expenseItem}>
@@ -151,28 +143,6 @@ export default function FinanceiroScreen() {
     </View>
   );
 
-  const renderAllExpense = ({ item }: { item: any }) => (
-    <View style={styles.allExpenseCard}>
-      <View style={styles.allExpenseHeader}>
-        <View style={styles.allExpenseInfo}>
-          <Text style={styles.allExpenseName}>{item.name}</Text>
-          <Text style={styles.allExpenseEvent}>{item.eventName}</Text>
-          <Text style={styles.allExpenseDate}>{formatDate(item.eventDate)}</Text>
-        </View>
-        <View style={styles.allExpenseValue}>
-          <Text style={styles.allExpenseAmount}>{formatCurrency(item.value)}</Text>
-          {item.receipt_url && (
-            <TouchableOpacity
-              style={styles.downloadButton}
-              onPress={() => downloadFile(item.receipt_url, `${item.name}_comprovante`)}
-            >
-              <Ionicons name="download" size={16} color="#667eea" />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-    </View>
-  );
 
   const renderEvent = ({ item }: { item: EventWithExpenses }) => (
     <View style={styles.eventCard}>
@@ -182,12 +152,18 @@ export default function FinanceiroScreen() {
           <Text style={styles.eventDate}>{formatDate(item.event_date)}</Text>
         </View>
         <View style={styles.eventValues}>
-          <Text style={styles.eventRevenue}>
-            {formatCurrency(item.value || 0)}
-          </Text>
-          <Text style={styles.eventProfit}>
-            {formatCurrency((item.value || 0) - item.totalExpenses)}
-          </Text>
+          <View style={styles.eventValueRow}>
+            <Text style={styles.eventValueLabel}>Receita:</Text>
+            <Text style={styles.eventRevenue}>
+              {formatCurrency(item.value || 0)}
+            </Text>
+          </View>
+          <View style={[styles.eventValueRow, styles.eventNetRow]}>
+            <Text style={styles.eventNetLabel}>Líquido:</Text>
+            <Text style={[styles.eventNet, { color: ((item.value || 0) - item.totalExpenses) >= 0 ? '#4CAF50' : '#F44336' }]}>
+              {formatCurrency((item.value || 0) - item.totalExpenses)}
+            </Text>
+          </View>
         </View>
       </View>
       
@@ -289,35 +265,6 @@ export default function FinanceiroScreen() {
           )}
         </View>
 
-        {/* Lista de despesas por evento */}
-        {allExpenses.length > 0 && (
-          <View style={styles.expensesSection}>
-            <Text style={styles.sectionTitle}>
-              Despesas por Evento ({allExpenses.length})
-            </Text>
-            
-            {events.map((event) => (
-              event.expenses.length > 0 && (
-                <View key={event.id} style={styles.eventExpensesContainer}>
-                  <View style={styles.eventExpensesHeader}>
-                    <Text style={styles.eventExpensesTitle}>{event.name}</Text>
-                    <Text style={styles.eventExpensesDate}>{formatDate(event.event_date)}</Text>
-                    <Text style={styles.eventExpensesTotal}>
-                      Total: {formatCurrency(event.totalExpenses)}
-                    </Text>
-                  </View>
-                  
-                  <FlatList
-                    data={event.expenses}
-                    renderItem={renderAllExpense}
-                    keyExtractor={(expense) => expense.id}
-                    scrollEnabled={false}
-                  />
-                </View>
-              )
-            ))}
-          </View>
-        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -523,17 +470,45 @@ const styles = StyleSheet.create({
   },
   eventValues: {
     alignItems: 'flex-end',
+    minWidth: 120,
+  },
+  eventValueRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  eventValueLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginRight: 8,
   },
   eventRevenue: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#4CAF50',
-    marginBottom: 2,
   },
-  eventProfit: {
+  eventExpenses: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#F44336',
+  },
+  eventNetRow: {
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+    paddingTop: 6,
+    marginTop: 4,
+    marginBottom: 0,
+  },
+  eventNetLabel: {
     fontSize: 14,
     fontWeight: '600',
     color: '#333',
+    marginRight: 8,
+  },
+  eventNet: {
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   expensesSection: {
     marginTop: 12,
@@ -581,79 +556,6 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 12,
     textAlign: 'center',
-  },
-  allExpenseCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  allExpenseHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  allExpenseInfo: {
-    flex: 1,
-  },
-  allExpenseName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
-  },
-  allExpenseEvent: {
-    fontSize: 14,
-    color: '#667eea',
-    marginBottom: 2,
-  },
-  allExpenseDate: {
-    fontSize: 12,
-    color: '#666',
-  },
-  allExpenseValue: {
-    alignItems: 'flex-end',
-  },
-  allExpenseAmount: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#F44336',
-    marginBottom: 8,
-  },
-  eventExpensesContainer: {
-    marginBottom: 20,
-  },
-  eventExpensesHeader: {
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: '#667eea',
-  },
-  eventExpensesTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
-  },
-  eventExpensesDate: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
-  },
-  eventExpensesTotal: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#F44336',
   },
 });
 

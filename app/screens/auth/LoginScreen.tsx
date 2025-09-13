@@ -17,8 +17,8 @@ import { loginUser } from '../../../services/supabase/authService';
 import { checkUserExists } from '../../../services/supabase/userService';
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('deivitifelskiefisio@outlook.com');
+  const [password, setPassword] = useState('campobom209');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
