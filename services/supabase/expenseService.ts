@@ -2,45 +2,36 @@ import { supabase } from '../../lib/supabase';
 
 export interface Expense {
   id: string;
-  nome: string;
-  valor: number;
-  descricao?: string;
-  arquivo_url?: string;
-  arquivo_tipo?: 'image' | 'document';
   event_id: string;
+  name: string;
+  value: number;
+  receipt_url?: string;
   created_at: string;
   updated_at: string;
 }
 
 export interface CreateExpenseData {
-  nome: string;
-  valor: number;
-  descricao?: string;
-  arquivo_url?: string;
-  arquivo_tipo?: 'image' | 'document';
-  event_id: string;
+  name: string;
+  value: number;
+  receipt_url?: string;
 }
 
 export interface UpdateExpenseData {
-  nome?: string;
-  valor?: number;
-  descricao?: string;
-  arquivo_url?: string;
-  arquivo_tipo?: 'image' | 'document';
+  name?: string;
+  value?: number;
+  receipt_url?: string;
 }
 
 // Criar despesa
-export const createExpense = async (expenseData: CreateExpenseData): Promise<{ success: boolean; error: string | null; expense?: Expense }> => {
+export const createExpense = async (eventId: string, expenseData: CreateExpenseData): Promise<{ success: boolean; error: string | null; expense?: Expense }> => {
   try {
     const { data, error } = await supabase
-      .from('expenses')
+      .from('event_expenses')
       .insert({
-        nome: expenseData.nome,
-        valor: expenseData.valor,
-        descricao: expenseData.descricao || null,
-        arquivo_url: expenseData.arquivo_url || null,
-        arquivo_tipo: expenseData.arquivo_tipo || null,
-        event_id: expenseData.event_id,
+        event_id: eventId,
+        name: expenseData.name,
+        value: expenseData.value,
+        receipt_url: expenseData.receipt_url || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -61,7 +52,7 @@ export const createExpense = async (expenseData: CreateExpenseData): Promise<{ s
 export const getExpensesByEvent = async (eventId: string): Promise<{ success: boolean; error: string | null; expenses?: Expense[] }> => {
   try {
     const { data, error } = await supabase
-      .from('expenses')
+      .from('event_expenses')
       .select('*')
       .eq('event_id', eventId)
       .order('created_at', { ascending: false });
@@ -80,7 +71,7 @@ export const getExpensesByEvent = async (eventId: string): Promise<{ success: bo
 export const getExpenseById = async (expenseId: string): Promise<{ success: boolean; error: string | null; expense?: Expense }> => {
   try {
     const { data, error } = await supabase
-      .from('expenses')
+      .from('event_expenses')
       .select('*')
       .eq('id', expenseId)
       .single();
@@ -99,7 +90,7 @@ export const getExpenseById = async (expenseId: string): Promise<{ success: bool
 export const updateExpense = async (expenseId: string, expenseData: UpdateExpenseData): Promise<{ success: boolean; error: string | null; expense?: Expense }> => {
   try {
     const { data, error } = await supabase
-      .from('expenses')
+      .from('event_expenses')
       .update({
         ...expenseData,
         updated_at: new Date().toISOString()
@@ -122,7 +113,7 @@ export const updateExpense = async (expenseId: string, expenseData: UpdateExpens
 export const deleteExpense = async (expenseId: string): Promise<{ success: boolean; error: string | null }> => {
   try {
     const { error } = await supabase
-      .from('expenses')
+      .from('event_expenses')
       .delete()
       .eq('id', expenseId);
 
@@ -140,15 +131,15 @@ export const deleteExpense = async (expenseId: string): Promise<{ success: boole
 export const getTotalExpensesByEvent = async (eventId: string): Promise<{ success: boolean; error: string | null; total?: number }> => {
   try {
     const { data, error } = await supabase
-      .from('expenses')
-      .select('valor')
+      .from('event_expenses')
+      .select('value')
       .eq('event_id', eventId);
 
     if (error) {
       return { success: false, error: error.message };
     }
 
-    const total = data?.reduce((sum, expense) => sum + expense.valor, 0) || 0;
+    const total = data?.reduce((sum, expense) => sum + expense.value, 0) || 0;
     return { success: true, error: null, total };
   } catch (error) {
     return { success: false, error: 'Erro de conexão' };

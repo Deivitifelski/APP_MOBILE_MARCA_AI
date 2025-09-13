@@ -66,9 +66,13 @@ export default function FinanceiroScreen() {
       // Para cada evento, buscar suas despesas
       const eventsWithExpenses = await Promise.all(
         (monthEvents || []).map(async (event) => {
-          const { expenses, error: expensesError } = await getExpensesByEvent(event.id);
+          const { success, expenses, error: expensesError } = await getExpensesByEvent(event.id);
           
-          const totalExpenses = expenses?.reduce((sum, expense) => sum + expense.valor, 0) || 0;
+          if (!success || expensesError) {
+            console.error('Erro ao carregar despesas do evento:', expensesError);
+          }
+          
+          const totalExpenses = expenses?.reduce((sum, expense) => sum + expense.value, 0) || 0;
           
           return {
             ...event,
@@ -103,7 +107,10 @@ export default function FinanceiroScreen() {
     });
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | undefined | null) => {
+    if (!dateString) {
+      return 'Data não informada';
+    }
     const [year, month, day] = dateString.split('-').map(Number);
     const date = new Date(year, month - 1, day);
     return date.toLocaleDateString('pt-BR');
@@ -118,11 +125,20 @@ export default function FinanceiroScreen() {
   const totalExpenses = events.reduce((sum, event) => sum + event.totalExpenses, 0);
   const netProfit = totalRevenue - totalExpenses;
 
+  // Todas as despesas de todos os eventos
+  const allExpenses = events.flatMap(event => 
+    event.expenses.map(expense => ({
+      ...expense,
+      eventName: event.name,
+      eventDate: event.event_date
+    }))
+  );
+
   const renderExpense = ({ item }: { item: any }) => (
     <View style={styles.expenseItem}>
       <View style={styles.expenseInfo}>
         <Text style={styles.expenseName}>{item.name}</Text>
-        <Text style={styles.expenseValue}>{formatCurrency(item.valor)}</Text>
+        <Text style={styles.expenseValue}>{formatCurrency(item.value)}</Text>
       </View>
       {item.receipt_url && (
         <TouchableOpacity
@@ -132,6 +148,29 @@ export default function FinanceiroScreen() {
           <Ionicons name="download" size={16} color="#667eea" />
         </TouchableOpacity>
       )}
+    </View>
+  );
+
+  const renderAllExpense = ({ item }: { item: any }) => (
+    <View style={styles.allExpenseCard}>
+      <View style={styles.allExpenseHeader}>
+        <View style={styles.allExpenseInfo}>
+          <Text style={styles.allExpenseName}>{item.name}</Text>
+          <Text style={styles.allExpenseEvent}>{item.eventName}</Text>
+          <Text style={styles.allExpenseDate}>{formatDate(item.eventDate)}</Text>
+        </View>
+        <View style={styles.allExpenseValue}>
+          <Text style={styles.allExpenseAmount}>{formatCurrency(item.value)}</Text>
+          {item.receipt_url && (
+            <TouchableOpacity
+              style={styles.downloadButton}
+              onPress={() => downloadFile(item.receipt_url, `${item.name}_comprovante`)}
+            >
+              <Ionicons name="download" size={16} color="#667eea" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
     </View>
   );
 
@@ -249,6 +288,36 @@ export default function FinanceiroScreen() {
             </View>
           )}
         </View>
+
+        {/* Lista de despesas por evento */}
+        {allExpenses.length > 0 && (
+          <View style={styles.expensesSection}>
+            <Text style={styles.sectionTitle}>
+              Despesas por Evento ({allExpenses.length})
+            </Text>
+            
+            {events.map((event) => (
+              event.expenses.length > 0 && (
+                <View key={event.id} style={styles.eventExpensesContainer}>
+                  <View style={styles.eventExpensesHeader}>
+                    <Text style={styles.eventExpensesTitle}>{event.name}</Text>
+                    <Text style={styles.eventExpensesDate}>{formatDate(event.event_date)}</Text>
+                    <Text style={styles.eventExpensesTotal}>
+                      Total: {formatCurrency(event.totalExpenses)}
+                    </Text>
+                  </View>
+                  
+                  <FlatList
+                    data={event.expenses}
+                    renderItem={renderAllExpense}
+                    keyExtractor={(expense) => expense.id}
+                    scrollEnabled={false}
+                  />
+                </View>
+              )
+            ))}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -512,6 +581,79 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 12,
     textAlign: 'center',
+  },
+  allExpenseCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  allExpenseHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  allExpenseInfo: {
+    flex: 1,
+  },
+  allExpenseName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  allExpenseEvent: {
+    fontSize: 14,
+    color: '#667eea',
+    marginBottom: 2,
+  },
+  allExpenseDate: {
+    fontSize: 12,
+    color: '#666',
+  },
+  allExpenseValue: {
+    alignItems: 'flex-end',
+  },
+  allExpenseAmount: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#F44336',
+    marginBottom: 8,
+  },
+  eventExpensesContainer: {
+    marginBottom: 20,
+  },
+  eventExpensesHeader: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#667eea',
+  },
+  eventExpensesTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  eventExpensesDate: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+  },
+  eventExpensesTotal: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#F44336',
   },
 });
 
