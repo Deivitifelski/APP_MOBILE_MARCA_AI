@@ -283,7 +283,7 @@ export default function AdicionarEventoScreen() {
         user_id: user.id,
         name: form.nome.trim(),
         description: form.descricao.trim() || undefined,
-        event_date: form.data.toISOString().split('T')[0], // YYYY-MM-DD
+        event_date: `${form.data.getFullYear()}-${String(form.data.getMonth() + 1).padStart(2, '0')}-${String(form.data.getDate()).padStart(2, '0')}`, // YYYY-MM-DD
         start_time: form.horarioInicio.toTimeString().split(' ')[0].substring(0, 5), // HH:MM
         end_time: form.horarioFim.toTimeString().split(' ')[0].substring(0, 5), // HH:MM
         value: form.valor ? parseFloat(form.valor) : undefined,

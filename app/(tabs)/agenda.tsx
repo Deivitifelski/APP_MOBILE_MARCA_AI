@@ -178,14 +178,16 @@ export default function AgendaScreen() {
   };
 
   const renderShow = ({ item }: { item: any }) => {
-    const eventDate = new Date(item.event_date);
+    // Parse da data sem conversão de fuso horário
+    const [year, month, day] = item.event_date.split('-').map(Number);
+    const eventDate = new Date(year, month - 1, day);
     const dayOfWeek = eventDate.toLocaleDateString('pt-BR', { weekday: 'short' });
     
     return (
       <View style={styles.showCard}>
         <View style={styles.showHeader}>
           <View style={styles.showDateContainer}>
-            <Text style={styles.showDate}>{eventDate.getDate()}</Text>
+            <Text style={styles.showDate}>{day}</Text>
             <Text style={styles.showDayOfWeek}>{dayOfWeek}</Text>
           </View>
           <View style={styles.showTimeContainer}>
