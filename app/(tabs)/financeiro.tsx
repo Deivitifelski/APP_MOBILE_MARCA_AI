@@ -158,6 +158,14 @@ export default function FinanceiroScreen() {
               {formatCurrency(item.value || 0)}
             </Text>
           </View>
+          {item.totalExpenses > 0 && (
+            <View style={styles.eventValueRow}>
+              <Text style={styles.eventValueLabel}>Despesas:</Text>
+              <Text style={styles.eventExpenses}>
+                -{formatCurrency(item.totalExpenses)}
+              </Text>
+            </View>
+          )}
           <View style={[styles.eventValueRow, styles.eventNetRow]}>
             <Text style={styles.eventNetLabel}>Líquido:</Text>
             <Text style={[styles.eventNet, { color: ((item.value || 0) - item.totalExpenses) >= 0 ? '#4CAF50' : '#F44336' }]}>
