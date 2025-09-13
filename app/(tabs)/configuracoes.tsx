@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,14 +8,53 @@ import {
   TouchableOpacity,
   Switch,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { getCurrentUser } from '../../services/supabase/authService';
+import { getUserProfile, UserProfile } from '../../services/supabase/userService';
 
 export default function ConfiguracoesScreen() {
   const [notifications, setNotifications] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
   const [autoSync, setAutoSync] = useState(true);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+
+  useEffect(() => {
+    loadUserProfile();
+  }, []);
+
+  const loadUserProfile = async () => {
+    try {
+      setIsLoadingProfile(true);
+      
+      const { user, error: userError } = await getCurrentUser();
+      
+      if (userError || !user) {
+        console.error('Erro ao obter usuário atual:', userError);
+        return;
+      }
+
+      const { profile, error: profileError } = await getUserProfile(user.id);
+      
+      if (profileError) {
+        console.error('Erro ao carregar perfil:', profileError);
+        return;
+      }
+
+      setUserProfile(profile);
+    } catch (error) {
+      console.error('Erro ao carregar perfil do usuário:', error);
+    } finally {
+      setIsLoadingProfile(false);
+    }
+  };
+
+  const handleEditUser = () => {
+    router.push('/editar-usuario');
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -79,10 +118,20 @@ export default function ConfiguracoesScreen() {
               <Ionicons name="person" size={40} color="#667eea" />
             </View>
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>Usuário Marca AI</Text>
-              <Text style={styles.profileEmail}>usuario@marcaai.com</Text>
+              {isLoadingProfile ? (
+                <ActivityIndicator size="small" color="#667eea" />
+              ) : (
+                <>
+                  <Text style={styles.profileName}>
+                    {userProfile?.name || 'Usuário Marca AI'}
+                  </Text>
+                  <Text style={styles.profileEmail}>
+                    {userProfile?.email || 'usuario@marcaai.com'}
+                  </Text>
+                </>
+              )}
             </View>
-            <TouchableOpacity style={styles.editButton}>
+            <TouchableOpacity style={styles.editButton} onPress={handleEditUser}>
               <Ionicons name="pencil" size={16} color="#667eea" />
             </TouchableOpacity>
           </View>
@@ -139,7 +188,8 @@ export default function ConfiguracoesScreen() {
           {renderSettingItem(
             'person-circle',
             'Perfil',
-            'Editar informações pessoais'
+            'Editar informações pessoais',
+            handleEditUser
           )}
           
           {renderSettingItem(
