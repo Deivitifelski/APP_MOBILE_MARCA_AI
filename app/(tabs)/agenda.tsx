@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { getEventsByMonth } from '../../services/supabase/eventService';
 import { useActiveArtist } from '../../services/useActiveArtist';
+import { useNotifications } from '../../services/useNotifications';
 
 // Dados mockados de shows
 const mockShows = [
@@ -64,12 +65,14 @@ export default function AgendaScreen() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<any[]>([]);
   const { activeArtist, loadActiveArtist, isLoading } = useActiveArtist();
+  const { unreadCount, loadUnreadCount } = useNotifications();
 
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
 
   useEffect(() => {
     loadActiveArtist();
+    loadUnreadCount();
   }, []);
 
   useEffect(() => {
@@ -203,11 +206,41 @@ export default function AgendaScreen() {
                 <Text style={styles.artistSubtitle}>Agenda de Shows</Text>
               </View>
             </View>
+            
+            {/* Ícone de Notificações */}
+            <TouchableOpacity
+              style={styles.notificationButton}
+              onPress={() => router.push('/notificacoes')}
+            >
+              <Ionicons name="notifications-outline" size={24} color="#667eea" />
+              {unreadCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.badgeText}>
+                    {unreadCount > 99 ? '99+' : unreadCount.toString()}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
         )}
         
         {!activeArtist && (
-          <Text style={styles.title}>Agenda de Shows</Text>
+          <View style={styles.noArtistHeader}>
+            <Text style={styles.title}>Agenda de Shows</Text>
+            <TouchableOpacity
+              style={styles.notificationButton}
+              onPress={() => router.push('/notificacoes')}
+            >
+              <Ionicons name="notifications-outline" size={24} color="#667eea" />
+              {unreadCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.badgeText}>
+                    {unreadCount > 99 ? '99+' : unreadCount.toString()}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
         )}
         
         {/* Navegação do mês */}
@@ -563,5 +596,34 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#667eea',
     marginLeft: 8,
+  },
+  noArtistHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  notificationButton: {
+    position: 'relative',
+    padding: 8,
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });

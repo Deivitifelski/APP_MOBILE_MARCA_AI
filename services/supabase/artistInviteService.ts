@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase';
+import { createArtistInviteNotification } from '../notificationManager';
 
 export interface ArtistInvite {
   id: string;
@@ -66,6 +67,19 @@ export const createArtistInvite = async (data: CreateInviteData): Promise<Invite
     if (error) {
       console.error('Erro ao criar convite:', error);
       return { success: false, error: error.message };
+    }
+
+    // Criar notificação para o usuário convidado
+    try {
+      await createArtistInviteNotification(
+        invite.id,
+        data.toUserId,
+        data.fromUserId,
+        data.artistId
+      );
+    } catch (notificationError) {
+      console.error('Erro ao criar notificação de convite:', notificationError);
+      // Não falhar o convite se a notificação falhar
     }
 
     return { success: true, invite };
@@ -219,6 +233,28 @@ export const declineArtistInvite = async (inviteId: string, userId: string): Pro
 
     if (!invite) {
       return { success: false, error: 'Convite não encontrado ou já processado' };
+    }
+
+    // Deletar notificação relacionada ao convite recusado
+    try {
+      const { deleteNotification } = await import('./notificationService');
+      // Buscar e deletar notificações relacionadas ao convite
+      const { data: notifications } = await supabase
+        .from('notifications')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('type', 'artist_invite')
+        .eq('artist_id', invite.artist_id)
+        .eq('from_user_id', invite.from_user_id);
+
+      if (notifications && notifications.length > 0) {
+        for (const notification of notifications) {
+          await deleteNotification(notification.id);
+        }
+      }
+    } catch (notificationError) {
+      console.error('Erro ao deletar notificação do convite recusado:', notificationError);
+      // Não falhar o processo se a notificação não for deletada
     }
 
     return { success: true, invite };

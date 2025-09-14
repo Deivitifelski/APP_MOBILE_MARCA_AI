@@ -65,7 +65,7 @@ export const createNotification = async (notificationData: CreateNotificationDat
   }
 };
 
-// Buscar notificações do usuário
+// Buscar notificações do usuário (recebidas e enviadas)
 export const getUserNotifications = async (userId: string, limit: number = 50): Promise<{ notifications: Notification[] | null; error: string | null }> => {
   try {
     const { data, error } = await supabase
@@ -75,7 +75,7 @@ export const getUserNotifications = async (userId: string, limit: number = 50): 
         from_user:users!from_user_id(id, name, email),
         artist:artists(id, name)
       `)
-      .eq('user_id', userId)
+      .or(`user_id.eq.${userId},from_user_id.eq.${userId}`)
       .order('created_at', { ascending: false })
       .limit(limit);
 
@@ -144,13 +144,13 @@ export const deleteNotification = async (notificationId: string): Promise<{ succ
   }
 };
 
-// Contar notificações não lidas
+// Contar notificações não lidas (recebidas e enviadas)
 export const getUnreadNotificationCount = async (userId: string): Promise<{ count: number; error: string | null }> => {
   try {
     const { count, error } = await supabase
       .from('notifications')
       .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId)
+      .or(`user_id.eq.${userId},from_user_id.eq.${userId}`)
       .eq('read', false);
 
     if (error) {
@@ -158,6 +158,49 @@ export const getUnreadNotificationCount = async (userId: string): Promise<{ coun
     }
 
     return { count: count || 0, error: null };
+  } catch (error) {
+    return { count: 0, error: 'Erro de conexão' };
+  }
+};
+
+// Contar convites de artista pendentes
+export const getPendingArtistInvitesCount = async (userId: string): Promise<{ count: number; error: string | null }> => {
+  try {
+    const { count, error } = await supabase
+      .from('artist_invites')
+      .select('*', { count: 'exact', head: true })
+      .eq('to_user_id', userId)
+      .eq('status', 'pending');
+
+    if (error) {
+      return { count: 0, error: error.message };
+    }
+
+    return { count: count || 0, error: null };
+  } catch (error) {
+    return { count: 0, error: 'Erro de conexão' };
+  }
+};
+
+// Contar total de notificações não lidas (incluindo convites pendentes)
+export const getTotalUnreadCount = async (userId: string): Promise<{ count: number; error: string | null }> => {
+  try {
+    // Buscar contagem de notificações
+    const { count: notificationCount, error: notificationError } = await getUnreadNotificationCount(userId);
+    
+    if (notificationError) {
+      return { count: 0, error: notificationError };
+    }
+
+    // Buscar contagem de convites pendentes
+    const { count: inviteCount, error: inviteError } = await getPendingArtistInvitesCount(userId);
+    
+    if (inviteError) {
+      return { count: notificationCount, error: inviteError };
+    }
+
+    const totalCount = notificationCount + inviteCount;
+    return { count: totalCount, error: null };
   } catch (error) {
     return { count: 0, error: 'Erro de conexão' };
   }
