@@ -412,12 +412,20 @@ export default function ColaboradoresArtistaScreen() {
         <Text style={styles.title}>Colaboradores</Text>
         <View style={styles.headerActions}>
           {isOwner && (
-            <TouchableOpacity 
-              style={styles.headerButton}
-              onPress={() => router.push('/convites-enviados')}
-            >
-              <Ionicons name="mail" size={24} color="#667eea" />
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity
+                style={styles.headerButton}
+                onPress={() => router.push('/convites-enviados')}
+              >
+                <Ionicons name="mail" size={24} color="#667eea" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.headerButton}
+                onPress={() => router.push('/selecionar-artista')}
+              >
+                <Ionicons name="swap-horizontal" size={24} color="#667eea" />
+              </TouchableOpacity>
+            </>
           )}
           {isOwner && (
             <TouchableOpacity 

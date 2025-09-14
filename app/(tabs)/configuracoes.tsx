@@ -138,8 +138,10 @@ export default function ConfiguracoesScreen() {
       </View>
 
       <ScrollView style={styles.content}>
-        {/* Perfil */}
+        {/* Seção: Usuário */}
         <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Usuário</Text>
+          
           <View style={styles.profileCard}>
             <View style={styles.profileAvatar}>
               <Ionicons name="person" size={40} color="#667eea" />
@@ -162,9 +164,23 @@ export default function ConfiguracoesScreen() {
               <Ionicons name="pencil" size={16} color="#667eea" />
             </TouchableOpacity>
           </View>
+
+          {renderSettingItem(
+            'swap-horizontal',
+            'Selecionar Artista',
+            'Alternar entre artistas colaboradores',
+            () => router.push('/selecionar-artista')
+          )}
+
+          {renderSettingItem(
+            'person-circle',
+            'Perfil do Usuário',
+            'Editar informações pessoais',
+            handleEditUser
+          )}
         </View>
 
-        {/* Configurações do Artista */}
+        {/* Seção: Artista */}
         {hasArtist && currentArtist && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Artista</Text>
@@ -197,12 +213,19 @@ export default function ConfiguracoesScreen() {
               'Editar informações do artista',
               handleArtistSettings
             )}
+
+            {renderSettingItem(
+              'mail',
+              'Convites Enviados',
+              'Ver e gerenciar convites',
+              () => router.push('/convites-enviados')
+            )}
           </View>
         )}
 
-        {/* Preferências */}
+        {/* Seção: Preferências do App */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Preferências</Text>
+          <Text style={styles.sectionTitle}>Preferências do App</Text>
           
           {renderSettingItem(
             'notifications',
