@@ -202,25 +202,26 @@ export default function AgendaScreen() {
                 <Ionicons name="musical-notes" size={24} color="#667eea" />
               </View>
               <View style={styles.artistDetails}>
-                <Text style={styles.artistName}>{activeArtist.name}</Text>
+                <View style={styles.artistNameRow}>
+                  <Text style={styles.artistName}>{activeArtist.name}</Text>
+                  {/* Ícone de Notificações */}
+                  <TouchableOpacity
+                    style={styles.notificationButton}
+                    onPress={() => router.push('/notificacoes')}
+                  >
+                    <Ionicons name="notifications-outline" size={24} color="#667eea" />
+                    {unreadCount > 0 && (
+                      <View style={styles.notificationBadge}>
+                        <Text style={styles.badgeText}>
+                          {unreadCount > 99 ? '99+' : unreadCount.toString()}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                </View>
                 <Text style={styles.artistSubtitle}>Agenda de Shows</Text>
               </View>
             </View>
-            
-            {/* Ícone de Notificações */}
-            <TouchableOpacity
-              style={styles.notificationButton}
-              onPress={() => router.push('/notificacoes')}
-            >
-              <Ionicons name="notifications-outline" size={24} color="#667eea" />
-              {unreadCount > 0 && (
-                <View style={styles.notificationBadge}>
-                  <Text style={styles.badgeText}>
-                    {unreadCount > 99 ? '99+' : unreadCount.toString()}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
           </View>
         )}
         
@@ -376,11 +377,16 @@ const styles = StyleSheet.create({
   artistDetails: {
     flex: 1,
   },
+  artistNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   artistName: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 2,
+    flex: 1,
   },
   artistSubtitle: {
     fontSize: 14,

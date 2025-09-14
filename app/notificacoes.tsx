@@ -797,6 +797,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     marginLeft: 8,
+    flex: 1,
   },
   inviteMessage: {
     fontSize: 14,
