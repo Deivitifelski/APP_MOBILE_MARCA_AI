@@ -41,6 +41,10 @@ export interface InviteResponse {
 // Criar convite para colaborar
 export const createArtistInvite = async (data: CreateInviteData): Promise<InviteResponse> => {
   try {
+    // Criar data no horário local do Brasil
+    const now = new Date();
+    const brazilTime = new Date(now.getTime() - (3 * 60 * 60 * 1000)); // Subtrai 3 horas para ajustar ao Brasil
+    
     const { data: invite, error } = await supabase
       .from('artist_invites')
       .insert({
@@ -48,7 +52,8 @@ export const createArtistInvite = async (data: CreateInviteData): Promise<Invite
         from_user_id: data.fromUserId,
         to_user_id: data.toUserId,
         status: 'pending',
-        read: false
+        read: false,
+        created_at: brazilTime.toISOString()
       })
       .select(`
         *,
@@ -137,11 +142,14 @@ export const acceptArtistInvite = async (inviteId: string, userId: string): Prom
     }
 
     // Atualizar o status do convite
+    const now = new Date();
+    const brazilTime = new Date(now.getTime() - (3 * 60 * 60 * 1000)); // Subtrai 3 horas para ajustar ao Brasil
+    
     const { data: updatedInvite, error: updateError } = await supabase
       .from('artist_invites')
       .update({
         status: 'accepted',
-        responded_at: new Date().toISOString()
+        responded_at: brazilTime.toISOString()
       })
       .eq('id', inviteId)
       .select(`
@@ -184,11 +192,14 @@ export const acceptArtistInvite = async (inviteId: string, userId: string): Prom
 // Recusar convite
 export const declineArtistInvite = async (inviteId: string, userId: string): Promise<InviteResponse> => {
   try {
+    const now = new Date();
+    const brazilTime = new Date(now.getTime() - (3 * 60 * 60 * 1000)); // Subtrai 3 horas para ajustar ao Brasil
+    
     const { data: invite, error } = await supabase
       .from('artist_invites')
       .update({
         status: 'declined',
-        responded_at: new Date().toISOString()
+        responded_at: brazilTime.toISOString()
       })
       .eq('id', inviteId)
       .eq('to_user_id', userId)

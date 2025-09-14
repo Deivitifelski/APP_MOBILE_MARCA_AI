@@ -131,13 +131,22 @@ export default function ConvitesEnviadosScreen() {
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+    // Se a string não tem timezone, assumir que é UTC
+    let date;
+    if (dateString.endsWith('Z') || dateString.includes('+') || dateString.includes('-')) {
+      date = new Date(dateString);
+    } else {
+      // Se não tem timezone, assumir UTC
+      date = new Date(dateString + 'Z');
+    }
+    
     return date.toLocaleDateString('pt-BR', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      timeZone: 'America/Sao_Paulo'
     });
   };
 
@@ -232,21 +241,6 @@ export default function ConvitesEnviadosScreen() {
           <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
         }
       >
-        {/* Estatísticas */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{pendingInvites.length}</Text>
-            <Text style={styles.statLabel}>Pendentes</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{invites.filter(i => i.status === 'accepted').length}</Text>
-            <Text style={styles.statLabel}>Aceitos</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{invites.filter(i => i.status === 'declined').length}</Text>
-            <Text style={styles.statLabel}>Recusados</Text>
-          </View>
-        </View>
 
         {/* Convites Pendentes */}
         {pendingInvites.length > 0 && (
@@ -333,35 +327,9 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
-  statsContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    margin: 20,
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#667eea',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-  },
   section: {
     marginHorizontal: 20,
+    marginTop: 20,
     marginBottom: 20,
   },
   sectionTitle: {
