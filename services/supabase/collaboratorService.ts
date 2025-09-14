@@ -16,7 +16,7 @@ export interface Collaborator {
 
 export interface AddCollaboratorData {
   userId: string;
-  role: 'admin' | 'editor' | 'viewer';
+  role: 'owner' | 'admin' | 'editor' | 'viewer';
 }
 
 // Buscar colaboradores de um artista
@@ -159,7 +159,7 @@ export const removeCollaborator = async (userId: string, artistId: string): Prom
 };
 
 // Atualizar role do colaborador
-export const updateCollaboratorRole = async (userId: string, artistId: string, newRole: 'admin' | 'editor' | 'viewer'): Promise<{ success: boolean; error: string | null }> => {
+export const updateCollaboratorRole = async (userId: string, artistId: string, newRole: 'owner' | 'admin' | 'editor' | 'viewer'): Promise<{ success: boolean; error: string | null }> => {
   try {
     const { error } = await supabase
       .from('artist_members')

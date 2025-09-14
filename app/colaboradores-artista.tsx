@@ -17,7 +17,7 @@ import { router } from 'expo-router';
 import { getCurrentUser } from '../services/supabase/authService';
 import { getArtists } from '../services/supabase/artistService';
 import { getCollaborators, addCollaborator, removeCollaborator, updateCollaboratorRole, searchUsers, Collaborator } from '../services/supabase/collaboratorService';
-import { createNotification } from '../services/supabase/notificationService';
+import { createArtistInvite, checkPendingInvite } from '../services/supabase/artistInviteService';
 
 export default function ColaboradoresArtistaScreen() {
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
@@ -28,7 +28,7 @@ export default function ColaboradoresArtistaScreen() {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [newCollaboratorRole, setNewCollaboratorRole] = useState<'admin' | 'editor' | 'viewer'>('viewer');
+  const [newCollaboratorRole, setNewCollaboratorRole] = useState<'owner' | 'admin' | 'editor' | 'viewer'>('viewer');
   const [isAdding, setIsAdding] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -151,14 +151,26 @@ export default function ColaboradoresArtistaScreen() {
         return;
       }
 
-      // Criar notificação de convite
-      const { success, error } = await createNotification({
-        user_id: selectedUser.id,
-        from_user_id: currentUser.id,
-        artist_id: currentArtist.id,
-        title: 'Convite para Colaborar',
-        message: `Você foi convidado para colaborar no artista "${currentArtist.name}" como ${getRoleLabel(newCollaboratorRole).toLowerCase()}. Clique para aceitar ou recusar.`,
-        type: 'collaborator_invite'
+      // Verificar se já existe convite pendente
+      const { success: checkSuccess, invite: existingInvite } = await checkPendingInvite(
+        currentArtist.id, 
+        selectedUser.id
+      );
+
+      if (existingInvite) {
+        Alert.alert(
+          'Convite Já Enviado', 
+          `Já existe um convite pendente para ${selectedUser.name}. Aguarde a resposta.`,
+          [{ text: 'OK', style: 'default' }]
+        );
+        return;
+      }
+
+      // Criar convite na tabela artist_invites
+      const { success, error, invite } = await createArtistInvite({
+        artistId: currentArtist.id,
+        toUserId: selectedUser.id,
+        fromUserId: currentUser.id
       });
 
       if (success) {
@@ -251,6 +263,7 @@ export default function ColaboradoresArtistaScreen() {
     if (!currentArtist) return;
 
     const roles = [
+      { label: 'Proprietário', value: 'owner' },
       { label: 'Admin', value: 'admin' },
       { label: 'Editor', value: 'editor' },
       { label: 'Visualizador', value: 'viewer' }
@@ -397,17 +410,27 @@ export default function ColaboradoresArtistaScreen() {
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.title}>Colaboradores</Text>
-        {isOwner && (
-          <TouchableOpacity 
-            style={styles.addButton}
-            onPress={() => {
-              console.log('Botão adicionar pressionado');
-              setShowAddModal(true);
-            }}
-          >
-            <Ionicons name="add" size={24} color="#667eea" />
-          </TouchableOpacity>
-        )}
+        <View style={styles.headerActions}>
+          {isOwner && (
+            <TouchableOpacity 
+              style={styles.headerButton}
+              onPress={() => router.push('/convites-enviados')}
+            >
+              <Ionicons name="mail" size={24} color="#667eea" />
+            </TouchableOpacity>
+          )}
+          {isOwner && (
+            <TouchableOpacity 
+              style={styles.addButton}
+              onPress={() => {
+                console.log('Botão adicionar pressionado');
+                setShowAddModal(true);
+              }}
+            >
+              <Ionicons name="add" size={24} color="#667eea" />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       <ScrollView style={styles.content}>
@@ -583,6 +606,7 @@ export default function ColaboradoresArtistaScreen() {
               
               <View style={styles.permissionOptions}>
                 {[
+                  { label: 'Proprietário', value: 'owner', description: 'Acesso total e controle completo' },
                   { label: 'Administrador', value: 'admin', description: 'Pode gerenciar colaboradores e editar tudo' },
                   { label: 'Editor', value: 'editor', description: 'Pode editar eventos e despesas' },
                   { label: 'Visualizador', value: 'viewer', description: 'Pode apenas visualizar' }
@@ -658,6 +682,14 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerButton: {
+    padding: 8,
+    marginRight: 8,
   },
   addButton: {
     padding: 8,
