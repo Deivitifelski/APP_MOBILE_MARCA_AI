@@ -22,4 +22,5 @@ export const getActiveArtist = async (): Promise<ActiveArtist | null> => {
 // Limpar artista ativo
 export const clearActiveArtist = async (): Promise<void> => {
   currentActiveArtist = null;
+  console.log('Artista ativo limpo');
 };

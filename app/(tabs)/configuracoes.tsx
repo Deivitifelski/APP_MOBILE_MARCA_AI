@@ -214,6 +214,13 @@ export default function ConfiguracoesScreen() {
                 'Gerenciar colaboradores do artista',
                 () => router.push('/colaboradores-artista')
               )}
+
+              {renderSettingItem(
+                'log-out',
+                'Sair do Artista',
+                'Remover-se do artista atual',
+                () => router.push('/sair-artista')
+              )}
               
               {renderSettingItem(
                 'musical-notes',
