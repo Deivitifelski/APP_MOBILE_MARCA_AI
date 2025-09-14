@@ -440,9 +440,16 @@ export default function NotificacoesScreen() {
                     style={styles.inviteCard}
                   >
                     <View style={styles.inviteContent}>
-                      <Text style={styles.inviteTitle}>
-                        {invite.artist?.name || 'Artista'}
-                      </Text>
+                      <View style={styles.inviteHeader}>
+                        <Ionicons
+                          name="mail"
+                          size={20}
+                          color="#3B82F6"
+                        />
+                        <Text style={styles.inviteTitle}>
+                          {invite.artist?.name || 'Artista'}
+                        </Text>
+                      </View>
                       <Text style={styles.inviteMessage}>
                         {invite.from_user?.name || 'Alguém'} te convidou para colaborar
                       </Text>
@@ -700,11 +707,16 @@ const styles = StyleSheet.create({
   inviteContent: {
     padding: 12,
   },
+  inviteHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   inviteTitle: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 4,
+    marginLeft: 8,
   },
   inviteMessage: {
     fontSize: 14,
