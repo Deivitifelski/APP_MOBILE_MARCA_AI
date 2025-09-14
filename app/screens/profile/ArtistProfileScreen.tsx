@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { createArtist } from '../../../services/supabase/artistService';
 import { getCurrentUser } from '../../../services/supabase/authService';
+import { setActiveArtist } from '../../../services/artistContext';
 import * as ImagePicker from 'expo-image-picker';
 
 export default function ArtistProfileScreen() {
@@ -74,18 +75,36 @@ export default function ArtistProfileScreen() {
         user_id: user.id
       });
 
-      if (!success) {
+      if (!success || !artist) {
         Alert.alert('Erro', 'Erro ao criar perfil do artista: ' + error);
         return;
       }
+
+      // Armazenar dados do artista criado para usar nos callbacks
+      const newArtist = artist;
 
       Alert.alert(
         'Sucesso', 
         'Perfil do artista criado com sucesso!',
         [
           {
-            text: 'OK',
+            text: 'Continuar com Artista Atual',
             onPress: () => router.replace('/(tabs)/agenda')
+          },
+          {
+            text: 'Alternar para Novo Artista',
+            onPress: async () => {
+              // Definir o novo artista como ativo
+              await setActiveArtist({
+                id: newArtist.id,
+                name: newArtist.name,
+                role: 'owner'
+              });
+              
+              Alert.alert('Sucesso', `Agora você está usando o artista: ${newArtist.name}`);
+              // Recarregar a tela principal para atualizar com o novo artista
+              router.replace('/(tabs)/agenda');
+            }
           }
         ]
       );

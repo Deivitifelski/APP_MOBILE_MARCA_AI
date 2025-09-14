@@ -83,6 +83,11 @@ export default function ConfiguracoesScreen() {
     router.push('/configuracoes-artista');
   };
 
+  const handleCreateNewArtist = () => {
+    // Navegar diretamente para a tela de cadastro do artista
+    router.push('/cadastro-artista');
+  };
+
   const handleLogout = () => {
     Alert.alert(
       'Sair da Conta',
@@ -165,19 +170,14 @@ export default function ConfiguracoesScreen() {
             </TouchableOpacity>
           </View>
 
-          {renderSettingItem(
-            'swap-horizontal',
-            'Selecionar Artista',
-            'Alternar entre artistas colaboradores',
-            () => router.push('/selecionar-artista')
-          )}
-
-          {renderSettingItem(
-            'person-circle',
-            'Perfil do Usuário',
-            'Editar informações pessoais',
-            handleEditUser
-          )}
+          <View style={styles.settingsCard}>
+            {renderSettingItem(
+              'swap-horizontal',
+              'Selecionar Artista',
+              'Alternar entre artistas colaboradores',
+              () => router.push('/selecionar-artista')
+            )}
+          </View>
         </View>
 
         {/* Seção: Artista */}
@@ -200,124 +200,139 @@ export default function ConfiguracoesScreen() {
               </TouchableOpacity>
             </View>
 
-            {renderSettingItem(
-              'people',
-              'Colaboradores',
-              'Gerenciar colaboradores do artista',
-              () => router.push('/colaboradores-artista')
-            )}
-            
-            {renderSettingItem(
-              'musical-notes',
-              'Configurações do Artista',
-              'Editar informações do artista',
-              handleArtistSettings
-            )}
+            <View style={styles.settingsCard}>
+              {renderSettingItem(
+                'add-circle',
+                'Criar Novo Artista',
+                'Criar um novo perfil de artista',
+                handleCreateNewArtist
+              )}
 
-            {renderSettingItem(
-              'mail',
-              'Convites Enviados',
-              'Ver e gerenciar convites',
-              () => router.push('/convites-enviados')
-            )}
+              {renderSettingItem(
+                'people',
+                'Colaboradores',
+                'Gerenciar colaboradores do artista',
+                () => router.push('/colaboradores-artista')
+              )}
+              
+              {renderSettingItem(
+                'musical-notes',
+                'Configurações do Artista',
+                'Editar informações do artista',
+                handleArtistSettings
+              )}
+
+              {renderSettingItem(
+                'mail',
+                'Convites Enviados',
+                'Ver e gerenciar convites',
+                () => router.push('/convites-enviados')
+              )}
+            </View>
           </View>
         )}
 
         {/* Seção: Preferências do App */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Preferências do App</Text>
+          <Text style={styles.sectionTitle}>Preferências</Text>
           
-          {renderSettingItem(
-            'notifications',
-            'Notificações',
-            'Receber notificações sobre shows',
-            undefined,
-            <Switch
-              value={notifications}
-              onValueChange={setNotifications}
-              trackColor={{ false: '#f0f0f0', true: '#667eea' }}
-              thumbColor={notifications ? '#fff' : '#f4f3f4'}
-            />
-          )}
-          
-          {renderSettingItem(
-            'moon',
-            'Modo Escuro',
-            'Usar tema escuro',
-            undefined,
-            <Switch
-              value={darkMode}
-              onValueChange={setDarkMode}
-              trackColor={{ false: '#f0f0f0', true: '#667eea' }}
-              thumbColor={darkMode ? '#fff' : '#f4f3f4'}
-            />
-          )}
-          
-          {renderSettingItem(
-            'sync',
-            'Sincronização Automática',
-            'Sincronizar dados automaticamente',
-            undefined,
-            <Switch
-              value={autoSync}
-              onValueChange={setAutoSync}
-              trackColor={{ false: '#f0f0f0', true: '#667eea' }}
-              thumbColor={autoSync ? '#fff' : '#f4f3f4'}
-            />
-          )}
+          <View style={styles.settingsCard}>
+            {renderSettingItem(
+              'notifications',
+              'Notificações',
+              'Receber notificações sobre shows',
+              undefined,
+              <Switch
+                value={notifications}
+                onValueChange={setNotifications}
+                trackColor={{ false: '#f0f0f0', true: '#667eea' }}
+                thumbColor={notifications ? '#fff' : '#f4f3f4'}
+              />
+            )}
+            
+            {renderSettingItem(
+              'moon',
+              'Modo Escuro',
+              'Usar tema escuro',
+              undefined,
+              <Switch
+                value={darkMode}
+                onValueChange={setDarkMode}
+                trackColor={{ false: '#f0f0f0', true: '#667eea' }}
+                thumbColor={darkMode ? '#fff' : '#f4f3f4'}
+              />
+            )}
+            
+            {renderSettingItem(
+              'sync',
+              'Sincronização Automática',
+              'Sincronizar dados automaticamente',
+              undefined,
+              <Switch
+                value={autoSync}
+                onValueChange={setAutoSync}
+                trackColor={{ false: '#f0f0f0', true: '#667eea' }}
+                thumbColor={autoSync ? '#fff' : '#f4f3f4'}
+              />
+            )}
+          </View>
         </View>
 
         {/* Conta */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Conta</Text>
           
-          {renderSettingItem(
-            'person-circle',
-            'Perfil',
-            'Editar informações pessoais',
-            handleEditUser
-          )}
-          
-          {renderSettingItem(
-            'lock-closed',
-            'Segurança',
-            'Alterar senha e configurações de segurança'
-          )}
-          
-          {renderSettingItem(
-            'card',
-            'Pagamentos',
-            'Gerenciar métodos de pagamento'
-          )}
+          <View style={styles.settingsCard}>
+            {renderSettingItem(
+              'person-circle',
+              'Perfil',
+              'Editar informações pessoais',
+              handleEditUser
+            )}
+            
+            {renderSettingItem(
+              'lock-closed',
+              'Segurança',
+              'Alterar senha e configurações de segurança'
+            )}
+            
+            {renderSettingItem(
+              'card',
+              'Pagamentos',
+              'Gerenciar métodos de pagamento'
+            )}
+          </View>
         </View>
 
         {/* Aplicativo */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Aplicativo</Text>
           
-          {renderSettingItem(
-            'help-circle',
-            'Ajuda e Suporte',
-            'Central de ajuda e contato'
-          )}
-          
-          {renderSettingItem(
-            'document-text',
-            'Termos de Uso',
-            'Termos e condições'
-          )}
-          
-          {renderSettingItem(
-            'shield-checkmark',
-            'Política de Privacidade',
-            'Como protegemos seus dados'
-          )}
-          
-          {renderSettingItem(
-            'information-circle',
-            'Sobre o App',
-            'Versão 1.0.0'
-          )}
+          <View style={styles.settingsCard}>
+            {renderSettingItem(
+              'help-circle',
+              'Ajuda e Suporte',
+              'Central de ajuda e contato'
+            )}
+            
+            {renderSettingItem(
+              'document-text',
+              'Termos de Uso',
+              'Termos e condições'
+            )}
+            
+            {renderSettingItem(
+              'shield-checkmark',
+              'Política de Privacidade',
+              'Como protegemos seus dados'
+            )}
+            
+            {renderSettingItem(
+              'information-circle',
+              'Sobre o App',
+              'Versão 1.0.0'
+            )}
+          </View>
         </View>
 
         {/* Logout */}
@@ -357,15 +372,27 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666',
-    marginBottom: 10,
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 16,
     paddingHorizontal: 20,
+  },
+  settingsCard: {
+    backgroundColor: '#fff',
+    marginHorizontal: 20,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+    overflow: 'hidden',
   },
   profileCard: {
     backgroundColor: '#fff',
     marginHorizontal: 20,
+    marginBottom: 15,
     borderRadius: 12,
     padding: 20,
     flexDirection: 'row',

@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { getCurrentUser } from '../services/supabase/authService';
 import { getArtists } from '../services/supabase/artistService';
+import { useActiveArtist } from '../services/useActiveArtist';
 import { getCollaborators, addCollaborator, removeCollaborator, updateCollaboratorRole, searchUsers, Collaborator } from '../services/supabase/collaboratorService';
 import { createArtistInvite, checkPendingInvite } from '../services/supabase/artistInviteService';
 
@@ -23,7 +24,7 @@ export default function ColaboradoresArtistaScreen() {
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
-  const [currentArtist, setCurrentArtist] = useState<any>(null);
+  const { activeArtist, loadActiveArtist } = useActiveArtist();
   const [showAddModal, setShowAddModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -35,8 +36,14 @@ export default function ColaboradoresArtistaScreen() {
   const [isInviting, setIsInviting] = useState(false);
 
   useEffect(() => {
-    loadData();
+    loadActiveArtist();
   }, []);
+
+  useEffect(() => {
+    if (activeArtist) {
+      loadData();
+    }
+  }, [activeArtist]);
 
   // Debug: Monitorar mudanças no showInviteModal
   useEffect(() => {
@@ -44,35 +51,17 @@ export default function ColaboradoresArtistaScreen() {
   }, [showInviteModal]);
 
   const loadData = async () => {
+    if (!activeArtist) return;
+    
     try {
       setIsLoading(true);
       
-      const { user, error: userError } = await getCurrentUser();
-      
-      if (userError || !user) {
-        Alert.alert('Erro', 'Usuário não encontrado. Faça login novamente.');
-        router.back();
-        return;
-      }
-
-      // Buscar artistas do usuário
-      const { artists, error: artistsError } = await getArtists(user.id);
-      
-      if (artistsError || !artists || artists.length === 0) {
-        Alert.alert('Erro', 'Nenhum artista encontrado.');
-        router.back();
-        return;
-      }
-
-      const artist = artists[0];
-      setCurrentArtist(artist);
-      
       // Verificar se é owner
-      const isUserOwner = artist.role === 'owner';
+      const isUserOwner = activeArtist.role === 'owner';
       setIsOwner(isUserOwner);
 
       // Buscar colaboradores
-      const { collaborators, error: collaboratorsError } = await getCollaborators(artist.id);
+      const { collaborators, error: collaboratorsError } = await getCollaborators(activeArtist.id);
       
       if (collaboratorsError) {
         Alert.alert('Erro', 'Erro ao carregar colaboradores');
@@ -138,7 +127,7 @@ export default function ColaboradoresArtistaScreen() {
   };
 
   const handleConfirmInvite = async () => {
-    if (!selectedUser || !currentArtist) return;
+    if (!selectedUser || !activeArtist) return;
 
     try {
       setIsInviting(true);
@@ -153,7 +142,7 @@ export default function ColaboradoresArtistaScreen() {
 
       // Verificar se já existe convite pendente
       const { success: checkSuccess, invite: existingInvite } = await checkPendingInvite(
-        currentArtist.id, 
+        activeArtist.id, 
         selectedUser.id
       );
 
@@ -168,7 +157,7 @@ export default function ColaboradoresArtistaScreen() {
 
       // Criar convite na tabela artist_invites
       const { success, error, invite } = await createArtistInvite({
-        artistId: currentArtist.id,
+        artistId: activeArtist.id,
         toUserId: selectedUser.id,
         fromUserId: currentUser.id
       });
@@ -201,12 +190,12 @@ export default function ColaboradoresArtistaScreen() {
       return;
     }
 
-    if (!currentArtist) return;
+    if (!activeArtist) return;
 
     try {
       setIsAdding(true);
 
-      const { success, error } = await addCollaborator(currentArtist.id, {
+      const { success, error } = await addCollaborator(activeArtist.id, {
         userId: selectedUser.id,
         role: newCollaboratorRole
       });
@@ -230,7 +219,7 @@ export default function ColaboradoresArtistaScreen() {
   };
 
   const handleRemoveCollaborator = (userId: string, userName: string) => {
-    if (!currentArtist) return;
+    if (!activeArtist) return;
 
     Alert.alert(
       'Remover Colaborador',
@@ -242,7 +231,7 @@ export default function ColaboradoresArtistaScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const { success, error } = await removeCollaborator(userId, currentArtist.id);
+              const { success, error } = await removeCollaborator(userId, activeArtist.id);
               
               if (success) {
                 Alert.alert('Sucesso', 'Colaborador removido com sucesso!');
@@ -260,7 +249,7 @@ export default function ColaboradoresArtistaScreen() {
   };
 
   const handleUpdateRole = (userId: string, currentRole: string, userName: string) => {
-    if (!currentArtist) return;
+    if (!activeArtist) return;
 
     const roles = [
       { label: 'Proprietário', value: 'owner' },
@@ -278,7 +267,7 @@ export default function ColaboradoresArtistaScreen() {
         text: role.label,
         onPress: async () => {
           try {
-            const { success, error } = await updateCollaboratorRole(userId, currentArtist.id, role.value as any);
+            const { success, error } = await updateCollaboratorRole(userId, activeArtist.id, role.value as any);
             
             if (success) {
               Alert.alert('Sucesso', 'Permissão alterada com sucesso!');
@@ -443,9 +432,9 @@ export default function ColaboradoresArtistaScreen() {
 
       <ScrollView style={styles.content}>
         {/* Informações do artista */}
-        {currentArtist && (
+        {activeArtist && (
           <View style={styles.artistInfo}>
-            <Text style={styles.artistName}>{currentArtist.name}</Text>
+            <Text style={styles.artistName}>{activeArtist.name}</Text>
             <Text style={styles.collaboratorCount}>
               {collaborators.length} colaborador{collaborators.length !== 1 ? 'es' : ''}
             </Text>
@@ -609,7 +598,7 @@ export default function ColaboradoresArtistaScreen() {
               )}
               
               <Text style={styles.permissionDetails}>
-                <Text style={styles.permissionDetailsLabel}>Artista:</Text> {currentArtist?.name}
+                <Text style={styles.permissionDetailsLabel}>Artista:</Text> {activeArtist?.name}
               </Text>
               
               <View style={styles.permissionOptions}>

@@ -12,9 +12,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { getArtists } from '../../services/supabase/artistService';
-import { getCurrentUser } from '../../services/supabase/authService';
 import { getEventsByMonth } from '../../services/supabase/eventService';
+import { useActiveArtist } from '../../services/useActiveArtist';
 
 // Dados mockados de shows
 const mockShows = [
@@ -63,73 +62,38 @@ const months = [
 
 export default function AgendaScreen() {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [hasArtists, setHasArtists] = useState<boolean | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [currentArtist, setCurrentArtist] = useState<{id: string, name: string, profile_url?: string} | null>(null);
   const [events, setEvents] = useState<any[]>([]);
+  const { activeArtist, loadActiveArtist, isLoading } = useActiveArtist();
 
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
 
   useEffect(() => {
-    checkArtists();
+    loadActiveArtist();
   }, []);
 
   useEffect(() => {
-    if (hasArtists) {
+    if (activeArtist) {
       loadEvents();
     }
-  }, [hasArtists, currentMonth, currentYear]);
-
-  const checkArtists = async () => {
-    try {
-      // Obter o usuário atual
-      const { user, error: userError } = await getCurrentUser();
-      
-      if (userError || !user) {
-        setHasArtists(false);
-        return;
-      }
-
-      const { artists, error } = await getArtists(user.id);
-      
-      if (error) {
-        console.error('Erro ao verificar artistas:', error);
-        setHasArtists(false);
-      } else {
-        setHasArtists(artists && artists.length > 0);
-        // Definir o primeiro artista como o atual
-        if (artists && artists.length > 0) {
-          setCurrentArtist({
-            id: artists[0].id,
-            name: artists[0].name,
-            profile_url: artists[0].profile_url
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Erro ao verificar artistas:', error);
-      setHasArtists(false);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [activeArtist, currentMonth, currentYear]);
 
   const loadEvents = async () => {
+    if (!activeArtist) {
+      console.log('loadEvents: Nenhum artista ativo');
+      return;
+    }
+    
+    console.log('loadEvents: Carregando eventos para artista:', activeArtist.id, 'Mês:', currentMonth, 'Ano:', currentYear);
+    
     try {
-      // Obter o usuário atual
-      const { user, error: userError } = await getCurrentUser();
+      const result = await getEventsByMonth(activeArtist.id, currentYear, currentMonth);
       
-      if (userError || !user) {
-        console.error('Erro ao obter usuário:', userError);
-        setEvents([]);
-        return;
-      }
-
-      const result = await getEventsByMonth(user.id, currentYear, currentMonth);
+      console.log('loadEvents: Resultado:', result);
       
       if (result.success) {
         setEvents(result.events || []);
+        console.log('loadEvents: Eventos carregados:', result.events?.length || 0);
       } else {
         console.error('Erro ao carregar eventos:', result.error);
         setEvents([]);
@@ -228,25 +192,21 @@ export default function AgendaScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         {/* Header do Artista */}
-        {currentArtist && (
+        {activeArtist && (
           <View style={styles.artistHeader}>
             <View style={styles.artistInfo}>
-              {currentArtist.profile_url ? (
-                <Image source={{ uri: currentArtist.profile_url }} style={styles.artistAvatar} />
-              ) : (
-                <View style={styles.artistAvatarPlaceholder}>
-                  <Ionicons name="musical-notes" size={24} color="#667eea" />
-                </View>
-              )}
+              <View style={styles.artistAvatarPlaceholder}>
+                <Ionicons name="musical-notes" size={24} color="#667eea" />
+              </View>
               <View style={styles.artistDetails}>
-                <Text style={styles.artistName}>{currentArtist.name}</Text>
+                <Text style={styles.artistName}>{activeArtist.name}</Text>
                 <Text style={styles.artistSubtitle}>Agenda de Shows</Text>
               </View>
             </View>
           </View>
         )}
         
-        {!currentArtist && (
+        {!activeArtist && (
           <Text style={styles.title}>Agenda de Shows</Text>
         )}
         
@@ -273,11 +233,11 @@ export default function AgendaScreen() {
       </View>
 
       <ScrollView style={styles.content}>
-        {loading ? (
+        {isLoading ? (
           <View style={styles.loadingContainer}>
             <Text style={styles.loadingText}>Carregando...</Text>
           </View>
-        ) : !hasArtists ? (
+        ) : !activeArtist ? (
           /* Estado vazio - sem artistas para gerenciar */
           <View style={styles.emptyStateContainer}>
             <View style={styles.emptyStateIcon}>
@@ -331,7 +291,7 @@ export default function AgendaScreen() {
       </ScrollView>
 
       {/* Botão flutuante para adicionar show - só aparece quando há artistas */}
-      {hasArtists && (
+      {activeArtist && (
         <TouchableOpacity
           style={styles.fab}
           onPress={handleAddShow}

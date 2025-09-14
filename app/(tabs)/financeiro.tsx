@@ -11,9 +11,9 @@ import {
   Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getCurrentUser } from '../../services/supabase/authService';
 import { getEventsByMonth } from '../../services/supabase/eventService';
 import { getExpensesByEvent } from '../../services/supabase/expenseService';
+import { useActiveArtist } from '../../services/useActiveArtist';
 // import * as FileSystem from 'expo-file-system';
 // import * as Sharing from 'expo-sharing';
 
@@ -30,6 +30,7 @@ export default function FinanceiroScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [events, setEvents] = useState<EventWithExpenses[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { activeArtist, loadActiveArtist } = useActiveArtist();
 
   const currentMonth = selectedDate.getMonth();
   const currentYear = selectedDate.getFullYear();
@@ -40,23 +41,23 @@ export default function FinanceiroScreen() {
   ];
 
   useEffect(() => {
-    loadFinancialData();
-  }, [currentMonth, currentYear]);
+    loadActiveArtist();
+  }, []);
+
+  useEffect(() => {
+    if (activeArtist) {
+      loadFinancialData();
+    }
+  }, [activeArtist, currentMonth, currentYear]);
 
   const loadFinancialData = async () => {
+    if (!activeArtist) return;
+    
     try {
       setIsLoading(true);
-      
-      // Obter o usuário atual
-      const { user, error: userError } = await getCurrentUser();
-      
-      if (userError || !user) {
-        Alert.alert('Erro', 'Usuário não encontrado. Faça login novamente.');
-        return;
-      }
 
-      // Buscar eventos do mês
-      const { events: monthEvents, error: eventsError } = await getEventsByMonth(user.id, currentYear, currentMonth);
+      // Buscar eventos do mês usando o artista ativo
+      const { events: monthEvents, error: eventsError } = await getEventsByMonth(activeArtist.id, currentYear, currentMonth);
       
       if (eventsError) {
         Alert.alert('Erro', 'Erro ao carregar eventos');

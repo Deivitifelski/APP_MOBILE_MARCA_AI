@@ -135,18 +135,22 @@ export const getEventsByArtist = async (artistId: string): Promise<{ success: bo
 };
 
 // Buscar eventos por mês
-export const getEventsByMonth = async (userId: string, year: number, month: number): Promise<{ success: boolean; error: string | null; events?: Event[] }> => {
+export const getEventsByMonth = async (artistId: string, year: number, month: number): Promise<{ success: boolean; error: string | null; events?: Event[] }> => {
   try {
     const startDate = new Date(year, month, 1).toISOString().split('T')[0];
     const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
 
+    console.log('getEventsByMonth: Buscando eventos para artista:', artistId, 'De:', startDate, 'Até:', endDate);
+
     const { data, error } = await supabase
       .from('events')
       .select('*')
-      .eq('user_id', userId)
+      .eq('artist_id', artistId)
       .gte('event_date', startDate)
       .lte('event_date', endDate)
       .order('event_date', { ascending: true });
+
+    console.log('getEventsByMonth: Resultado da query:', { data, error });
 
     if (error) {
       return { success: false, error: error.message };

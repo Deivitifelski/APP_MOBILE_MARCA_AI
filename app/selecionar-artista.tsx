@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { getCurrentUser } from '../services/supabase/authService';
 import { getArtists } from '../services/supabase/artistService';
+import { setActiveArtist } from '../services/artistContext';
 
 interface ArtistCollaborator {
   id: string;
@@ -68,17 +69,31 @@ export default function SelecionarArtistaScreen() {
   };
 
   const handleSelectArtist = (artist: ArtistCollaborator) => {
-    // Aqui você pode implementar a lógica para alternar o artista ativo
-    // Por exemplo, salvar no AsyncStorage ou em um contexto global
     Alert.alert(
-      'Artista Selecionado',
-      `Você selecionou: ${artist.name}\n\nRole: ${getRoleLabel(artist.role)}`,
+      'Alterar Artista',
+      `Deseja alternar para o artista: ${artist.name}?\n\nRole: ${getRoleLabel(artist.role)}`,
       [
         {
-          text: 'OK',
-          onPress: () => {
-            // Voltar para a tela anterior ou navegar para a tela principal
-            router.back();
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Alternar',
+          onPress: async () => {
+            try {
+              // Definir o artista como ativo
+              await setActiveArtist({
+                id: artist.id,
+                name: artist.name,
+                role: artist.role
+              });
+              
+              Alert.alert('Sucesso', `Agora você está usando o artista: ${artist.name}`);
+              // Recarregar a tela anterior para atualizar com o novo artista
+              router.replace('/(tabs)/agenda');
+            } catch (error) {
+              Alert.alert('Erro', 'Erro ao alterar artista');
+            }
           }
         }
       ]
