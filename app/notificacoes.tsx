@@ -442,7 +442,7 @@ export default function NotificacoesScreen() {
                     <View style={styles.inviteContent}>
                       <View style={styles.inviteHeader}>
                         <Ionicons
-                          name="mail"
+                          name="people"
                           size={20}
                           color="#3B82F6"
                         />
