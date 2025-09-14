@@ -17,6 +17,7 @@ import { router } from 'expo-router';
 import { getCurrentUser } from '../services/supabase/authService';
 import { getArtists } from '../services/supabase/artistService';
 import { getCollaborators, addCollaborator, removeCollaborator, updateCollaboratorRole, searchUsers, Collaborator } from '../services/supabase/collaboratorService';
+import { createNotification } from '../services/supabase/notificationService';
 
 export default function ColaboradoresArtistaScreen() {
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
@@ -30,10 +31,17 @@ export default function ColaboradoresArtistaScreen() {
   const [newCollaboratorRole, setNewCollaboratorRole] = useState<'admin' | 'editor' | 'viewer'>('viewer');
   const [isAdding, setIsAdding] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [isInviting, setIsInviting] = useState(false);
 
   useEffect(() => {
     loadData();
   }, []);
+
+  // Debug: Monitorar mudanças no showInviteModal
+  useEffect(() => {
+    console.log('showInviteModal mudou para:', showInviteModal);
+  }, [showInviteModal]);
 
   const loadData = async () => {
     try {
@@ -107,9 +115,72 @@ export default function ColaboradoresArtistaScreen() {
   };
 
   const handleSelectUser = (user: any) => {
+    console.log('handleSelectUser chamado com:', user);
     setSelectedUser(user);
     setSearchResults([]);
     setSearchTerm(user.name);
+    // Fechar modal de busca primeiro
+    setShowAddModal(false);
+    // Aguardar um pouco e depois abrir modal de convite
+    setTimeout(() => {
+      console.log('Abrindo modal de convite');
+      setShowInviteModal(true);
+    }, 100);
+  };
+
+  const handleInviteCollaborator = () => {
+    if (!selectedUser) {
+      Alert.alert('Erro', 'Selecione um usuário');
+      return;
+    }
+    // Abrir modal de seleção de permissão
+    setShowInviteModal(true);
+  };
+
+  const handleConfirmInvite = async () => {
+    if (!selectedUser || !currentArtist) return;
+
+    try {
+      setIsInviting(true);
+
+      // Obter o usuário atual para ser o remetente
+      const { user: currentUser, error: userError } = await getCurrentUser();
+      
+      if (userError || !currentUser) {
+        Alert.alert('Erro', 'Erro ao obter dados do usuário atual');
+        return;
+      }
+
+      // Criar notificação de convite
+      const { success, error } = await createNotification({
+        user_id: selectedUser.id,
+        from_user_id: currentUser.id,
+        artist_id: currentArtist.id,
+        title: 'Convite para Colaborar',
+        message: `Você foi convidado para colaborar no artista "${currentArtist.name}" como ${getRoleLabel(newCollaboratorRole).toLowerCase()}. Clique para aceitar ou recusar.`,
+        type: 'collaborator_invite'
+      });
+
+      if (success) {
+        Alert.alert(
+          'Convite Enviado!', 
+          `O convite foi enviado para ${selectedUser.name}. Eles receberão uma notificação e poderão aceitar ou recusar o convite.`,
+          [{ text: 'OK', style: 'default' }]
+        );
+        setShowInviteModal(false);
+        setShowAddModal(false);
+        setSearchTerm('');
+        setSearchResults([]);
+        setSelectedUser(null);
+        setNewCollaboratorRole('viewer');
+      } else {
+        Alert.alert('Erro', error || 'Erro ao enviar convite');
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Erro ao enviar convite');
+    } finally {
+      setIsInviting(false);
+    }
   };
 
   const handleAddCollaborator = async () => {
@@ -213,7 +284,7 @@ export default function ColaboradoresArtistaScreen() {
   const getRoleIcon = (role: string) => {
     switch (role) {
       case 'owner':
-        return 'crown';
+        return 'star';
       case 'admin':
         return 'shield-checkmark';
       case 'editor':
@@ -319,14 +390,20 @@ export default function ColaboradoresArtistaScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => {
+          console.log('Botão voltar pressionado');
+          router.back();
+        }} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.title}>Colaboradores</Text>
         {isOwner && (
           <TouchableOpacity 
             style={styles.addButton}
-            onPress={() => setShowAddModal(true)}
+            onPress={() => {
+              console.log('Botão adicionar pressionado');
+              setShowAddModal(true);
+            }}
           >
             <Ionicons name="add" size={24} color="#667eea" />
           </TouchableOpacity>
@@ -382,17 +459,15 @@ export default function ColaboradoresArtistaScreen() {
             >
               <Text style={styles.modalCloseText}>Cancelar</Text>
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Adicionar Colaborador</Text>
+            <Text style={styles.modalTitle}>Buscar Usuário</Text>
             <TouchableOpacity 
-              onPress={handleAddCollaborator}
-              style={styles.modalSaveButton}
-              disabled={isAdding}
+              onPress={handleInviteCollaborator}
+              style={[styles.modalSaveButton, !selectedUser && styles.disabledButton]}
+              disabled={!selectedUser}
             >
-              {isAdding ? (
-                <ActivityIndicator size="small" color="#667eea" />
-              ) : (
-                <Text style={styles.modalSaveText}>Adicionar</Text>
-              )}
+              <Text style={[styles.modalSaveText, !selectedUser && styles.disabledButtonText]}>
+                Convidar {selectedUser ? '(Ativo)' : '(Inativo)'}
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -444,10 +519,69 @@ export default function ColaboradoresArtistaScreen() {
                 <Text style={styles.noResultsText}>Nenhum usuário encontrado</Text>
               )}
             </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Permissão</Text>
-              <View style={styles.roleOptions}>
+      {/* Modal de confirmação de convite */}
+      <Modal
+        visible={showInviteModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => {
+          console.log('Modal de convite fechado');
+          setShowInviteModal(false);
+        }}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity 
+              onPress={() => setShowInviteModal(false)}
+              style={styles.modalCloseButton}
+            >
+              <Text style={styles.modalCloseText}>Cancelar</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Enviar Convite</Text>
+            <TouchableOpacity 
+              onPress={handleConfirmInvite}
+              style={styles.modalSaveButton}
+              disabled={isInviting}
+            >
+              {isInviting ? (
+                <ActivityIndicator size="small" color="#667eea" />
+              ) : (
+                <Text style={styles.modalSaveText}>Enviar</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            <View style={styles.permissionSelection}>
+              <Text style={styles.permissionTitle}>Enviar Convite de Colaboração</Text>
+              
+              <Text style={styles.permissionDescription}>
+                Selecione a permissão para enviar o convite:
+              </Text>
+              
+              {selectedUser && (
+                <View style={styles.permissionUserCard}>
+                  <View style={styles.permissionUserAvatar}>
+                    <Text style={styles.permissionUserAvatarText}>
+                      {selectedUser.name.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={styles.permissionUserInfo}>
+                    <Text style={styles.permissionUserName}>{selectedUser.name}</Text>
+                    <Text style={styles.permissionUserEmail}>{selectedUser.email}</Text>
+                  </View>
+                </View>
+              )}
+              
+              <Text style={styles.permissionDetails}>
+                <Text style={styles.permissionDetailsLabel}>Artista:</Text> {currentArtist?.name}
+              </Text>
+              
+              <View style={styles.permissionOptions}>
                 {[
                   { label: 'Administrador', value: 'admin', description: 'Pode gerenciar colaboradores e editar tudo' },
                   { label: 'Editor', value: 'editor', description: 'Pode editar eventos e despesas' },
@@ -456,35 +590,42 @@ export default function ColaboradoresArtistaScreen() {
                   <TouchableOpacity
                     key={role.value}
                     style={[
-                      styles.roleOption,
-                      newCollaboratorRole === role.value && styles.roleOptionSelected
+                      styles.permissionOption,
+                      newCollaboratorRole === role.value && styles.permissionOptionSelected
                     ]}
                     onPress={() => setNewCollaboratorRole(role.value as any)}
                   >
-                    <View style={styles.roleOptionContent}>
+                    <View style={styles.permissionOptionContent}>
                       <Text style={[
-                        styles.roleOptionLabel,
-                        newCollaboratorRole === role.value && styles.roleOptionLabelSelected
+                        styles.permissionOptionLabel,
+                        newCollaboratorRole === role.value && styles.permissionOptionLabelSelected
                       ]}>
                         {role.label}
                       </Text>
                       <Text style={[
-                        styles.roleOptionDescription,
-                        newCollaboratorRole === role.value && styles.roleOptionDescriptionSelected
+                        styles.permissionOptionDescription,
+                        newCollaboratorRole === role.value && styles.permissionOptionDescriptionSelected
                       ]}>
                         {role.description}
                       </Text>
                     </View>
                     <View style={[
-                      styles.roleRadio,
-                      newCollaboratorRole === role.value && styles.roleRadioSelected
+                      styles.permissionRadio,
+                      newCollaboratorRole === role.value && styles.permissionRadioSelected
                     ]}>
                       {newCollaboratorRole === role.value && (
-                        <View style={styles.roleRadioInner} />
+                        <View style={styles.permissionRadioInner} />
                       )}
                     </View>
                   </TouchableOpacity>
                 ))}
+              </View>
+              
+              <View style={styles.permissionWarning}>
+                <Ionicons name="information-circle" size={20} color="#ff9800" />
+                <Text style={styles.permissionWarningText}>
+                  O usuário receberá uma notificação e poderá aceitar ou recusar o convite.
+                </Text>
               </View>
             </View>
           </ScrollView>
@@ -656,6 +797,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    minHeight: 70,
   },
   modalCloseButton: {
     padding: 8,
@@ -664,6 +806,15 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
+  },
+  modalHeaderSpacer: {
+    width: 60, // Espaço para manter o layout centralizado
+  },
+  disabledButtonText: {
+    color: '#ccc',
+  },
+  disabledButton: {
+    opacity: 0.5,
   },
   modalSaveButton: {
     padding: 8,
@@ -812,5 +963,267 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: '#667eea',
+  },
+  inviteConfirmation: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  inviteIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  inviteTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  inviteDescription: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  inviteUserCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+    width: '100%',
+  },
+  inviteUserAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#667eea',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  inviteUserAvatarText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  inviteUserInfo: {
+    flex: 1,
+  },
+  inviteUserName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 2,
+  },
+  inviteUserEmail: {
+    fontSize: 14,
+    color: '#666',
+  },
+  inviteDetails: {
+    fontSize: 14,
+    color: '#333',
+    marginBottom: 8,
+    alignSelf: 'flex-start',
+    width: '100%',
+  },
+  inviteDetailsLabel: {
+    fontWeight: '600',
+    color: '#667eea',
+  },
+  inviteMessage: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 16,
+    marginTop: 20,
+    width: '100%',
+  },
+  inviteMessageTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  inviteMessageText: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+  },
+  inviteWarning: {
+    backgroundColor: '#fff3cd',
+    borderRadius: 8,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    width: '100%',
+  },
+  inviteWarningText: {
+    fontSize: 14,
+    color: '#856404',
+    marginLeft: 8,
+    flex: 1,
+    lineHeight: 18,
+  },
+  permissionSelection: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  permissionIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  permissionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  permissionDescription: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  permissionUserCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+    width: '100%',
+  },
+  permissionUserAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#667eea',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  permissionUserAvatarText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  permissionUserInfo: {
+    flex: 1,
+  },
+  permissionUserName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 2,
+  },
+  permissionUserEmail: {
+    fontSize: 14,
+    color: '#666',
+  },
+  permissionDetails: {
+    fontSize: 14,
+    color: '#333',
+    marginBottom: 20,
+    alignSelf: 'flex-start',
+    width: '100%',
+  },
+  permissionDetailsLabel: {
+    fontWeight: '600',
+    color: '#667eea',
+  },
+  permissionOptions: {
+    width: '100%',
+    gap: 12,
+    marginBottom: 20,
+  },
+  permissionOption: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  permissionOptionSelected: {
+    borderColor: '#667eea',
+    backgroundColor: '#f8f9ff',
+  },
+  permissionOptionContent: {
+    flex: 1,
+  },
+  permissionOptionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  permissionOptionLabelSelected: {
+    color: '#667eea',
+  },
+  permissionOptionDescription: {
+    fontSize: 14,
+    color: '#666',
+  },
+  permissionOptionDescriptionSelected: {
+    color: '#667eea',
+  },
+  permissionRadio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#ddd',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 12,
+  },
+  permissionRadioSelected: {
+    borderColor: '#667eea',
+  },
+  permissionRadioInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#667eea',
+  },
+  permissionWarning: {
+    backgroundColor: '#fff3cd',
+    borderRadius: 8,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+  },
+  permissionWarningText: {
+    fontSize: 14,
+    color: '#856404',
+    marginLeft: 8,
+    flex: 1,
+    lineHeight: 18,
   },
 });
