@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase';
+import { clearActiveArtist } from '../artistContext';
 
 export interface LoginResult {
   data: {
@@ -53,6 +54,10 @@ export const loginUser = async (email: string, password: string): Promise<LoginR
 
 export const logoutUser = async (): Promise<{ error: string | null }> => {
   try {
+    // Limpar artista ativo antes do logout
+    await clearActiveArtist();
+    console.log('authService: Artista ativo limpo no logout');
+    
     const { error } = await supabase.auth.signOut();
     
     if (error) {
