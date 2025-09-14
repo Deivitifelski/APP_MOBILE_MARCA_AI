@@ -24,6 +24,7 @@ import {
   getArtistInvitesReceived, 
   acceptArtistInvite, 
   declineArtistInvite, 
+  markInviteAsRead,
   ArtistInvite 
 } from '../services/supabase/artistInviteService';
 
@@ -34,6 +35,8 @@ export default function NotificacoesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
     loadNotifications();
@@ -132,18 +135,51 @@ export default function NotificacoesScreen() {
       const { user } = await getCurrentUser();
       if (!user) return;
 
+      // Marcar todas as notificações como lidas
       const { success, error } = await markAllNotificationsAsRead(user.id);
       
       if (success) {
         setNotifications(prev => 
           prev.map(n => ({ ...n, read: true }))
         );
-        setUnreadCount(0);
       } else {
         Alert.alert('Erro', 'Erro ao marcar notificações como lidas');
       }
+
+      // Marcar todos os convites não lidos como lidos
+      const unreadInvites = artistInvites.filter(invite => !invite.read);
+      for (const invite of unreadInvites) {
+        await markInviteAsRead(invite.id, user.id);
+      }
+      
+      setArtistInvites(prev => 
+        prev.map(invite => ({ ...invite, read: true }))
+      );
+      setUnreadCount(0);
     } catch (error) {
       console.error('Erro ao marcar todas como lidas:', error);
+    }
+  };
+
+  const handleMarkInviteAsRead = async (inviteId: string) => {
+    try {
+      const { user } = await getCurrentUser();
+      if (!user) return;
+
+      const { success, error } = await markInviteAsRead(inviteId, user.id);
+      
+      if (success) {
+        setArtistInvites(prev => 
+          prev.map(invite => 
+            invite.id === inviteId ? { ...invite, read: true } : invite
+          )
+        );
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      } else {
+        console.error('Erro ao marcar convite como lido:', error);
+      }
+    } catch (error) {
+      console.error('Erro ao marcar convite como lido:', error);
     }
   };
 
@@ -193,7 +229,9 @@ export default function NotificacoesScreen() {
               const { success, error } = await acceptArtistInvite(inviteId, currentUserId);
               
               if (success) {
-                Alert.alert('Sucesso', 'Convite aceito com sucesso!');
+                // Mostrar modal com informações sobre as permissões
+                setSuccessMessage(`Você foi adicionado como colaborador do artista "${artistName}" com permissões de visualização. Você pode visualizar informações do artista, mas não pode fazer alterações.`);
+                setShowSuccessModal(true);
                 // Recarregar dados
                 await loadNotifications();
               } else {
@@ -435,9 +473,11 @@ export default function NotificacoesScreen() {
                 <View style={styles.sectionDivider} />
                 <Text style={styles.sectionTitle}>Convites de Artista</Text>
                 {artistInvites.map((invite) => (
-                  <View
+                  <TouchableOpacity
                     key={invite.id}
                     style={styles.inviteCard}
+                    onPress={() => !invite.read && handleMarkInviteAsRead(invite.id)}
+                    activeOpacity={0.7}
                   >
                     <View style={styles.inviteContent}>
                       <View style={styles.inviteHeader}>
@@ -449,6 +489,7 @@ export default function NotificacoesScreen() {
                         <Text style={styles.inviteTitle}>
                           {invite.artist?.name || 'Artista'}
                         </Text>
+                        {!invite.read && <View style={styles.unreadDot} />}
                       </View>
                       <Text style={styles.inviteMessage}>
                         {invite.from_user?.name || 'Alguém'} te convidou para colaborar
@@ -476,13 +517,52 @@ export default function NotificacoesScreen() {
                         </TouchableOpacity>
                       </View>
                     )}
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </>
             )}
           </View>
         )}
       </ScrollView>
+
+      {/* Modal de Sucesso */}
+      {showSuccessModal && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Ionicons name="checkmark-circle" size={48} color="#10B981" />
+              <Text style={styles.modalTitle}>Convite Aceito!</Text>
+            </View>
+            
+            <Text style={styles.modalMessage}>
+              {successMessage}
+            </Text>
+            
+            <View style={styles.modalPermissions}>
+              <Text style={styles.permissionsTitle}>Suas permissões:</Text>
+              <View style={styles.permissionItem}>
+                <Ionicons name="eye" size={16} color="#6B7280" />
+                <Text style={styles.permissionText}>Visualizar informações do artista</Text>
+              </View>
+              <View style={styles.permissionItem}>
+                <Ionicons name="calendar" size={16} color="#6B7280" />
+                <Text style={styles.permissionText}>Ver agenda e eventos</Text>
+              </View>
+              <View style={styles.permissionItem}>
+                <Ionicons name="people" size={16} color="#6B7280" />
+                <Text style={styles.permissionText}>Ver outros colaboradores</Text>
+              </View>
+            </View>
+            
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setShowSuccessModal(false)}
+            >
+              <Text style={styles.modalButtonText}>Entendi</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -726,5 +806,84 @@ const styles = StyleSheet.create({
   inviteTime: {
     fontSize: 12,
     color: '#999',
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  modalContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    margin: 20,
+    maxWidth: 400,
+    width: '90%',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginTop: 8,
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 20,
+  },
+  modalPermissions: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+  },
+  permissionsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 12,
+  },
+  permissionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  permissionText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginLeft: 8,
+    flex: 1,
+  },
+  modalButton: {
+    backgroundColor: '#3B82F6',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
