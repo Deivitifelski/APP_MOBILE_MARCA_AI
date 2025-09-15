@@ -6,6 +6,7 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '../hooks/use-color-scheme';
 import { ThemeProvider } from '../contexts/ThemeContext';
+import AuthDeepLinkHandler from '../components/AuthDeepLinkHandler';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -17,6 +18,7 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <AuthDeepLinkHandler />
         <Stack>
           <Stack.Screen name="login" options={{ headerShown: false }} />
           <Stack.Screen name="register" options={{ headerShown: false }} />

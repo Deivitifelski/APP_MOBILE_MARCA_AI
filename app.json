@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "appmobilemarcaai",
+    "scheme": "marcaai",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -13,7 +13,13 @@
       "bundleIdentifier": "com.anonymous.APP-MOBILE-MARCA-AI",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Este app precisa acessar sua galeria de fotos para permitir que você selecione uma foto de perfil.",
-        "NSCameraUsageDescription": "Este app precisa acessar sua câmera para permitir que você tire uma foto para o perfil."
+        "NSCameraUsageDescription": "Este app precisa acessar sua câmera para permitir que você tire uma foto para o perfil.",
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "marcaai",
+            "CFBundleURLSchemes": ["marcaai"]
+          }
+        ]
       }
     },
     "android": {
@@ -29,6 +35,21 @@
       "permissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.CAMERA"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "marcaai"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
       ]
     },
     "web": {

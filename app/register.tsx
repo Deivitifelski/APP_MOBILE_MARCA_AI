@@ -56,7 +56,7 @@ export default function RegisterScreen() {
         email: email,
         password: password,
         options: {
-          emailRedirectTo: 'exp://192.168.1.100:8081/--/email-confirmation'
+          emailRedirectTo: 'marcaai://auth/callback'
         }
       });
 
@@ -68,21 +68,21 @@ export default function RegisterScreen() {
       } else if (data.user) {
         console.log('Usuário criado com sucesso:', data.user);
         
-        // Verificar se o email foi enviado
-        if (data.user.email_confirmed_at) {
-          Alert.alert('Sucesso', 'Conta criada com sucesso!');
-          router.push('/login');
-        } else {
-          Alert.alert(
-            'Confirmação de Email', 
-            'Um email de confirmação foi enviado para ' + email + '. Verifique sua caixa de entrada e clique no link para confirmar sua conta.'
-          );
-          // Navegar para tela de confirmação de email
-          router.push({
-            pathname: '/email-confirmation',
-            params: { email: email }
-          });
-        }
+         // Verificar se o email foi enviado
+         if (data.user.email_confirmed_at) {
+           Alert.alert('Sucesso', 'Conta criada com sucesso!');
+           router.push('/cadastro-usuario');
+         } else {
+           Alert.alert(
+             'Confirmação de Email', 
+             'Um email de confirmação foi enviado para ' + email + '. Verifique sua caixa de entrada e clique no link para confirmar sua conta.'
+           );
+           // Navegar para tela de confirmação de email
+           router.push({
+             pathname: '/email-confirmation',
+             params: { email: email }
+           });
+         }
       }
     } catch (error) {
       console.error('Erro geral:', error);
