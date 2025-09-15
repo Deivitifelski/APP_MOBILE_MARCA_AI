@@ -16,7 +16,7 @@ import {
 import { setStringAsync } from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { getCurrentUser } from '../../services/supabase/authService';
+import { getCurrentUser, updatePassword } from '../../services/supabase/authService';
 import { getUserProfile, UserProfile } from '../../services/supabase/userService';
 import { getArtists } from '../../services/supabase/artistService';
 import { createFeedback } from '../../services/supabase/feedbackService';
@@ -32,11 +32,18 @@ export default function ConfiguracoesScreen() {
   const [currentArtist, setCurrentArtist] = useState<any>(null);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [helpForm, setHelpForm] = useState({
     type: 'bug' as 'bug' | 'improvement',
     subject: '',
     message: '',
   });
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   useEffect(() => {
     loadUserProfile();
@@ -128,6 +135,93 @@ export default function ConfiguracoesScreen() {
 
   const handleTermsOfUse = () => {
     setShowTermsModal(true);
+  };
+
+  const handleSecurity = () => {
+    setShowPasswordModal(true);
+  };
+
+  const handleChangePassword = async () => {
+    // Validações
+    if (!passwordForm.currentPassword.trim()) {
+      Alert.alert('❌ Erro', 'Por favor, digite sua senha atual para confirmar sua identidade.');
+      return;
+    }
+
+    if (!passwordForm.newPassword.trim()) {
+      Alert.alert('❌ Erro', 'Por favor, digite a nova senha desejada.');
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 6) {
+      Alert.alert('❌ Erro', 'A nova senha deve ter pelo menos 6 caracteres para maior segurança.');
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      Alert.alert('❌ Erro', 'As senhas não coincidem. Verifique se digitou corretamente nos dois campos.');
+      return;
+    }
+
+    if (passwordForm.currentPassword === passwordForm.newPassword) {
+      Alert.alert('❌ Erro', 'A nova senha deve ser diferente da senha atual. Escolha uma senha diferente.');
+      return;
+    }
+
+    // Validações adicionais de segurança
+    if (passwordForm.newPassword.length > 128) {
+      Alert.alert('❌ Erro', 'A senha é muito longa. Use no máximo 128 caracteres.');
+      return;
+    }
+
+    // Verificar se a senha contém apenas espaços
+    if (passwordForm.newPassword.trim() !== passwordForm.newPassword) {
+      Alert.alert('❌ Erro', 'A senha não pode começar ou terminar com espaços.');
+      return;
+    }
+
+    try {
+      setIsChangingPassword(true);
+
+      // Verificar se o usuário está autenticado
+      const { user, error: userError } = await getCurrentUser();
+      if (userError || !user) {
+        Alert.alert('❌ Erro de Autenticação', 'Sua sessão expirou. Faça login novamente para alterar sua senha.');
+        return;
+      }
+
+      // Atualizar a senha
+      const result = await updatePassword(passwordForm.newPassword);
+
+      if (result.success) {
+        setShowPasswordModal(false);
+        setPasswordForm({
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: '',
+        });
+        Alert.alert(
+          '✅ Sucesso!', 
+          'Sua senha foi alterada com sucesso! Você pode continuar usando o aplicativo normalmente.',
+          [{ text: 'OK', style: 'default' }]
+        );
+      } else {
+        Alert.alert(
+          '❌ Erro ao Alterar Senha', 
+          result.error || 'Não foi possível alterar sua senha. Verifique os dados e tente novamente.',
+          [{ text: 'Tentar Novamente', style: 'default' }]
+        );
+      }
+    } catch (error) {
+      console.error('Erro ao alterar senha:', error);
+      Alert.alert(
+        '❌ Erro de Conexão', 
+        'Ocorreu um erro inesperado. Verifique sua conexão com a internet e tente novamente.',
+        [{ text: 'OK', style: 'default' }]
+      );
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   const handleSendHelp = async () => {
@@ -361,7 +455,8 @@ export default function ConfiguracoesScreen() {
             {renderSettingItem(
               'lock-closed',
               'Segurança',
-              'Alterar senha e configurações de segurança'
+              'Alterar senha e configurações de segurança',
+              handleSecurity
             )}
             
             {renderSettingItem(
@@ -654,6 +749,106 @@ export default function ConfiguracoesScreen() {
               <View style={[dynamicStyles.termsFooter, { backgroundColor: colors.background, borderColor: colors.border }]}>
                 <Text style={[dynamicStyles.termsFooterText, { color: colors.textSecondary }]}>
                   Ao continuar usando o Marca AI, você confirma que leu, entendeu e concorda com estes Termos de Uso.
+                </Text>
+              </View>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Modal de Alteração de Senha */}
+      <Modal
+        visible={showPasswordModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowPasswordModal(false)}
+      >
+        <SafeAreaView style={[dynamicStyles.modalContainer, { backgroundColor: colors.background }]}>
+          <View style={[dynamicStyles.modalHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+            <TouchableOpacity
+              onPress={() => setShowPasswordModal(false)}
+              style={dynamicStyles.modalCloseButton}
+            >
+              <Ionicons name="close" size={24} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={[dynamicStyles.modalTitle, { color: colors.text }]}>Alterar Senha</Text>
+          </View>
+          
+          <ScrollView style={dynamicStyles.modalContent} showsVerticalScrollIndicator={false}>
+            <View style={[dynamicStyles.helpSection, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[dynamicStyles.helpSectionTitle, { color: colors.text }]}>Alterar Senha de Acesso</Text>
+              <Text style={[dynamicStyles.helpSectionSubtitle, { color: colors.textSecondary }]}>
+                Digite sua senha atual e a nova senha desejada
+              </Text>
+
+              {/* Senha Atual */}
+              <View style={dynamicStyles.inputContainer}>
+                <Text style={[dynamicStyles.inputLabel, { color: colors.text }]}>Senha Atual</Text>
+                <TextInput
+                  style={[dynamicStyles.textInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+                  placeholder="Digite sua senha atual"
+                  placeholderTextColor={colors.textSecondary}
+                  value={passwordForm.currentPassword}
+                  onChangeText={(text) => setPasswordForm(prev => ({ ...prev, currentPassword: text }))}
+                  secureTextEntry
+                  autoCapitalize="none"
+                />
+              </View>
+
+              {/* Nova Senha */}
+              <View style={dynamicStyles.inputContainer}>
+                <Text style={[dynamicStyles.inputLabel, { color: colors.text }]}>Nova Senha</Text>
+                <TextInput
+                  style={[dynamicStyles.textInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+                  placeholder="Digite a nova senha (mín. 6 caracteres)"
+                  placeholderTextColor={colors.textSecondary}
+                  value={passwordForm.newPassword}
+                  onChangeText={(text) => setPasswordForm(prev => ({ ...prev, newPassword: text }))}
+                  secureTextEntry
+                  autoCapitalize="none"
+                />
+              </View>
+
+              {/* Confirmar Nova Senha */}
+              <View style={dynamicStyles.inputContainer}>
+                <Text style={[dynamicStyles.inputLabel, { color: colors.text }]}>Confirmar Nova Senha</Text>
+                <TextInput
+                  style={[dynamicStyles.textInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+                  placeholder="Digite a nova senha novamente"
+                  placeholderTextColor={colors.textSecondary}
+                  value={passwordForm.confirmPassword}
+                  onChangeText={(text) => setPasswordForm(prev => ({ ...prev, confirmPassword: text }))}
+                  secureTextEntry
+                  autoCapitalize="none"
+                />
+              </View>
+
+              {/* Botão de Alterar Senha */}
+              <TouchableOpacity
+                style={[dynamicStyles.sendButton, { backgroundColor: colors.primary }]}
+                onPress={handleChangePassword}
+                disabled={isChangingPassword}
+              >
+                {isChangingPassword ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="lock-closed" size={20} color="#fff" />
+                    <Text style={dynamicStyles.sendButtonText}>Alterar Senha</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              {/* Dicas de Segurança */}
+              <View style={[dynamicStyles.securityTips, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <Text style={[dynamicStyles.securityTipsTitle, { color: colors.text }]}>🔒 Dicas de Segurança</Text>
+                <Text style={[dynamicStyles.securityTipsText, { color: colors.textSecondary }]}>
+                  • Use pelo menos 6 caracteres (recomendado: 8+){'\n'}
+                  • Combine letras maiúsculas, minúsculas, números e símbolos{'\n'}
+                  • Evite senhas óbvias como "123456" ou "senha123"{'\n'}
+                  • Não use informações pessoais (nome, data de nascimento){'\n'}
+                  • Não compartilhe sua senha com ninguém{'\n'}
+                  • Use uma senha única para este aplicativo
                 </Text>
               </View>
             </View>
@@ -1020,6 +1215,25 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
     textAlign: 'center',
     fontStyle: 'italic',
     lineHeight: 18,
+  },
+  // Estilos para o modal de alteração de senha
+  inputContainer: {
+    marginBottom: 16,
+  },
+  securityTips: {
+    marginTop: 20,
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  securityTipsTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  securityTipsText: {
+    fontSize: 14,
+    lineHeight: 20,
   },
 });
 
