@@ -87,6 +87,9 @@ export const createEvent = async (eventData: CreateEventData): Promise<{ success
       return { success: false, error: eventError.message };
     }
 
+    // O trigger trg_notify_event_created executará automaticamente
+    // e criará as notificações para os colaboradores
+
     // Se há despesas, criar elas
     if (eventData.expenses && eventData.expenses.length > 0) {
       const expensesToInsert = eventData.expenses.map(expense => ({

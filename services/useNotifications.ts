@@ -57,9 +57,14 @@ export const useNotifications = () => {
         (notification) => {
           console.log('useNotifications: Nova notificação recebida:', notification);
           
-          // Se é uma nova notificação não lida, incrementar contador
-          if (!notification.read) {
-            setUnreadCount(prev => prev + 1);
+          // Para notificações de eventos, recarregar contador total
+          if (notification.type === 'event_created' || notification.type === 'event_updated') {
+            loadUnreadCount();
+          } else {
+            // Para outras notificações, incrementar contador
+            if (!notification.read) {
+              setUnreadCount(prev => prev + 1);
+            }
           }
         }
       );
