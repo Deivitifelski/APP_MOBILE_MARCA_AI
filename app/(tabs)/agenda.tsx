@@ -167,19 +167,17 @@ export default function AgendaScreen() {
           <View style={styles.showInfoSection}>
             <Text style={[styles.showName, { color: colors.text }]}>{item.name}</Text>
             
-            <View style={styles.showDetailsRow}>
-              <View style={styles.showDetailItem}>
-                <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
-                <Text style={[styles.showDetailText, { color: colors.textSecondary }]}>{item.start_time}</Text>
-              </View>
-              
-              {item.city && (
-                <View style={styles.showDetailItem}>
-                  <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
-                  <Text style={[styles.showDetailText, { color: colors.textSecondary }]}>{item.city}</Text>
-                </View>
-              )}
+            <View style={styles.showDetailItem}>
+              <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
+              <Text style={[styles.showTime, { color: colors.textSecondary }]}>{item.start_time}</Text>
             </View>
+            
+            {item.city && (
+              <View style={styles.showDetailItem}>
+                <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
+                <Text style={[styles.showLocation, { color: colors.textSecondary }]}>{item.city}</Text>
+              </View>
+            )}
             
             {item.value && (
               <Text style={[styles.showValue, { color: colors.primary }]}>
@@ -474,19 +472,20 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     lineHeight: 20,
   },
-  showDetailsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 6,
-  },
   showDetailItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 16,
     marginBottom: 4,
   },
-  showDetailText: {
-    fontSize: 13,
+  showTime: {
+    fontSize: 14,
+    color: '#666',
+    marginLeft: 4,
+    fontWeight: '500',
+  },
+  showLocation: {
+    fontSize: 14,
+    color: '#666',
     marginLeft: 4,
     fontWeight: '500',
   },
