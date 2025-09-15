@@ -51,7 +51,7 @@ export interface CreateExpenseData {
 export interface UpdateEventData {
   nome?: string;
   valor?: number;
-  cidade?: string;
+  city?: string;
   telefone_contratante?: string;
   data?: string;
   horario_inicio?: string;

@@ -153,7 +153,11 @@ export default function AgendaScreen() {
     const dayOfWeek = eventDate.toLocaleDateString('pt-BR', { weekday: 'short' });
     
     return (
-      <View style={[styles.showCard, { backgroundColor: colors.surface }]}>
+      <TouchableOpacity 
+        style={[styles.showCard, { backgroundColor: colors.surface }]}
+        onPress={() => router.push(`/detalhes-evento?eventId=${item.id}`)}
+        activeOpacity={0.7}
+      >
         <View style={styles.showHeader}>
           <View style={styles.showDateContainer}>
             <Text style={[styles.showDate, { color: colors.primary }]}>{day}</Text>
@@ -179,17 +183,30 @@ export default function AgendaScreen() {
         )}
         
         <View style={[styles.showActions, { borderTopColor: colors.border }]}>
-          <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.secondary }]}>
+          <TouchableOpacity 
+            style={[styles.actionButton, { backgroundColor: colors.secondary }]}
+            onPress={(e) => {
+              e.stopPropagation();
+              router.push(`/despesas-evento?eventId=${item.id}`);
+            }}
+          >
             <Ionicons name="receipt-outline" size={16} color={colors.primary} />
             <Text style={[styles.actionButtonText, { color: colors.primary }]}>Despesas</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.secondary }]}>
+          <TouchableOpacity 
+            style={[styles.actionButton, { backgroundColor: colors.secondary }]}
+            onPress={(e) => {
+              e.stopPropagation();
+              // TODO: Implementar compartilhamento
+              Alert.alert('Compartilhar', 'Funcionalidade de compartilhamento em desenvolvimento');
+            }}
+          >
             <Ionicons name="share-outline" size={16} color={colors.primary} />
             <Text style={[styles.actionButtonText, { color: colors.primary }]}>Compartilhar</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
