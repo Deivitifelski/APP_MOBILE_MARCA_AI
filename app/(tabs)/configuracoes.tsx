@@ -839,18 +839,30 @@ export default function ConfiguracoesScreen() {
                 )}
               </TouchableOpacity>
 
-              {/* Dicas de Segurança */}
-              <View style={[dynamicStyles.securityTips, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                <Text style={[dynamicStyles.securityTipsTitle, { color: colors.text }]}>🔒 Dicas de Segurança</Text>
-                <Text style={[dynamicStyles.securityTipsText, { color: colors.textSecondary }]}>
-                  • Use pelo menos 6 caracteres (recomendado: 8+){'\n'}
-                  • Combine letras maiúsculas, minúsculas, números e símbolos{'\n'}
-                  • Evite senhas óbvias como "123456" ou "senha123"{'\n'}
-                  • Não use informações pessoais (nome, data de nascimento){'\n'}
-                  • Não compartilhe sua senha com ninguém{'\n'}
-                  • Use uma senha única para este aplicativo
-                </Text>
-              </View>
+                   {/* Dicas de Segurança */}
+                   <View style={[dynamicStyles.securityTips, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                     <Text style={[dynamicStyles.securityTipsTitle, { color: colors.text }]}>🔒 Dicas de Segurança</Text>
+                     <View style={dynamicStyles.securityTipsList}>
+                       <Text style={[dynamicStyles.securityTipsItem, { color: colors.textSecondary }]}>
+                         • Mínimo 6 caracteres (recomendado: 8+)
+                       </Text>
+                       <Text style={[dynamicStyles.securityTipsItem, { color: colors.textSecondary }]}>
+                         • Combine maiúsculas, minúsculas, números e símbolos
+                       </Text>
+                       <Text style={[dynamicStyles.securityTipsItem, { color: colors.textSecondary }]}>
+                         • Evite senhas óbvias como "123456"
+                       </Text>
+                       <Text style={[dynamicStyles.securityTipsItem, { color: colors.textSecondary }]}>
+                         • Não use informações pessoais
+                       </Text>
+                       <Text style={[dynamicStyles.securityTipsItem, { color: colors.textSecondary }]}>
+                         • Não compartilhe sua senha
+                       </Text>
+                       <Text style={[dynamicStyles.securityTipsItem, { color: colors.textSecondary }]}>
+                         • Use uma senha única para este app
+                       </Text>
+                     </View>
+                   </View>
             </View>
           </ScrollView>
         </SafeAreaView>
@@ -1216,25 +1228,28 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
     fontStyle: 'italic',
     lineHeight: 18,
   },
-  // Estilos para o modal de alteração de senha
-  inputContainer: {
-    marginBottom: 16,
-  },
-  securityTips: {
-    marginTop: 20,
-    padding: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  securityTipsTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  securityTipsText: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
+         // Estilos para o modal de alteração de senha
+         inputContainer: {
+           marginBottom: 16,
+         },
+         securityTips: {
+           marginTop: 16,
+           padding: 12,
+           borderRadius: 8,
+           borderWidth: 1,
+         },
+         securityTipsTitle: {
+           fontSize: 14,
+           fontWeight: '600',
+           marginBottom: 8,
+         },
+         securityTipsList: {
+           gap: 4,
+         },
+         securityTipsItem: {
+           fontSize: 12,
+           lineHeight: 16,
+         },
 });
 
 const styles = StyleSheet.create({
