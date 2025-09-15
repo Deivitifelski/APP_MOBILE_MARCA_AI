@@ -95,30 +95,27 @@ export default function DespesasEventoScreen() {
     <View key={expense.id} style={styles.expenseItem}>
       <View style={styles.expenseHeader}>
         <View style={styles.expenseInfo}>
-          <Text style={styles.expenseName}>{expense.nome}</Text>
-          <Text style={styles.expenseValue}>{formatCurrency(expense.valor)}</Text>
+          <Text style={styles.expenseName}>{expense.name}</Text>
+          <Text style={styles.expenseValue}>{formatCurrency(expense.value)}</Text>
         </View>
         <TouchableOpacity
-          onPress={() => handleDeleteExpense(expense.id, expense.nome)}
+          onPress={() => handleDeleteExpense(expense.id, expense.name)}
           style={styles.deleteButton}
         >
           <Ionicons name="trash" size={20} color="#ff4444" />
         </TouchableOpacity>
       </View>
       
-      {expense.descricao && (
-        <Text style={styles.expenseDescription}>{expense.descricao}</Text>
-      )}
       
-      {expense.arquivo_url && (
+      {expense.receipt_url && (
         <View style={styles.fileContainer}>
           <Ionicons 
-            name={expense.arquivo_tipo === 'image' ? 'image' : 'document'} 
+            name="document" 
             size={16} 
             color="#667eea" 
           />
           <Text style={styles.fileText}>
-            {expense.arquivo_tipo === 'image' ? 'Foto anexada' : 'Documento anexado'}
+            Comprovante anexado
           </Text>
         </View>
       )}
@@ -313,12 +310,6 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     padding: 4,
-  },
-  expenseDescription: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
-    lineHeight: 20,
   },
   fileContainer: {
     flexDirection: 'row',

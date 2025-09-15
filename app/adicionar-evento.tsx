@@ -311,7 +311,7 @@ export default function AdicionarEventoScreen() {
         .filter(despesa => despesa.nome.trim() && despesa.valor.trim())
         .map(despesa => ({
           name: despesa.nome.trim(),
-          value: parseFloat(despesa.valor),
+          value: parseFloat(despesa.valor) / 100, // Converter centavos para reais
           receipt_url: despesa.arquivo_url
         }));
 
@@ -683,11 +683,14 @@ export default function AdicionarEventoScreen() {
                   <Text style={styles.despesaLabel}>Valor (R$) *</Text>
                   <TextInput
                     style={styles.despesaInput}
-                    value={despesa.valor}
-                    onChangeText={(text) => updateDespesa(index, 'valor', text)}
-                    placeholder="0,00"
+                    value={despesa.valor ? formatCurrency(despesa.valor) : ''}
+                    onChangeText={(text) => {
+                      const numericValue = text.replace(/\D/g, '');
+                      updateDespesa(index, 'valor', numericValue);
+                    }}
+                    placeholder="R$ 0,00"
                     placeholderTextColor="#999"
-                    keyboardType="numeric"
+                    keyboardType="default"
                   />
                 </View>
               </View>

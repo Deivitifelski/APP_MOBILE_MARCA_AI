@@ -74,15 +74,20 @@ export default function DetalhesEventoScreen() {
     return timeString.substring(0, 5); // HH:MM
   };
 
-  const formatCurrency = (value: string) => {
-    // Remove tudo que não é número
-    const numericValue = value.replace(/\D/g, '');
+  const formatCurrency = (value: number | string) => {
+    // Se for string, trata como centavos (para compatibilidade com eventos)
+    if (typeof value === 'string') {
+      const numericValue = value.replace(/\D/g, '');
+      if (!numericValue) return '';
+      const number = parseInt(numericValue, 10);
+      return `R$ ${(number / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    }
     
-    if (!numericValue) return '';
-    
-    // Converte para número e formata
-    const number = parseInt(numericValue, 10);
-    return `R$ ${(number / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    // Se for number, trata como reais (para despesas)
+    return value.toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    });
   };
 
   const extractNumericValue = (formattedValue: string) => {
@@ -194,7 +199,7 @@ export default function DetalhesEventoScreen() {
           <View style={styles.financialRow}>
             <Text style={styles.financialLabel}>Total de Despesas:</Text>
             <Text style={[styles.financialValue, { color: '#ff4444' }]}>
-              -{formatCurrency(totalExpenses.toString())}
+              -{formatCurrency(totalExpenses)}
             </Text>
           </View>
 
@@ -204,7 +209,7 @@ export default function DetalhesEventoScreen() {
               styles.financialTotalValue,
               { color: profit >= 0 ? '#4CAF50' : '#ff4444' }
             ]}>
-              {formatCurrency(profit.toString())}
+              {formatCurrency(profit)}
             </Text>
           </View>
         </View>

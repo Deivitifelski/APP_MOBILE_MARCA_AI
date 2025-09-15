@@ -20,7 +20,6 @@ import { createExpense } from '../services/supabase/expenseService';
 interface DespesaForm {
   nome: string;
   valor: string;
-  descricao: string;
   arquivo_url?: string;
   arquivo_tipo?: 'image' | 'document';
 }
@@ -32,7 +31,6 @@ export default function AdicionarDespesaScreen() {
   const [form, setForm] = useState<DespesaForm>({
     nome: '',
     valor: '',
-    descricao: '',
     arquivo_url: undefined,
     arquivo_tipo: undefined,
   });
@@ -126,15 +124,12 @@ export default function AdicionarDespesaScreen() {
 
     try {
       const expenseData = {
-        nome: form.nome.trim(),
-        valor: parseFloat(form.valor),
-        descricao: form.descricao.trim() || undefined,
-        arquivo_url: form.arquivo_url,
-        arquivo_tipo: form.arquivo_tipo,
-        event_id: eventId,
+        name: form.nome.trim(),
+        value: parseFloat(form.valor) / 100, // Converter centavos para reais
+        receipt_url: form.arquivo_url,
       };
 
-      const result = await createExpense(expenseData);
+      const result = await createExpense(eventId, expenseData);
 
       if (result.success) {
         Alert.alert(
@@ -212,20 +207,6 @@ export default function AdicionarDespesaScreen() {
           />
         </View>
 
-        {/* Descrição */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Descrição (Opcional)</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            value={form.descricao}
-            onChangeText={(text) => updateForm('descricao', text)}
-            placeholder="Detalhes sobre a despesa..."
-            placeholderTextColor="#999"
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-          />
-        </View>
 
         {/* Upload de Arquivo */}
         <View style={styles.inputGroup}>
@@ -349,9 +330,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e9ecef',
     color: '#333',
-  },
-  textArea: {
-    height: 100,
   },
   uploadButtons: {
     flexDirection: 'row',
