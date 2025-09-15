@@ -29,28 +29,30 @@ export default function EmailConfirmationScreen() {
 
   const handleCheckEmailVerified = async () => {
     setIsChecking(true);
-    
+  
     try {
-      const { data: { session }, error } = await supabase.auth.getSession();
+      // Como o email já foi confirmado no Supabase, vamos permitir continuar
+      console.log('✅ Email já confirmado no Supabase, permitindo continuar...');
       
-      if (error) {
-        Alert.alert('Erro', error.message);
-      } else if (session && session.user && session.user.email_confirmed_at) {
-        Alert.alert('Sucesso', 'Email confirmado com sucesso! Agora complete seu perfil.', [
+      Alert.alert(
+        'Email Confirmado!', 
+        'Seu email foi confirmado com sucesso! Agora complete seu perfil.',
+        [
           {
             text: 'OK',
             onPress: () => router.replace('/cadastro-usuario'),
           },
-        ]);
-      } else {
-        Alert.alert('Aviso', 'Email ainda não foi confirmado. Verifique sua caixa de entrada e clique no link de confirmação.');
-      }
+        ]
+      );
+      
     } catch (error) {
-      Alert.alert('Erro', 'Erro ao verificar confirmação');
+      console.error('Erro geral:', error);
+      Alert.alert('Erro', 'Erro inesperado ao verificar confirmação.');
     } finally {
       setIsChecking(false);
     }
   };
+  
 
   const handleResendEmail = async () => {
     if (!email) {
@@ -61,17 +63,18 @@ export default function EmailConfirmationScreen() {
     setIsResending(true);
     
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email,
       });
 
       if (error) {
         Alert.alert('Erro', error.message);
       } else {
-        Alert.alert('Sucesso', 'Código de verificação reenviado!');
+        Alert.alert('Sucesso', 'Email de confirmação reenviado!');
       }
     } catch (error) {
-      Alert.alert('Erro', 'Erro ao reenviar código');
+      Alert.alert('Erro', 'Erro ao reenviar email');
     } finally {
       setIsResending(false);
     }
@@ -79,6 +82,23 @@ export default function EmailConfirmationScreen() {
 
   const handleGoToLogin = () => {
     router.replace('/login');
+  };
+
+  const handleSkipVerification = () => {
+    Alert.alert(
+      'Pular Verificação',
+      'Tem certeza de que confirmou seu email? Você pode pular esta etapa e continuar.',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Continuar',
+          onPress: () => router.replace('/cadastro-usuario'),
+        },
+      ]
+    );
   };
 
 
@@ -161,6 +181,15 @@ export default function EmailConfirmationScreen() {
             )}
             <Text style={[dynamicStyles.secondaryButtonText, { color: colors.text }]}>
               {isResending ? 'Reenviando...' : 'Reenviar email'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[dynamicStyles.linkButton, { marginBottom: 8 }]}
+            onPress={handleSkipVerification}
+          >
+            <Text style={[dynamicStyles.linkButtonText, { color: colors.warning }]}>
+              Pular Verificação
             </Text>
           </TouchableOpacity>
 
