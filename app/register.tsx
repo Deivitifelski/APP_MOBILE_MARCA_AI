@@ -52,37 +52,28 @@ export default function RegisterScreen() {
     try {
       console.log('Tentando criar conta para:', email);
       
-      const { data, error } = await supabase.auth.signUp({
-        email: email,
-        password: password,
-        options: {
-          emailRedirectTo: 'exp://192.168.1.100:8081/--/email-confirmation'
-        }
+      const { data, error } = await supabase.auth.signInWithOtp({
+        email: email
       });
 
       console.log('Resposta do Supabase:', { data, error });
 
       if (error) {
-        console.error('Erro no cadastro:', error);
+        console.error('Erro ao enviar código OTP:', error);
         Alert.alert('Erro', error.message);
-      } else if (data.user) {
-        console.log('Usuário criado com sucesso:', data.user);
+      } else if (data) {
+        console.log('Código OTP enviado com sucesso:', data);
         
-        // Verificar se o email foi enviado
-        if (data.user.email_confirmed_at) {
-          Alert.alert('Sucesso', 'Conta criada com sucesso!');
-          router.push('/login');
-        } else {
-          Alert.alert(
-            'Confirmação de Email', 
-            'Um email de confirmação foi enviado para ' + email + '. Verifique sua caixa de entrada e clique no link para confirmar sua conta.'
-          );
-          // Navegar para tela de confirmação de email
-          router.push({
-            pathname: '/email-confirmation',
-            params: { email: email }
-          });
-        }
+        Alert.alert(
+          'Código Enviado', 
+          'Um código de verificação foi enviado para ' + email + '. Verifique sua caixa de entrada e digite o código para confirmar sua conta.'
+        );
+        
+        // Navegar para tela de confirmação de email
+        router.push({
+          pathname: '/email-confirmation',
+          params: { email: email }
+        });
       }
     } catch (error) {
       console.error('Erro geral:', error);
@@ -141,7 +132,7 @@ export default function RegisterScreen() {
                 />
               </View>
 
-              <View style={[dynamicStyles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <View style={[dynamicStyles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]} pointerEvents="box-none">
                 <Ionicons name="lock-closed-outline" size={20} color={colors.textSecondary} style={dynamicStyles.inputIcon} />
                 <TextInput
                   style={[dynamicStyles.input, { color: colors.text }]}
@@ -164,7 +155,7 @@ export default function RegisterScreen() {
                 </TouchableOpacity>
               </View>
 
-              <View style={[dynamicStyles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <View style={[dynamicStyles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]} pointerEvents="box-none">
                 <Ionicons name="lock-closed-outline" size={20} color={colors.textSecondary} style={dynamicStyles.inputIcon} />
                 <TextInput
                   style={[dynamicStyles.input, { color: colors.text }]}

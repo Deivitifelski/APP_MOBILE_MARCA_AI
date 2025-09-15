@@ -7,14 +7,18 @@ import {
   SafeAreaView,
   Alert,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function EmailConfirmationScreen() {
+  const { colors } = useTheme();
   const [isResending, setIsResending] = useState(false);
   const [email, setEmail] = useState('');
+  const [isChecking, setIsChecking] = useState(false);
   const { email: paramEmail } = useLocalSearchParams();
 
   useEffect(() => {
@@ -22,6 +26,31 @@ export default function EmailConfirmationScreen() {
       setEmail(paramEmail as string);
     }
   }, [paramEmail]);
+
+  const handleCheckEmailVerified = async () => {
+    setIsChecking(true);
+    
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        Alert.alert('Erro', error.message);
+      } else if (session && session.user && session.user.email_confirmed_at) {
+        Alert.alert('Sucesso', 'Email confirmado com sucesso! Agora complete seu perfil.', [
+          {
+            text: 'OK',
+            onPress: () => router.replace('/cadastro-usuario'),
+          },
+        ]);
+      } else {
+        Alert.alert('Aviso', 'Email ainda não foi confirmado. Verifique sua caixa de entrada e clique no link de confirmação.');
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Erro ao verificar confirmação');
+    } finally {
+      setIsChecking(false);
+    }
+  };
 
   const handleResendEmail = async () => {
     if (!email) {
@@ -32,18 +61,17 @@ export default function EmailConfirmationScreen() {
     setIsResending(true);
     
     try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: email,
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email
       });
 
       if (error) {
         Alert.alert('Erro', error.message);
       } else {
-        Alert.alert('Sucesso', 'Email de confirmação reenviado!');
+        Alert.alert('Sucesso', 'Código de verificação reenviado!');
       }
     } catch (error) {
-      Alert.alert('Erro', 'Erro ao reenviar email');
+      Alert.alert('Erro', 'Erro ao reenviar código');
     } finally {
       setIsResending(false);
     }
@@ -53,118 +81,106 @@ export default function EmailConfirmationScreen() {
     router.replace('/login');
   };
 
-  const handleCheckEmail = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        Alert.alert('Sucesso', 'Email confirmado! Agora complete seu perfil.', [
-          {
-            text: 'OK',
-            onPress: () => router.replace('/cadastro-usuario'),
-          },
-        ]);
-      } else {
-        Alert.alert('Aviso', 'Email ainda não foi confirmado. Verifique sua caixa de entrada.');
-      }
-    } catch (error) {
-      Alert.alert('Erro', 'Erro ao verificar confirmação');
-    }
-  };
+
+  const dynamicStyles = createDynamicStyles(colors);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.gradient}>
-        <View style={styles.content}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.iconContainer}>
-              <Ionicons name="mail-outline" size={80} color="#fff" />
-            </View>
-            <Text style={styles.title}>Confirme seu Email</Text>
-            <Text style={styles.subtitle}>
-              Enviamos um link de confirmação para:
-            </Text>
-            <Text style={styles.email}>{email}</Text>
+    <SafeAreaView style={[dynamicStyles.container, { backgroundColor: colors.background }]}>
+      <View style={dynamicStyles.content}>
+        {/* Header */}
+        <View style={dynamicStyles.header}>
+          <View style={[dynamicStyles.iconContainer, { backgroundColor: colors.primary }]}>
+            <Ionicons name="mail-outline" size={80} color="#fff" />
           </View>
+          <Text style={[dynamicStyles.title, { color: colors.text }]}>Confirme seu Email</Text>
+          <Text style={[dynamicStyles.subtitle, { color: colors.textSecondary }]}>
+            Enviamos um link de confirmação para:
+          </Text>
+          <Text style={[dynamicStyles.email, { color: colors.text }]}>{email}</Text>
+        </View>
 
-          {/* Instruções */}
-          <View style={styles.instructions}>
-            <View style={styles.instructionItem}>
-              <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-              <Text style={styles.instructionText}>
-                Verifique sua caixa de entrada
-              </Text>
-            </View>
-            <View style={styles.instructionItem}>
-              <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-              <Text style={styles.instructionText}>
-                Clique no link de confirmação
-              </Text>
-            </View>
-            <View style={styles.instructionItem}>
-              <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-              <Text style={styles.instructionText}>
-                Volte ao app após confirmar
-              </Text>
-            </View>
-          </View>
-
-          {/* Aviso sobre spam */}
-          <View style={styles.spamWarning}>
-            <Ionicons name="warning-outline" size={20} color="#FF9800" />
-            <Text style={styles.spamText}>
-              Não esqueça de verificar a pasta de spam/lixo eletrônico
+        {/* Instruções */}
+        <View style={[dynamicStyles.instructions, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={dynamicStyles.instructionItem}>
+            <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+            <Text style={[dynamicStyles.instructionText, { color: colors.text }]}>
+              Verifique sua caixa de entrada
             </Text>
           </View>
-
-          {/* Botões */}
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={handleCheckEmail}
-            >
-              <Text style={styles.primaryButtonText}>
-                Já confirmei meu email
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.secondaryButton, isResending && styles.buttonDisabled]}
-              onPress={handleResendEmail}
-              disabled={isResending}
-            >
-              {isResending ? (
-                <ActivityIndicator size="small" color="#667eea" />
-              ) : (
-                <Ionicons name="refresh" size={20} color="#667eea" />
-              )}
-              <Text style={styles.secondaryButtonText}>
-                {isResending ? 'Reenviando...' : 'Reenviar email'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.linkButton}
-              onPress={handleGoToLogin}
-            >
-              <Text style={styles.linkButtonText}>
-                Voltar ao login
-              </Text>
-            </TouchableOpacity>
+          <View style={dynamicStyles.instructionItem}>
+            <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+            <Text style={[dynamicStyles.instructionText, { color: colors.text }]}>
+              Clique no link de confirmação
+            </Text>
           </View>
+          <View style={dynamicStyles.instructionItem}>
+            <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+            <Text style={[dynamicStyles.instructionText, { color: colors.text }]}>
+              Volte ao app e clique em "Email Verificado"
+            </Text>
+          </View>
+        </View>
+
+        {/* Aviso sobre spam */}
+        <View style={[dynamicStyles.spamWarning, { backgroundColor: colors.warning + '20', borderColor: colors.warning }]}>
+          <Ionicons name="warning-outline" size={20} color={colors.warning} />
+          <Text style={[dynamicStyles.spamText, { color: colors.text }]}>
+            Não esqueça de verificar a pasta de spam/lixo eletrônico
+          </Text>
+        </View>
+
+        {/* Botões */}
+        <View style={dynamicStyles.buttonContainer}>
+          <TouchableOpacity
+            style={[dynamicStyles.primaryButton, { backgroundColor: colors.primary }]}
+            onPress={handleCheckEmailVerified}
+            disabled={isChecking}
+          >
+            {isChecking ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={dynamicStyles.primaryButtonText}>
+                Email Verificado
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              dynamicStyles.secondaryButton, 
+              { backgroundColor: colors.surface, borderColor: colors.border },
+              isResending && dynamicStyles.buttonDisabled
+            ]}
+            onPress={handleResendEmail}
+            disabled={isResending}
+          >
+            {isResending ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Ionicons name="refresh" size={20} color={colors.primary} />
+            )}
+            <Text style={[dynamicStyles.secondaryButtonText, { color: colors.text }]}>
+              {isResending ? 'Reenviando...' : 'Reenviar email'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={dynamicStyles.linkButton}
+            onPress={handleGoToLogin}
+          >
+            <Text style={[dynamicStyles.linkButtonText, { color: colors.primary }]}>
+              Voltar ao login
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createDynamicStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-  },
-  gradient: {
-    flex: 1,
-    backgroundColor: '#667eea',
   },
   content: {
     flex: 1,
@@ -181,7 +197,6 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
@@ -189,24 +204,24 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#fff',
     marginBottom: 12,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
     marginBottom: 8,
   },
   email: {
     fontSize: 16,
-    color: '#fff',
     fontWeight: 'bold',
     textAlign: 'center',
   },
   instructions: {
     marginBottom: 30,
+    padding: 20,
+    borderRadius: 12,
+    borderWidth: 1,
   },
   instructionItem: {
     flexDirection: 'row',
@@ -215,20 +230,18 @@ const styles = StyleSheet.create({
   },
   instructionText: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
     marginLeft: 12,
   },
   spamWarning: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 152, 0, 0.2)',
     padding: 12,
     borderRadius: 8,
     marginBottom: 30,
+    borderWidth: 1,
   },
   spamText: {
     fontSize: 14,
-    color: '#fff',
     marginLeft: 8,
     flex: 1,
   },
@@ -236,12 +249,11 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   primaryButton: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     height: 56,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOffset: {
       width: 0,
       height: 2,
@@ -251,7 +263,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   primaryButtonText: {
-    color: '#667eea',
+    color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
   },
@@ -259,17 +271,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 12,
     height: 56,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   secondaryButtonText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
@@ -279,7 +288,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   linkButtonText: {
-    color: 'rgba(255, 255, 255, 0.8)',
     fontSize: 16,
     textDecorationLine: 'underline',
   },
