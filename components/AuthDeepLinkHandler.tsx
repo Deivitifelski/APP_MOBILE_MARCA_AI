@@ -19,17 +19,31 @@ export default function AuthDeepLinkHandler() {
         console.log('Parâmetros extraídos:', { accessToken, refreshToken, type });
         
         if (accessToken && refreshToken && type === 'signup') {
+          console.log('Definindo sessão com tokens...');
+          
           // Trocar o código pela sessão
           supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
-          }).then(({ data, error }) => {
+          }).then(async ({ data, error }) => {
             if (error) {
               console.error('Erro ao definir sessão:', error);
-            } else {
-              console.log('Sessão definida com sucesso:', data);
+              return;
+            }
+            
+            console.log('Sessão definida com sucesso:', data);
+            console.log('Usuário na sessão:', data.user);
+            console.log('Email confirmado?', data.user?.email_confirmed_at);
+            
+            // Verificar se a sessão foi realmente salva
+            const { data: { session } } = await supabase.auth.getSession();
+            console.log('Sessão verificada após setSession:', session);
+            
+            if (session) {
               // Navegar para a tela de confirmação
               router.replace('/email-confirmation');
+            } else {
+              console.error('Sessão não foi salva corretamente');
             }
           });
         }
