@@ -349,12 +349,24 @@ export default function DetalhesEventoScreen() {
     setIsSaving(true);
 
     try {
-      // Converter data para string YYYY-MM-DD
-      const dateString = editForm.data.toISOString().split('T')[0];
+      // Verificar se houve mudanças na data/hora
+      let dateString = event?.event_date; // Manter data original se não mudou
+      let startTimeString = event?.start_time; // Manter horário original se não mudou
+      let endTimeString = event?.end_time; // Manter horário original se não mudou
+
+      // Se a data foi alterada, converter para string YYYY-MM-DD
+      if (editForm.data) {
+        dateString = editForm.data.toISOString().split('T')[0];
+      }
       
-      // Converter horários para string HH:MM
-      const startTimeString = `${editForm.horarioInicio.getHours().toString().padStart(2, '0')}:${editForm.horarioInicio.getMinutes().toString().padStart(2, '0')}`;
-      const endTimeString = `${editForm.horarioFim.getHours().toString().padStart(2, '0')}:${editForm.horarioFim.getMinutes().toString().padStart(2, '0')}`;
+      // Se os horários foram alterados, converter para string HH:MM
+      if (editForm.horarioInicio) {
+        startTimeString = `${editForm.horarioInicio.getHours().toString().padStart(2, '0')}:${editForm.horarioInicio.getMinutes().toString().padStart(2, '0')}`;
+      }
+      
+      if (editForm.horarioFim) {
+        endTimeString = `${editForm.horarioFim.getHours().toString().padStart(2, '0')}:${editForm.horarioFim.getMinutes().toString().padStart(2, '0')}`;
+      }
 
       const updateData: UpdateEventData = {
         nome: editForm.nome,
@@ -425,6 +437,7 @@ export default function DetalhesEventoScreen() {
   const profit = (event.value || 0) - totalExpenses;
 
   return (
+    <>
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -545,6 +558,7 @@ export default function DetalhesEventoScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
 
       {/* Modal de Edição */}
       <Modal
@@ -738,26 +752,31 @@ export default function DetalhesEventoScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* Modal para seleção de data */}
-      <Modal
-        visible={showDateModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowDateModal(false)}
-      >
-        <SafeAreaView style={styles.dateTimeModalContainer}>
-          <View style={styles.dateTimeModalHeader}>
+    </SafeAreaView>
+
+    {/* Modais de data/hora - completamente independentes */}
+    {/* Modal para seleção de data */}
+    <Modal
+      visible={showDateModal}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => setShowDateModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHandle} />
+          
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Selecionar Data</Text>
             <TouchableOpacity
               onPress={() => setShowDateModal(false)}
-              style={styles.dateTimeModalCloseButton}
+              style={styles.modalCloseButton}
             >
-              <Ionicons name="close" size={24} color="#333" />
+              <Ionicons name="close" size={24} color="#666" />
             </TouchableOpacity>
-            <Text style={styles.dateTimeModalTitle}>Selecionar Data</Text>
-            <View style={styles.dateTimeModalPlaceholder} />
           </View>
           
-          <View style={styles.dateTimeModalBody}>
+          <View style={styles.modalBody}>
             <DatePickerComponent
               selectedDate={editForm.data}
               onDateChange={(date) => setEditForm({ ...editForm, data: date })}
@@ -766,91 +785,98 @@ export default function DetalhesEventoScreen() {
             />
           </View>
           
-          <View style={styles.dateTimeModalButtons}>
+          <View style={styles.modalButtons}>
             <TouchableOpacity
-              style={styles.dateTimeModalConfirmButton}
+              style={styles.modalConfirmButton}
               onPress={() => setShowDateModal(false)}
             >
-              <Text style={styles.dateTimeModalConfirmText}>Confirmar</Text>
+              <Text style={styles.modalConfirmText}>Confirmar</Text>
             </TouchableOpacity>
           </View>
-        </SafeAreaView>
-      </Modal>
+        </View>
+      </View>
+    </Modal>
 
-      {/* Modal para seleção de horário de início */}
-      <Modal
-        visible={showTimeInicioModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowTimeInicioModal(false)}
-      >
-        <SafeAreaView style={styles.dateTimeModalContainer}>
-          <View style={styles.dateTimeModalHeader}>
+    {/* Modal para seleção de horário de início */}
+    <Modal
+      visible={showTimeInicioModal}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => setShowTimeInicioModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHandle} />
+          
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Horário de Início</Text>
             <TouchableOpacity
               onPress={() => setShowTimeInicioModal(false)}
-              style={styles.dateTimeModalCloseButton}
+              style={styles.modalCloseButton}
             >
-              <Ionicons name="close" size={24} color="#333" />
+              <Ionicons name="close" size={24} color="#666" />
             </TouchableOpacity>
-            <Text style={styles.dateTimeModalTitle}>Horário de Início</Text>
-            <View style={styles.dateTimeModalPlaceholder} />
           </View>
           
-          <View style={styles.dateTimeModalBody}>
+          <View style={styles.modalBody}>
             <TimePickerComponent
               selectedTime={editForm.horarioInicio}
               onTimeChange={(time) => setEditForm({ ...editForm, horarioInicio: time })}
             />
           </View>
           
-          <View style={styles.dateTimeModalButtons}>
+          <View style={styles.modalButtons}>
             <TouchableOpacity
-              style={styles.dateTimeModalConfirmButton}
+              style={styles.modalConfirmButton}
               onPress={() => setShowTimeInicioModal(false)}
             >
-              <Text style={styles.dateTimeModalConfirmText}>Confirmar</Text>
+              <Text style={styles.modalConfirmText}>Confirmar</Text>
             </TouchableOpacity>
           </View>
-        </SafeAreaView>
-      </Modal>
+        </View>
+      </View>
+    </Modal>
 
-      {/* Modal para seleção de horário de fim */}
-      <Modal
-        visible={showTimeFimModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowTimeFimModal(false)}
-      >
-        <SafeAreaView style={styles.dateTimeModalContainer}>
-          <View style={styles.dateTimeModalHeader}>
+    {/* Modal para seleção de horário de fim */}
+    <Modal
+      visible={showTimeFimModal}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => setShowTimeFimModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHandle} />
+          
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Horário de Fim</Text>
             <TouchableOpacity
               onPress={() => setShowTimeFimModal(false)}
-              style={styles.dateTimeModalCloseButton}
+              style={styles.modalCloseButton}
             >
-              <Ionicons name="close" size={24} color="#333" />
+              <Ionicons name="close" size={24} color="#666" />
             </TouchableOpacity>
-            <Text style={styles.dateTimeModalTitle}>Horário de Fim</Text>
-            <View style={styles.dateTimeModalPlaceholder} />
           </View>
           
-          <View style={styles.dateTimeModalBody}>
+          <View style={styles.modalBody}>
             <TimePickerComponent
               selectedTime={editForm.horarioFim}
               onTimeChange={(time) => setEditForm({ ...editForm, horarioFim: time })}
             />
           </View>
           
-          <View style={styles.dateTimeModalButtons}>
+          <View style={styles.modalButtons}>
             <TouchableOpacity
-              style={styles.dateTimeModalConfirmButton}
+              style={styles.modalConfirmButton}
               onPress={() => setShowTimeFimModal(false)}
             >
-              <Text style={styles.dateTimeModalConfirmText}>Confirmar</Text>
+              <Text style={styles.modalConfirmText}>Confirmar</Text>
             </TouchableOpacity>
           </View>
-        </SafeAreaView>
-      </Modal>
-    </SafeAreaView>
+        </View>
+      </View>
+    </Modal>
+    </>
   );
 }
 
@@ -1186,74 +1212,56 @@ const styles = StyleSheet.create({
     color: '#333',
     fontWeight: '500',
   },
-  // Estilos para modais de data/hora
-  dateTimeModalContainer: {
+  // Estilos para modais de data/hora (igual à página de adicionar evento)
+  modalOverlay: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
   },
-  dateTimeModalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+  modalContent: {
     backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  dateTimeModalCloseButton: {
-    padding: 8,
-  },
-  dateTimeModalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: 16,
-  },
-  dateTimeModalPlaceholder: {
+  modalHandle: {
     width: 40,
+    height: 4,
+    backgroundColor: '#ddd',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 8,
   },
-  dateTimeModalBody: {
-    flex: 1,
+  modalBody: {
     padding: 20,
   },
-  modalScrollView: {
-    flex: 1,
-    padding: 20,
-  },
-  dateTimeModalButtons: {
+  modalButtons: {
     flexDirection: 'row',
     justifyContent: 'center',
     padding: 20,
-    backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: '#e9ecef',
   },
-  dateTimeModalConfirmButton: {
+  modalConfirmButton: {
     backgroundColor: '#667eea',
     paddingHorizontal: 32,
     paddingVertical: 12,
     borderRadius: 8,
   },
-  dateTimeModalConfirmText: {
+  modalConfirmText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  modalScrollView: {
+    flex: 1,
+    padding: 20,
   },
   // Estilos para calendário
   calendarContainer: {

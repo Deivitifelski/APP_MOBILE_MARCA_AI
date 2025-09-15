@@ -9,6 +9,9 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
+  Modal,
+  TextInput,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -25,6 +28,12 @@ export default function ConfiguracoesScreen() {
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [hasArtist, setHasArtist] = useState(false);
   const [currentArtist, setCurrentArtist] = useState<any>(null);
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [helpForm, setHelpForm] = useState({
+    type: 'bug' as 'bug' | 'improvement',
+    subject: '',
+    message: '',
+  });
 
   useEffect(() => {
     loadUserProfile();
@@ -108,6 +117,61 @@ export default function ConfiguracoesScreen() {
         },
       ]
     );
+  };
+
+  const handleHelpSupport = () => {
+    setShowHelpModal(true);
+  };
+
+  const handleSendHelp = async () => {
+    if (!helpForm.subject.trim() || !helpForm.message.trim()) {
+      Alert.alert('Erro', 'Por favor, preencha todos os campos obrigatórios.');
+      return;
+    }
+
+    try {
+      const emailSubject = `${helpForm.type === 'bug' ? '🐛 Bug Report' : '💡 Sugestão de Melhoria'}: ${helpForm.subject}`;
+      const emailBody = `
+Olá equipe de suporte,
+
+${helpForm.type === 'bug' ? 'Encontrei um bug no aplicativo:' : 'Gostaria de sugerir uma melhoria:'}
+
+${helpForm.message}
+
+---
+Enviado através do app Marca AI
+Usuário: ${userProfile?.name || 'Usuário'}
+Email: ${userProfile?.email || 'Não informado'}
+      `.trim();
+
+      const emailUrl = `mailto:suporte@marcaai.com?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
+      
+      const canOpen = await Linking.canOpenURL(emailUrl);
+      if (canOpen) {
+        await Linking.openURL(emailUrl);
+        setShowHelpModal(false);
+        setHelpForm({ type: 'bug', subject: '', message: '' });
+        Alert.alert('Sucesso', 'Seu email foi aberto. Por favor, envie a mensagem para completar o processo.');
+      } else {
+        Alert.alert('Erro', 'Não foi possível abrir o aplicativo de email.');
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível abrir o aplicativo de email.');
+    }
+  };
+
+  const handleContactEmail = async () => {
+    try {
+      const emailUrl = 'mailto:contato@marcaai.com?subject=Contato - Marca AI';
+      const canOpen = await Linking.canOpenURL(emailUrl);
+      if (canOpen) {
+        await Linking.openURL(emailUrl);
+      } else {
+        Alert.alert('Erro', 'Não foi possível abrir o aplicativo de email.');
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível abrir o aplicativo de email.');
+    }
   };
 
   const renderSettingItem = (
@@ -323,7 +387,8 @@ export default function ConfiguracoesScreen() {
             {renderSettingItem(
               'help-circle',
               'Ajuda e Suporte',
-              'Central de ajuda e contato'
+              'Central de ajuda e contato',
+              handleHelpSupport
             )}
             
             {renderSettingItem(
@@ -354,6 +419,134 @@ export default function ConfiguracoesScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Modal de Ajuda e Suporte */}
+      <Modal
+        visible={showHelpModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowHelpModal(false)}
+      >
+        <SafeAreaView style={[dynamicStyles.modalContainer, { backgroundColor: colors.background }]}>
+          <View style={[dynamicStyles.modalHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+            <TouchableOpacity
+              onPress={() => setShowHelpModal(false)}
+              style={dynamicStyles.modalCloseButton}
+            >
+              <Ionicons name="close" size={24} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={[dynamicStyles.modalTitle, { color: colors.text }]}>Ajuda e Suporte</Text>
+            <View style={dynamicStyles.modalPlaceholder} />
+          </View>
+
+          <ScrollView style={dynamicStyles.modalContent} showsVerticalScrollIndicator={false}>
+            {/* Seção de Contato Direto */}
+            <View style={[dynamicStyles.helpSection, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[dynamicStyles.helpSectionTitle, { color: colors.text }]}>Contato Direto</Text>
+              <Text style={[dynamicStyles.helpSectionSubtitle, { color: colors.textSecondary }]}>
+                Entre em contato conosco diretamente
+              </Text>
+              
+              <TouchableOpacity
+                style={[dynamicStyles.contactButton, { backgroundColor: colors.primary }]}
+                onPress={handleContactEmail}
+              >
+                <Ionicons name="mail" size={20} color="#fff" />
+                <Text style={dynamicStyles.contactButtonText}>contato@marcaai.com</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Seção de Bug Report / Melhoria */}
+            <View style={[dynamicStyles.helpSection, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[dynamicStyles.helpSectionTitle, { color: colors.text }]}>Reportar Problema ou Sugerir Melhoria</Text>
+              <Text style={[dynamicStyles.helpSectionSubtitle, { color: colors.textSecondary }]}>
+                Ajude-nos a melhorar o aplicativo
+              </Text>
+
+              {/* Tipo de Solicitação */}
+              <View style={dynamicStyles.typeSelector}>
+                <TouchableOpacity
+                  style={[
+                    dynamicStyles.typeButton,
+                    { backgroundColor: colors.surface, borderColor: colors.border },
+                    helpForm.type === 'bug' && { backgroundColor: colors.primary, borderColor: colors.primary }
+                  ]}
+                  onPress={() => setHelpForm({ ...helpForm, type: 'bug' })}
+                >
+                  <Ionicons 
+                    name="bug" 
+                    size={20} 
+                    color={helpForm.type === 'bug' ? '#fff' : colors.text} 
+                  />
+                  <Text style={[
+                    dynamicStyles.typeButtonText,
+                    { color: helpForm.type === 'bug' ? '#fff' : colors.text }
+                  ]}>
+                    Reportar Bug
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    dynamicStyles.typeButton,
+                    { backgroundColor: colors.surface, borderColor: colors.border },
+                    helpForm.type === 'improvement' && { backgroundColor: colors.primary, borderColor: colors.primary }
+                  ]}
+                  onPress={() => setHelpForm({ ...helpForm, type: 'improvement' })}
+                >
+                  <Ionicons 
+                    name="bulb" 
+                    size={20} 
+                    color={helpForm.type === 'improvement' ? '#fff' : colors.text} 
+                  />
+                  <Text style={[
+                    dynamicStyles.typeButtonText,
+                    { color: helpForm.type === 'improvement' ? '#fff' : colors.text }
+                  ]}>
+                    Sugerir Melhoria
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Assunto */}
+              <View style={dynamicStyles.inputGroup}>
+                <Text style={[dynamicStyles.inputLabel, { color: colors.text }]}>Assunto *</Text>
+                <TextInput
+                  style={[dynamicStyles.textInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                  value={helpForm.subject}
+                  onChangeText={(text) => setHelpForm({ ...helpForm, subject: text })}
+                  placeholder="Descreva brevemente o problema ou sugestão"
+                  placeholderTextColor={colors.textSecondary}
+                />
+              </View>
+
+              {/* Mensagem */}
+              <View style={dynamicStyles.inputGroup}>
+                <Text style={[dynamicStyles.inputLabel, { color: colors.text }]}>Descrição Detalhada *</Text>
+                <TextInput
+                  style={[dynamicStyles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                  value={helpForm.message}
+                  onChangeText={(text) => setHelpForm({ ...helpForm, message: text })}
+                  placeholder="Descreva o problema ou sugestão em detalhes..."
+                  placeholderTextColor={colors.textSecondary}
+                  multiline
+                  numberOfLines={6}
+                  textAlignVertical="top"
+                />
+              </View>
+
+              {/* Botão Enviar */}
+              <TouchableOpacity
+                style={[dynamicStyles.sendButton, { backgroundColor: colors.primary }]}
+                onPress={handleSendHelp}
+              >
+                <Ionicons name="send" size={20} color="#fff" />
+                <Text style={dynamicStyles.sendButtonText}>Enviar por Email</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -545,6 +738,122 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
     fontWeight: '600',
     color: colors.error,
     marginLeft: 8,
+  },
+  // Estilos do modal de ajuda
+  modalContainer: {
+    flex: 1,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+  },
+  modalCloseButton: {
+    padding: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    flex: 1,
+    textAlign: 'center',
+    marginHorizontal: 16,
+  },
+  modalPlaceholder: {
+    width: 40,
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  helpSection: {
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+  },
+  helpSectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  helpSectionSubtitle: {
+    fontSize: 14,
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  contactButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    gap: 8,
+  },
+  contactButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  typeSelector: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  typeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 8,
+  },
+  typeButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+  },
+  textArea: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    minHeight: 120,
+  },
+  sendButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    gap: 8,
+  },
+  sendButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
