@@ -27,12 +27,24 @@ CREATE TABLE IF NOT EXISTS event_expenses (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Tabela de feedback do usuário
+CREATE TABLE IF NOT EXISTS feedback_usuario (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  tipo TEXT CHECK (tipo IN ('bug', 'melhoria')) NOT NULL,
+  titulo TEXT NOT NULL,
+  descricao TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Índices para melhor performance
 CREATE INDEX IF NOT EXISTS idx_events_artist_id ON events(artist_id);
 CREATE INDEX IF NOT EXISTS idx_events_user_id ON events(user_id);
 CREATE INDEX IF NOT EXISTS idx_events_event_date ON events(event_date);
 CREATE INDEX IF NOT EXISTS idx_event_expenses_event_id ON event_expenses(event_id);
 CREATE INDEX IF NOT EXISTS idx_event_expenses_created_at ON event_expenses(created_at);
+CREATE INDEX IF NOT EXISTS idx_feedback_usuario_user_id ON feedback_usuario(user_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_usuario_created_at ON feedback_usuario(created_at);
 
 -- Função para atualizar updated_at automaticamente
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -53,6 +65,7 @@ CREATE TRIGGER update_event_expenses_updated_at BEFORE UPDATE ON event_expenses
 -- Políticas de RLS (Row Level Security)
 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE event_expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE feedback_usuario ENABLE ROW LEVEL SECURITY;
 
 -- Política para eventos (usuários só podem ver eventos que criaram)
 CREATE POLICY "Users can view their own events" ON events
@@ -99,3 +112,10 @@ CREATE POLICY "Users can delete event_expenses of their events" ON event_expense
             WHERE user_id = auth.uid()
         )
     );
+
+-- Políticas para feedback_usuario (usuários só podem ver e criar seus próprios feedbacks)
+CREATE POLICY "Users can view their own feedback" ON feedback_usuario
+    FOR SELECT USING (user_id = auth.uid());
+
+CREATE POLICY "Users can insert their own feedback" ON feedback_usuario
+    FOR INSERT WITH CHECK (user_id = auth.uid());

@@ -13,11 +13,13 @@ import {
   TextInput,
   Linking,
 } from 'react-native';
+import { setStringAsync } from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { getCurrentUser } from '../../services/supabase/authService';
 import { getUserProfile, UserProfile } from '../../services/supabase/userService';
 import { getArtists } from '../../services/supabase/artistService';
+import { createFeedback } from '../../services/supabase/feedbackService';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export default function ConfiguracoesScreen() {
@@ -29,6 +31,7 @@ export default function ConfiguracoesScreen() {
   const [hasArtist, setHasArtist] = useState(false);
   const [currentArtist, setCurrentArtist] = useState<any>(null);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const [helpForm, setHelpForm] = useState({
     type: 'bug' as 'bug' | 'improvement',
     subject: '',
@@ -123,6 +126,10 @@ export default function ConfiguracoesScreen() {
     setShowHelpModal(true);
   };
 
+  const handleTermsOfUse = () => {
+    setShowTermsModal(true);
+  };
+
   const handleSendHelp = async () => {
     if (!helpForm.subject.trim() || !helpForm.message.trim()) {
       Alert.alert('Erro', 'Por favor, preencha todos os campos obrigatórios.');
@@ -130,47 +137,33 @@ export default function ConfiguracoesScreen() {
     }
 
     try {
-      const emailSubject = `${helpForm.type === 'bug' ? '🐛 Bug Report' : '💡 Sugestão de Melhoria'}: ${helpForm.subject}`;
-      const emailBody = `
-Olá equipe de suporte,
+      // Salvar feedback no banco de dados
+      const feedbackResult = await createFeedback({
+        tipo: helpForm.type === 'bug' ? 'bug' : 'melhoria',
+        titulo: helpForm.subject,
+        descricao: helpForm.message
+      });
 
-${helpForm.type === 'bug' ? 'Encontrei um bug no aplicativo:' : 'Gostaria de sugerir uma melhoria:'}
-
-${helpForm.message}
-
----
-Enviado através do app Marca AI
-Usuário: ${userProfile?.name || 'Usuário'}
-Email: ${userProfile?.email || 'Não informado'}
-      `.trim();
-
-      const emailUrl = `mailto:suporte@marcaai.com?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
-      
-      const canOpen = await Linking.canOpenURL(emailUrl);
-      if (canOpen) {
-        await Linking.openURL(emailUrl);
+      if (feedbackResult.success) {
         setShowHelpModal(false);
         setHelpForm({ type: 'bug', subject: '', message: '' });
-        Alert.alert('Sucesso', 'Seu email foi aberto. Por favor, envie a mensagem para completar o processo.');
+        Alert.alert('Sucesso', 'Seu feedback foi enviado com sucesso! A equipe de suporte será notificada.');
       } else {
-        Alert.alert('Erro', 'Não foi possível abrir o aplicativo de email.');
+        Alert.alert('Erro', feedbackResult.error || 'Erro ao enviar feedback. Tente novamente.');
       }
     } catch (error) {
-      Alert.alert('Erro', 'Não foi possível abrir o aplicativo de email.');
+      console.error('Erro ao enviar feedback:', error);
+      Alert.alert('Erro', 'Erro ao processar seu feedback. Tente novamente.');
     }
   };
 
-  const handleContactEmail = async () => {
+
+  const handleCopyEmail = async () => {
     try {
-      const emailUrl = 'mailto:contato@marcaai.com?subject=Contato - Marca AI';
-      const canOpen = await Linking.canOpenURL(emailUrl);
-      if (canOpen) {
-        await Linking.openURL(emailUrl);
-      } else {
-        Alert.alert('Erro', 'Não foi possível abrir o aplicativo de email.');
-      }
+      await setStringAsync('contato@marcaai.com');
+      Alert.alert('Sucesso', 'Email copiado para a área de transferência!');
     } catch (error) {
-      Alert.alert('Erro', 'Não foi possível abrir o aplicativo de email.');
+      Alert.alert('Erro', 'Não foi possível copiar o email.');
     }
   };
 
@@ -394,13 +387,8 @@ Email: ${userProfile?.email || 'Não informado'}
             {renderSettingItem(
               'document-text',
               'Termos de Uso',
-              'Termos e condições'
-            )}
-            
-            {renderSettingItem(
-              'shield-checkmark',
-              'Política de Privacidade',
-              'Como protegemos seus dados'
+              'Termos e condições',
+              handleTermsOfUse
             )}
             
             {renderSettingItem(
@@ -447,13 +435,19 @@ Email: ${userProfile?.email || 'Não informado'}
                 Entre em contato conosco diretamente
               </Text>
               
-              <TouchableOpacity
-                style={[dynamicStyles.contactButton, { backgroundColor: colors.primary }]}
-                onPress={handleContactEmail}
-              >
-                <Ionicons name="mail" size={20} color="#fff" />
-                <Text style={dynamicStyles.contactButtonText}>contato@marcaai.com</Text>
-              </TouchableOpacity>
+              {/* Email com ícone de copiar */}
+              <View style={[dynamicStyles.emailContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <View style={dynamicStyles.emailInfo}>
+                  <Ionicons name="mail" size={20} color={colors.primary} />
+                  <Text style={[dynamicStyles.emailText, { color: colors.text }]}>contato@marcaai.com</Text>
+                </View>
+                <TouchableOpacity
+                  style={[dynamicStyles.copyButton, { backgroundColor: colors.primary }]}
+                  onPress={handleCopyEmail}
+                >
+                  <Ionicons name="copy" size={16} color="#fff" />
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Seção de Bug Report / Melhoria */}
@@ -541,8 +535,127 @@ Email: ${userProfile?.email || 'Não informado'}
                 onPress={handleSendHelp}
               >
                 <Ionicons name="send" size={20} color="#fff" />
-                <Text style={dynamicStyles.sendButtonText}>Enviar por Email</Text>
+                <Text style={dynamicStyles.sendButtonText}>Enviar</Text>
               </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Modal de Termos de Uso */}
+      <Modal
+        visible={showTermsModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowTermsModal(false)}
+      >
+        <SafeAreaView style={[dynamicStyles.modalContainer, { backgroundColor: colors.background }]}>
+          <View style={[dynamicStyles.modalHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+            <TouchableOpacity
+              onPress={() => setShowTermsModal(false)}
+              style={dynamicStyles.modalCloseButton}
+            >
+              <Ionicons name="close" size={24} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={[dynamicStyles.modalTitle, { color: colors.text }]}>Termos de Uso</Text>
+          </View>
+          
+          <ScrollView style={dynamicStyles.modalContent} showsVerticalScrollIndicator={false}>
+            <View style={[dynamicStyles.termsContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[dynamicStyles.termsTitle, { color: colors.text }]}>Termos de Uso - Marca AI</Text>
+              <Text style={[dynamicStyles.termsLastUpdated, { color: colors.textSecondary }]}>
+                Última atualização: {new Date().toLocaleDateString('pt-BR')}
+              </Text>
+              
+              <Text style={[dynamicStyles.termsSectionTitle, { color: colors.text }]}>1. Aceitação dos Termos</Text>
+              <Text style={[dynamicStyles.termsText, { color: colors.text }]}>
+                Ao utilizar o aplicativo Marca AI, você concorda em cumprir e estar sujeito a estes Termos de Uso. 
+                Se você não concordar com qualquer parte destes termos, não deve usar nosso aplicativo.
+              </Text>
+
+              <Text style={[dynamicStyles.termsSectionTitle, { color: colors.text }]}>2. Descrição do Serviço</Text>
+              <Text style={[dynamicStyles.termsText, { color: colors.text }]}>
+                O Marca AI é uma plataforma digital que conecta artistas musicais com contratantes, facilitando 
+                a gestão de eventos, agendamentos e transações financeiras relacionadas a apresentações musicais.
+              </Text>
+
+              <Text style={[dynamicStyles.termsSectionTitle, { color: colors.text }]}>3. Contas de Usuário</Text>
+              <Text style={[dynamicStyles.termsText, { color: colors.text }]}>
+                • Você é responsável por manter a confidencialidade de sua conta e senha{'\n'}
+                • Você deve fornecer informações precisas e atualizadas{'\n'}
+                • Você é responsável por todas as atividades que ocorrem em sua conta{'\n'}
+                • Você deve notificar-nos imediatamente sobre qualquer uso não autorizado
+              </Text>
+
+              <Text style={[dynamicStyles.termsSectionTitle, { color: colors.text }]}>4. Uso Aceitável</Text>
+              <Text style={[dynamicStyles.termsText, { color: colors.text }]}>
+                Você concorda em não usar o aplicativo para:{'\n'}
+                • Atividades ilegais ou não autorizadas{'\n'}
+                • Transmitir conteúdo ofensivo, difamatório ou inadequado{'\n'}
+                • Interferir no funcionamento do aplicativo{'\n'}
+                • Tentar acessar contas de outros usuários{'\n'}
+                • Violar direitos de propriedade intelectual
+              </Text>
+
+              <Text style={[dynamicStyles.termsSectionTitle, { color: colors.text }]}>5. Pagamentos e Transações</Text>
+              <Text style={[dynamicStyles.termsText, { color: colors.text }]}>
+                • Todas as transações financeiras são processadas de forma segura{'\n'}
+                • Os valores são definidos pelos próprios usuários{'\n'}
+                • Taxas de transação podem ser aplicadas conforme nossa política{'\n'}
+                • Reembolsos são tratados caso a caso
+              </Text>
+
+              <Text style={[dynamicStyles.termsSectionTitle, { color: colors.text }]}>6. Propriedade Intelectual</Text>
+              <Text style={[dynamicStyles.termsText, { color: colors.text }]}>
+                O aplicativo e seu conteúdo são protegidos por direitos autorais e outras leis de propriedade 
+                intelectual. Você não pode copiar, modificar ou distribuir nosso conteúdo sem autorização.
+              </Text>
+
+              <Text style={[dynamicStyles.termsSectionTitle, { color: colors.text }]}>7. Privacidade</Text>
+              <Text style={[dynamicStyles.termsText, { color: colors.text }]}>
+                Sua privacidade é importante para nós. Consulte nossa Política de Privacidade para entender 
+                como coletamos, usamos e protegemos suas informações pessoais.
+              </Text>
+
+              <Text style={[dynamicStyles.termsSectionTitle, { color: colors.text }]}>8. Limitação de Responsabilidade</Text>
+              <Text style={[dynamicStyles.termsText, { color: colors.text }]}>
+                O Marca AI não se responsabiliza por:{'\n'}
+                • Danos diretos, indiretos ou consequenciais{'\n'}
+                • Perda de dados ou interrupção de serviços{'\n'}
+                • Ações de terceiros ou outros usuários{'\n'}
+                • Problemas técnicos ou falhas do sistema
+              </Text>
+
+              <Text style={[dynamicStyles.termsSectionTitle, { color: colors.text }]}>9. Modificações dos Termos</Text>
+              <Text style={[dynamicStyles.termsText, { color: colors.text }]}>
+                Reservamo-nos o direito de modificar estes termos a qualquer momento. As alterações entrarão 
+                em vigor imediatamente após a publicação. O uso continuado do aplicativo constitui aceitação 
+                dos novos termos.
+              </Text>
+
+              <Text style={[dynamicStyles.termsSectionTitle, { color: colors.text }]}>10. Rescisão</Text>
+              <Text style={[dynamicStyles.termsText, { color: colors.text }]}>
+                Podemos suspender ou encerrar sua conta a qualquer momento, com ou sem aviso prévio, por 
+                violação destes termos ou por qualquer outro motivo a nosso critério.
+              </Text>
+
+              <Text style={[dynamicStyles.termsSectionTitle, { color: colors.text }]}>11. Lei Aplicável</Text>
+              <Text style={[dynamicStyles.termsText, { color: colors.text }]}>
+                Estes termos são regidos pelas leis brasileiras. Qualquer disputa será resolvida nos tribunais 
+                competentes do Brasil.
+              </Text>
+
+              <Text style={[dynamicStyles.termsSectionTitle, { color: colors.text }]}>12. Contato</Text>
+              <Text style={[dynamicStyles.termsText, { color: colors.text }]}>
+                Para questões sobre estes Termos de Uso, entre em contato conosco através do email: 
+                contato@marcaai.com
+              </Text>
+
+              <View style={[dynamicStyles.termsFooter, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <Text style={[dynamicStyles.termsFooterText, { color: colors.textSecondary }]}>
+                  Ao continuar usando o Marca AI, você confirma que leu, entendeu e concorda com estes Termos de Uso.
+                </Text>
+              </View>
             </View>
           </ScrollView>
         </SafeAreaView>
@@ -784,19 +897,30 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
     marginBottom: 16,
     lineHeight: 20,
   },
-  contactButton: {
+  emailContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     borderRadius: 8,
-    gap: 8,
+    borderWidth: 1,
+    marginBottom: 12,
   },
-  contactButtonText: {
-    color: '#fff',
+  emailInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  emailText: {
     fontSize: 16,
-    fontWeight: '600',
+    marginLeft: 12,
+    flex: 1,
+  },
+  copyButton: {
+    padding: 8,
+    borderRadius: 6,
+    marginLeft: 12,
   },
   typeSelector: {
     flexDirection: 'row',
@@ -854,6 +978,48 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  // Estilos para o modal de Termos de Uso
+  termsContainer: {
+    margin: 20,
+    borderRadius: 12,
+    padding: 20,
+    borderWidth: 1,
+  },
+  termsTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  termsLastUpdated: {
+    fontSize: 12,
+    marginBottom: 24,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  termsSectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginTop: 20,
+    marginBottom: 12,
+  },
+  termsText: {
+    fontSize: 14,
+    lineHeight: 22,
+    marginBottom: 16,
+  },
+  termsFooter: {
+    marginTop: 24,
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  termsFooterText: {
+    fontSize: 12,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    lineHeight: 18,
   },
 });
 
