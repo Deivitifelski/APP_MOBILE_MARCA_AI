@@ -52,9 +52,15 @@ const DatePickerComponent = ({
 }) => {
   const [selectedDay, setSelectedDay] = useState(selectedDate.getDate());
 
-  // Usar o mês e ano fixos da agenda
-  const year = initialYear || selectedDate.getFullYear();
-  const month = initialMonth !== undefined ? initialMonth : selectedDate.getMonth();
+  // Atualizar dia selecionado quando selectedDate mudar
+  React.useEffect(() => {
+    setSelectedDay(selectedDate.getDate());
+  }, [selectedDate]);
+
+  // Sempre usar dados atualizados - priorizar parâmetros ou usar data atual
+  const currentDate = new Date();
+  const year = initialYear || currentDate.getFullYear();
+  const month = initialMonth !== undefined ? initialMonth : currentDate.getMonth();
 
   // Calcular quantos dias tem o mês selecionado
   const getDaysInMonth = (year: number, month: number) => {
@@ -63,24 +69,35 @@ const DatePickerComponent = ({
 
   const daysInSelectedMonth = getDaysInMonth(year, month);
   
-  // Criar array de dias com dia da semana (Segunda a Domingo)
-  const daysWithWeekday = Array.from({ length: daysInSelectedMonth }, (_, i) => {
-    const dayNumber = i + 1;
-    // Criar data usando UTC para evitar problemas de timezone
-    const date = new Date(Date.UTC(year, month, dayNumber, 12, 0, 0));
-    const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-    const dayName = dayNames[date.getUTCDay()];
-    
-    return {
-      day: dayNumber,
-      weekday: dayName,
+  // Criar calendário completo com dias vazios no início
+  // Usar fuso horário local para evitar problemas
+  const firstDayOfMonth = new Date(year, month, 1);
+  const firstDayWeekday = firstDayOfMonth.getDay(); // 0 = Domingo, 1 = Segunda, etc.
+  
+  
+  // Criar array com dias vazios no início + dias do mês
+  const calendarDays = [];
+  
+  // Adicionar dias vazios no início para alinhar com o primeiro dia do mês
+  for (let i = 0; i < firstDayWeekday; i++) {
+    calendarDays.push({ day: null, weekday: null, date: null });
+  }
+  
+  // Adicionar dias do mês
+  for (let day = 1; day <= daysInSelectedMonth; day++) {
+    const date = new Date(year, month, day);
+    calendarDays.push({
+      day: day,
+      weekday: null,
       date: date
-    };
-  });
+    });
+    
+  }
+
 
   const updateDate = (day: number) => {
-    // Criar data usando UTC para evitar problemas de timezone
-    const newDate = new Date(Date.UTC(year, month, day, 12, 0, 0));
+    // Criar data usando fuso horário local
+    const newDate = new Date(year, month, day);
     onDateChange(newDate);
   };
 
@@ -96,31 +113,41 @@ const DatePickerComponent = ({
         {monthNames[month]} / {year}
       </Text>
       
+      {/* Cabeçalho dos dias da semana */}
+      <View style={styles.weekdayHeader}>
+        {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((weekday) => (
+          <Text key={weekday} style={styles.weekdayHeaderText}>
+            {weekday}
+          </Text>
+        ))}
+      </View>
+      
+      {/* Grid dos dias */}
       <View style={styles.daysGrid}>
-        {daysWithWeekday.map((dayInfo) => (
+        {calendarDays.map((dayInfo, index) => (
           <TouchableOpacity
-            key={dayInfo.day}
+            key={index}
             style={[
               styles.dayItem,
-              selectedDay === dayInfo.day && styles.dayItemSelected
+              dayInfo.day && selectedDay === dayInfo.day ? styles.dayItemSelected : null,
+              !dayInfo.day ? styles.dayItemEmpty : null
             ]}
             onPress={() => {
-              setSelectedDay(dayInfo.day);
-              updateDate(dayInfo.day);
+              if (dayInfo.day) {
+                setSelectedDay(dayInfo.day);
+                updateDate(dayInfo.day);
+              }
             }}
+            disabled={!dayInfo.day}
           >
-            <Text style={[
-              styles.dayItemText,
-              selectedDay === dayInfo.day && styles.dayItemTextSelected
-            ]}>
-              {dayInfo.weekday}
-            </Text>
-            <Text style={[
-              styles.dayNumberText,
-              selectedDay === dayInfo.day && styles.dayNumberTextSelected
-            ]}>
-              {dayInfo.day}
-            </Text>
+            {dayInfo.day && (
+              <Text style={[
+                styles.dayNumberText,
+                selectedDay === dayInfo.day && styles.dayNumberTextSelected
+              ]}>
+                {dayInfo.day}
+              </Text>
+            )}
           </TouchableOpacity>
         ))}
       </View>
@@ -208,10 +235,11 @@ const TimePickerComponent = ({ selectedTime, onTimeChange }: { selectedTime: Dat
 export default function AdicionarEventoScreen() {
   const params = useLocalSearchParams();
   
-  // Extrair parâmetros da agenda
-  const selectedMonth = params.selectedMonth ? parseInt(params.selectedMonth as string) : new Date().getMonth();
-  const selectedYear = params.selectedYear ? parseInt(params.selectedYear as string) : new Date().getFullYear();
-  const initialDate = params.selectedDate ? new Date(params.selectedDate as string) : new Date(Date.UTC(selectedYear, selectedMonth, 1, 12, 0, 0));
+  // Sempre usar dados atualizados - data atual como padrão
+  const currentDate = new Date();
+  const selectedMonth = params.selectedMonth ? parseInt(params.selectedMonth as string) : currentDate.getMonth();
+  const selectedYear = params.selectedYear ? parseInt(params.selectedYear as string) : currentDate.getFullYear();
+  const initialDate = params.selectedDate ? new Date(params.selectedDate as string) : new Date(selectedYear, selectedMonth, currentDate.getDate());
 
   // Criar horários padrão
   const createDefaultTime = (hour: number, minute: number = 0) => {
@@ -1180,15 +1208,28 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 20,
   },
+  weekdayHeader: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  weekdayHeaderText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+    textAlign: 'center',
+    width: '14.28%', // 100% / 7 dias
+  },
   daysGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
   },
   dayItem: {
-    width: '13%',
+    width: '14.28%', // 100% / 7 dias
     aspectRatio: 1,
-    marginBottom: 10,
+    marginBottom: 8,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1199,6 +1240,10 @@ const styles = StyleSheet.create({
   dayItemSelected: {
     backgroundColor: '#667eea',
     borderColor: '#667eea',
+  },
+  dayItemEmpty: {
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
   },
   dayItemText: {
     fontSize: 10,
