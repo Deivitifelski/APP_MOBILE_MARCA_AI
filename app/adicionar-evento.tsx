@@ -784,31 +784,28 @@ export default function AdicionarEventoScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
+            
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Selecionar Data</Text>
               <TouchableOpacity
                 onPress={() => setShowDateModal(false)}
                 style={styles.modalCloseButton}
               >
-                <Ionicons name="close" size={24} color="#333" />
+                <Ionicons name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
             
-            <DatePickerComponent
-              selectedDate={form.data}
-              onDateChange={(date) => updateForm('data', date)}
-              initialMonth={selectedMonth}
-              initialYear={selectedYear}
-            />
+            <View style={styles.modalBody}>
+              <DatePickerComponent
+                selectedDate={form.data}
+                onDateChange={(date) => updateForm('data', date)}
+                initialMonth={selectedMonth}
+                initialYear={selectedYear}
+              />
+            </View>
             
             <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.modalCancelButton}
-                onPress={() => setShowDateModal(false)}
-              >
-                <Text style={styles.modalCancelText}>Cancelar</Text>
-              </TouchableOpacity>
-              
               <TouchableOpacity
                 style={styles.modalConfirmButton}
                 onPress={() => setShowDateModal(false)}
@@ -846,13 +843,6 @@ export default function AdicionarEventoScreen() {
             
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={styles.modalCancelButton}
-                onPress={() => setShowTimeInicioModal(false)}
-              >
-                <Text style={styles.modalCancelText}>Cancelar</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
                 style={styles.modalConfirmButton}
                 onPress={() => setShowTimeInicioModal(false)}
               >
@@ -888,13 +878,6 @@ export default function AdicionarEventoScreen() {
             />
             
             <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.modalCancelButton}
-                onPress={() => setShowTimeFimModal(false)}
-              >
-                <Text style={styles.modalCancelText}>Cancelar</Text>
-              </TouchableOpacity>
-              
               <TouchableOpacity
                 style={styles.modalConfirmButton}
                 onPress={() => setShowTimeFimModal(false)}
@@ -1177,17 +1160,35 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: 34, // Para iPhone com home indicator
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -5,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#ddd',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 8,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
+    borderBottomColor: '#f0f0f0',
   },
   modalTitle: {
     fontSize: 18,
@@ -1197,13 +1198,16 @@ const styles = StyleSheet.create({
   modalCloseButton: {
     padding: 8,
   },
+  modalBody: {
+    padding: 0,
+  },
   datePickerContainer: {
     paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingVertical: 20,
   },
   monthYearLabel: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: '#333',
     textAlign: 'center',
     marginBottom: 20,
@@ -1233,17 +1237,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f8f9fa',
-    borderWidth: 1,
-    borderColor: '#e9ecef',
+    backgroundColor: 'transparent',
   },
   dayItemSelected: {
     backgroundColor: '#667eea',
-    borderColor: '#667eea',
+    borderRadius: 8,
   },
   dayItemEmpty: {
     backgroundColor: 'transparent',
-    borderColor: 'transparent',
   },
   dayItemText: {
     fontSize: 10,
@@ -1254,13 +1255,13 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   dayNumberText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#333',
-    fontWeight: 'bold',
-    marginTop: 2,
+    fontWeight: '500',
   },
   dayNumberTextSelected: {
     color: '#fff',
+    fontWeight: '600',
   },
   pickerContainer: {
     flexDirection: 'row',
@@ -1300,31 +1301,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   modalButtons: {
-    flexDirection: 'row',
     paddingHorizontal: 20,
-    paddingTop: 20,
-    gap: 12,
-  },
-  modalCancelButton: {
-    flex: 1,
-    backgroundColor: '#f8f9fa',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e9ecef',
-  },
-  modalCancelText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666',
+    paddingVertical: 20,
+    paddingBottom: 34, // Para iPhone com home indicator
   },
   modalConfirmButton: {
-    flex: 1,
     backgroundColor: '#667eea',
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#667eea',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   modalConfirmText: {
     fontSize: 16,
