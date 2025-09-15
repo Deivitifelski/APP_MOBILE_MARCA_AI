@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 export interface Event {
   id: string;
   artist_id: string;
-  user_id: string;
+  created_by: string;
   name: string;
   description?: string;
   event_date: string;
@@ -67,7 +67,7 @@ export const createEvent = async (eventData: CreateEventData): Promise<{ success
       .from('events')
       .insert({
         artist_id: eventData.artist_id,
-        user_id: eventData.user_id,
+        created_by: eventData.user_id, // Campo para o trigger
         name: eventData.name,
         description: eventData.description || null,
         event_date: eventData.event_date,
