@@ -158,53 +158,39 @@ export default function AgendaScreen() {
         onPress={() => router.push(`/detalhes-evento?eventId=${item.id}`)}
         activeOpacity={0.7}
       >
-        <View style={styles.showHeader}>
-          <View style={styles.showDateContainer}>
-            <Text style={[styles.showDate, { color: colors.primary }]}>{day}</Text>
-            <Text style={[styles.showDayOfWeek, { color: colors.textSecondary }]}>{dayOfWeek}</Text>
+        <View style={styles.showContent}>
+          <View style={[styles.showDateSection, { backgroundColor: colors.primary }]}>
+            <Text style={styles.showDateNumber}>{day}</Text>
+            <Text style={styles.showDateText}>{dayOfWeek}</Text>
           </View>
-          <View style={styles.showTimeContainer}>
-            <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
-            <Text style={[styles.showTime, { color: colors.textSecondary }]}>{item.start_time}</Text>
-          </View>
-        </View>
-        
-        <Text style={[styles.showName, { color: colors.text }]}>{item.name}</Text>
-        
-        {item.city && (
-          <View style={styles.showLocationContainer}>
-            <Ionicons name="location-outline" size={16} color={colors.textSecondary} />
-            <Text style={[styles.showVenue, { color: colors.textSecondary }]}>{item.city}</Text>
-          </View>
-        )}
-        
-        {item.value && (
-          <Text style={[styles.showLocation, { color: colors.textSecondary }]}>R$ {item.value.toLocaleString('pt-BR')}</Text>
-        )}
-        
-        <View style={[styles.showActions, { borderTopColor: colors.border }]}>
-          <TouchableOpacity 
-            style={[styles.actionButton, { backgroundColor: colors.secondary }]}
-            onPress={(e) => {
-              e.stopPropagation();
-              router.push(`/despesas-evento?eventId=${item.id}`);
-            }}
-          >
-            <Ionicons name="receipt-outline" size={16} color={colors.primary} />
-            <Text style={[styles.actionButtonText, { color: colors.primary }]}>Despesas</Text>
-          </TouchableOpacity>
           
-          <TouchableOpacity 
-            style={[styles.actionButton, { backgroundColor: colors.secondary }]}
-            onPress={(e) => {
-              e.stopPropagation();
-              // TODO: Implementar compartilhamento
-              Alert.alert('Compartilhar', 'Funcionalidade de compartilhamento em desenvolvimento');
-            }}
-          >
-            <Ionicons name="share-outline" size={16} color={colors.primary} />
-            <Text style={[styles.actionButtonText, { color: colors.primary }]}>Compartilhar</Text>
-          </TouchableOpacity>
+          <View style={styles.showInfoSection}>
+            <Text style={[styles.showName, { color: colors.text }]}>{item.name}</Text>
+            
+            <View style={styles.showDetailsRow}>
+              <View style={styles.showDetailItem}>
+                <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
+                <Text style={[styles.showDetailText, { color: colors.textSecondary }]}>{item.start_time}</Text>
+              </View>
+              
+              {item.city && (
+                <View style={styles.showDetailItem}>
+                  <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
+                  <Text style={[styles.showDetailText, { color: colors.textSecondary }]}>{item.city}</Text>
+                </View>
+              )}
+            </View>
+            
+            {item.value && (
+              <Text style={[styles.showValue, { color: colors.primary }]}>
+                R$ {item.value.toLocaleString('pt-BR')}
+              </Text>
+            )}
+          </View>
+          
+          <View style={styles.showArrowSection}>
+            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -440,89 +426,78 @@ const styles = StyleSheet.create({
   },
   showCard: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 16,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowRadius: 8,
+    elevation: 6,
+    overflow: 'hidden',
   },
-  showHeader: {
+  showContent: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    padding: 16,
   },
-  showDateContainer: {
+  showDateSection: {
+    width: 60,
+    height: 60,
+    borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
   },
-  showDate: {
-    fontSize: 24,
+  showDateNumber: {
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#667eea',
+    color: '#fff',
   },
-  showDayOfWeek: {
-    fontSize: 12,
-    color: '#666',
+  showDateText: {
+    fontSize: 10,
+    color: '#fff',
     textTransform: 'uppercase',
+    fontWeight: '600',
+    marginTop: 2,
   },
-  showTimeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  showTime: {
-    fontSize: 14,
-    color: '#666',
-    marginLeft: 4,
+  showInfoSection: {
+    flex: 1,
+    paddingRight: 12,
   },
   showName: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '600',
     color: '#333',
     marginBottom: 8,
+    lineHeight: 20,
   },
-  showLocationContainer: {
+  showDetailsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 6,
+  },
+  showDetailItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginRight: 16,
     marginBottom: 4,
   },
-  showVenue: {
-    fontSize: 14,
-    color: '#666',
+  showDetailText: {
+    fontSize: 13,
     marginLeft: 4,
     fontWeight: '500',
   },
-  showLocation: {
-    fontSize: 14,
-    color: '#999',
-    marginLeft: 20,
-  },
-  showActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#f8f9fa',
-  },
-  actionButtonText: {
-    fontSize: 14,
+  showValue: {
+    fontSize: 15,
+    fontWeight: 'bold',
     color: '#667eea',
-    marginLeft: 4,
-    fontWeight: '500',
+  },
+  showArrowSection: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   noShowsContainer: {
     alignItems: 'center',
