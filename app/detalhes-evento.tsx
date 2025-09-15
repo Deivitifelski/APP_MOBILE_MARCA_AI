@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { getEventById, Event } from '../services/supabase/eventService';
+import { getEventById, Event, deleteEvent } from '../services/supabase/eventService';
 import { getTotalExpensesByEvent } from '../services/supabase/expenseService';
 
 
@@ -21,6 +21,7 @@ export default function DetalhesEventoScreen() {
   const [event, setEvent] = useState<Event | null>(null);
   const [totalExpenses, setTotalExpenses] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const loadEventData = async (isInitialLoad = true) => {
     if (isInitialLoad) {
@@ -93,6 +94,53 @@ export default function DetalhesEventoScreen() {
   const extractNumericValue = (formattedValue: string) => {
     const numericValue = formattedValue.replace(/\D/g, '');
     return numericValue ? parseInt(numericValue, 10) / 100 : 0;
+  };
+
+  const handleDeleteEvent = () => {
+    Alert.alert(
+      'Deletar Evento',
+      `Tem certeza que deseja deletar o evento "${event?.name}"?\n\nEsta ação não pode ser desfeita e todas as despesas relacionadas também serão removidas.`,
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel'
+        },
+        {
+          text: 'Deletar',
+          style: 'destructive',
+          onPress: confirmDeleteEvent
+        }
+      ]
+    );
+  };
+
+  const confirmDeleteEvent = async () => {
+    if (!event) return;
+    
+    setIsDeleting(true);
+    
+    try {
+      const result = await deleteEvent(event.id);
+      
+      if (result.success) {
+        Alert.alert(
+          'Evento Deletado',
+          'O evento foi deletado com sucesso.',
+          [
+            {
+              text: 'OK',
+              onPress: () => router.back()
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Erro', result.error || 'Erro ao deletar evento');
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Erro ao deletar evento');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
 
@@ -258,6 +306,18 @@ export default function DetalhesEventoScreen() {
             <Ionicons name="add-circle" size={24} color="#4CAF50" />
             <Text style={styles.actionButtonText}>Adicionar Despesa</Text>
             <Ionicons name="chevron-forward" size={20} color="#4CAF50" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionButton, styles.deleteButton]}
+            onPress={handleDeleteEvent}
+            disabled={isDeleting}
+          >
+            <Ionicons name="trash" size={24} color="#ff4444" />
+            <Text style={[styles.actionButtonText, styles.deleteButtonText]}>
+              {isDeleting ? 'Deletando...' : 'Deletar Evento'}
+            </Text>
+            <Ionicons name="chevron-forward" size={20} color="#ff4444" />
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -435,5 +495,12 @@ const styles = StyleSheet.create({
     color: '#333',
     flex: 1,
     marginLeft: 12,
+  },
+  deleteButton: {
+    borderColor: '#ff4444',
+    backgroundColor: '#fff5f5',
+  },
+  deleteButtonText: {
+    color: '#ff4444',
   },
 });

@@ -11,7 +11,7 @@ import {
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { getEventsByMonth } from '../../services/supabase/eventService';
 import { useActiveArtist } from '../../services/useActiveArtist';
 import { useNotifications } from '../../services/useNotifications';
@@ -66,6 +66,7 @@ export default function AgendaScreen() {
   const { colors, isDarkMode } = useTheme();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<any[]>([]);
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const { activeArtist, loadActiveArtist, isLoading } = useActiveArtist();
   const { unreadCount, loadUnreadCount } = useNotifications();
 
@@ -79,33 +80,60 @@ export default function AgendaScreen() {
 
   useEffect(() => {
     if (activeArtist) {
-      loadEvents();
+      loadEvents(true);
     }
   }, [activeArtist, currentMonth, currentYear]);
 
-  const loadEvents = async () => {
+  // Recarregar eventos quando a tela ganhar foco
+  useFocusEffect(
+    React.useCallback(() => {
+      if (activeArtist) {
+        loadEvents(false); // Recarregamento silencioso
+      }
+    }, [activeArtist, currentMonth, currentYear])
+  );
+
+  // Polling para atualizações em tempo real
+  useEffect(() => {
+    if (!activeArtist) return;
+
+    const interval = setInterval(() => {
+      loadEvents(false); // Atualização silenciosa a cada 30 segundos
+    }, 30000); // 30 segundos
+
+    return () => clearInterval(interval);
+  }, [activeArtist, currentMonth, currentYear]);
+
+  const loadEvents = async (isInitialLoad = true) => {
     if (!activeArtist) {
       console.log('loadEvents: Nenhum artista ativo');
       return;
     }
     
-    console.log('loadEvents: Carregando eventos para artista:', activeArtist.id, 'Mês:', currentMonth, 'Ano:', currentYear);
+    if (isInitialLoad) {
+      console.log('loadEvents: Carregando eventos para artista:', activeArtist.id, 'Mês:', currentMonth, 'Ano:', currentYear);
+    }
     
     try {
       const result = await getEventsByMonth(activeArtist.id, currentYear, currentMonth);
       
-      console.log('loadEvents: Resultado:', result);
-      
       if (result.success) {
         setEvents(result.events || []);
-        console.log('loadEvents: Eventos carregados:', result.events?.length || 0);
+        setLastUpdate(new Date());
+        if (isInitialLoad) {
+          console.log('loadEvents: Eventos carregados:', result.events?.length || 0);
+        }
       } else {
         console.error('Erro ao carregar eventos:', result.error);
-        setEvents([]);
+        if (isInitialLoad) {
+          setEvents([]);
+        }
       }
     } catch (error) {
       console.error('Erro ao carregar eventos:', error);
-      setEvents([]);
+      if (isInitialLoad) {
+        setEvents([]);
+      }
     }
   };
 
