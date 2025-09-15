@@ -49,14 +49,14 @@ export interface CreateExpenseData {
 }
 
 export interface UpdateEventData {
-  nome?: string;
-  valor?: number;
+  name?: string;
+  value?: number;
   city?: string;
-  telefone_contratante?: string;
-  data?: string;
-  horario_inicio?: string;
-  horario_fim?: string;
-  status?: 'confirmado' | 'a_confirmar';
+  contractor_phone?: string;
+  event_date?: string;
+  start_time?: string;
+  end_time?: string;
+  confirmed?: boolean;
 }
 
 // Criar evento com despesas
@@ -189,10 +189,7 @@ export const updateEvent = async (eventId: string, eventData: UpdateEventData): 
   try {
     const { data, error } = await supabase
       .from('events')
-      .update({
-        ...eventData,
-        updated_at: new Date().toISOString()
-      })
+      .update(eventData)
       .eq('id', eventId)
       .select()
       .single();
