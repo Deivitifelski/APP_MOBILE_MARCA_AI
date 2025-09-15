@@ -15,6 +15,7 @@ import { router } from 'expo-router';
 import { getEventsByMonth } from '../../services/supabase/eventService';
 import { useActiveArtist } from '../../services/useActiveArtist';
 import { useNotifications } from '../../services/useNotifications';
+import { useTheme } from '../../contexts/ThemeContext';
 
 // Dados mockados de shows
 const mockShows = [
@@ -62,6 +63,7 @@ const months = [
 ];
 
 export default function AgendaScreen() {
+  const { colors, isDarkMode } = useTheme();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<any[]>([]);
   const { activeArtist, loadActiveArtist, isLoading } = useActiveArtist();
@@ -151,40 +153,40 @@ export default function AgendaScreen() {
     const dayOfWeek = eventDate.toLocaleDateString('pt-BR', { weekday: 'short' });
     
     return (
-      <View style={styles.showCard}>
+      <View style={[styles.showCard, { backgroundColor: colors.surface }]}>
         <View style={styles.showHeader}>
           <View style={styles.showDateContainer}>
-            <Text style={styles.showDate}>{day}</Text>
-            <Text style={styles.showDayOfWeek}>{dayOfWeek}</Text>
+            <Text style={[styles.showDate, { color: colors.primary }]}>{day}</Text>
+            <Text style={[styles.showDayOfWeek, { color: colors.textSecondary }]}>{dayOfWeek}</Text>
           </View>
           <View style={styles.showTimeContainer}>
-            <Ionicons name="time-outline" size={16} color="#666" />
-            <Text style={styles.showTime}>{item.start_time}</Text>
+            <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
+            <Text style={[styles.showTime, { color: colors.textSecondary }]}>{item.start_time}</Text>
           </View>
         </View>
         
-        <Text style={styles.showName}>{item.name}</Text>
+        <Text style={[styles.showName, { color: colors.text }]}>{item.name}</Text>
         
         {item.city && (
           <View style={styles.showLocationContainer}>
-            <Ionicons name="location-outline" size={16} color="#666" />
-            <Text style={styles.showVenue}>{item.city}</Text>
+            <Ionicons name="location-outline" size={16} color={colors.textSecondary} />
+            <Text style={[styles.showVenue, { color: colors.textSecondary }]}>{item.city}</Text>
           </View>
         )}
         
         {item.value && (
-          <Text style={styles.showLocation}>R$ {item.value.toLocaleString('pt-BR')}</Text>
+          <Text style={[styles.showLocation, { color: colors.textSecondary }]}>R$ {item.value.toLocaleString('pt-BR')}</Text>
         )}
         
-        <View style={styles.showActions}>
-          <TouchableOpacity style={styles.actionButton}>
-            <Ionicons name="receipt-outline" size={16} color="#667eea" />
-            <Text style={styles.actionButtonText}>Despesas</Text>
+        <View style={[styles.showActions, { borderTopColor: colors.border }]}>
+          <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.secondary }]}>
+            <Ionicons name="receipt-outline" size={16} color={colors.primary} />
+            <Text style={[styles.actionButtonText, { color: colors.primary }]}>Despesas</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.actionButton}>
-            <Ionicons name="share-outline" size={16} color="#667eea" />
-            <Text style={styles.actionButtonText}>Compartilhar</Text>
+          <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.secondary }]}>
+            <Ionicons name="share-outline" size={16} color={colors.primary} />
+            <Text style={[styles.actionButtonText, { color: colors.primary }]}>Compartilhar</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -192,24 +194,24 @@ export default function AgendaScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         {/* Header do Artista */}
         {activeArtist && (
           <View style={styles.artistHeader}>
             <View style={styles.artistInfo}>
-              <View style={styles.artistAvatarPlaceholder}>
-                <Ionicons name="musical-notes" size={24} color="#667eea" />
+              <View style={[styles.artistAvatarPlaceholder, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+                <Ionicons name="musical-notes" size={24} color={colors.primary} />
               </View>
               <View style={styles.artistDetails}>
                 <View style={styles.artistNameRow}>
-                  <Text style={styles.artistName}>{activeArtist.name}</Text>
+                  <Text style={[styles.artistName, { color: colors.text }]}>{activeArtist.name}</Text>
                   {/* Ícone de Notificações */}
                   <TouchableOpacity
                     style={styles.notificationButton}
                     onPress={() => router.push('/notificacoes')}
                   >
-                    <Ionicons name="notifications-outline" size={24} color="#667eea" />
+                    <Ionicons name="notifications-outline" size={24} color={colors.primary} />
                     {unreadCount > 0 && (
                       <View style={styles.notificationBadge}>
                         <Text style={styles.badgeText}>
@@ -219,7 +221,7 @@ export default function AgendaScreen() {
                     )}
                   </TouchableOpacity>
                 </View>
-                <Text style={styles.artistSubtitle}>Agenda de Shows</Text>
+                <Text style={[styles.artistSubtitle, { color: colors.textSecondary }]}>Agenda de Shows</Text>
               </View>
             </View>
           </View>
@@ -227,12 +229,12 @@ export default function AgendaScreen() {
         
         {!activeArtist && (
           <View style={styles.noArtistHeader}>
-            <Text style={styles.title}>Agenda de Shows</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Agenda de Shows</Text>
             <TouchableOpacity
               style={styles.notificationButton}
               onPress={() => router.push('/notificacoes')}
             >
-              <Ionicons name="notifications-outline" size={24} color="#667eea" />
+              <Ionicons name="notifications-outline" size={24} color={colors.primary} />
               {unreadCount > 0 && (
                 <View style={styles.notificationBadge}>
                   <Text style={styles.badgeText}>
@@ -247,21 +249,21 @@ export default function AgendaScreen() {
         {/* Navegação do mês */}
         <View style={styles.monthNavigation}>
           <TouchableOpacity
-            style={styles.navButton}
+            style={[styles.navButton, { backgroundColor: colors.secondary }]}
             onPress={() => navigateMonth('prev')}
           >
-            <Ionicons name="chevron-back" size={24} color="#667eea" />
+            <Ionicons name="chevron-back" size={24} color={colors.primary} />
           </TouchableOpacity>
           
-          <Text style={styles.monthYear}>
+          <Text style={[styles.monthYear, { color: colors.text }]}>
             {months[currentMonth]} / {currentYear}
           </Text>
           
           <TouchableOpacity
-            style={styles.navButton}
+            style={[styles.navButton, { backgroundColor: colors.secondary }]}
             onPress={() => navigateMonth('next')}
           >
-            <Ionicons name="chevron-forward" size={24} color="#667eea" />
+            <Ionicons name="chevron-forward" size={24} color={colors.primary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -269,24 +271,24 @@ export default function AgendaScreen() {
       <ScrollView style={styles.content}>
         {isLoading ? (
           <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Carregando...</Text>
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Carregando...</Text>
           </View>
         ) : !activeArtist ? (
           /* Estado vazio - sem artistas para gerenciar */
           <View style={styles.emptyStateContainer}>
             <View style={styles.emptyStateIcon}>
-              <Ionicons name="musical-notes" size={64} color="#ccc" />
+              <Ionicons name="musical-notes" size={64} color={colors.textSecondary} />
             </View>
-            <Text style={styles.emptyStateTitle}>
+            <Text style={[styles.emptyStateTitle, { color: colors.text }]}>
               Nenhum perfil para gerenciar
             </Text>
-            <Text style={styles.emptyStateSubtitle}>
+            <Text style={[styles.emptyStateSubtitle, { color: colors.textSecondary }]}>
               Você ainda não tem nenhum artista para gerenciar. Crie um perfil agora ou aguarde um convite.
             </Text>
             
             <View style={styles.emptyStateActions}>
               <TouchableOpacity
-                style={styles.createButton}
+                style={[styles.createButton, { backgroundColor: colors.primary }]}
                 onPress={handleCreateArtist}
               >
                 <Ionicons name="add-circle" size={20} color="#fff" />
@@ -294,11 +296,11 @@ export default function AgendaScreen() {
               </TouchableOpacity>
               
               <TouchableOpacity
-                style={styles.waitButton}
+                style={[styles.waitButton, { backgroundColor: colors.secondary }]}
                 onPress={handleWaitForInvite}
               >
-                <Ionicons name="time" size={20} color="#667eea" />
-                <Text style={styles.waitButtonText}>Aguardar Convite</Text>
+                <Ionicons name="time" size={20} color={colors.primary} />
+                <Text style={[styles.waitButtonText, { color: colors.primary }]}>Aguardar Convite</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -314,8 +316,8 @@ export default function AgendaScreen() {
               />
             ) : (
               <View style={styles.noShowsContainer}>
-                <Ionicons name="calendar-outline" size={48} color="#ccc" />
-                <Text style={styles.noShowsText}>
+                <Ionicons name="calendar-outline" size={48} color={colors.textSecondary} />
+                <Text style={[styles.noShowsText, { color: colors.textSecondary }]}>
                   Nenhum show agendado para este mês
                 </Text>
               </View>
@@ -327,7 +329,7 @@ export default function AgendaScreen() {
       {/* Botão flutuante para adicionar show - só aparece quando há artistas */}
       {activeArtist && (
         <TouchableOpacity
-          style={styles.fab}
+          style={[styles.fab, { backgroundColor: colors.primary }]}
           onPress={handleAddShow}
         >
           <Ionicons name="add" size={24} color="#fff" />

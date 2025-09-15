@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { getEventsByMonth } from '../../services/supabase/eventService';
 import { getExpensesByEvent } from '../../services/supabase/expenseService';
 import { useActiveArtist } from '../../services/useActiveArtist';
+import { useTheme } from '../../contexts/ThemeContext';
 // import * as FileSystem from 'expo-file-system';
 // import * as Sharing from 'expo-sharing';
 
@@ -27,6 +28,7 @@ interface EventWithExpenses {
 }
 
 export default function FinanceiroScreen() {
+  const { colors, isDarkMode } = useTheme();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [events, setEvents] = useState<EventWithExpenses[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -128,17 +130,17 @@ export default function FinanceiroScreen() {
 
 
   const renderExpense = ({ item }: { item: any }) => (
-    <View style={styles.expenseItem}>
+    <View style={[styles.expenseItem, { backgroundColor: colors.secondary }]}>
       <View style={styles.expenseInfo}>
-        <Text style={styles.expenseName}>{item.name}</Text>
-        <Text style={styles.expenseValue}>{formatCurrency(item.value)}</Text>
+        <Text style={[styles.expenseName, { color: colors.text }]}>{item.name}</Text>
+        <Text style={[styles.expenseValue, { color: colors.error }]}>{formatCurrency(item.value)}</Text>
       </View>
       {item.receipt_url && (
         <TouchableOpacity
           style={styles.downloadButton}
           onPress={() => downloadFile(item.receipt_url, `${item.name}_comprovante`)}
         >
-          <Ionicons name="download" size={16} color="#667eea" />
+          <Ionicons name="download" size={16} color={colors.primary} />
         </TouchableOpacity>
       )}
     </View>
@@ -146,30 +148,30 @@ export default function FinanceiroScreen() {
 
 
   const renderEvent = ({ item }: { item: EventWithExpenses }) => (
-    <View style={styles.eventCard}>
+    <View style={[styles.eventCard, { backgroundColor: colors.surface }]}>
       <View style={styles.eventHeader}>
         <View style={styles.eventInfo}>
-          <Text style={styles.eventName}>{item.name}</Text>
-          <Text style={styles.eventDate}>{formatDate(item.event_date)}</Text>
+          <Text style={[styles.eventName, { color: colors.text }]}>{item.name}</Text>
+          <Text style={[styles.eventDate, { color: colors.textSecondary }]}>{formatDate(item.event_date)}</Text>
         </View>
         <View style={styles.eventValues}>
           <View style={styles.eventValueRow}>
-            <Text style={styles.eventValueLabel}>Receita:</Text>
-            <Text style={styles.eventRevenue}>
+            <Text style={[styles.eventValueLabel, { color: colors.textSecondary }]}>Receita:</Text>
+            <Text style={[styles.eventRevenue, { color: colors.success }]}>
               {formatCurrency(item.value || 0)}
             </Text>
           </View>
           {item.totalExpenses > 0 && (
             <View style={styles.eventValueRow}>
-              <Text style={styles.eventValueLabel}>Despesas:</Text>
-              <Text style={styles.eventExpenses}>
+              <Text style={[styles.eventValueLabel, { color: colors.textSecondary }]}>Despesas:</Text>
+              <Text style={[styles.eventExpenses, { color: colors.error }]}>
                 -{formatCurrency(item.totalExpenses)}
               </Text>
             </View>
           )}
           <View style={[styles.eventValueRow, styles.eventNetRow]}>
-            <Text style={styles.eventNetLabel}>Líquido:</Text>
-            <Text style={[styles.eventNet, { color: ((item.value || 0) - item.totalExpenses) >= 0 ? '#4CAF50' : '#F44336' }]}>
+            <Text style={[styles.eventNetLabel, { color: colors.text }]}>Líquido:</Text>
+            <Text style={[styles.eventNet, { color: ((item.value || 0) - item.totalExpenses) >= 0 ? colors.success : colors.error }]}>
               {formatCurrency((item.value || 0) - item.totalExpenses)}
             </Text>
           </View>
@@ -178,7 +180,7 @@ export default function FinanceiroScreen() {
       
       {item.expenses.length > 0 && (
         <View style={styles.expensesSection}>
-          <Text style={styles.expensesTitle}>Despesas:</Text>
+          <Text style={[styles.expensesTitle, { color: colors.text }]}>Despesas:</Text>
           <FlatList
             data={item.expenses}
             renderItem={renderExpense}
@@ -192,34 +194,34 @@ export default function FinanceiroScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Financeiro</Text>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+          <Text style={[styles.title, { color: colors.text }]}>Financeiro</Text>
         </View>
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Carregando dados financeiros...</Text>
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Carregando dados financeiros...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Financeiro</Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Financeiro</Text>
         
         {/* Navegação de mês */}
         <View style={styles.monthNavigation}>
           <TouchableOpacity onPress={() => navigateMonth('prev')} style={styles.navButton}>
-            <Ionicons name="chevron-back" size={24} color="#667eea" />
+            <Ionicons name="chevron-back" size={24} color={colors.primary} />
           </TouchableOpacity>
           
-          <Text style={styles.monthText}>
+          <Text style={[styles.monthText, { color: colors.text }]}>
             {months[currentMonth]} {currentYear}
           </Text>
           
           <TouchableOpacity onPress={() => navigateMonth('next')} style={styles.navButton}>
-            <Ionicons name="chevron-forward" size={24} color="#667eea" />
+            <Ionicons name="chevron-forward" size={24} color={colors.primary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -227,24 +229,24 @@ export default function FinanceiroScreen() {
       <ScrollView style={styles.content}>
         {/* Resumo financeiro */}
         <View style={styles.summaryContainer}>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Lucro Líquido</Text>
-            <Text style={[styles.summaryValue, { color: netProfit >= 0 ? '#4CAF50' : '#F44336' }]}>
+          <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Lucro Líquido</Text>
+            <Text style={[styles.summaryValue, { color: netProfit >= 0 ? colors.success : colors.error }]}>
               {formatCurrency(netProfit)}
             </Text>
           </View>
           
           <View style={styles.summaryRow}>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryItemLabel}>Receita Bruta</Text>
-              <Text style={[styles.summaryItemValue, { color: '#4CAF50' }]}>
+            <View style={[styles.summaryItem, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.summaryItemLabel, { color: colors.textSecondary }]}>Receita Bruta</Text>
+              <Text style={[styles.summaryItemValue, { color: colors.success }]}>
                 {formatCurrency(totalRevenue)}
               </Text>
             </View>
             
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryItemLabel}>Despesas Totais</Text>
-              <Text style={[styles.summaryItemValue, { color: '#F44336' }]}>
+            <View style={[styles.summaryItem, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.summaryItemLabel, { color: colors.textSecondary }]}>Despesas Totais</Text>
+              <Text style={[styles.summaryItemValue, { color: colors.error }]}>
                 {formatCurrency(totalExpenses)}
               </Text>
             </View>
@@ -253,7 +255,7 @@ export default function FinanceiroScreen() {
 
         {/* Lista de eventos */}
         <View style={styles.eventsSection}>
-          <Text style={styles.sectionTitle}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
             Eventos de {months[currentMonth]} ({events.length})
           </Text>
           

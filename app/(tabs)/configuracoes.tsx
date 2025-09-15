@@ -15,10 +15,11 @@ import { router } from 'expo-router';
 import { getCurrentUser } from '../../services/supabase/authService';
 import { getUserProfile, UserProfile } from '../../services/supabase/userService';
 import { getArtists } from '../../services/supabase/artistService';
+import { useTheme } from '../../contexts/ThemeContext';
 
 export default function ConfiguracoesScreen() {
+  const { isDarkMode, toggleDarkMode, colors } = useTheme();
   const [notifications, setNotifications] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
   const [autoSync, setAutoSync] = useState(true);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
@@ -117,60 +118,63 @@ export default function ConfiguracoesScreen() {
     rightComponent?: React.ReactNode
   ) => (
     <TouchableOpacity
-      style={styles.settingItem}
+      style={dynamicStyles.settingItem}
       onPress={onPress}
       disabled={!onPress}
     >
-      <View style={styles.settingLeft}>
-        <View style={styles.settingIcon}>
+      <View style={dynamicStyles.settingLeft}>
+        <View style={dynamicStyles.settingIcon}>
           <Ionicons name={icon as any} size={20} color="#667eea" />
         </View>
-        <View style={styles.settingText}>
-          <Text style={styles.settingTitle}>{title}</Text>
-          {subtitle && <Text style={styles.settingSubtitle}>{subtitle}</Text>}
+        <View style={dynamicStyles.settingText}>
+          <Text style={dynamicStyles.settingTitle}>{title}</Text>
+          {subtitle && <Text style={dynamicStyles.settingSubtitle}>{subtitle}</Text>}
         </View>
       </View>
       {rightComponent || (
-        <Ionicons name="chevron-forward" size={20} color="#ccc" />
+        <Ionicons name="chevron-forward" size={20} color={isDarkMode ? "#666" : "#ccc"} />
       )}
     </TouchableOpacity>
   );
 
+  // Estilos dinâmicos baseados no modo escuro
+  const dynamicStyles = createDynamicStyles(isDarkMode, colors);
+
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Configurações</Text>
+    <SafeAreaView style={dynamicStyles.container}>
+      <View style={dynamicStyles.header}>
+        <Text style={dynamicStyles.title}>Configurações</Text>
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={dynamicStyles.content}>
         {/* Seção: Usuário */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Usuário</Text>
+        <View style={dynamicStyles.section}>
+          <Text style={dynamicStyles.sectionTitle}>Usuário</Text>
           
-          <View style={styles.profileCard}>
-            <View style={styles.profileAvatar}>
+          <View style={dynamicStyles.profileCard}>
+            <View style={dynamicStyles.profileAvatar}>
               <Ionicons name="person" size={40} color="#667eea" />
             </View>
-            <View style={styles.profileInfo}>
+            <View style={dynamicStyles.profileInfo}>
               {isLoadingProfile ? (
                 <ActivityIndicator size="small" color="#667eea" />
               ) : (
                 <>
-                  <Text style={styles.profileName}>
+                  <Text style={dynamicStyles.profileName}>
                     {userProfile?.name || 'Usuário Marca AI'}
                   </Text>
-                  <Text style={styles.profileEmail}>
+                  <Text style={dynamicStyles.profileEmail}>
                     {userProfile?.email || 'usuario@marcaai.com'}
                   </Text>
                 </>
               )}
             </View>
-            <TouchableOpacity style={styles.editButton} onPress={handleEditUser}>
+            <TouchableOpacity style={dynamicStyles.editButton} onPress={handleEditUser}>
               <Ionicons name="pencil" size={16} color="#667eea" />
             </TouchableOpacity>
           </View>
 
-          <View style={styles.settingsCard}>
+          <View style={dynamicStyles.settingsCard}>
             {renderSettingItem(
               'swap-horizontal',
               'Selecionar Artista',
@@ -182,25 +186,25 @@ export default function ConfiguracoesScreen() {
 
         {/* Seção: Artista */}
         {hasArtist && currentArtist && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Artista</Text>
+          <View style={dynamicStyles.section}>
+            <Text style={dynamicStyles.sectionTitle}>Artista</Text>
             
-            <View style={styles.artistCard}>
-              <View style={styles.artistAvatar}>
+            <View style={dynamicStyles.artistCard}>
+              <View style={dynamicStyles.artistAvatar}>
                 <Ionicons name="musical-notes" size={24} color="#667eea" />
               </View>
-              <View style={styles.artistInfo}>
-                <Text style={styles.artistName}>{currentArtist.name}</Text>
-                <Text style={styles.artistRole}>
+              <View style={dynamicStyles.artistInfo}>
+                <Text style={dynamicStyles.artistName}>{currentArtist.name}</Text>
+                <Text style={dynamicStyles.artistRole}>
                   {currentArtist.role === 'owner' ? 'Proprietário' : 'Colaborador'}
                 </Text>
               </View>
-              <TouchableOpacity style={styles.editButton} onPress={handleArtistSettings}>
+              <TouchableOpacity style={dynamicStyles.editButton} onPress={handleArtistSettings}>
                 <Ionicons name="settings" size={16} color="#667eea" />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.settingsCard}>
+            <View style={dynamicStyles.settingsCard}>
               {renderSettingItem(
                 'add-circle',
                 'Criar Novo Artista',
@@ -240,10 +244,10 @@ export default function ConfiguracoesScreen() {
         )}
 
         {/* Seção: Preferências do App */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Preferências</Text>
+        <View style={dynamicStyles.section}>
+          <Text style={dynamicStyles.sectionTitle}>Preferências</Text>
           
-          <View style={styles.settingsCard}>
+          <View style={dynamicStyles.settingsCard}>
             {renderSettingItem(
               'notifications',
               'Notificações',
@@ -263,10 +267,10 @@ export default function ConfiguracoesScreen() {
               'Usar tema escuro',
               undefined,
               <Switch
-                value={darkMode}
-                onValueChange={setDarkMode}
+                value={isDarkMode}
+                onValueChange={toggleDarkMode}
                 trackColor={{ false: '#f0f0f0', true: '#667eea' }}
-                thumbColor={darkMode ? '#fff' : '#f4f3f4'}
+                thumbColor={isDarkMode ? '#fff' : '#f4f3f4'}
               />
             )}
             
@@ -286,10 +290,10 @@ export default function ConfiguracoesScreen() {
         </View>
 
         {/* Conta */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Conta</Text>
+        <View style={dynamicStyles.section}>
+          <Text style={dynamicStyles.sectionTitle}>Conta</Text>
           
-          <View style={styles.settingsCard}>
+          <View style={dynamicStyles.settingsCard}>
             {renderSettingItem(
               'person-circle',
               'Perfil',
@@ -312,10 +316,10 @@ export default function ConfiguracoesScreen() {
         </View>
 
         {/* Aplicativo */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Aplicativo</Text>
+        <View style={dynamicStyles.section}>
+          <Text style={dynamicStyles.sectionTitle}>Aplicativo</Text>
           
-          <View style={styles.settingsCard}>
+          <View style={dynamicStyles.settingsCard}>
             {renderSettingItem(
               'help-circle',
               'Ajuda e Suporte',
@@ -343,16 +347,206 @@ export default function ConfiguracoesScreen() {
         </View>
 
         {/* Logout */}
-        <View style={styles.section}>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+        <View style={dynamicStyles.section}>
+          <TouchableOpacity style={dynamicStyles.logoutButton} onPress={handleLogout}>
             <Ionicons name="log-out" size={20} color="#F44336" />
-            <Text style={styles.logoutText}>Sair da Conta</Text>
+            <Text style={dynamicStyles.logoutText}>Sair da Conta</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
+
+// Função para criar estilos dinâmicos baseados no modo escuro
+const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  header: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.text,
+  },
+  content: {
+    flex: 1,
+  },
+  section: {
+    marginTop: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 16,
+    paddingHorizontal: 20,
+  },
+  settingsCard: {
+    backgroundColor: colors.surface,
+    marginHorizontal: 20,
+    borderRadius: 12,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: isDark ? 0.3 : 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+    overflow: 'hidden',
+  },
+  profileCard: {
+    backgroundColor: colors.surface,
+    marginHorizontal: 20,
+    marginBottom: 15,
+    borderRadius: 12,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: isDark ? 0.3 : 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  profileAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.secondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  profileEmail: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  editButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: colors.secondary,
+  },
+  artistCard: {
+    backgroundColor: colors.surface,
+    marginHorizontal: 20,
+    marginBottom: 15,
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: isDark ? 0.3 : 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  artistAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: colors.secondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  artistInfo: {
+    flex: 1,
+  },
+  artistName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  artistRole: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  settingItem: {
+    backgroundColor: colors.surface,
+    marginHorizontal: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  settingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  settingIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.secondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  settingText: {
+    flex: 1,
+  },
+  settingTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.text,
+    marginBottom: 2,
+  },
+  settingSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  logoutButton: {
+    backgroundColor: colors.surface,
+    marginHorizontal: 20,
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: isDark ? 0.3 : 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  logoutText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.error,
+    marginLeft: 8,
+  },
+});
 
 const styles = StyleSheet.create({
   container: {

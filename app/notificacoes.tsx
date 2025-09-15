@@ -27,8 +27,10 @@ import {
   markInviteAsRead,
   ArtistInvite 
 } from '../services/supabase/artistInviteService';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function NotificacoesScreen() {
+  const { colors, isDarkMode } = useTheme();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [artistInvites, setArtistInvites] = useState<ArtistInvite[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -378,48 +380,51 @@ export default function NotificacoesScreen() {
     );
   }
 
+  // Estilos dinâmicos baseados no modo escuro
+  const dynamicStyles = createDynamicStyles(isDarkMode, colors);
+
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={dynamicStyles.container}>
+      <View style={dynamicStyles.header}>
         <TouchableOpacity
-          style={styles.backButton}
+          style={dynamicStyles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color="#1F2937" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Notificações</Text>
+        <Text style={dynamicStyles.headerTitle}>Notificações</Text>
         {unreadCount > 0 && (
           <TouchableOpacity
-            style={styles.markAllButton}
+            style={dynamicStyles.markAllButton}
             onPress={handleMarkAllAsRead}
           >
-            <Text style={styles.markAllText}>Marcar todas</Text>
+            <Text style={dynamicStyles.markAllText}>Marcar todas</Text>
           </TouchableOpacity>
         )}
       </View>
 
       <ScrollView
-        style={styles.content}
+        style={dynamicStyles.content}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
         {notifications.length === 0 && artistInvites.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="notifications-outline" size={64} color="#9CA3AF" />
-            <Text style={styles.emptyTitle}>Nenhuma notificação</Text>
-            <Text style={styles.emptySubtitle}>
+          <View style={dynamicStyles.emptyState}>
+            <Ionicons name="notifications-outline" size={64} color={colors.textSecondary} />
+            <Text style={dynamicStyles.emptyTitle}>Nenhuma notificação</Text>
+            <Text style={dynamicStyles.emptySubtitle}>
               Você não possui notificações no momento.
             </Text>
           </View>
         ) : (
-          <View style={styles.notificationsList}>
+          <View style={dynamicStyles.content}>
             {notifications.map((notification) => (
               <TouchableOpacity
                 key={notification.id}
                 style={[
-                  styles.notificationCard,
-                  !notification.read && styles.unreadNotification
+                  dynamicStyles.notificationCard,
+                  !notification.read && dynamicStyles.unreadDot
                 ]}
                 onPress={() => handleNotificationPress(notification)}
               >
@@ -566,6 +571,283 @@ export default function NotificacoesScreen() {
     </SafeAreaView>
   );
 }
+
+// Função para criar estilos dinâmicos baseados no modo escuro
+const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  backButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: colors.secondary,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.text,
+    flex: 1,
+    textAlign: 'center',
+    marginHorizontal: 16,
+  },
+  markAllButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: colors.primary,
+  },
+  markAllText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  notificationCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    marginVertical: 6,
+    shadowColor: colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: isDark ? 0.3 : 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  notificationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  notificationIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.secondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  notificationTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.text,
+    flex: 1,
+  },
+  notificationTime: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  notificationMessage: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 8,
+  },
+  notificationActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  actionButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: colors.secondary,
+  },
+  actionButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  deleteButton: {
+    backgroundColor: colors.error,
+  },
+  deleteButtonText: {
+    color: '#fff',
+  },
+  inviteCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  inviteContent: {
+    padding: 12,
+  },
+  inviteHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  inviteTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginLeft: 8,
+    flex: 1,
+  },
+  inviteMessage: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 4,
+  },
+  inviteTime: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  inviteActions: {
+    padding: 12,
+    gap: 8,
+  },
+  acceptButton: {
+    backgroundColor: colors.success,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  acceptButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  declineButton: {
+    backgroundColor: colors.error,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  declineButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.primary,
+    marginLeft: 8,
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyIcon: {
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginTop: 12,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 24,
+    margin: 20,
+    maxWidth: '90%',
+    shadowColor: colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  modalPermissions: {
+    backgroundColor: colors.secondary,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  permissionsTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  permissionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  permissionText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginLeft: 8,
+  },
+  modalButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});
 
 const styles = StyleSheet.create({
   container: {
