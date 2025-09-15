@@ -489,7 +489,9 @@ export default function ConfiguracoesScreen() {
             {renderSettingItem(
               'information-circle',
               'Sobre o App',
-              'Versão 1.0.0'
+              'Versão 1.0.0',
+              undefined,
+              null
             )}
           </View>
         </View>

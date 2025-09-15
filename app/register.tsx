@@ -10,12 +10,15 @@ import {
   Platform,
   Alert,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function RegisterScreen() {
+  const { colors } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -94,194 +97,195 @@ export default function RegisterScreen() {
     return emailRegex.test(email);
   };
 
+  const dynamicStyles = createDynamicStyles(colors);
+
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.gradient}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.keyboardView}
-        >
-          <ScrollView contentContainerStyle={styles.scrollContent}>
-            <View style={styles.content}>
-              {/* Header */}
-              <View style={styles.header}>
-                <TouchableOpacity
-                  style={styles.backButton}
-                  onPress={() => router.back()}
-                >
-                  <Ionicons name="arrow-back" size={24} color="#fff" />
-                </TouchableOpacity>
-                
-                <View style={styles.logoContainer}>
-                  <Ionicons name="diamond" size={50} color="#fff" />
-                </View>
-                <Text style={styles.title}>Criar Conta</Text>
-                <Text style={styles.subtitle}>
-                  Preencha os dados para criar sua conta
-                </Text>
+    <SafeAreaView style={[dynamicStyles.container, { backgroundColor: colors.background }]}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={dynamicStyles.keyboardView}
+      >
+        <ScrollView contentContainerStyle={dynamicStyles.scrollContent}>
+          <View style={dynamicStyles.content}>
+            {/* Header */}
+            <View style={dynamicStyles.header}>
+              <TouchableOpacity
+                style={dynamicStyles.backButton}
+                onPress={() => router.back()}
+              >
+                <Ionicons name="arrow-back" size={24} color={colors.text} />
+              </TouchableOpacity>
+              
+              <View style={[dynamicStyles.logoContainer, { backgroundColor: colors.primary }]}>
+                <Ionicons name="diamond" size={50} color="#fff" />
+              </View>
+              <Text style={[dynamicStyles.title, { color: colors.text }]}>Criar Conta</Text>
+              <Text style={[dynamicStyles.subtitle, { color: colors.textSecondary }]}>
+                Preencha os dados para criar sua conta
+              </Text>
+            </View>
+
+            {/* Formulário de Cadastro */}
+            <View style={dynamicStyles.form}>
+              <View style={[dynamicStyles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Ionicons name="mail-outline" size={20} color={colors.textSecondary} style={dynamicStyles.inputIcon} />
+                <TextInput
+                  style={[dynamicStyles.input, { color: colors.text }]}
+                  placeholder="Email"
+                  placeholderTextColor={colors.textSecondary}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
               </View>
 
-              {/* Formulário de Cadastro */}
-              <View style={styles.form}>
-                <View style={styles.inputContainer}>
-                  <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Email"
-                    placeholderTextColor="#999"
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                </View>
-
-                <View style={styles.inputContainer}>
-                  <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Senha"
-                    placeholderTextColor="#999"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry={!showPassword}
-                    autoCapitalize="none"
-                  />
-                  <TouchableOpacity
-                    onPress={() => setShowPassword(!showPassword)}
-                    style={styles.eyeIcon}
-                  >
-                    <Ionicons
-                      name={showPassword ? 'eye-outline' : 'eye-off-outline'}
-                      size={20}
-                      color="#666"
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.inputContainer}>
-                  <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Confirmar Senha"
-                    placeholderTextColor="#999"
-                    value={confirmPassword}
-                    onChangeText={setConfirmPassword}
-                    secureTextEntry={!showConfirmPassword}
-                    autoCapitalize="none"
-                  />
-                  <TouchableOpacity
-                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                    style={styles.eyeIcon}
-                  >
-                    <Ionicons
-                      name={showConfirmPassword ? 'eye-outline' : 'eye-off-outline'}
-                      size={20}
-                      color="#666"
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                {/* Indicadores de validação */}
-                <View style={styles.validationContainer}>
-                  <View style={styles.validationItem}>
-                    <Ionicons
-                      name={password.length >= 6 ? 'checkmark-circle' : 'ellipse-outline'}
-                      size={16}
-                      color={password.length >= 6 ? '#4CAF50' : '#999'}
-                    />
-                    <Text style={[
-                      styles.validationText,
-                      { color: password.length >= 6 ? '#4CAF50' : '#999' }
-                    ]}>
-                      Mínimo 6 caracteres
-                    </Text>
-                  </View>
-                  
-                  <View style={styles.validationItem}>
-                    <Ionicons
-                      name={password === confirmPassword && password.length > 0 ? 'checkmark-circle' : 'ellipse-outline'}
-                      size={16}
-                      color={password === confirmPassword && password.length > 0 ? '#4CAF50' : '#999'}
-                    />
-                    <Text style={[
-                      styles.validationText,
-                      { color: password === confirmPassword && password.length > 0 ? '#4CAF50' : '#999' }
-                    ]}>
-                      Senhas coincidem
-                    </Text>
-                  </View>
-                  
-                  <View style={styles.validationItem}>
-                    <Ionicons
-                      name={isValidEmail(email) ? 'checkmark-circle' : 'ellipse-outline'}
-                      size={16}
-                      color={isValidEmail(email) ? '#4CAF50' : '#999'}
-                    />
-                    <Text style={[
-                      styles.validationText,
-                      { color: isValidEmail(email) ? '#4CAF50' : '#999' }
-                    ]}>
-                      Email válido
-                    </Text>
-                  </View>
-                </View>
-
+              <View style={[dynamicStyles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Ionicons name="lock-closed-outline" size={20} color={colors.textSecondary} style={dynamicStyles.inputIcon} />
+                <TextInput
+                  style={[dynamicStyles.input, { color: colors.text }]}
+                  placeholder="Senha"
+                  placeholderTextColor={colors.textSecondary}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                />
                 <TouchableOpacity
-                  style={[
-                    styles.registerButton,
-                    (!isValidEmail(email) || password.length < 6 || password !== confirmPassword) && styles.registerButtonDisabled
-                  ]}
-                  onPress={handleRegister}
-                  disabled={!isValidEmail(email) || password.length < 6 || password !== confirmPassword || isLoading}
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={dynamicStyles.eyeIcon}
                 >
-                  <Text style={styles.registerButtonText}>
-                    {isLoading ? 'Criando conta...' : 'Criar Conta'}
-                  </Text>
+                  <Ionicons
+                    name={showPassword ? 'eye-outline' : 'eye-off-outline'}
+                    size={20}
+                    color={colors.textSecondary}
+                  />
                 </TouchableOpacity>
+              </View>
 
-                <View style={styles.divider}>
-                  <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>ou</Text>
-                  <View style={styles.dividerLine} />
-                </View>
-
-                <TouchableOpacity style={styles.googleButton}>
-                  <Ionicons name="logo-google" size={20} color="#fff" />
-                  <Text style={styles.googleButtonText}>
-                    Cadastrar com Google
-                  </Text>
+              <View style={[dynamicStyles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Ionicons name="lock-closed-outline" size={20} color={colors.textSecondary} style={dynamicStyles.inputIcon} />
+                <TextInput
+                  style={[dynamicStyles.input, { color: colors.text }]}
+                  placeholder="Confirmar Senha"
+                  placeholderTextColor={colors.textSecondary}
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  secureTextEntry={!showConfirmPassword}
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity
+                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  style={dynamicStyles.eyeIcon}
+                >
+                  <Ionicons
+                    name={showConfirmPassword ? 'eye-outline' : 'eye-off-outline'}
+                    size={20}
+                    color={colors.textSecondary}
+                  />
                 </TouchableOpacity>
+              </View>
 
-                <View style={styles.loginContainer}>
-                  <Text style={styles.loginText}>
-                    Já tem uma conta?{' '}
+              {/* Indicadores de validação */}
+              <View style={dynamicStyles.validationContainer}>
+                <View style={dynamicStyles.validationItem}>
+                  <Ionicons
+                    name={password.length >= 6 ? 'checkmark-circle' : 'ellipse-outline'}
+                    size={16}
+                    color={password.length >= 6 ? colors.success : colors.textSecondary}
+                  />
+                  <Text style={[
+                    dynamicStyles.validationText,
+                    { color: password.length >= 6 ? colors.success : colors.textSecondary }
+                  ]}>
+                    Mínimo 6 caracteres
                   </Text>
-                  <Link href="/login" asChild>
-                    <TouchableOpacity>
-                      <Text style={styles.loginLink}>
-                        Faça login
-                      </Text>
-                    </TouchableOpacity>
-                  </Link>
                 </View>
+                
+                <View style={dynamicStyles.validationItem}>
+                  <Ionicons
+                    name={password === confirmPassword && password.length > 0 ? 'checkmark-circle' : 'ellipse-outline'}
+                    size={16}
+                    color={password === confirmPassword && password.length > 0 ? colors.success : colors.textSecondary}
+                  />
+                  <Text style={[
+                    dynamicStyles.validationText,
+                    { color: password === confirmPassword && password.length > 0 ? colors.success : colors.textSecondary }
+                  ]}>
+                    Senhas coincidem
+                  </Text>
+                </View>
+                
+                <View style={dynamicStyles.validationItem}>
+                  <Ionicons
+                    name={isValidEmail(email) ? 'checkmark-circle' : 'ellipse-outline'}
+                    size={16}
+                    color={isValidEmail(email) ? colors.success : colors.textSecondary}
+                  />
+                  <Text style={[
+                    dynamicStyles.validationText,
+                    { color: isValidEmail(email) ? colors.success : colors.textSecondary }
+                  ]}>
+                    Email válido
+                  </Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  dynamicStyles.registerButton,
+                  { backgroundColor: colors.primary },
+                  (!isValidEmail(email) || password.length < 6 || password !== confirmPassword) && dynamicStyles.registerButtonDisabled
+                ]}
+                onPress={handleRegister}
+                disabled={!isValidEmail(email) || password.length < 6 || password !== confirmPassword || isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={dynamicStyles.registerButtonText}>
+                    Criar Conta
+                  </Text>
+                )}
+              </TouchableOpacity>
+
+              <View style={dynamicStyles.divider}>
+                <View style={[dynamicStyles.dividerLine, { backgroundColor: colors.border }]} />
+                <Text style={[dynamicStyles.dividerText, { color: colors.textSecondary }]}>ou</Text>
+                <View style={[dynamicStyles.dividerLine, { backgroundColor: colors.border }]} />
+              </View>
+
+              <TouchableOpacity style={[dynamicStyles.googleButton, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Ionicons name="logo-google" size={20} color={colors.text} />
+                <Text style={[dynamicStyles.googleButtonText, { color: colors.text }]}>
+                  Cadastrar com Google
+                </Text>
+              </TouchableOpacity>
+
+              <View style={dynamicStyles.loginContainer}>
+                <Text style={[dynamicStyles.loginText, { color: colors.textSecondary }]}>
+                  Já tem uma conta?{' '}
+                </Text>
+                <Link href="/login" asChild>
+                  <TouchableOpacity>
+                    <Text style={[dynamicStyles.loginLink, { color: colors.primary }]}>
+                      Faça login
+                    </Text>
+                  </TouchableOpacity>
+                </Link>
               </View>
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createDynamicStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-  },
-  gradient: {
-    flex: 1,
-    backgroundColor: '#667eea',
   },
   keyboardView: {
     flex: 1,
@@ -309,7 +313,6 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 15,
@@ -318,12 +321,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#fff',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
   },
   form: {
@@ -332,11 +333,11 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     borderRadius: 12,
     marginBottom: 16,
     paddingHorizontal: 16,
     height: 56,
+    borderWidth: 1,
   },
   inputIcon: {
     marginRight: 12,
@@ -344,7 +345,6 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    color: '#333',
   },
   eyeIcon: {
     padding: 4,
@@ -363,13 +363,12 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   registerButton: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     height: 56,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOffset: {
       width: 0,
       height: 2,
@@ -382,7 +381,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   registerButtonText: {
-    color: '#667eea',
+    color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
   },
@@ -394,10 +393,8 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
   },
   dividerText: {
-    color: 'rgba(255, 255, 255, 0.8)',
     marginHorizontal: 16,
     fontSize: 14,
   },
@@ -405,13 +402,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#4285F4',
     borderRadius: 12,
     height: 56,
     marginBottom: 24,
+    borderWidth: 1,
   },
   googleButtonText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
@@ -422,11 +418,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loginText: {
-    color: 'rgba(255, 255, 255, 0.8)',
     fontSize: 14,
   },
   loginLink: {
-    color: '#fff',
     fontSize: 14,
     fontWeight: 'bold',
   },
