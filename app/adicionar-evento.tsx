@@ -66,9 +66,10 @@ const DatePickerComponent = ({
   // Criar array de dias com dia da semana (Segunda a Domingo)
   const daysWithWeekday = Array.from({ length: daysInSelectedMonth }, (_, i) => {
     const dayNumber = i + 1;
-    const date = new Date(year, month, dayNumber);
-    const dayNames = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-    const dayName = dayNames[date.getDay()];
+    // Criar data usando UTC para evitar problemas de timezone
+    const date = new Date(Date.UTC(year, month, dayNumber, 12, 0, 0));
+    const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const dayName = dayNames[date.getUTCDay()];
     
     return {
       day: dayNumber,
@@ -78,7 +79,8 @@ const DatePickerComponent = ({
   });
 
   const updateDate = (day: number) => {
-    const newDate = new Date(year, month, day);
+    // Criar data usando UTC para evitar problemas de timezone
+    const newDate = new Date(Date.UTC(year, month, day, 12, 0, 0));
     onDateChange(newDate);
   };
 
@@ -133,6 +135,12 @@ const TimePickerComponent = ({ selectedTime, onTimeChange }: { selectedTime: Dat
 
   const [selectedHour, setSelectedHour] = useState(selectedTime.getHours());
   const [selectedMinute, setSelectedMinute] = useState(selectedTime.getMinutes());
+
+  // Sincronizar com o selectedTime quando ele mudar
+  React.useEffect(() => {
+    setSelectedHour(selectedTime.getHours());
+    setSelectedMinute(selectedTime.getMinutes());
+  }, [selectedTime]);
 
   const updateTime = (hour: number, minute: number) => {
     const newTime = new Date();
@@ -203,7 +211,14 @@ export default function AdicionarEventoScreen() {
   // Extrair parâmetros da agenda
   const selectedMonth = params.selectedMonth ? parseInt(params.selectedMonth as string) : new Date().getMonth();
   const selectedYear = params.selectedYear ? parseInt(params.selectedYear as string) : new Date().getFullYear();
-  const initialDate = params.selectedDate ? new Date(params.selectedDate as string) : new Date(selectedYear, selectedMonth, 1);
+  const initialDate = params.selectedDate ? new Date(params.selectedDate as string) : new Date(Date.UTC(selectedYear, selectedMonth, 1, 12, 0, 0));
+
+  // Criar horários padrão
+  const createDefaultTime = (hour: number, minute: number = 0) => {
+    const time = new Date();
+    time.setHours(hour, minute, 0, 0);
+    return time;
+  };
 
   const [form, setForm] = useState<EventoForm>({
     nome: '',
@@ -211,8 +226,8 @@ export default function AdicionarEventoScreen() {
     cidade: '',
     telefoneContratante: '',
     data: initialDate,
-    horarioInicio: new Date(),
-    horarioFim: new Date(),
+    horarioInicio: createDefaultTime(20, 0), // 20:00
+    horarioFim: createDefaultTime(23, 0), // 23:00
     status: 'a_confirmar',
     descricao: '',
   });
@@ -226,7 +241,7 @@ export default function AdicionarEventoScreen() {
 
 
   const handleSave = async () => {
-    // Validações básicas
+    // Validações básicas - apenas Nome, Valor e Data são obrigatórios
     if (!form.nome.trim()) {
       Alert.alert('Erro', 'Nome do evento é obrigatório');
       return;
@@ -235,16 +250,10 @@ export default function AdicionarEventoScreen() {
       Alert.alert('Erro', 'Valor é obrigatório');
       return;
     }
-    if (!form.cidade.trim()) {
-      Alert.alert('Erro', 'Cidade é obrigatória');
-      return;
-    }
-    if (!form.telefoneContratante.trim()) {
-      Alert.alert('Erro', 'Telefone do contratante é obrigatório');
-      return;
-    }
 
-    if (isNaN(parseFloat(form.valor))) {
+    // Extrair valor numérico do texto formatado
+    const numericValue = extractNumericValue(form.valor);
+    if (!numericValue || isNaN(parseFloat(numericValue))) {
       Alert.alert('Erro', 'Valor deve ser um número válido');
       return;
     }
@@ -286,7 +295,7 @@ export default function AdicionarEventoScreen() {
         event_date: `${form.data.getFullYear()}-${String(form.data.getMonth() + 1).padStart(2, '0')}-${String(form.data.getDate()).padStart(2, '0')}`, // YYYY-MM-DD
         start_time: form.horarioInicio.toTimeString().split(' ')[0].substring(0, 5), // HH:MM
         end_time: form.horarioFim.toTimeString().split(' ')[0].substring(0, 5), // HH:MM
-        value: form.valor ? parseFloat(form.valor) : undefined,
+        value: numericValue ? parseFloat(numericValue) : undefined,
         city: form.cidade.trim() || undefined,
         contractor_phone: form.telefoneContratante.trim() || undefined,
         confirmed: form.status === 'confirmado',
@@ -329,6 +338,32 @@ export default function AdicionarEventoScreen() {
 
   const updateForm = (field: keyof EventoForm, value: any) => {
     setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Função para formatar valor em Real
+  const formatCurrency = (value: string) => {
+    // Remove tudo que não é dígito
+    const numericValue = value.replace(/\D/g, '');
+    
+    // Se não há valor, retorna vazio
+    if (!numericValue) return '';
+    
+    // Converte para número e divide por 100 para ter centavos
+    const amount = parseInt(numericValue) / 100;
+    
+    // Formata como moeda brasileira
+    return amount.toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  };
+
+  // Função para extrair valor numérico do texto formatado
+  const extractNumericValue = (formattedValue: string) => {
+    const numericValue = formattedValue.replace(/\D/g, '');
+    return numericValue ? (parseInt(numericValue) / 100).toString() : '';
   };
 
   const addDespesa = () => {
@@ -425,6 +460,9 @@ export default function AdicionarEventoScreen() {
             onChangeText={(text) => updateForm('nome', text)}
             placeholder="Ex: Rock in Rio 2025"
             placeholderTextColor="#999"
+            autoCorrect={false}
+            autoCapitalize="words"
+            returnKeyType="next"
           />
         </View>
 
@@ -434,35 +472,48 @@ export default function AdicionarEventoScreen() {
           <TextInput
             style={styles.input}
             value={form.valor}
-            onChangeText={(text) => updateForm('valor', text)}
-            placeholder="Ex: 15000.00"
+            onChangeText={(text) => {
+              const formatted = formatCurrency(text);
+              updateForm('valor', formatted);
+            }}
+            placeholder="R$ 0,00"
             placeholderTextColor="#999"
-            keyboardType="numeric"
+            keyboardType="default"
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="done"
+            blurOnSubmit={true}
           />
         </View>
 
         {/* Cidade */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Cidade *</Text>
+          <Text style={styles.label}>Cidade</Text>
           <TextInput
             style={styles.input}
             value={form.cidade}
             onChangeText={(text) => updateForm('cidade', text)}
             placeholder="Ex: Rio de Janeiro"
             placeholderTextColor="#999"
+            autoCorrect={false}
+            autoCapitalize="words"
+            returnKeyType="next"
           />
         </View>
 
         {/* Telefone do Contratante */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Telefone do Contratante *</Text>
+          <Text style={styles.label}>Telefone do Contratante</Text>
           <TextInput
             style={styles.input}
             value={form.telefoneContratante}
             onChangeText={(text) => updateForm('telefoneContratante', text)}
             placeholder="Ex: (21) 99999-9999"
             placeholderTextColor="#999"
-            keyboardType="phone-pad"
+            keyboardType="default"
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="next"
           />
         </View>
 
@@ -478,6 +529,9 @@ export default function AdicionarEventoScreen() {
             multiline
             numberOfLines={4}
             textAlignVertical="top"
+            autoCorrect={false}
+            autoCapitalize="sentences"
+            returnKeyType="default"
           />
         </View>
 
@@ -496,7 +550,7 @@ export default function AdicionarEventoScreen() {
 
         {/* Horário de Início */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Horário de Início *</Text>
+          <Text style={styles.label}>Horário de Início</Text>
           <TouchableOpacity
             style={styles.dateButton}
             onPress={openTimeInicioPicker}
@@ -509,7 +563,7 @@ export default function AdicionarEventoScreen() {
 
         {/* Horário de Fim */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Horário de Fim *</Text>
+          <Text style={styles.label}>Horário de Fim</Text>
           <TouchableOpacity
             style={styles.dateButton}
             onPress={openTimeFimPicker}
@@ -522,7 +576,7 @@ export default function AdicionarEventoScreen() {
 
         {/* Status */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Status *</Text>
+          <Text style={styles.label}>Status</Text>
           <View style={styles.statusContainer}>
             <TouchableOpacity
               style={[
