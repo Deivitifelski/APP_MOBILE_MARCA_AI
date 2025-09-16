@@ -201,24 +201,27 @@ export default function DetalhesEventoScreen() {
   const handleExportPDF = async () => {
     if (!event) return;
     
-    // Perguntar se quer incluir valores financeiros
+    // Modal melhorado para escolher tipo de relatório
     Alert.alert(
-      '📄 Gerar Relatório',
-      'Como você gostaria de gerar o relatório?',
+      '📄 Exportar Relatório do Evento',
+      `Evento: ${event.name}\n\nEscolha o tipo de relatório que deseja gerar:`,
       [
         {
-          text: 'Com Valores Financeiros',
-          onPress: () => generateReport(true)
+          text: '💰 Com Valores Financeiros',
+          onPress: () => generateReport(true),
+          style: 'default'
         },
         {
-          text: 'Sem Valores Financeiros',
-          onPress: () => generateReport(false)
+          text: '🔒 Sem Valores Financeiros',
+          onPress: () => generateReport(false),
+          style: 'default'
         },
         {
-          text: 'Cancelar',
+          text: '❌ Cancelar',
           style: 'cancel'
         }
-      ]
+      ],
+      { cancelable: true }
     );
   };
 
@@ -236,17 +239,11 @@ export default function DetalhesEventoScreen() {
         includeFinancials
       });
       
-      if (result.success) {
-        Alert.alert(
-          'Relatório Gerado',
-          'O relatório foi gerado com sucesso!',
-          [{ text: 'OK' }]
-        );
-      } else {
-        Alert.alert('Erro', result.error || 'Erro ao gerar relatório');
+      if (!result.success) {
+        Alert.alert('❌ Erro ao Gerar Relatório', result.error || 'Ocorreu um erro inesperado. Tente novamente.');
       }
     } catch (error) {
-      Alert.alert('Erro', 'Erro ao gerar relatório');
+      Alert.alert('❌ Erro ao Gerar Relatório', 'Ocorreu um erro inesperado ao gerar o relatório. Verifique sua conexão e tente novamente.');
     } finally {
       setIsGeneratingPDF(false);
     }
