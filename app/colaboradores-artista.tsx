@@ -25,6 +25,7 @@ export default function ColaboradoresArtistaScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
   const [canManage, setCanManage] = useState(false);
+  const [canAddCollaborators, setCanAddCollaborators] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
   const { activeArtist, loadActiveArtist } = useActiveArtist();
   const [showAddModal, setShowAddModal] = useState(false);
@@ -63,7 +64,7 @@ export default function ColaboradoresArtistaScreen() {
       setIsOwner(isUserOwner);
 
       // Buscar colaboradores
-      const { collaborators, userRole, canManage, error: collaboratorsError } = await getCollaborators(activeArtist.id);
+      const { collaborators, userRole, canManage, canAddCollaborators, error: collaboratorsError } = await getCollaborators(activeArtist.id);
       
       if (collaboratorsError) {
         Alert.alert('Erro', 'Erro ao carregar colaboradores');
@@ -73,6 +74,7 @@ export default function ColaboradoresArtistaScreen() {
       setCollaborators(collaborators || []);
       setUserRole(userRole);
       setCanManage(canManage);
+      setCanAddCollaborators(canAddCollaborators);
     } catch (error) {
       Alert.alert('Erro', 'Erro ao carregar dados');
     } finally {
@@ -420,7 +422,7 @@ export default function ColaboradoresArtistaScreen() {
               </TouchableOpacity>
             </>
           )}
-          {canManage && (
+          {canAddCollaborators && (
             <TouchableOpacity 
               style={styles.addButton}
               onPress={() => {
@@ -460,7 +462,7 @@ export default function ColaboradoresArtistaScreen() {
             <Text style={styles.emptyText}>
               Nenhum colaborador encontrado
             </Text>
-            {canManage && (
+            {canAddCollaborators && (
               <Text style={styles.emptySubtext}>
                 Toque no botão + para adicionar colaboradores
               </Text>

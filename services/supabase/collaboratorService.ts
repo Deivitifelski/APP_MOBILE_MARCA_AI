@@ -24,13 +24,14 @@ export const getCollaborators = async (artistId: string): Promise<{
   collaborators: Collaborator[] | null; 
   userRole: string | null;
   canManage: boolean;
+  canAddCollaborators: boolean;
   error: string | null 
 }> => {
   try {
     // Verificar se o usuário atual é membro do artista
     const { data: currentUser } = await supabase.auth.getUser();
     if (!currentUser.user) {
-      return { collaborators: null, userRole: null, canManage: false, error: 'Usuário não autenticado' };
+      return { collaborators: null, userRole: null, canManage: false, canAddCollaborators: false, error: 'Usuário não autenticado' };
     }
 
     const { data: userMembership, error: membershipError } = await supabase
@@ -41,11 +42,14 @@ export const getCollaborators = async (artistId: string): Promise<{
       .single();
 
     if (membershipError || !userMembership) {
-      return { collaborators: null, userRole: null, canManage: false, error: 'Usuário não tem acesso a este artista' };
+      return { collaborators: null, userRole: null, canManage: false, canAddCollaborators: false, error: 'Usuário não tem acesso a este artista' };
     }
 
     // Verificar se o usuário pode gerenciar colaboradores (apenas owner e admin)
     const canManage = ['owner', 'admin'].includes(userMembership.role);
+    
+    // Verificar se o usuário pode adicionar colaboradores (apenas owner e admin)
+    const canAddCollaborators = ['owner', 'admin'].includes(userMembership.role);
 
     // Buscar todos os colaboradores do artista
     const { data, error } = await supabase
@@ -67,7 +71,7 @@ export const getCollaborators = async (artistId: string): Promise<{
       .order('created_at', { ascending: true });
 
     if (error) {
-      return { collaborators: null, userRole: null, canManage: false, error: error.message };
+      return { collaborators: null, userRole: null, canManage: false, canAddCollaborators: false, error: error.message };
     }
 
     // Transformar os dados para o formato esperado
@@ -89,10 +93,11 @@ export const getCollaborators = async (artistId: string): Promise<{
       collaborators, 
       userRole: userMembership.role,
       canManage,
+      canAddCollaborators,
       error: null 
     };
   } catch (error) {
-    return { collaborators: null, userRole: null, canManage: false, error: 'Erro de conexão' };
+    return { collaborators: null, userRole: null, canManage: false, canAddCollaborators: false, error: 'Erro de conexão' };
   }
 };
 
@@ -154,7 +159,7 @@ export const addCollaborator = async (artistId: string, collaboratorData: AddCol
       return { success: false, error: 'Usuário não tem acesso a este artista' };
     }
 
-    // Verificar se o usuário é owner ou admin
+    // Verificar se o usuário é owner ou admin (editors não podem adicionar)
     if (!['owner', 'admin'].includes(userMembership.role)) {
       return { success: false, error: 'Apenas proprietários e administradores podem adicionar colaboradores' };
     }
@@ -212,7 +217,7 @@ export const removeCollaborator = async (userId: string, artistId: string): Prom
       return { success: false, error: 'Usuário não tem acesso a este artista' };
     }
 
-    // Verificar se o usuário é owner ou admin
+    // Verificar se o usuário pode remover colaboradores (apenas owner e admin)
     if (!['owner', 'admin'].includes(userMembership.role)) {
       return { success: false, error: 'Apenas proprietários e administradores podem remover colaboradores' };
     }
@@ -253,7 +258,7 @@ export const updateCollaboratorRole = async (userId: string, artistId: string, n
       return { success: false, error: 'Usuário não tem acesso a este artista' };
     }
 
-    // Verificar se o usuário é owner ou admin
+    // Verificar se o usuário pode atualizar roles (apenas owner e admin)
     if (!['owner', 'admin'].includes(userMembership.role)) {
       return { success: false, error: 'Apenas proprietários e administradores podem atualizar roles' };
     }

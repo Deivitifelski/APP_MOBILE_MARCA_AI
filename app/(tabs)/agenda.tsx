@@ -134,6 +134,7 @@ export default function AgendaScreen() {
       
       const permissions = await getUserPermissions(user.id, activeArtist.id);
       console.log('🔐 Permissões carregadas:', permissions);
+      console.log('🔐 Role do usuário:', permissions?.role);
       setUserPermissions(permissions);
     } catch (error) {
       console.error('Erro ao carregar permissões:', error);
