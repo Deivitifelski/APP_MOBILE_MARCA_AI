@@ -13,6 +13,8 @@ import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { getEventById, Event, deleteEvent, getEventByIdWithPermissions } from '../services/supabase/eventService';
 import { getTotalExpensesByEvent } from '../services/supabase/expenseService';
 import { getEventCreatorName } from '../services/supabase/eventCreatorService';
+import { generateEventPDF } from '../services/pdfService';
+import { useActiveArtist } from '../services/useActiveArtist';
 import { supabase } from '../lib/supabase';
 
 
@@ -27,6 +29,7 @@ export default function DetalhesEventoScreen() {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [creatorName, setCreatorName] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const { activeArtist } = useActiveArtist();
 
   // Obter usuário atual
   useEffect(() => {
@@ -195,6 +198,35 @@ export default function DetalhesEventoScreen() {
     }
   };
 
+  const handleExportPDF = async () => {
+    if (!event) return;
+    
+    setIsGeneratingPDF(true);
+    
+    try {
+      const result = await generateEventPDF({
+        event,
+        totalExpenses,
+        creatorName: creatorName || undefined,
+        artistName: activeArtist?.name || undefined
+      });
+      
+      if (result.success) {
+        Alert.alert(
+          'Relatório Gerado',
+          'O relatório foi gerado com sucesso!',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Erro', result.error || 'Erro ao gerar PDF');
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Erro ao gerar PDF');
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
 
 
   if (isLoading) {
@@ -325,6 +357,18 @@ export default function DetalhesEventoScreen() {
 
         {/* Ações */}
         <View style={styles.actionsContainer}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={handleExportPDF}
+            disabled={isGeneratingPDF}
+          >
+            <Ionicons name="document-text" size={24} color="#9C27B0" />
+            <Text style={styles.actionButtonText}>
+              {isGeneratingPDF ? 'Gerando Relatório...' : 'Exportar Relatório'}
+            </Text>
+            <Ionicons name="chevron-forward" size={20} color="#9C27B0" />
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.actionButton}
             onPress={() => router.push({
