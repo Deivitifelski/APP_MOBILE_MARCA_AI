@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getEventsByMonth } from '../../services/supabase/eventService';
 import { useActiveArtist } from '../../services/useActiveArtist';
 import { useNotifications } from '../../services/useNotifications';
@@ -68,6 +69,7 @@ const months = [
 
 export default function AgendaScreen() {
   const { colors, isDarkMode } = useTheme();
+  const insets = useSafeAreaInsets();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<any[]>([]);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
@@ -271,8 +273,12 @@ export default function AgendaScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { 
+        backgroundColor: colors.surface, 
+        borderBottomColor: colors.border,
+        paddingTop: insets.top + 20
+      }]}>
         {/* Header do Artista */}
         {activeArtist && (
           <View style={styles.artistHeader}>
@@ -421,7 +427,7 @@ export default function AgendaScreen() {
         message="Como visualizador, você não tem permissão para acessar os detalhes completos dos eventos. Entre em contato com um administrador para solicitar mais permissões."
         icon="eye-off"
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -433,7 +439,6 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#fff',
     paddingHorizontal: 20,
-    paddingTop: 20,
     paddingBottom: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',

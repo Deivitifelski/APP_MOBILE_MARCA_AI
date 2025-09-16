@@ -11,6 +11,7 @@ import {
   Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getEventsByMonth } from '../../services/supabase/eventService';
 import { getExpensesByEvent } from '../../services/supabase/expenseService';
 import { useActiveArtist } from '../../services/useActiveArtist';
@@ -32,6 +33,7 @@ interface EventWithExpenses {
 
 export default function FinanceiroScreen() {
   const { colors, isDarkMode } = useTheme();
+  const insets = useSafeAreaInsets();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [events, setEvents] = useState<EventWithExpenses[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -227,20 +229,28 @@ export default function FinanceiroScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { 
+          backgroundColor: colors.surface, 
+          borderBottomColor: colors.border,
+          paddingTop: insets.top + 20
+        }]}>
           <Text style={[styles.title, { color: colors.text }]}>Financeiro</Text>
         </View>
         <View style={styles.loadingContainer}>
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Carregando dados financeiros...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { 
+        backgroundColor: colors.surface, 
+        borderBottomColor: colors.border,
+        paddingTop: insets.top + 20
+      }]}>
         <Text style={[styles.title, { color: colors.text }]}>Financeiro</Text>
         
         {/* Navegação de mês */}
@@ -319,7 +329,7 @@ export default function FinanceiroScreen() {
         message="Como visualizador, você não tem permissão para acessar dados financeiros. Entre em contato com um administrador para solicitar mais permissões."
         icon="lock-closed"
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -331,7 +341,6 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#fff',
     paddingHorizontal: 20,
-    paddingTop: 20,
     paddingBottom: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',

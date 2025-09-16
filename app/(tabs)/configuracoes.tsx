@@ -16,6 +16,7 @@ import {
 import { setStringAsync } from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getCurrentUser, updatePassword } from '../../services/supabase/authService';
 import { getUserProfile, UserProfile } from '../../services/supabase/userService';
 import { getArtists } from '../../services/supabase/artistService';
@@ -25,6 +26,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 
 export default function ConfiguracoesScreen() {
   const { isDarkMode, toggleDarkMode, colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [notifications, setNotifications] = useState(true);
   const [autoSync, setAutoSync] = useState(true);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -305,8 +307,8 @@ export default function ConfiguracoesScreen() {
   const dynamicStyles = createDynamicStyles(isDarkMode, colors);
 
   return (
-    <SafeAreaView style={dynamicStyles.container}>
-      <View style={dynamicStyles.header}>
+    <View style={dynamicStyles.container}>
+      <View style={[dynamicStyles.header, { paddingTop: insets.top + 20 }]}>
         <Text style={dynamicStyles.title}>Configurações</Text>
       </View>
 
@@ -887,7 +889,7 @@ export default function ConfiguracoesScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -900,7 +902,6 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
   header: {
     backgroundColor: colors.surface,
     paddingHorizontal: 20,
-    paddingTop: 20,
     paddingBottom: 15,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
