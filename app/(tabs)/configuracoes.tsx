@@ -20,6 +20,7 @@ import { getCurrentUser, updatePassword } from '../../services/supabase/authServ
 import { getUserProfile, UserProfile } from '../../services/supabase/userService';
 import { getArtists } from '../../services/supabase/artistService';
 import { createFeedback } from '../../services/supabase/feedbackService';
+import { getUserPermissions } from '../../services/supabase/permissionsService';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export default function ConfiguracoesScreen() {
@@ -30,6 +31,7 @@ export default function ConfiguracoesScreen() {
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [hasArtist, setHasArtist] = useState(false);
   const [currentArtist, setCurrentArtist] = useState<any>(null);
+  const [userPermissions, setUserPermissions] = useState<any>(null);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -88,7 +90,18 @@ export default function ConfiguracoesScreen() {
       
       if (!artistsError && artists && artists.length > 0) {
         setHasArtist(true);
-        setCurrentArtist(artists[0]);
+        const currentArtist = artists[0];
+        setCurrentArtist(currentArtist);
+        
+        // Carregar permissões do usuário para o artista
+        const permissions = await getUserPermissions(
+          user.id,
+          currentArtist.id
+        );
+        
+        if (permissions) {
+          setUserPermissions(permissions);
+        }
       }
     } catch (error) {
       console.error('Erro ao carregar dados do artista:', error);
@@ -350,12 +363,14 @@ export default function ConfiguracoesScreen() {
                   {currentArtist.role === 'owner' ? 'Proprietário' : 'Colaborador'}
                 </Text>
               </View>
-              <TouchableOpacity 
-                style={dynamicStyles.editButton} 
-                onPress={handleArtistSettings}
-              >
-                <Ionicons name="pencil" size={16} color="#667eea" />
-              </TouchableOpacity>
+              {userPermissions?.permissions?.canManageArtist && (
+                <TouchableOpacity 
+                  style={dynamicStyles.editButton} 
+                  onPress={handleArtistSettings}
+                >
+                  <Ionicons name="pencil" size={16} color="#667eea" />
+                </TouchableOpacity>
+              )}
             </View>
 
             <View style={dynamicStyles.settingsCard}>

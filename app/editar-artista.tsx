@@ -54,21 +54,41 @@ export default function EditarArtistaScreen() {
 
       // Usar o primeiro artista (artista ativo)
       const currentArtist = artists[0];
-      setArtist(currentArtist);
-      setName(currentArtist.name || '');
-      setProfileUrl(currentArtist.profile_url || '');
-
-      // Carregar permissões
-      const { permissions, error: permissionsError } = await getUserPermissions(
+      
+      // Carregar permissões primeiro
+      const permissions = await getUserPermissions(
         user.id,
         currentArtist.id
       );
 
-      if (permissionsError) {
-        console.error('Erro ao carregar permissões:', permissionsError);
-      } else {
-        setUserPermissions(permissions);
+      if (!permissions) {
+        console.error('Erro ao carregar permissões');
+        Alert.alert('Erro', 'Erro ao carregar permissões');
+        router.back();
+        return;
       }
+
+      setUserPermissions(permissions);
+
+      // Verificar se o usuário tem permissão para gerenciar o artista
+      if (!permissions.permissions.canManageArtist) {
+        Alert.alert(
+          'Acesso Negado', 
+          'Você não tem permissão para editar as informações deste artista.',
+          [
+            {
+              text: 'OK',
+              onPress: () => router.back(),
+            },
+          ]
+        );
+        return;
+      }
+
+      // Se tem permissão, carregar os dados do artista
+      setArtist(currentArtist);
+      setName(currentArtist.name || '');
+      setProfileUrl(currentArtist.profile_url || '');
 
     } catch (error) {
       console.error('Erro ao carregar dados do artista:', error);
