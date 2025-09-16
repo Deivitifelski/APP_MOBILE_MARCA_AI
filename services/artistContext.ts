@@ -3,6 +3,7 @@ export interface ActiveArtist {
   id: string;
   name: string;
   role: string;
+  profile_url?: string;
 }
 
 // Variável global para armazenar o artista ativo (temporário)

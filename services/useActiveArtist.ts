@@ -66,7 +66,8 @@ export const useActiveArtist = () => {
         validActiveArtist = {
           id: firstArtist.id,
           name: firstArtist.name,
-          role: firstArtist.role || 'owner'
+          role: firstArtist.role || 'owner',
+          profile_url: firstArtist.profile_url
         };
         
         // Salvar como ativo

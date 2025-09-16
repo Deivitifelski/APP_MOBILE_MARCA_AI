@@ -75,6 +75,7 @@ export default function AgendaScreen() {
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [userPermissions, setUserPermissions] = useState<any>(null);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
+  const [imageLoadError, setImageLoadError] = useState(false);
   const { activeArtist, loadActiveArtist, isLoading } = useActiveArtist();
   const { unreadCount, loadUnreadCount } = useNotifications();
 
@@ -90,6 +91,7 @@ export default function AgendaScreen() {
     if (activeArtist) {
       loadEvents(true);
       loadUserPermissions();
+      setImageLoadError(false); // Reset image error state when artist changes
     }
   }, [activeArtist, currentMonth, currentYear]);
 
@@ -283,9 +285,35 @@ export default function AgendaScreen() {
         {activeArtist && (
           <View style={styles.artistHeader}>
             <View style={styles.artistInfo}>
-              <View style={[styles.artistAvatarPlaceholder, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
-                <Ionicons name="musical-notes" size={24} color={colors.primary} />
-              </View>
+              {activeArtist.profile_url && activeArtist.profile_url.trim() !== '' && !imageLoadError ? (
+                <Image 
+                  source={{ 
+                    uri: activeArtist.profile_url,
+                    cache: 'reload' // Força recarregar a imagem
+                  }} 
+                  style={[styles.artistAvatar, { borderColor: colors.border }]}
+                  resizeMode="cover"
+                  onError={(error) => {
+                    console.log('❌ Erro ao carregar imagem do artista:', activeArtist.profile_url);
+                    console.log('❌ Detalhes:', error.nativeEvent);
+                    setImageLoadError(true);
+                  }}
+                  onLoad={() => {
+                    console.log('✅ Imagem do artista carregada:', activeArtist.profile_url);
+                    setImageLoadError(false);
+                  }}
+                />
+              ) : (
+                <View style={[styles.artistAvatarPlaceholder, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+                  <Ionicons name="musical-notes" size={24} color={colors.primary} />
+                  {/* Debug: mostrar se há URL */}
+                  {activeArtist.profile_url && (
+                    <Text style={{ fontSize: 8, position: 'absolute', bottom: -10, color: 'red' }}>
+                      URL: {activeArtist.profile_url.substring(0, 20)}...
+                    </Text>
+                  )}
+                </View>
+              )}
               <View style={styles.artistDetails}>
                 <View style={styles.artistNameRow}>
                   <Text style={[styles.artistName, { color: colors.text }]}>{activeArtist.name}</Text>
@@ -455,6 +483,7 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 25,
     marginRight: 12,
+    borderWidth: 2,
   },
   artistAvatarPlaceholder: {
     width: 50,
