@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { getEventById, Event, deleteEvent } from '../services/supabase/eventService';
 import { getTotalExpensesByEvent } from '../services/supabase/expenseService';
+import { getEventCreatorName } from '../services/supabase/eventCreatorService';
 
 
 export default function DetalhesEventoScreen() {
@@ -22,6 +23,8 @@ export default function DetalhesEventoScreen() {
   const [totalExpenses, setTotalExpenses] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [creatorName, setCreatorName] = useState<string | null>(null);
 
   const loadEventData = async (isInitialLoad = true) => {
     if (isInitialLoad) {
@@ -36,6 +39,14 @@ export default function DetalhesEventoScreen() {
 
       if (eventResult.success) {
         setEvent(eventResult.event || null);
+        
+        // Buscar nome do criador do evento
+        if (eventResult.event?.created_by) {
+          const creatorResult = await getEventCreatorName(eventResult.event.created_by);
+          if (creatorResult.name) {
+            setCreatorName(creatorResult.name);
+          }
+        }
       } else {
         Alert.alert('Erro', eventResult.error || 'Erro ao carregar evento');
       }
@@ -232,6 +243,13 @@ export default function DetalhesEventoScreen() {
               <Ionicons name="call" size={20} color="#667eea" />
               <Text style={styles.detailText}>{event.contractor_phone || 'Não informado'}</Text>
             </View>
+
+            {creatorName && (
+              <View style={styles.detailRow}>
+                <Ionicons name="person" size={20} color="#667eea" />
+                <Text style={styles.detailText}>Criado por: {creatorName}</Text>
+              </View>
+            )}
           </View>
         </View>
 
