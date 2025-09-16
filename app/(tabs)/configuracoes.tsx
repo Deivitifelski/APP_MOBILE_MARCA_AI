@@ -100,7 +100,7 @@ export default function ConfiguracoesScreen() {
   };
 
   const handleArtistSettings = () => {
-    router.push('/configuracoes-artista');
+    router.push('/editar-artista');
   };
 
   const handleCreateNewArtist = () => {
@@ -350,8 +350,11 @@ export default function ConfiguracoesScreen() {
                   {currentArtist.role === 'owner' ? 'Proprietário' : 'Colaborador'}
                 </Text>
               </View>
-              <TouchableOpacity style={dynamicStyles.editButton} onPress={handleArtistSettings}>
-                <Ionicons name="settings" size={16} color="#667eea" />
+              <TouchableOpacity 
+                style={dynamicStyles.editButton} 
+                onPress={handleArtistSettings}
+              >
+                <Ionicons name="pencil" size={16} color="#667eea" />
               </TouchableOpacity>
             </View>
 
