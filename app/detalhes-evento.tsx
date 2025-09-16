@@ -345,6 +345,16 @@ export default function DetalhesEventoScreen() {
                 <Text style={styles.detailText}>Criado por: {creatorName}</Text>
               </View>
             )}
+
+            {event.description && (
+              <View style={styles.descriptionContainer}>
+                <View style={styles.detailRow}>
+                  <Ionicons name="document-text" size={20} color="#667eea" />
+                  <Text style={styles.detailLabel}>Descrição:</Text>
+                </View>
+                <Text style={styles.descriptionText}>{event.description}</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -627,5 +637,22 @@ const styles = StyleSheet.create({
   },
   deleteButtonText: {
     color: '#ff4444',
+  },
+  descriptionContainer: {
+    marginTop: 8,
+  },
+  detailLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginLeft: 8,
+  },
+  descriptionText: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+    marginTop: 4,
+    marginLeft: 28,
+    fontStyle: 'italic',
   },
 });
