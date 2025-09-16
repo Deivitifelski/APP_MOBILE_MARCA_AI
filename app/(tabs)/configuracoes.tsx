@@ -12,6 +12,7 @@ import {
   Modal,
   TextInput,
   Linking,
+  Image,
 } from 'react-native';
 import { setStringAsync } from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
@@ -48,11 +49,17 @@ export default function ConfiguracoesScreen() {
     confirmPassword: '',
   });
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [imageLoadError, setImageLoadError] = useState(false);
 
   useEffect(() => {
     loadUserProfile();
     loadArtistData();
   }, []);
+
+  useEffect(() => {
+    // Reset image error state when artist changes
+    setImageLoadError(false);
+  }, [currentArtist]);
 
   const loadUserProfile = async () => {
     try {
@@ -356,9 +363,29 @@ export default function ConfiguracoesScreen() {
             <Text style={dynamicStyles.sectionTitle}>Artista</Text>
             
             <View style={dynamicStyles.artistCard}>
-              <View style={dynamicStyles.artistAvatar}>
-                <Ionicons name="musical-notes" size={24} color="#667eea" />
-              </View>
+              {currentArtist.profile_url && currentArtist.profile_url.trim() !== '' && !imageLoadError ? (
+                <Image 
+                  source={{ 
+                    uri: currentArtist.profile_url,
+                    cache: 'reload'
+                  }} 
+                  style={dynamicStyles.artistAvatarImage}
+                  resizeMode="cover"
+                  onError={(error) => {
+                    console.log('❌ Erro ao carregar imagem do artista nas configurações:', currentArtist.profile_url);
+                    console.log('❌ Detalhes:', error.nativeEvent);
+                    setImageLoadError(true);
+                  }}
+                  onLoad={() => {
+                    console.log('✅ Imagem do artista carregada nas configurações:', currentArtist.profile_url);
+                    setImageLoadError(false);
+                  }}
+                />
+              ) : (
+                <View style={dynamicStyles.artistAvatar}>
+                  <Ionicons name="musical-notes" size={24} color="#667eea" />
+                </View>
+              )}
               <View style={dynamicStyles.artistInfo}>
                 <Text style={dynamicStyles.artistName}>{currentArtist.name}</Text>
                 <Text style={dynamicStyles.artistRole}>
@@ -1005,6 +1032,14 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
     alignItems: 'center',
     marginRight: 15,
   },
+  artistAvatarImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 15,
+    borderWidth: 2,
+    borderColor: colors.border,
+  },
   artistInfo: {
     flex: 1,
   },
@@ -1384,6 +1419,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 15,
+  },
+  artistAvatarImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 15,
+    borderWidth: 2,
+    borderColor: '#e9ecef',
   },
   artistInfo: {
     flex: 1,
