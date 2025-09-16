@@ -24,6 +24,8 @@ export default function ColaboradoresArtistaScreen() {
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
+  const [canManage, setCanManage] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const { activeArtist, loadActiveArtist } = useActiveArtist();
   const [showAddModal, setShowAddModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -61,7 +63,7 @@ export default function ColaboradoresArtistaScreen() {
       setIsOwner(isUserOwner);
 
       // Buscar colaboradores
-      const { collaborators, error: collaboratorsError } = await getCollaborators(activeArtist.id);
+      const { collaborators, userRole, canManage, error: collaboratorsError } = await getCollaborators(activeArtist.id);
       
       if (collaboratorsError) {
         Alert.alert('Erro', 'Erro ao carregar colaboradores');
@@ -69,6 +71,8 @@ export default function ColaboradoresArtistaScreen() {
       }
 
       setCollaborators(collaborators || []);
+      setUserRole(userRole);
+      setCanManage(canManage);
     } catch (error) {
       Alert.alert('Erro', 'Erro ao carregar dados');
     } finally {
@@ -352,7 +356,7 @@ export default function ColaboradoresArtistaScreen() {
         </View>
       </View>
       
-      {isOwner && item.role !== 'owner' && (
+      {canManage && item.role !== 'owner' && (
         <View style={styles.collaboratorActions}>
           <TouchableOpacity
             style={styles.actionButton}
@@ -400,7 +404,7 @@ export default function ColaboradoresArtistaScreen() {
         </TouchableOpacity>
         <Text style={styles.title}>Colaboradores</Text>
         <View style={styles.headerActions}>
-          {isOwner && (
+          {canManage && (
             <>
               <TouchableOpacity
                 style={styles.headerButton}
@@ -416,7 +420,7 @@ export default function ColaboradoresArtistaScreen() {
               </TouchableOpacity>
             </>
           )}
-          {isOwner && (
+          {canManage && (
             <TouchableOpacity 
               style={styles.addButton}
               onPress={() => {
@@ -456,7 +460,7 @@ export default function ColaboradoresArtistaScreen() {
             <Text style={styles.emptyText}>
               Nenhum colaborador encontrado
             </Text>
-            {isOwner && (
+            {canManage && (
               <Text style={styles.emptySubtext}>
                 Toque no botão + para adicionar colaboradores
               </Text>

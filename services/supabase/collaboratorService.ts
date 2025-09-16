@@ -20,12 +20,17 @@ export interface AddCollaboratorData {
 }
 
 // Buscar colaboradores de um artista
-export const getCollaborators = async (artistId: string): Promise<{ collaborators: Collaborator[] | null; error: string | null }> => {
+export const getCollaborators = async (artistId: string): Promise<{ 
+  collaborators: Collaborator[] | null; 
+  userRole: string | null;
+  canManage: boolean;
+  error: string | null 
+}> => {
   try {
     // Verificar se o usuário atual é membro do artista
     const { data: currentUser } = await supabase.auth.getUser();
     if (!currentUser.user) {
-      return { collaborators: null, error: 'Usuário não autenticado' };
+      return { collaborators: null, userRole: null, canManage: false, error: 'Usuário não autenticado' };
     }
 
     const { data: userMembership, error: membershipError } = await supabase
@@ -36,8 +41,11 @@ export const getCollaborators = async (artistId: string): Promise<{ collaborator
       .single();
 
     if (membershipError || !userMembership) {
-      return { collaborators: null, error: 'Usuário não tem acesso a este artista' };
+      return { collaborators: null, userRole: null, canManage: false, error: 'Usuário não tem acesso a este artista' };
     }
+
+    // Verificar se o usuário pode gerenciar colaboradores (apenas owner e admin)
+    const canManage = ['owner', 'admin'].includes(userMembership.role);
 
     // Buscar todos os colaboradores do artista
     const { data, error } = await supabase
@@ -59,7 +67,7 @@ export const getCollaborators = async (artistId: string): Promise<{ collaborator
       .order('created_at', { ascending: true });
 
     if (error) {
-      return { collaborators: null, error: error.message };
+      return { collaborators: null, userRole: null, canManage: false, error: error.message };
     }
 
     // Transformar os dados para o formato esperado
@@ -77,9 +85,14 @@ export const getCollaborators = async (artistId: string): Promise<{ collaborator
       }
     })) || [];
 
-    return { collaborators, error: null };
+    return { 
+      collaborators, 
+      userRole: userMembership.role,
+      canManage,
+      error: null 
+    };
   } catch (error) {
-    return { collaborators: null, error: 'Erro de conexão' };
+    return { collaborators: null, userRole: null, canManage: false, error: 'Erro de conexão' };
   }
 };
 
