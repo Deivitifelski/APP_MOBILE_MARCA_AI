@@ -19,6 +19,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { getUserPermissions } from '../../services/supabase/permissionsService';
 import PermissionModal from '../../components/PermissionModal';
 import { supabase } from '../../lib/supabase';
+import { generateFinancialReport } from '../../services/financialReportService';
 // import * as FileSystem from 'expo-file-system';
 // import * as Sharing from 'expo-sharing';
 
@@ -39,6 +40,7 @@ export default function FinanceiroScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [userPermissions, setUserPermissions] = useState<any>(null);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const { activeArtist, loadActiveArtist } = useActiveArtist();
 
   const currentMonth = selectedDate.getMonth();
@@ -158,6 +160,57 @@ export default function FinanceiroScreen() {
     Alert.alert('Download', 'Funcionalidade de download será implementada em breve');
   };
 
+  const handleExportFinancialReport = async () => {
+    if (!activeArtist || events.length === 0) {
+      Alert.alert('Aviso', 'Não há eventos para exportar neste mês.');
+      return;
+    }
+    
+    // Modal melhorado para escolher tipo de relatório
+    Alert.alert(
+      '📊 Exportar Relatório Financeiro',
+      `Período: ${months[currentMonth]} de ${currentYear}\nEventos: ${events.length}\n\nEscolha o tipo de relatório que deseja gerar:`,
+      [
+        {
+          text: '💰 Com Valores Financeiros',
+          onPress: () => generateReport(true)
+        },
+        {
+          text: '🔒 Sem Valores Financeiros',
+          onPress: () => generateReport(false)
+        },
+        {
+          text: '❌ Cancelar',
+          style: 'cancel'
+        }
+      ]
+    );
+  };
+
+  const generateReport = async (includeFinancials: boolean) => {
+    if (!activeArtist) return;
+    
+    setIsGeneratingReport(true);
+    
+    try {
+      const result = await generateFinancialReport({
+        events,
+        month: currentMonth,
+        year: currentYear,
+        artistName: activeArtist.name,
+        includeFinancials
+      });
+      
+      if (!result.success) {
+        Alert.alert('❌ Erro ao Gerar Relatório', result.error || 'Ocorreu um erro inesperado. Tente novamente.');
+      }
+    } catch (error) {
+      Alert.alert('❌ Erro ao Gerar Relatório', 'Ocorreu um erro inesperado ao gerar o relatório. Verifique sua conexão e tente novamente.');
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  };
+
   // Cálculos financeiros
   const totalRevenue = events.reduce((sum, event) => sum + (event.value || 0), 0);
   const totalExpenses = events.reduce((sum, event) => sum + event.totalExpenses, 0);
@@ -251,7 +304,27 @@ export default function FinanceiroScreen() {
         borderBottomColor: colors.border,
         paddingTop: insets.top + 20
       }]}>
-        <Text style={[styles.title, { color: colors.text }]}>Financeiro</Text>
+        <View style={styles.headerTop}>
+          <Text style={[styles.title, { color: colors.text }]}>Financeiro</Text>
+          
+          {/* Botão de exportação */}
+          {events.length > 0 && (
+            <TouchableOpacity
+              style={[styles.exportButton, { backgroundColor: colors.primary }]}
+              onPress={handleExportFinancialReport}
+              disabled={isGeneratingReport}
+            >
+              <Ionicons 
+                name={isGeneratingReport ? "hourglass" : "document-text"} 
+                size={20} 
+                color="#fff" 
+              />
+              <Text style={styles.exportButtonText}>
+                {isGeneratingReport ? 'Gerando...' : 'Exportar'}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
         
         {/* Navegação de mês */}
         <View style={styles.monthNavigation}>
@@ -345,11 +418,29 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
   },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 15,
+  },
+  exportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  exportButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   monthNavigation: {
     flexDirection: 'row',
