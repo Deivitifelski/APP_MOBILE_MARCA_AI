@@ -9,9 +9,11 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { getCurrentUser } from '../services/supabase/authService';
 import { getArtists, updateArtist } from '../services/supabase/artistService';
 import { getUserPermissions } from '../services/supabase/permissionsService';
@@ -25,6 +27,7 @@ export default function EditarArtistaScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [userPermissions, setUserPermissions] = useState<any>(null);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
+  const [imageLoadError, setImageLoadError] = useState(false);
   
   // Campos do formulário
   const [name, setName] = useState('');
@@ -98,6 +101,64 @@ export default function EditarArtistaScreen() {
       router.back();
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSelectImage = async () => {
+    try {
+      console.log('🖼️ Iniciando seleção de imagem...');
+      
+      // Primeiro, vamos tentar abrir diretamente sem verificar permissões
+      // para ver se o problema é na verificação ou na abertura
+      console.log('📸 Tentando abrir galeria diretamente...');
+      
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      console.log('📸 Resultado da seleção:', result);
+
+      if (!result.canceled && result.assets[0]) {
+        const imageUri = result.assets[0].uri;
+        setProfileUrl(imageUri);
+        setImageLoadError(false);
+        console.log('✅ Nova imagem selecionada:', imageUri);
+      } else {
+        console.log('❌ Seleção cancelada pelo usuário');
+      }
+    } catch (error) {
+      console.error('❌ Erro ao selecionar imagem:', error);
+      
+      // Se der erro, vamos tentar verificar permissões
+      try {
+        console.log('🔐 Verificando permissões após erro...');
+        const { status } = await ImagePicker.getMediaLibraryPermissionsAsync();
+        console.log('📋 Status da permissão:', status);
+        
+        if (status !== 'granted') {
+          Alert.alert(
+            'Permissão Necessária',
+            'É necessário permitir o acesso à galeria para selecionar uma imagem. Vá em Configurações > Privacidade > Fotos e permita o acesso para este app.',
+            [
+              { text: 'OK', style: 'default' }
+            ]
+          );
+        } else {
+          Alert.alert(
+            'Erro', 
+            `Erro ao selecionar imagem: ${error instanceof Error ? error.message : 'Erro desconhecido'}. Tente novamente.`
+          );
+        }
+      } catch (permError) {
+        console.error('❌ Erro ao verificar permissões:', permError);
+        Alert.alert(
+          'Erro', 
+          `Erro ao acessar galeria: ${error instanceof Error ? error.message : 'Erro desconhecido'}. Tente novamente.`
+        );
+      }
     }
   };
 
@@ -208,14 +269,44 @@ export default function EditarArtistaScreen() {
         {/* Informações do artista */}
         {artist && (
           <View style={styles.artistInfoCard}>
-            <View style={styles.artistAvatar}>
-              <Ionicons name="musical-notes" size={40} color="#667eea" />
-            </View>
+            <TouchableOpacity 
+              style={styles.avatarContainer}
+              onPress={handleSelectImage}
+              activeOpacity={0.7}
+            >
+              {profileUrl && profileUrl.trim() !== '' && !imageLoadError ? (
+                <Image
+                  source={{
+                    uri: `${profileUrl}${profileUrl.includes('?') ? '&' : '?'}t=${Date.now()}`,
+                    cache: 'reload'
+                  }}
+                  style={styles.artistAvatarImage}
+                  resizeMode="cover"
+                  onError={(error) => {
+                    console.log('❌ Erro ao carregar imagem do artista na edição:', profileUrl);
+                    console.log('❌ Detalhes:', error.nativeEvent?.error);
+                    setImageLoadError(true);
+                  }}
+                  onLoad={() => {
+                    console.log('✅ Imagem do artista carregada na edição:', profileUrl);
+                    setImageLoadError(false);
+                  }}
+                />
+              ) : (
+                <View style={styles.artistAvatarPlaceholder}>
+                  <Ionicons name="musical-notes" size={40} color="#667eea" />
+                </View>
+              )}
+              <View style={styles.editImageOverlay}>
+                <Ionicons name="camera" size={20} color="#fff" />
+              </View>
+            </TouchableOpacity>
             <View style={styles.artistInfo}>
               <Text style={styles.artistName}>{artist.name}</Text>
               <Text style={styles.artistRole}>
                 {userPermissions?.role === 'owner' ? 'Proprietário' : 'Colaborador'}
               </Text>
+              <Text style={styles.editImageText}>Toque na imagem para alterar</Text>
             </View>
           </View>
         )}
@@ -229,14 +320,6 @@ export default function EditarArtistaScreen() {
             'Digite o nome do artista',
             'default',
             true
-          )}
-
-          {renderInput(
-            'URL do Perfil',
-            profileUrl,
-            setProfileUrl,
-            'Digite a URL do perfil (opcional)',
-            'default'
           )}
         </View>
 
@@ -329,14 +412,45 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
-  artistAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  avatarContainer: {
+    position: 'relative',
+    marginRight: 15,
+  },
+  artistAvatarImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 3,
+    borderColor: '#667eea',
+  },
+  artistAvatarPlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: '#f0f0f0',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
+    borderWidth: 3,
+    borderColor: '#667eea',
+  },
+  editImageOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#667eea',
+    borderRadius: 15,
+    width: 30,
+    height: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  editImageText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   artistInfo: {
     flex: 1,
