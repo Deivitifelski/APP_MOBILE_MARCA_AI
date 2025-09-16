@@ -51,6 +51,7 @@ export interface CreateExpenseData {
 
 export interface UpdateEventData {
   name?: string;
+  description?: string;
   value?: number;
   city?: string;
   contractor_phone?: string;

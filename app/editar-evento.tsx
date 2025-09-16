@@ -295,6 +295,7 @@ export default function EditarEventoScreen() {
     try {
       const updateData: UpdateEventData = {
         name: form.nome.trim(),
+        description: form.descricao.trim() || undefined,
         value: parseFloat(numericValue),
         city: form.cidade.trim() || undefined,
         contractor_phone: form.telefoneContratante.trim() || undefined,
