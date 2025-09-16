@@ -48,11 +48,19 @@ export const useActiveArtist = () => {
       
       if (savedActiveArtist) {
         // Verificar se o artista salvo ainda pertence ao usuário atual
-        const userHasAccess = artists.some(artist => artist.id === savedActiveArtist.id);
+        const currentArtistData = artists.find(artist => artist.id === savedActiveArtist.id);
         
-        if (userHasAccess) {
-          console.log('useActiveArtist: Artista salvo ainda é válido:', savedActiveArtist);
-          validActiveArtist = savedActiveArtist;
+        if (currentArtistData) {
+          console.log('useActiveArtist: Artista salvo ainda é válido, usando dados atualizados');
+          validActiveArtist = {
+            id: currentArtistData.id,
+            name: currentArtistData.name,
+            role: currentArtistData.role || 'owner',
+            profile_url: currentArtistData.profile_url
+          };
+          
+          // Atualizar os dados salvos com as informações mais recentes
+          await saveActiveArtist(validActiveArtist);
         } else {
           console.log('useActiveArtist: Artista salvo não pertence ao usuário atual, limpando');
           await clearActiveArtist();
