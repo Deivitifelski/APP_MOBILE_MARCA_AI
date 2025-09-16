@@ -16,6 +16,10 @@ import { getEventsByMonth } from '../../services/supabase/eventService';
 import { useActiveArtist } from '../../services/useActiveArtist';
 import { useNotifications } from '../../services/useNotifications';
 import { useTheme } from '../../contexts/ThemeContext';
+import { getUserPermissions } from '../../services/supabase/permissionsService';
+import { debugUserPermissions, debugUserArtists } from '../../services/supabase/debugPermissionsService';
+import PermissionModal from '../../components/PermissionModal';
+import { supabase } from '../../lib/supabase';
 
 // Dados mockados de shows
 const mockShows = [
@@ -67,6 +71,8 @@ export default function AgendaScreen() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<any[]>([]);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [userPermissions, setUserPermissions] = useState<any>(null);
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
   const { activeArtist, loadActiveArtist, isLoading } = useActiveArtist();
   const { unreadCount, loadUnreadCount } = useNotifications();
 
@@ -81,6 +87,7 @@ export default function AgendaScreen() {
   useEffect(() => {
     if (activeArtist) {
       loadEvents(true);
+      loadUserPermissions();
     }
   }, [activeArtist, currentMonth, currentYear]);
 
@@ -103,6 +110,46 @@ export default function AgendaScreen() {
 
     return () => clearInterval(interval);
   }, [activeArtist, currentMonth, currentYear]);
+
+  const loadUserPermissions = async () => {
+    if (!activeArtist) return;
+    
+    try {
+      // Obter usuário atual
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('❌ Nenhum usuário logado');
+        return;
+      }
+      
+      console.log('🔍 Carregando permissões para:', { userId: user.id, artistId: activeArtist.id });
+      
+      // Debug das permissões
+      const debugResult = await debugUserPermissions(user.id, activeArtist.id);
+      console.log('🔍 Debug resultado:', debugResult);
+      
+      // Listar todos os artistas do usuário
+      const userArtists = await debugUserArtists(user.id);
+      console.log('🎭 Artistas do usuário:', userArtists);
+      
+      const permissions = await getUserPermissions(user.id, activeArtist.id);
+      console.log('🔐 Permissões carregadas:', permissions);
+      setUserPermissions(permissions);
+    } catch (error) {
+      console.error('Erro ao carregar permissões:', error);
+    }
+  };
+
+  const handleEventPress = (eventId: string) => {
+    // Verificar se o usuário tem permissão para ver detalhes
+    if (userPermissions?.role === 'viewer') {
+      setShowPermissionModal(true);
+      return;
+    }
+    
+    // Se não for viewer, permitir acesso aos detalhes
+    router.push(`/detalhes-evento?eventId=${eventId}`);
+  };
 
   const loadEvents = async (isInitialLoad = true) => {
     if (!activeArtist) {
@@ -183,7 +230,7 @@ export default function AgendaScreen() {
     return (
       <TouchableOpacity 
         style={[styles.showCard, { backgroundColor: colors.surface }]}
-        onPress={() => router.push(`/detalhes-evento?eventId=${item.id}`)}
+        onPress={() => handleEventPress(item.id)}
         activeOpacity={0.7}
       >
         <View style={styles.showContent}>
@@ -207,7 +254,7 @@ export default function AgendaScreen() {
               </View>
             )}
             
-            {item.value && (
+            {item.value && userPermissions?.role !== 'viewer' && (
               <Text style={[styles.showValue, { color: colors.primary }]}>
                 R$ {item.value.toLocaleString('pt-BR')}
               </Text>
@@ -364,6 +411,15 @@ export default function AgendaScreen() {
           <Ionicons name="add" size={24} color="#fff" />
         </TouchableOpacity>
       )}
+
+      {/* Modal de Permissão */}
+      <PermissionModal
+        visible={showPermissionModal}
+        onClose={() => setShowPermissionModal(false)}
+        title="Acesso Restrito"
+        message="Como visualizador, você não tem permissão para acessar os detalhes completos dos eventos. Entre em contato com um administrador para solicitar mais permissões."
+        icon="eye-off"
+      />
     </SafeAreaView>
   );
 }

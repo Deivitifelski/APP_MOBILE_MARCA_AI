@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase';
+import { getUserPermissions, hasPermission } from './permissionsService';
 
 export interface Event {
   id: string;
@@ -219,5 +220,127 @@ export const deleteEvent = async (eventId: string): Promise<{ success: boolean; 
     return { success: true, error: null };
   } catch (error) {
     return { success: false, error: 'Erro de conexão' };
+  }
+};
+
+// =====================================================
+// FUNÇÕES COM VERIFICAÇÃO DE PERMISSÕES
+// =====================================================
+
+// Buscar eventos com verificação de permissões
+export const getEventsWithPermissions = async (artistId: string, userId: string): Promise<{ events: Event[] | null; error: string | null }> => {
+  try {
+    // Verificar se o usuário tem permissão para visualizar eventos
+    const canView = await hasPermission(userId, artistId, 'canViewEvents');
+    if (!canView) {
+      return { events: null, error: 'Sem permissão para visualizar eventos' };
+    }
+
+    // Usar a função do banco que filtra por role
+    const { data, error } = await supabase
+      .rpc('get_events_by_role', { p_artist_id: artistId });
+
+    if (error) {
+      console.error('Erro ao buscar eventos:', error);
+      return { events: null, error: error.message };
+    }
+
+    return { events: data || [], error: null };
+  } catch (error) {
+    console.error('Erro ao buscar eventos:', error);
+    return { events: null, error: 'Erro ao buscar eventos' };
+  }
+};
+
+// Criar evento com verificação de permissões
+export const createEventWithPermissions = async (eventData: CreateEventData, userId: string): Promise<{ success: boolean; error: string | null }> => {
+  try {
+    // Verificar se o usuário tem permissão para criar eventos
+    const canCreate = await hasPermission(userId, eventData.artist_id, 'canCreateEvents');
+    if (!canCreate) {
+      return { success: false, error: 'Sem permissão para criar eventos' };
+    }
+
+    // Criar o evento
+    return await createEvent(eventData);
+  } catch (error) {
+    console.error('Erro ao criar evento:', error);
+    return { success: false, error: 'Erro ao criar evento' };
+  }
+};
+
+// Atualizar evento com verificação de permissões
+export const updateEventWithPermissions = async (eventId: string, eventData: UpdateEventData, userId: string): Promise<{ success: boolean; error: string | null }> => {
+  try {
+    // Primeiro, buscar o evento para obter o artist_id
+    const eventResult = await getEventById(eventId);
+    if (!eventResult.success || !eventResult.event) {
+      return { success: false, error: 'Evento não encontrado' };
+    }
+
+    // Verificar se o usuário tem permissão para editar eventos
+    const canEdit = await hasPermission(userId, eventResult.event.artist_id, 'canEditEvents');
+    if (!canEdit) {
+      return { success: false, error: 'Sem permissão para editar eventos' };
+    }
+
+    // Atualizar o evento
+    return await updateEvent(eventId, eventData);
+  } catch (error) {
+    console.error('Erro ao atualizar evento:', error);
+    return { success: false, error: 'Erro ao atualizar evento' };
+  }
+};
+
+// Deletar evento com verificação de permissões
+export const deleteEventWithPermissions = async (eventId: string, userId: string): Promise<{ success: boolean; error: string | null }> => {
+  try {
+    // Primeiro, buscar o evento para obter o artist_id
+    const eventResult = await getEventById(eventId);
+    if (!eventResult.success || !eventResult.event) {
+      return { success: false, error: 'Evento não encontrado' };
+    }
+
+    // Verificar se o usuário tem permissão para deletar eventos
+    const canDelete = await hasPermission(userId, eventResult.event.artist_id, 'canDeleteEvents');
+    if (!canDelete) {
+      return { success: false, error: 'Sem permissão para deletar eventos' };
+    }
+
+    // Deletar o evento
+    return await deleteEvent(eventId);
+  } catch (error) {
+    console.error('Erro ao deletar evento:', error);
+    return { success: false, error: 'Erro ao deletar evento' };
+  }
+};
+
+// Buscar evento por ID com verificação de permissões
+export const getEventByIdWithPermissions = async (eventId: string, userId: string): Promise<{ event: Event | null; error: string | null }> => {
+  try {
+    // Primeiro, buscar o evento
+    const eventResult = await getEventById(eventId);
+    if (!eventResult.success || !eventResult.event) {
+      return { event: null, error: 'Evento não encontrado' };
+    }
+
+    // Verificar se o usuário tem permissão para visualizar eventos
+    const canView = await hasPermission(userId, eventResult.event.artist_id, 'canViewEvents');
+    if (!canView) {
+      return { event: null, error: 'Sem permissão para visualizar este evento' };
+    }
+
+    // Verificar se o usuário pode ver valores financeiros
+    const canViewFinancials = await hasPermission(userId, eventResult.event.artist_id, 'canViewFinancials');
+    
+    // Se não pode ver finanças, remover o valor
+    if (!canViewFinancials) {
+      eventResult.event.value = undefined;
+    }
+
+    return { event: eventResult.event, error: null };
+  } catch (error) {
+    console.error('Erro ao buscar evento:', error);
+    return { event: null, error: 'Erro ao buscar evento' };
   }
 };

@@ -10,9 +10,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { getEventById, Event, deleteEvent } from '../services/supabase/eventService';
+import { getEventById, Event, deleteEvent, getEventByIdWithPermissions } from '../services/supabase/eventService';
 import { getTotalExpensesByEvent } from '../services/supabase/expenseService';
 import { getEventCreatorName } from '../services/supabase/eventCreatorService';
+import { supabase } from '../lib/supabase';
 
 
 export default function DetalhesEventoScreen() {
@@ -25,6 +26,18 @@ export default function DetalhesEventoScreen() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [creatorName, setCreatorName] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  // Obter usuário atual
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUserId(user.id);
+      }
+    };
+    getCurrentUser();
+  }, []);
 
   const loadEventData = async (isInitialLoad = true) => {
     if (isInitialLoad) {
@@ -32,23 +45,51 @@ export default function DetalhesEventoScreen() {
     }
     
     try {
+      // Se não temos o userId ainda, usar a função sem permissões
+      if (!currentUserId) {
+        const [eventResult, expensesResult] = await Promise.all([
+          getEventById(eventId),
+          getTotalExpensesByEvent(eventId)
+        ]);
+
+        if (eventResult.success) {
+          setEvent(eventResult.event || null);
+          
+          // Buscar nome do criador do evento
+          if (eventResult.event?.created_by) {
+            const creatorResult = await getEventCreatorName(eventResult.event.created_by);
+            if (creatorResult.name) {
+              setCreatorName(creatorResult.name);
+            }
+          }
+        } else {
+          Alert.alert('Erro', eventResult.error || 'Erro ao carregar evento');
+        }
+
+        if (expensesResult.success) {
+          setTotalExpenses(expensesResult.total || 0);
+        }
+        return;
+      }
+
+      // Usar função com verificação de permissões
       const [eventResult, expensesResult] = await Promise.all([
-        getEventById(eventId),
+        getEventByIdWithPermissions(eventId, currentUserId),
         getTotalExpensesByEvent(eventId)
       ]);
 
-      if (eventResult.success) {
-        setEvent(eventResult.event || null);
+      if (eventResult.event) {
+        setEvent(eventResult.event);
         
         // Buscar nome do criador do evento
-        if (eventResult.event?.created_by) {
+        if (eventResult.event.created_by) {
           const creatorResult = await getEventCreatorName(eventResult.event.created_by);
           if (creatorResult.name) {
             setCreatorName(creatorResult.name);
           }
         }
-      } else {
-        Alert.alert('Erro', eventResult.error || 'Erro ao carregar evento');
+      } else if (eventResult.error) {
+        Alert.alert('Erro', eventResult.error);
       }
 
       if (expensesResult.success) {
@@ -65,7 +106,7 @@ export default function DetalhesEventoScreen() {
 
   useEffect(() => {
     loadEventData(true); // Carregamento inicial
-  }, [eventId]);
+  }, [eventId, currentUserId]);
 
   // Recarregar dados quando a tela receber foco (ex: voltar da tela de editar)
   useFocusEffect(

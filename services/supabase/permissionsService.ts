@@ -1,0 +1,193 @@
+import { supabase } from '../../lib/supabase';
+
+export type UserRole = 'viewer' | 'editor' | 'admin' | 'owner';
+
+export interface UserPermission {
+  userId: string;
+  artistId: string;
+  role: UserRole;
+  permissions: {
+    canViewEvents: boolean;
+    canViewFinancials: boolean;
+    canCreateEvents: boolean;
+    canEditEvents: boolean;
+    canDeleteEvents: boolean;
+    canManageMembers: boolean;
+    canManageArtist: boolean;
+    canDeleteArtist: boolean;
+  };
+}
+
+// Cache de permissões para evitar múltiplas consultas
+const permissionsCache = new Map<string, UserPermission>();
+
+// Função para obter permissões do usuário para um artista específico
+export const getUserPermissions = async (userId: string, artistId: string): Promise<UserPermission | null> => {
+  const cacheKey = `${userId}-${artistId}`;
+  
+  // Verificar cache primeiro
+  if (permissionsCache.has(cacheKey)) {
+    return permissionsCache.get(cacheKey)!;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('artist_members')
+      .select('role')
+      .eq('user_id', userId)
+      .eq('artist_id', artistId)
+      .single();
+
+    if (error || !data) {
+      return null;
+    }
+
+    const role = data.role as UserRole;
+    const permissions = getUserPermissionsByRole(role);
+
+    const userPermission: UserPermission = {
+      userId,
+      artistId,
+      role,
+      permissions
+    };
+
+    // Armazenar no cache
+    permissionsCache.set(cacheKey, userPermission);
+    
+    return userPermission;
+  } catch (error) {
+    console.error('Erro ao buscar permissões do usuário:', error);
+    return null;
+  }
+};
+
+// Função para obter permissões baseadas no role
+export const getUserPermissionsByRole = (role: UserRole) => {
+  switch (role) {
+    case 'viewer':
+      return {
+        canViewEvents: true,
+        canViewFinancials: false,
+        canCreateEvents: false,
+        canEditEvents: false,
+        canDeleteEvents: false,
+        canManageMembers: false,
+        canManageArtist: false,
+        canDeleteArtist: false,
+      };
+    
+    case 'editor':
+      return {
+        canViewEvents: true,
+        canViewFinancials: true,
+        canCreateEvents: true,
+        canEditEvents: true,
+        canDeleteEvents: false,
+        canManageMembers: false,
+        canManageArtist: false,
+        canDeleteArtist: false,
+      };
+    
+    case 'admin':
+      return {
+        canViewEvents: true,
+        canViewFinancials: true,
+        canCreateEvents: true,
+        canEditEvents: true,
+        canDeleteEvents: true,
+        canManageMembers: true,
+        canManageArtist: true,
+        canDeleteArtist: false,
+      };
+    
+    case 'owner':
+      return {
+        canViewEvents: true,
+        canViewFinancials: true,
+        canCreateEvents: true,
+        canEditEvents: true,
+        canDeleteEvents: true,
+        canManageMembers: true,
+        canManageArtist: true,
+        canDeleteArtist: true,
+      };
+    
+    default:
+      return {
+        canViewEvents: false,
+        canViewFinancials: false,
+        canCreateEvents: false,
+        canEditEvents: false,
+        canDeleteEvents: false,
+        canManageMembers: false,
+        canManageArtist: false,
+        canDeleteArtist: false,
+      };
+  }
+};
+
+// Função para verificar se o usuário tem uma permissão específica
+export const hasPermission = async (
+  userId: string, 
+  artistId: string, 
+  permission: keyof UserPermission['permissions']
+): Promise<boolean> => {
+  const userPermission = await getUserPermissions(userId, artistId);
+  return userPermission?.permissions[permission] || false;
+};
+
+// Função para limpar cache de permissões
+export const clearPermissionsCache = (userId?: string, artistId?: string) => {
+  if (userId && artistId) {
+    const cacheKey = `${userId}-${artistId}`;
+    permissionsCache.delete(cacheKey);
+  } else {
+    permissionsCache.clear();
+  }
+};
+
+// Função para obter todos os artistas que o usuário tem acesso
+export const getUserArtists = async (userId: string): Promise<Array<{artistId: string, role: UserRole}> | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('artist_members')
+      .select('artist_id, role')
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('Erro ao buscar artistas do usuário:', error);
+      return null;
+    }
+
+    return data.map(item => ({
+      artistId: item.artist_id,
+      role: item.role as UserRole
+    }));
+  } catch (error) {
+    console.error('Erro ao buscar artistas do usuário:', error);
+    return null;
+  }
+};
+
+// Função para verificar se o usuário é owner de pelo menos um artista
+export const isUserOwner = async (userId: string): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase
+      .from('artist_members')
+      .select('role')
+      .eq('user_id', userId)
+      .eq('role', 'owner')
+      .limit(1);
+
+    if (error) {
+      console.error('Erro ao verificar se usuário é owner:', error);
+      return false;
+    }
+
+    return data && data.length > 0;
+  } catch (error) {
+    console.error('Erro ao verificar se usuário é owner:', error);
+    return false;
+  }
+};

@@ -60,38 +60,57 @@ export const createArtist = async (artistData: CreateArtistData): Promise<{ succ
 // Buscar artistas do usuário atual
 export const getArtists = async (userId: string): Promise<{ artists: Artist[] | null; error: string | null }> => {
   try {
-    const { data, error } = await supabase
+    console.log('🔍 getArtists: Buscando artistas para usuário:', userId);
+    
+    // Primeiro, buscar os membros do usuário
+    const { data: membersData, error: membersError } = await supabase
       .from('artist_members')
-      .select(`
-        artist_id,
-        role,
-        artists (
-          id,
-          name,
-          profile_url,
-          created_at,
-          updated_at
-        )
-      `)
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+      .select('artist_id, role')
+      .eq('user_id', userId);
 
-    if (error) {
-      return { artists: null, error: error.message };
+    if (membersError) {
+      console.error('❌ getArtists: Erro ao buscar membros:', membersError);
+      return { artists: null, error: membersError.message };
     }
 
-    // Transformar os dados para o formato esperado
-    const artists = data?.map(item => ({
-      id: item.artists.id,
-      name: item.artists.name,
-      profile_url: item.artists.profile_url,
-      role: item.role,
-      created_at: item.artists.created_at,
-      updated_at: item.artists.updated_at
-    })) || [];
+    console.log('📋 getArtists: Membros encontrados:', membersData?.length || 0);
 
+    if (!membersData || membersData.length === 0) {
+      console.log('❌ getArtists: Usuário não é membro de nenhum artista');
+      return { artists: [], error: null };
+    }
+
+    // Buscar os artistas usando os IDs dos membros
+    const artistIds = membersData.map(member => member.artist_id);
+    const { data: artistsData, error: artistsError } = await supabase
+      .from('artists')
+      .select('id, name, profile_url, created_at, updated_at')
+      .in('id', artistIds);
+
+    if (artistsError) {
+      console.error('❌ getArtists: Erro ao buscar artistas:', artistsError);
+      return { artists: null, error: artistsError.message };
+    }
+
+    console.log('🎭 getArtists: Artistas encontrados:', artistsData?.length || 0);
+
+    // Combinar os dados
+    const artists = artistsData?.map(artist => {
+      const member = membersData.find(m => m.artist_id === artist.id);
+      return {
+        id: artist.id,
+        name: artist.name,
+        profile_url: artist.profile_url,
+        role: member?.role || 'viewer',
+        created_at: artist.created_at,
+        updated_at: artist.updated_at
+      };
+    }) || [];
+
+    console.log('✅ getArtists: Artistas finais:', artists);
     return { artists, error: null };
   } catch (error) {
+    console.error('❌ getArtists: Erro inesperado:', error);
     return { artists: null, error: 'Erro de conexão' };
   }
 };

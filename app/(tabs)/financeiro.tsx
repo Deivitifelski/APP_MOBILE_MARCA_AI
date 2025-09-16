@@ -15,6 +15,9 @@ import { getEventsByMonth } from '../../services/supabase/eventService';
 import { getExpensesByEvent } from '../../services/supabase/expenseService';
 import { useActiveArtist } from '../../services/useActiveArtist';
 import { useTheme } from '../../contexts/ThemeContext';
+import { getUserPermissions } from '../../services/supabase/permissionsService';
+import PermissionModal from '../../components/PermissionModal';
+import { supabase } from '../../lib/supabase';
 // import * as FileSystem from 'expo-file-system';
 // import * as Sharing from 'expo-sharing';
 
@@ -32,6 +35,8 @@ export default function FinanceiroScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [events, setEvents] = useState<EventWithExpenses[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [userPermissions, setUserPermissions] = useState<any>(null);
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
   const { activeArtist, loadActiveArtist } = useActiveArtist();
 
   const currentMonth = selectedDate.getMonth();
@@ -48,12 +53,40 @@ export default function FinanceiroScreen() {
 
   useEffect(() => {
     if (activeArtist) {
+      loadUserPermissions();
       loadFinancialData();
     }
   }, [activeArtist, currentMonth, currentYear]);
 
+  const loadUserPermissions = async () => {
+    if (!activeArtist) return;
+    
+    try {
+      // Obter usuário atual
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      const permissions = await getUserPermissions(user.id, activeArtist.id);
+      setUserPermissions(permissions);
+      
+      // Se for viewer, mostrar modal de permissão
+      if (permissions?.role === 'viewer') {
+        setShowPermissionModal(true);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar permissões:', error);
+    }
+  };
+
   const loadFinancialData = async () => {
     if (!activeArtist) return;
+    
+    // Se for viewer, não carregar dados financeiros
+    if (userPermissions?.role === 'viewer') {
+      setEvents([]);
+      setIsLoading(false);
+      return;
+    }
     
     try {
       setIsLoading(true);
@@ -277,6 +310,15 @@ export default function FinanceiroScreen() {
         </View>
 
       </ScrollView>
+
+      {/* Modal de Permissão */}
+      <PermissionModal
+        visible={showPermissionModal}
+        onClose={() => setShowPermissionModal(false)}
+        title="Acesso Restrito"
+        message="Como visualizador, você não tem permissão para acessar dados financeiros. Entre em contato com um administrador para solicitar mais permissões."
+        icon="lock-closed"
+      />
     </SafeAreaView>
   );
 }

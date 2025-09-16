@@ -14,12 +14,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { getCurrentUser } from '../services/supabase/authService';
 import { getArtists, updateArtist } from '../services/supabase/artistService';
+import { getUserPermissions } from '../services/supabase/permissionsService';
+import PermissionModal from '../components/PermissionModal';
 
 export default function ConfiguracoesArtistaScreen() {
   const [artist, setArtist] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [userPermissions, setUserPermissions] = useState<any>(null);
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
   
   // Campos do formulário
   const [name, setName] = useState('');
@@ -53,6 +57,15 @@ export default function ConfiguracoesArtistaScreen() {
       setArtist(currentArtist);
       setName(currentArtist.name || '');
       setProfileUrl(currentArtist.profile_url || '');
+
+      // Carregar permissões do usuário
+      const permissions = await getUserPermissions(user.id, currentArtist.id);
+      setUserPermissions(permissions);
+      
+      // Se não tem permissão para gerenciar artista, mostrar modal
+      if (permissions && !permissions.permissions.canManageArtist) {
+        setShowPermissionModal(true);
+      }
     } catch (error) {
       Alert.alert('Erro', 'Erro ao carregar dados do artista');
       router.back();
@@ -61,8 +74,24 @@ export default function ConfiguracoesArtistaScreen() {
     }
   };
 
+  const handleEdit = () => {
+    // Verificar permissões
+    if (!userPermissions?.permissions.canManageArtist) {
+      setShowPermissionModal(true);
+      return;
+    }
+    
+    setIsEditing(true);
+  };
+
   const handleSave = async () => {
     if (!artist) return;
+
+    // Verificar permissões
+    if (!userPermissions?.permissions.canManageArtist) {
+      setShowPermissionModal(true);
+      return;
+    }
 
     if (!name.trim()) {
       Alert.alert('Erro', 'Nome do artista é obrigatório');
@@ -155,7 +184,7 @@ export default function ConfiguracoesArtistaScreen() {
         <Text style={styles.title}>Configurações do Artista</Text>
         {!isEditing ? (
           <TouchableOpacity 
-            onPress={() => setIsEditing(true)}
+            onPress={handleEdit}
             style={styles.editButton}
           >
             <Text style={styles.editButtonText}>Editar</Text>
@@ -285,6 +314,15 @@ export default function ConfiguracoesArtistaScreen() {
           </Text>
         </View>
       </ScrollView>
+
+      {/* Modal de Permissão */}
+      <PermissionModal
+        visible={showPermissionModal}
+        onClose={() => setShowPermissionModal(false)}
+        title="Acesso Restrito"
+        message="Como visualizador, você não tem permissão para editar informações do artista. Entre em contato com um administrador para solicitar mais permissões."
+        icon="lock-closed"
+      />
     </SafeAreaView>
   );
 }
