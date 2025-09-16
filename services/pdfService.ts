@@ -51,21 +51,15 @@ ${artistName ? `Artista: ${artistName}` : ''}
 ${creatorName ? `Criado por: ${creatorName}` : ''}
 Status: ${event.confirmed ? '✅ Confirmado' : '⏳ A Confirmar'}
 
-${includeFinancials ? `
-💰 RESUMO FINANCEIRO
+${includeFinancials ? `💰 RESUMO FINANCEIRO
 Valor do Evento: ${formatCurrency(event.value || 0)}
 Total de Despesas: -${formatCurrency(totalExpenses)}
 Lucro Líquido: ${formatCurrency(profit)} ${profit >= 0 ? '✅' : '❌'}
-${profit >= 0 ? 'Resultado: POSITIVO' : 'Resultado: NEGATIVO'}
-` : `
-💰 INFORMAÇÕES FINANCEIRAS
-Os valores financeiros foram omitidos conforme solicitado.
-`}
+${profit >= 0 ? 'Resultado: POSITIVO' : 'Resultado: NEGATIVO'}` : `💰 INFORMAÇÕES FINANCEIRAS
+Os valores financeiros foram omitidos conforme solicitado.`}
 
-${event.description ? `
-📝 DESCRIÇÃO
-${event.description}
-` : ''}
+${event.description ? `📝 DESCRIÇÃO
+${event.description}` : ''}
 
 📱 INFORMAÇÕES DO SISTEMA
 Sistema: Marca AI - Gestão de Shows e Eventos
