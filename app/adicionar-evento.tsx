@@ -16,8 +16,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { createEvent, CreateExpenseData } from '../services/supabase/eventService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { getArtists } from '../services/supabase/artistService';
-import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
 
 interface EventoForm {
   nome: string;
@@ -34,8 +32,6 @@ interface EventoForm {
 interface DespesaForm {
   nome: string;
   valor: string;
-  arquivo_url?: string;
-  arquivo_tipo?: 'image' | 'document';
 }
 
 // Componente para seleção de data
@@ -312,7 +308,6 @@ export default function AdicionarEventoScreen() {
         .map(despesa => ({
           name: despesa.nome.trim(),
           value: parseFloat(despesa.valor) / 100, // Converter centavos para reais
-          receipt_url: despesa.arquivo_url
         }));
 
       const eventData = {
@@ -408,53 +403,6 @@ export default function AdicionarEventoScreen() {
     ));
   };
 
-  const pickImageForDespesa = async (index: number) => {
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
-      if (status !== 'granted') {
-        Alert.alert('Permissão necessária', 'Precisamos de permissão para acessar suas fotos.');
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0];
-        updateDespesa(index, 'arquivo_url', asset.uri);
-        updateDespesa(index, 'arquivo_tipo', 'image');
-      }
-    } catch (error) {
-      Alert.alert('Erro', 'Erro ao selecionar imagem');
-    }
-  };
-
-  const pickDocumentForDespesa = async (index: number) => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
-        copyToCacheDirectory: true,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0];
-        updateDespesa(index, 'arquivo_url', asset.uri);
-        updateDespesa(index, 'arquivo_tipo', 'document');
-      }
-    } catch (error) {
-      Alert.alert('Erro', 'Erro ao selecionar documento');
-    }
-  };
-
-  const removeFileFromDespesa = (index: number) => {
-    updateDespesa(index, 'arquivo_url', undefined);
-    updateDespesa(index, 'arquivo_tipo', undefined);
-  };
 
   const openDatePicker = () => {
     setShowDateModal(true);
@@ -695,46 +643,6 @@ export default function AdicionarEventoScreen() {
                 </View>
               </View>
 
-              {/* Upload de arquivo */}
-              <View style={styles.despesaFileSection}>
-                <Text style={styles.despesaLabel}>Comprovante (Opcional)</Text>
-                
-                {despesa.arquivo_url ? (
-                  <View style={styles.filePreview}>
-                    <View style={styles.fileInfo}>
-                      <Ionicons 
-                        name={despesa.arquivo_tipo === 'image' ? 'image' : 'document'} 
-                        size={20} 
-                        color="#667eea" 
-                      />
-                      <Text style={styles.fileName}>
-                        {despesa.arquivo_tipo === 'image' ? 'Foto anexada' : 'Documento anexado'}
-                      </Text>
-                      <TouchableOpacity onPress={() => removeFileFromDespesa(index)}>
-                        <Ionicons name="close-circle" size={20} color="#ff4444" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ) : (
-                  <View style={styles.uploadButtons}>
-                    <TouchableOpacity 
-                      style={styles.uploadButton} 
-                      onPress={() => pickImageForDespesa(index)}
-                    >
-                      <Ionicons name="camera" size={18} color="#667eea" />
-                      <Text style={styles.uploadButtonText}>Foto</Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity 
-                      style={styles.uploadButton} 
-                      onPress={() => pickDocumentForDespesa(index)}
-                    >
-                      <Ionicons name="document" size={18} color="#667eea" />
-                      <Text style={styles.uploadButtonText}>Documento</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
             </View>
           ))}
 
@@ -1093,47 +1001,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e9ecef',
     color: '#333',
-  },
-  despesaFileSection: {
-    marginTop: 8,
-  },
-  uploadButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  uploadButton: {
-    flex: 1,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#e9ecef',
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  uploadButtonText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#667eea',
-    marginLeft: 4,
-  },
-  filePreview: {
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#e9ecef',
-  },
-  fileInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  fileName: {
-    fontSize: 14,
-    color: '#667eea',
-    marginLeft: 8,
-    flex: 1,
   },
   emptyDespesas: {
     backgroundColor: '#f8f9fa',

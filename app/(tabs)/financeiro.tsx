@@ -156,9 +156,6 @@ export default function FinanceiroScreen() {
     return date.toLocaleDateString('pt-BR');
   };
 
-  const downloadFile = async (url: string, filename: string) => {
-    Alert.alert('Download', 'Funcionalidade de download será implementada em breve');
-  };
 
   const handleExportFinancialReport = async () => {
     if (!activeArtist || events.length === 0) {
@@ -223,14 +220,6 @@ export default function FinanceiroScreen() {
         <Text style={[styles.expenseName, { color: colors.text }]}>{item.name}</Text>
         <Text style={[styles.expenseValue, { color: colors.error }]}>{formatCurrency(item.value)}</Text>
       </View>
-      {item.receipt_url && (
-        <TouchableOpacity
-          style={styles.downloadButton}
-          onPress={() => downloadFile(item.receipt_url, `${item.name}_comprovante`)}
-        >
-          <Ionicons name="download" size={16} color={colors.primary} />
-        </TouchableOpacity>
-      )}
     </View>
   );
 
@@ -696,9 +685,6 @@ const styles = StyleSheet.create({
   expenseValue: {
     fontSize: 12,
     color: '#666',
-  },
-  downloadButton: {
-    padding: 8,
   },
   emptyContainer: {
     alignItems: 'center',

@@ -107,18 +107,6 @@ export default function DespesasEventoScreen() {
       </View>
       
       
-      {expense.receipt_url && (
-        <View style={styles.fileContainer}>
-          <Ionicons 
-            name="document" 
-            size={16} 
-            color="#667eea" 
-          />
-          <Text style={styles.fileText}>
-            Comprovante anexado
-          </Text>
-        </View>
-      )}
       
       <Text style={styles.expenseDate}>{formatDate(expense.created_at)}</Text>
     </View>
@@ -310,16 +298,6 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     padding: 4,
-  },
-  fileContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  fileText: {
-    fontSize: 14,
-    color: '#667eea',
-    marginLeft: 6,
   },
   expenseDate: {
     fontSize: 12,

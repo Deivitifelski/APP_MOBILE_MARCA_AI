@@ -8,20 +8,14 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
-  Image,
-  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
 import { createExpense } from '../services/supabase/expenseService';
 
 interface DespesaForm {
   nome: string;
   valor: string;
-  arquivo_url?: string;
-  arquivo_tipo?: 'image' | 'document';
 }
 
 export default function AdicionarDespesaScreen() {
@@ -31,79 +25,14 @@ export default function AdicionarDespesaScreen() {
   const [form, setForm] = useState<DespesaForm>({
     nome: '',
     valor: '',
-    arquivo_url: undefined,
-    arquivo_tipo: undefined,
   });
 
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<{
-    uri: string;
-    name: string;
-    type: 'image' | 'document';
-  } | null>(null);
 
   const updateForm = (field: keyof DespesaForm, value: any) => {
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
-  const pickImage = async () => {
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
-      if (status !== 'granted') {
-        Alert.alert('Permissão necessária', 'Precisamos de permissão para acessar suas fotos.');
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0];
-        setSelectedFile({
-          uri: asset.uri,
-          name: asset.fileName || 'imagem.jpg',
-          type: 'image'
-        });
-        updateForm('arquivo_url', asset.uri);
-        updateForm('arquivo_tipo', 'image');
-      }
-    } catch (error) {
-      Alert.alert('Erro', 'Erro ao selecionar imagem');
-    }
-  };
-
-  const pickDocument = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
-        copyToCacheDirectory: true,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0];
-        setSelectedFile({
-          uri: asset.uri,
-          name: asset.name,
-          type: 'document'
-        });
-        updateForm('arquivo_url', asset.uri);
-        updateForm('arquivo_tipo', 'document');
-      }
-    } catch (error) {
-      Alert.alert('Erro', 'Erro ao selecionar documento');
-    }
-  };
-
-  const removeFile = () => {
-    setSelectedFile(null);
-    updateForm('arquivo_url', undefined);
-    updateForm('arquivo_tipo', undefined);
-  };
 
   const handleSave = async () => {
     // Validações básicas
@@ -126,7 +55,6 @@ export default function AdicionarDespesaScreen() {
       const expenseData = {
         name: form.nome.trim(),
         value: parseFloat(form.valor) / 100, // Converter centavos para reais
-        receipt_url: form.arquivo_url,
       };
 
       const result = await createExpense(eventId, expenseData);
@@ -208,49 +136,6 @@ export default function AdicionarDespesaScreen() {
         </View>
 
 
-        {/* Upload de Arquivo */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Comprovante (Opcional)</Text>
-          
-          {selectedFile ? (
-            <View style={styles.filePreview}>
-              <View style={styles.fileInfo}>
-                <Ionicons 
-                  name={selectedFile.type === 'image' ? 'image' : 'document'} 
-                  size={24} 
-                  color="#667eea" 
-                />
-                <View style={styles.fileDetails}>
-                  <Text style={styles.fileName} numberOfLines={1}>
-                    {selectedFile.name}
-                  </Text>
-                  <Text style={styles.fileType}>
-                    {selectedFile.type === 'image' ? 'Imagem' : 'Documento'}
-                  </Text>
-                </View>
-                <TouchableOpacity onPress={removeFile} style={styles.removeButton}>
-                  <Ionicons name="close-circle" size={24} color="#ff4444" />
-                </TouchableOpacity>
-              </View>
-              
-              {selectedFile.type === 'image' && (
-                <Image source={{ uri: selectedFile.uri }} style={styles.imagePreview} />
-              )}
-            </View>
-          ) : (
-            <View style={styles.uploadButtons}>
-              <TouchableOpacity style={styles.uploadButton} onPress={pickImage}>
-                <Ionicons name="camera" size={24} color="#667eea" />
-                <Text style={styles.uploadButtonText}>Adicionar Foto</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.uploadButton} onPress={pickDocument}>
-                <Ionicons name="document" size={24} color="#667eea" />
-                <Text style={styles.uploadButtonText}>Adicionar Documento</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
 
         {/* Botões */}
         <View style={styles.buttonContainer}>
@@ -330,62 +215,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e9ecef',
     color: '#333',
-  },
-  uploadButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  uploadButton: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e9ecef',
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  uploadButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#667eea',
-    marginLeft: 8,
-  },
-  filePreview: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e9ecef',
-  },
-  fileInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  fileDetails: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  fileName: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
-  },
-  fileType: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 2,
-  },
-  removeButton: {
-    padding: 4,
-  },
-  imagePreview: {
-    width: '100%',
-    height: 200,
-    borderRadius: 8,
-    resizeMode: 'cover',
   },
   buttonContainer: {
     flexDirection: 'row',
