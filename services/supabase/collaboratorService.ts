@@ -22,6 +22,24 @@ export interface AddCollaboratorData {
 // Buscar colaboradores de um artista
 export const getCollaborators = async (artistId: string): Promise<{ collaborators: Collaborator[] | null; error: string | null }> => {
   try {
+    // Verificar se o usuário atual é membro do artista
+    const { data: currentUser } = await supabase.auth.getUser();
+    if (!currentUser.user) {
+      return { collaborators: null, error: 'Usuário não autenticado' };
+    }
+
+    const { data: userMembership, error: membershipError } = await supabase
+      .from('artist_members')
+      .select('user_id, role')
+      .eq('artist_id', artistId)
+      .eq('user_id', currentUser.user.id)
+      .single();
+
+    if (membershipError || !userMembership) {
+      return { collaborators: null, error: 'Usuário não tem acesso a este artista' };
+    }
+
+    // Buscar todos os colaboradores do artista
     const { data, error } = await supabase
       .from('artist_members')
       .select(`
@@ -106,6 +124,28 @@ export const getUserByEmail = async (email: string): Promise<{ user: any | null;
 // Adicionar colaborador
 export const addCollaborator = async (artistId: string, collaboratorData: AddCollaboratorData): Promise<{ success: boolean; error: string | null }> => {
   try {
+    // Verificar se o usuário atual tem permissão para adicionar colaboradores
+    const { data: currentUser } = await supabase.auth.getUser();
+    if (!currentUser.user) {
+      return { success: false, error: 'Usuário não autenticado' };
+    }
+
+    const { data: userMembership, error: membershipError } = await supabase
+      .from('artist_members')
+      .select('role')
+      .eq('artist_id', artistId)
+      .eq('user_id', currentUser.user.id)
+      .single();
+
+    if (membershipError || !userMembership) {
+      return { success: false, error: 'Usuário não tem acesso a este artista' };
+    }
+
+    // Verificar se o usuário é owner ou admin
+    if (!['owner', 'admin'].includes(userMembership.role)) {
+      return { success: false, error: 'Apenas proprietários e administradores podem adicionar colaboradores' };
+    }
+
     // Verificar se o usuário já é colaborador deste artista
     const { data: existingMember, error: checkError } = await supabase
       .from('artist_members')
@@ -142,6 +182,28 @@ export const addCollaborator = async (artistId: string, collaboratorData: AddCol
 // Remover colaborador
 export const removeCollaborator = async (userId: string, artistId: string): Promise<{ success: boolean; error: string | null }> => {
   try {
+    // Verificar se o usuário atual tem permissão para remover colaboradores
+    const { data: currentUser } = await supabase.auth.getUser();
+    if (!currentUser.user) {
+      return { success: false, error: 'Usuário não autenticado' };
+    }
+
+    const { data: userMembership, error: membershipError } = await supabase
+      .from('artist_members')
+      .select('role')
+      .eq('artist_id', artistId)
+      .eq('user_id', currentUser.user.id)
+      .single();
+
+    if (membershipError || !userMembership) {
+      return { success: false, error: 'Usuário não tem acesso a este artista' };
+    }
+
+    // Verificar se o usuário é owner ou admin
+    if (!['owner', 'admin'].includes(userMembership.role)) {
+      return { success: false, error: 'Apenas proprietários e administradores podem remover colaboradores' };
+    }
+
     const { error } = await supabase
       .from('artist_members')
       .delete()
@@ -161,6 +223,28 @@ export const removeCollaborator = async (userId: string, artistId: string): Prom
 // Atualizar role do colaborador
 export const updateCollaboratorRole = async (userId: string, artistId: string, newRole: 'owner' | 'admin' | 'editor' | 'viewer'): Promise<{ success: boolean; error: string | null }> => {
   try {
+    // Verificar se o usuário atual tem permissão para atualizar roles
+    const { data: currentUser } = await supabase.auth.getUser();
+    if (!currentUser.user) {
+      return { success: false, error: 'Usuário não autenticado' };
+    }
+
+    const { data: userMembership, error: membershipError } = await supabase
+      .from('artist_members')
+      .select('role')
+      .eq('artist_id', artistId)
+      .eq('user_id', currentUser.user.id)
+      .single();
+
+    if (membershipError || !userMembership) {
+      return { success: false, error: 'Usuário não tem acesso a este artista' };
+    }
+
+    // Verificar se o usuário é owner ou admin
+    if (!['owner', 'admin'].includes(userMembership.role)) {
+      return { success: false, error: 'Apenas proprietários e administradores podem atualizar roles' };
+    }
+
     const { error } = await supabase
       .from('artist_members')
       .update({
