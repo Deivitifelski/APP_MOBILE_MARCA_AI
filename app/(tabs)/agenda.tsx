@@ -95,6 +95,11 @@ export default function AgendaScreen() {
     }
   }, [activeArtist, currentMonth, currentYear]);
 
+  // Reset image error when artist profile_url changes
+  useEffect(() => {
+    setImageLoadError(false);
+  }, [activeArtist?.profile_url]);
+
   // Recarregar eventos quando a tela ganhar foco
   useFocusEffect(
     React.useCallback(() => {
@@ -288,7 +293,7 @@ export default function AgendaScreen() {
               {activeArtist.profile_url && activeArtist.profile_url.trim() !== '' && !imageLoadError ? (
                 <Image 
                   source={{ 
-                    uri: activeArtist.profile_url,
+                    uri: `${activeArtist.profile_url}${activeArtist.profile_url.includes('?') ? '&' : '?'}t=${Date.now()}`,
                     cache: 'reload' // Força recarregar a imagem
                   }} 
                   style={[styles.artistAvatar, { borderColor: colors.border }]}

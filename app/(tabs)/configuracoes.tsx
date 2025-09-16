@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { setStringAsync } from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getCurrentUser, updatePassword } from '../../services/supabase/authService';
 import { getUserProfile, UserProfile } from '../../services/supabase/userService';
@@ -60,6 +60,18 @@ export default function ConfiguracoesScreen() {
     // Reset image error state when artist changes
     setImageLoadError(false);
   }, [currentArtist]);
+
+  // Reset image error when artist profile_url changes
+  useEffect(() => {
+    setImageLoadError(false);
+  }, [currentArtist?.profile_url]);
+
+  // Recarregar dados do artista quando a tela ganhar foco
+  useFocusEffect(
+    React.useCallback(() => {
+      loadArtistData();
+    }, [])
+  );
 
   const loadUserProfile = async () => {
     try {
@@ -366,7 +378,7 @@ export default function ConfiguracoesScreen() {
               {currentArtist.profile_url && currentArtist.profile_url.trim() !== '' && !imageLoadError ? (
                 <Image 
                   source={{ 
-                    uri: currentArtist.profile_url,
+                    uri: `${currentArtist.profile_url}${currentArtist.profile_url.includes('?') ? '&' : '?'}t=${Date.now()}`,
                     cache: 'reload'
                   }} 
                   style={dynamicStyles.artistAvatarImage}

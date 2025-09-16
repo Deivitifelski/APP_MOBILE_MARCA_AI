@@ -15,9 +15,11 @@ import { router } from 'expo-router';
 import { getCurrentUser } from '../services/supabase/authService';
 import { getArtists, updateArtist } from '../services/supabase/artistService';
 import { getUserPermissions } from '../services/supabase/permissionsService';
+import { useActiveArtist } from '../services/useActiveArtist';
 import PermissionModal from '../components/PermissionModal';
 
 export default function EditarArtistaScreen() {
+  const { loadActiveArtist } = useActiveArtist();
   const [artist, setArtist] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -122,6 +124,9 @@ export default function EditarArtistaScreen() {
       });
 
       if (success) {
+        // Recarregar os dados do artista ativo para atualizar as outras telas
+        await loadActiveArtist();
+        
         Alert.alert('Sucesso', 'Dados do artista atualizados com sucesso!', [
           {
             text: 'OK',
