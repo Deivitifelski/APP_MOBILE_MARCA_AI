@@ -201,6 +201,30 @@ export default function DetalhesEventoScreen() {
   const handleExportPDF = async () => {
     if (!event) return;
     
+    // Perguntar se quer incluir valores financeiros
+    Alert.alert(
+      '📄 Gerar Relatório',
+      'Como você gostaria de gerar o relatório?',
+      [
+        {
+          text: 'Com Valores Financeiros',
+          onPress: () => generateReport(true)
+        },
+        {
+          text: 'Sem Valores Financeiros',
+          onPress: () => generateReport(false)
+        },
+        {
+          text: 'Cancelar',
+          style: 'cancel'
+        }
+      ]
+    );
+  };
+
+  const generateReport = async (includeFinancials: boolean) => {
+    if (!event) return;
+    
     setIsGeneratingPDF(true);
     
     try {
@@ -208,7 +232,8 @@ export default function DetalhesEventoScreen() {
         event,
         totalExpenses,
         creatorName: creatorName || undefined,
-        artistName: activeArtist?.name || undefined
+        artistName: activeArtist?.name || undefined,
+        includeFinancials
       });
       
       if (result.success) {
@@ -218,10 +243,10 @@ export default function DetalhesEventoScreen() {
           [{ text: 'OK' }]
         );
       } else {
-        Alert.alert('Erro', result.error || 'Erro ao gerar PDF');
+        Alert.alert('Erro', result.error || 'Erro ao gerar relatório');
       }
     } catch (error) {
-      Alert.alert('Erro', 'Erro ao gerar PDF');
+      Alert.alert('Erro', 'Erro ao gerar relatório');
     } finally {
       setIsGeneratingPDF(false);
     }

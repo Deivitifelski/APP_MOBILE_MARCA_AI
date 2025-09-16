@@ -7,11 +7,12 @@ interface EventPDFData {
   totalExpenses: number;
   creatorName?: string;
   artistName?: string;
+  includeFinancials?: boolean;
 }
 
 export const generateEventPDF = async (data: EventPDFData): Promise<{ success: boolean; error?: string }> => {
   try {
-    const { event, totalExpenses, creatorName, artistName } = data;
+    const { event, totalExpenses, creatorName, artistName, includeFinancials = true } = data;
     
     // Calcular lucro
     const profit = (event.value || 0) - totalExpenses;
@@ -36,37 +37,39 @@ export const generateEventPDF = async (data: EventPDFData): Promise<{ success: b
       });
     };
 
-    // Criar conteúdo do relatório em texto
+    // Criar conteúdo do relatório em texto com layout simples
     const reportContent = `
-🎵 DETALHES DO EVENTO - ${event.name}
-${'='.repeat(50)}
+🎵 MARCA AI - RELATÓRIO DE EVENTO
 
-📅 INFORMAÇÕES DO EVENTO:
-${'='.repeat(30)}
-📅 Data: ${formatDate(event.event_date)}
-🕐 Horário: ${formatTime(event.start_time)} - ${formatTime(event.end_time)}
-📍 Local: ${event.city || 'Não informado'}
-📞 Contato: ${event.contractor_phone || 'Não informado'}
-${artistName ? `🎭 Artista: ${artistName}` : ''}
-${creatorName ? `👤 Criado por: ${creatorName}` : ''}
-✅ Status: ${event.confirmed ? 'Confirmado' : 'A Confirmar'}
+📋 INFORMAÇÕES DO EVENTO
+Nome: ${event.name}
+Data: ${formatDate(event.event_date)}
+Horário: ${formatTime(event.start_time)} às ${formatTime(event.end_time)}
+Local: ${event.city || 'Não informado'}
+Contato: ${event.contractor_phone || 'Não informado'}
+${artistName ? `Artista: ${artistName}` : ''}
+${creatorName ? `Criado por: ${creatorName}` : ''}
+Status: ${event.confirmed ? '✅ Confirmado' : '⏳ A Confirmar'}
 
-💰 RESUMO FINANCEIRO:
-${'='.repeat(30)}
+${includeFinancials ? `
+💰 RESUMO FINANCEIRO
 Valor do Evento: ${formatCurrency(event.value || 0)}
 Total de Despesas: -${formatCurrency(totalExpenses)}
-${'='.repeat(30)}
 Lucro Líquido: ${formatCurrency(profit)} ${profit >= 0 ? '✅' : '❌'}
+${profit >= 0 ? 'Resultado: POSITIVO' : 'Resultado: NEGATIVO'}
+` : `
+💰 INFORMAÇÕES FINANCEIRAS
+Os valores financeiros foram omitidos conforme solicitado.
+`}
 
 ${event.description ? `
-📝 DESCRIÇÃO:
-${'='.repeat(30)}
+📝 DESCRIÇÃO
 ${event.description}
 ` : ''}
 
-${'='.repeat(50)}
-📱 Marca AI - Sistema de Gestão de Shows
-📅 Relatório gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}
+📱 INFORMAÇÕES DO SISTEMA
+Sistema: Marca AI - Gestão de Shows e Eventos
+Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}
     `.trim();
 
     // Para Expo Go, vamos mostrar o relatório em um alerta
