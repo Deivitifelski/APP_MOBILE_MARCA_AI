@@ -364,7 +364,7 @@ export default function DetalhesEventoScreen() {
           
           <View style={styles.financialRow}>
             <Text style={styles.financialLabel}>Valor do Evento:</Text>
-            <Text style={styles.financialValue}>{formatCurrency((event.value || 0).toString())}</Text>
+            <Text style={styles.financialValue}>{formatCurrency(event.value || 0)}</Text>
           </View>
 
           <View style={styles.financialRow}>
