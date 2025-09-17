@@ -16,7 +16,7 @@ import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { getCurrentUser } from '../services/supabase/authService';
 import { getUserProfile, updateUserProfile, UserProfile } from '../services/supabase/userService';
-import { uploadImageToSupabaseAlternative, deleteImageFromSupabase, extractFileNameFromUrl } from '../services/supabase/imageUploadService';
+import { uploadUserImage, deleteImageFromSupabase, extractFileNameFromUrl } from '../services/supabase/imageUploadService';
 
 export default function EditarUsuarioScreen() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -157,22 +157,25 @@ export default function EditarUsuarioScreen() {
       let finalProfileUrl = profileUrl;
 
       // Se a imagem foi alterada (nova imagem selecionada)
-      console.log('🔍 DEBUG - Verificando se há nova imagem:');
-      console.log('🔍 DEBUG - profileUrl atual:', profileUrl);
-      console.log('🔍 DEBUG - originalProfileUrl:', originalProfileUrl);
-      console.log('🔍 DEBUG - São diferentes?', profileUrl !== originalProfileUrl);
-      console.log('🔍 DEBUG - profileUrl não está vazio?', profileUrl.trim() !== '');
+      console.log('🔍 ===== VERIFICANDO SE HÁ NOVA IMAGEM =====');
+      console.log('🔍 profileUrl atual:', profileUrl);
+      console.log('🔍 originalProfileUrl:', originalProfileUrl);
+      console.log('🔍 São diferentes?', profileUrl !== originalProfileUrl);
+      console.log('🔍 profileUrl não está vazio?', profileUrl.trim() !== '');
       
       if (profileUrl !== originalProfileUrl && profileUrl.trim() !== '') {
-        console.log('📤 Nova imagem detectada, fazendo upload...');
+        console.log('📤 ===== NOVA IMAGEM DETECTADA - INICIANDO UPLOAD =====');
+        console.log('📤 Fazendo upload para bucket: image_users');
+        console.log('📤 Usuário ID:', userProfile.id);
         setIsUploadingImage(true);
 
-        // Fazer upload da nova imagem para o Supabase Storage
-        console.log('📤 Fazendo upload para Supabase Storage...');
-        const uploadResult = await uploadImageToSupabaseAlternative(profileUrl, 'image_users');
+        // Fazer upload da nova imagem para o Supabase Storage usando função específica
+        const uploadResult = await uploadUserImage(profileUrl, userProfile.id);
         
         if (uploadResult.success && uploadResult.url) {
-          console.log('✅ Upload realizado com sucesso:', uploadResult.url);
+          console.log('✅ ===== UPLOAD REALIZADO COM SUCESSO! =====');
+          console.log('✅ URL da imagem gerada:', uploadResult.url);
+          console.log('✅ Bucket usado: image_users');
           finalProfileUrl = uploadResult.url;
 
           // Se havia uma imagem anterior, remover do storage
@@ -184,15 +187,20 @@ export default function EditarUsuarioScreen() {
             }
           }
         } else {
-          console.error('❌ Erro no upload:', uploadResult.error);
+          console.error('❌ ===== ERRO NO UPLOAD =====');
+          console.error('❌ Erro:', uploadResult.error);
           Alert.alert('Erro', `Erro ao fazer upload da imagem: ${uploadResult.error}`);
           return;
         }
+      } else {
+        console.log('ℹ️ Nenhuma nova imagem detectada, mantendo URL atual');
       }
 
       // Atualizar dados do usuário
-      console.log('💾 Salvando no banco de dados:', {
-        userId: userProfile.id,
+      console.log('💾 ===== SALVANDO DADOS NO BANCO =====');
+      console.log('💾 Tabela: users');
+      console.log('💾 Usuário ID:', userProfile.id);
+      console.log('💾 Dados a serem salvos:', {
         name: name.trim(),
         email: email.trim(),
         phone: phone.trim() || undefined,
@@ -210,7 +218,9 @@ export default function EditarUsuarioScreen() {
         profile_url: finalProfileUrl.trim() || undefined,
       });
 
-      console.log('💾 Resultado do salvamento:', { success, error });
+      console.log('💾 ===== RESULTADO DO SALVAMENTO =====');
+      console.log('💾 Sucesso:', success);
+      console.log('💾 Erro:', error);
 
       if (success) {
         console.log('✅ Dados salvos com sucesso!');
