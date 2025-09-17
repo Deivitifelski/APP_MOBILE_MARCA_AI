@@ -8,29 +8,6 @@ export interface UploadResult {
   error?: string;
 }
 
-// Função auxiliar para fallback para base64
-const fallbackToBase64 = async (imageUri: string): Promise<UploadResult> => {
-  try {
-    console.log('🔄 Usando fallback para base64...');
-    const base64 = await FileSystem.readAsStringAsync(imageUri, {
-      encoding: 'base64',
-    });
-    
-    const dataUrl = `data:image/jpeg;base64,${base64}`;
-    console.log('✅ Base64 gerado, tamanho:', dataUrl.length, 'caracteres');
-    
-    return {
-      success: true,
-      url: dataUrl,
-    };
-  } catch (base64Error) {
-    console.error('❌ Erro ao gerar base64:', base64Error);
-    return {
-      success: false,
-      error: 'Erro ao processar imagem',
-    };
-  }
-};
 
 /**
  * Faz upload de uma imagem para o bucket do Supabase
@@ -218,36 +195,8 @@ export const uploadImageToSupabaseAlternative = async (
       };
     }
 
-    // Verificar se o bucket existe, se não, criar
-    console.log('🔍 Verificando se o bucket existe...');
-    const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
-    
-    if (bucketsError) {
-      console.error('❌ Erro ao listar buckets:', bucketsError);
-      // Fallback para base64
-      return await fallbackToBase64(imageUri);
-    }
-    
-    const bucketExists = buckets?.find(bucket => bucket.id === bucketName);
-    
-    if (!bucketExists) {
-      console.log('📦 Bucket não existe, criando...');
-      const { data: newBucket, error: createError } = await supabase.storage.createBucket(bucketName, {
-        public: true,
-        allowedMimeTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
-        fileSizeLimit: 5242880 // 5MB
-      });
-      
-      if (createError) {
-        console.error('❌ Erro ao criar bucket:', createError);
-        // Fallback para base64
-        return await fallbackToBase64(imageUri);
-      }
-      
-      console.log('✅ Bucket criado com sucesso:', newBucket);
-    } else {
-      console.log('✅ Bucket existe:', bucketExists);
-    }
+    // Assumir que o bucket existe (foi criado via SQL)
+    console.log('📦 Fazendo upload direto para o bucket:', bucketName);
 
     // Gerar nome único para o arquivo se não fornecido
     if (!fileName) {
@@ -265,10 +214,23 @@ export const uploadImageToSupabaseAlternative = async (
 
     console.log('📊 Tamanho do arquivo base64:', base64.length, 'caracteres');
 
+    // Converter base64 para ArrayBuffer
+    const binaryString = atob(base64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+
+    console.log('📦 ArrayBuffer criado, tamanho:', bytes.length, 'bytes');
+
     // Fazer upload usando o método do Supabase Storage
+    console.log('📤 Iniciando upload para o bucket:', bucketName);
+    console.log('📝 Nome do arquivo para upload:', fileName);
+    console.log('🔐 Usuário autenticado:', user.id);
+    
     const { data, error } = await supabase.storage
       .from(bucketName)
-      .upload(fileName, base64, {
+      .upload(fileName, bytes, {
         contentType: 'image/jpeg',
         upsert: false,
         cacheControl: '3600',
@@ -276,8 +238,10 @@ export const uploadImageToSupabaseAlternative = async (
 
     if (error) {
       console.error('❌ Erro no upload via Supabase Storage:', error);
-      console.log('🔄 Tentando fallback para base64...');
-      return await fallbackToBase64(imageUri);
+      return {
+        success: false,
+        error: `Erro no upload: ${error.message}`,
+      };
     }
 
     console.log('✅ Upload via Supabase Storage realizado com sucesso:', data);

@@ -67,6 +67,11 @@ export default function ConfiguracoesScreen() {
     setImageLoadError(false);
   }, [currentArtist?.profile_url]);
 
+  // Reset user image error when user profile_url changes
+  useEffect(() => {
+    setUserImageLoadError(false);
+  }, [userProfile?.profile_url]);
+
   // Function to check if URL is valid
   const isValidImageUrl = (url: string) => {
     if (!url || url.trim() === '') return false;
@@ -84,10 +89,11 @@ export default function ConfiguracoesScreen() {
     }
   }, [userProfile?.profile_url]);
 
-  // Recarregar dados do artista quando a tela ganhar foco
+  // Recarregar dados do artista e usuário quando a tela ganhar foco
   useFocusEffect(
     React.useCallback(() => {
       loadArtistData();
+      loadUserProfile();
     }, [])
   );
 
@@ -355,21 +361,21 @@ export default function ConfiguracoesScreen() {
           <Text style={dynamicStyles.sectionTitle}>Usuário</Text>
           
           <View style={dynamicStyles.profileCard}>
-            {isValidImageUrl(userProfile?.profile_url || '') && !userImageLoadError ? (
+            {userProfile?.profile_url && userProfile.profile_url.trim() !== '' && !userImageLoadError ? (
               <Image 
                 source={{ 
-                  uri: userProfile?.profile_url,
+                  uri: `${userProfile.profile_url}${userProfile.profile_url.includes('?') ? '&' : '?'}t=${Date.now()}`,
                   cache: 'reload'
                 }} 
                 style={dynamicStyles.profileAvatarImage}
                 resizeMode="cover"
                 onError={(error) => {
-                  console.log('❌ Erro ao carregar imagem do usuário nas configurações:', userProfile?.profile_url);
+                  console.log('❌ Erro ao carregar imagem do usuário nas configurações:', userProfile.profile_url);
                   console.log('❌ Detalhes:', error.nativeEvent);
                   setUserImageLoadError(true);
                 }}
                 onLoad={() => {
-                  console.log('✅ Imagem do usuário carregada nas configurações:', userProfile?.profile_url);
+                  console.log('✅ Imagem do usuário carregada nas configurações:', userProfile.profile_url);
                   setUserImageLoadError(false);
                 }}
               />
