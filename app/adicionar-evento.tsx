@@ -16,6 +16,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { createEvent, CreateExpenseData } from '../services/supabase/eventService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { getArtists } from '../services/supabase/artistService';
+import { useActiveArtist } from '../services/useActiveArtist';
 
 interface EventoForm {
   nome: string;
@@ -262,9 +263,10 @@ export default function AdicionarEventoScreen() {
   const [showTimeInicioModal, setShowTimeInicioModal] = useState(false);
   const [showTimeFimModal, setShowTimeFimModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-
+  const { activeArtist } = useActiveArtist();
 
   const handleSave = async () => {
+
     // Validações básicas - apenas Nome, Valor e Data são obrigatórios
     if (!form.nome.trim()) {
       Alert.alert('Erro', 'Nome do evento é obrigatório');

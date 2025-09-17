@@ -122,9 +122,13 @@ export default function AgendaScreen() {
   }, [activeArtist, currentMonth, currentYear]);
 
   const loadUserPermissions = async () => {
-    if (!activeArtist) return;
+    if (!activeArtist) {
+      console.log('❌ Nenhum artista ativo');
+      return;
+    }
     
     try {
+      console.log('🔍 Iniciando carregamento de permissões');
       setPermissionsLoaded(false); // Reset permissions loaded state
       
       // Obter usuário atual
@@ -146,8 +150,10 @@ export default function AgendaScreen() {
       console.log('🎭 Artistas do usuário:', userArtists);
       
       const permissions = await getUserPermissions(user.id, activeArtist.id);
+      console.log('✅ Permissões carregadas:', permissions);
       setUserPermissions(permissions);
       setPermissionsLoaded(true); // Mark permissions as loaded
+      console.log('✅ permissionsLoaded definido como true');
     } catch (error) {
       console.error('Erro ao carregar permissões:', error);
       setPermissionsLoaded(true); // Mark as loaded even on error
@@ -208,6 +214,31 @@ export default function AgendaScreen() {
   };
 
   const handleAddShow = () => {
+    console.log('🔍 handleAddShow chamado');
+    console.log('🔍 permissionsLoaded:', permissionsLoaded);
+    console.log('🔍 userPermissions:', userPermissions);
+    
+    // TESTE: Sempre mostrar modal primeiro para verificar se funciona
+    console.log('🧪 TESTE: Mostrando modal diretamente');
+    setShowPermissionModal(true);
+    return;
+    
+    // Verificar se as permissões foram carregadas
+    if (!permissionsLoaded) {
+      console.log('❌ Permissões não carregadas ainda');
+      Alert.alert('Aguarde', 'Verificando permissões...');
+      return;
+    }
+    
+    // Verificar se o usuário tem permissão para criar eventos
+    if (userPermissions?.role === 'viewer') {
+      console.log('❌ Usuário é viewer, mostrando modal');
+      setShowPermissionModal(true);
+      return;
+    }
+    
+    console.log('✅ Usuário tem permissão, navegando para adicionar evento');
+    // Se tem permissão, navegar para a tela de adicionar evento
     const currentMonth = currentDate.getMonth();
     const currentYear = currentDate.getFullYear();
     const selectedDate = new Date(currentYear, currentMonth, 1);
