@@ -72,18 +72,11 @@ export default function ConfiguracoesScreen() {
     setUserImageLoadError(false);
   }, [userProfile?.profile_url]);
 
-  // Function to check if URL is valid
-  const isValidImageUrl = (url: string) => {
-    if (!url || url.trim() === '') return false;
-    // Check if it's a data URL or a valid HTTP/HTTPS URL
-    return url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://');
-  };
 
   // Debug: Log da URL da imagem do usuário
   useEffect(() => {
     if (userProfile?.profile_url) {
       console.log('🔍 DEBUG - URL da imagem do usuário nas configurações:', userProfile.profile_url);
-      console.log('🔍 DEBUG - URL é válida?', isValidImageUrl(userProfile.profile_url));
     } else {
       console.log('🔍 DEBUG - Nenhuma URL de imagem encontrada para o usuário nas configurações');
     }
