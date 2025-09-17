@@ -22,21 +22,14 @@ export const uploadImageToSupabase = async (
   fileName?: string
 ): Promise<UploadResult> => {
   try {
-    console.log('📤 Iniciando upload da imagem para Supabase...');
-    console.log('📁 Bucket:', bucketName);
-    console.log('🖼️ URI da imagem:', imageUri);
-
     // Verificar se o usuário está autenticado
     const { user, error: authError } = await getCurrentUser();
     if (authError || !user) {
-      console.error('❌ Usuário não autenticado:', authError);
       return {
         success: false,
         error: 'Usuário não autenticado. Faça login novamente.',
       };
     }
-
-    console.log('✅ Usuário autenticado:', user.id);
 
     // Gerar nome único para o arquivo se não fornecido
     if (!fileName) {
@@ -45,33 +38,33 @@ export const uploadImageToSupabase = async (
       fileName = `artist_${timestamp}_${randomId}.jpg`;
     }
 
-    console.log('📝 Nome do arquivo:', fileName);
-
     // Ler o arquivo como base64
     const base64 = await FileSystem.readAsStringAsync(imageUri, {
       encoding: 'base64',
     });
 
-    console.log('📊 Tamanho do arquivo base64:', base64.length, 'caracteres');
+    // Converter base64 para ArrayBuffer
+    const binaryString = atob(base64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
 
     // Fazer upload usando o método do Supabase Storage
     const { data, error } = await supabase.storage
       .from(bucketName)
-      .upload(fileName, base64, {
+      .upload(fileName, bytes, {
         contentType: 'image/jpeg',
-        upsert: false,
+        upsert: true,
         cacheControl: '3600',
       });
 
     if (error) {
-      console.error('❌ Erro no upload via Supabase Storage:', error);
       return {
         success: false,
         error: error.message,
       };
     }
-
-    console.log('✅ Upload via Supabase Storage realizado com sucesso:', data);
 
     // Obter URL pública da imagem
     const { data: urlData } = supabase.storage
@@ -79,14 +72,12 @@ export const uploadImageToSupabase = async (
       .getPublicUrl(fileName);
 
     const publicUrl = urlData.publicUrl;
-    console.log('🔗 URL pública gerada:', publicUrl);
 
     return {
       success: true,
       url: publicUrl,
     };
   } catch (error) {
-    console.error('❌ Erro geral no upload:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Erro desconhecido no upload',
@@ -105,13 +96,8 @@ export const deleteImageFromSupabase = async (
   bucketName: string = 'image_artists'
 ): Promise<UploadResult> => {
   try {
-    console.log('🗑️ Removendo imagem do Supabase...');
-    console.log('📁 Bucket:', bucketName);
-    console.log('📝 Arquivo:', fileName);
-
     // Se for uma URL base64 (data:), não precisa remover do storage
     if (fileName.startsWith('data:')) {
-      console.log('ℹ️ URL base64 detectada, não precisa remover do storage');
       return {
         success: true,
       };
@@ -122,19 +108,16 @@ export const deleteImageFromSupabase = async (
       .remove([fileName]);
 
     if (error) {
-      console.error('❌ Erro ao remover imagem:', error);
       return {
         success: false,
         error: error.message,
       };
     }
 
-    console.log('✅ Imagem removida com sucesso');
     return {
       success: true,
     };
   } catch (error) {
-    console.error('❌ Erro geral ao remover imagem:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Erro desconhecido ao remover imagem',
@@ -159,7 +142,6 @@ export const extractFileNameFromUrl = (url: string): string | null => {
     
     return null;
   } catch (error) {
-    console.error('❌ Erro ao extrair nome do arquivo:', error);
     return null;
   }
 };
@@ -175,8 +157,6 @@ export const checkImageExists = async (
   bucketName: string
 ): Promise<{ exists: boolean; error?: string }> => {
   try {
-    console.log('🔍 Verificando se imagem existe:', fileName, 'no bucket:', bucketName);
-    
     const { data, error } = await supabase.storage
       .from(bucketName)
       .list('', {
@@ -184,16 +164,13 @@ export const checkImageExists = async (
       });
 
     if (error) {
-      console.error('❌ Erro ao verificar imagem:', error);
       return { exists: false, error: error.message };
     }
 
     const exists = data && data.some(file => file.name === fileName);
-    console.log('🔍 Imagem existe?', exists);
     
     return { exists: !!exists };
   } catch (error) {
-    console.error('❌ Erro geral ao verificar imagem:', error);
     return { exists: false, error: 'Erro ao verificar imagem' };
   }
 };
@@ -286,26 +263,14 @@ export const uploadImageToSupabaseAlternative = async (
   fileName?: string
 ): Promise<UploadResult> => {
   try {
-    console.log('📤 Iniciando upload direto para Supabase Storage...');
-    console.log('🔍 DEBUG - imageUri:', imageUri);
-    console.log('🔍 DEBUG - bucketName:', bucketName);
-    console.log('🔍 DEBUG - fileName:', fileName);
-    console.log('🔍 DEBUG - Tipo do imageUri:', typeof imageUri);
-    console.log('🔍 DEBUG - imageUri é string?', typeof imageUri === 'string');
-    console.log('🔍 DEBUG - imageUri não está vazio?', imageUri && imageUri.trim() !== '');
-    
     // Verificar se o usuário está autenticado
     const { user, error: authError } = await getCurrentUser();
     if (authError || !user) {
-      console.error('❌ Usuário não autenticado:', authError);
       return {
         success: false,
         error: 'Usuário não autenticado. Faça login novamente.',
       };
     }
-
-    // Assumir que o bucket existe (foi criado via SQL)
-    console.log('📦 Fazendo upload direto para o bucket:', bucketName);
 
     // Gerar nome único para o arquivo se não fornecido
     if (!fileName) {
@@ -316,14 +281,10 @@ export const uploadImageToSupabaseAlternative = async (
       fileName = `${prefix}_${timestamp}_${randomId}.jpg`;
     }
 
-    console.log('📝 Nome do arquivo:', fileName);
-
     // Ler o arquivo como base64
     const base64 = await FileSystem.readAsStringAsync(imageUri, {
       encoding: 'base64',
     });
-
-    console.log('📊 Tamanho do arquivo base64:', base64.length, 'caracteres');
 
     // Converter base64 para ArrayBuffer
     const binaryString = atob(base64);
@@ -331,34 +292,21 @@ export const uploadImageToSupabaseAlternative = async (
     for (let i = 0; i < binaryString.length; i++) {
       bytes[i] = binaryString.charCodeAt(i);
     }
-
-    console.log('📦 ArrayBuffer criado, tamanho:', bytes.length, 'bytes');
-
-    // Fazer upload usando o método do Supabase Storage
-    console.log('📤 Iniciando upload para o bucket:', bucketName);
-    console.log('📝 Nome do arquivo para upload:', fileName);
-    console.log('🔐 Usuário autenticado:', user.id);
-    
-    // Assumir que o bucket existe (foi criado via SQL)
-    console.log('📦 Fazendo upload direto para o bucket:', bucketName);
     
     const { data, error } = await supabase.storage
       .from(bucketName)
       .upload(fileName, bytes, {
         contentType: 'image/jpeg',
-        upsert: true, // Permitir sobrescrever se existir
+        upsert: true,
         cacheControl: '3600',
       });
 
     if (error) {
-      console.error('❌ Erro no upload via Supabase Storage:', error);
       return {
         success: false,
         error: `Erro no upload: ${error.message}`,
       };
     }
-
-    console.log('✅ Upload via Supabase Storage realizado com sucesso:', data);
 
     // Obter URL pública da imagem
     const { data: urlData } = supabase.storage
@@ -366,10 +314,6 @@ export const uploadImageToSupabaseAlternative = async (
       .getPublicUrl(fileName);
 
     const publicUrl = urlData.publicUrl;
-    console.log('🔗 URL pública gerada:', publicUrl);
-    console.log('📁 Bucket usado:', bucketName);
-    console.log('📝 Arquivo salvo:', fileName);
-    console.log('✅ Upload concluído com sucesso!');
 
     return {
       success: true,
@@ -377,8 +321,6 @@ export const uploadImageToSupabaseAlternative = async (
     };
 
   } catch (error) {
-    console.error('❌ Erro geral no upload direto:', error);
-    console.error('❌ Stack trace:', error instanceof Error ? error.stack : 'N/A');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Erro desconhecido no upload',

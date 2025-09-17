@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { getCurrentUser } from '../services/supabase/authService';
 import { getArtists, updateArtist } from '../services/supabase/artistService';
 import { getUserPermissions } from '../services/supabase/permissionsService';
+import { uploadImageToSupabase, deleteImageFromSupabase, extractFileNameFromUrl } from '../services/supabase/imageUploadService';
 import { useActiveArtist } from '../services/useActiveArtist';
 import PermissionModal from '../components/PermissionModal';
 
@@ -28,10 +29,12 @@ export default function EditarArtistaScreen() {
   const [userPermissions, setUserPermissions] = useState<any>(null);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [imageLoadError, setImageLoadError] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   
   // Campos do formulário
   const [name, setName] = useState('');
   const [profileUrl, setProfileUrl] = useState('');
+  const [originalProfileUrl, setOriginalProfileUrl] = useState('');
 
   useEffect(() => {
     loadArtistData();
@@ -67,7 +70,6 @@ export default function EditarArtistaScreen() {
       );
 
       if (!permissions) {
-        console.error('Erro ao carregar permissões');
         Alert.alert('Erro', 'Erro ao carregar permissões');
         router.back();
         return;
@@ -94,9 +96,9 @@ export default function EditarArtistaScreen() {
       setArtist(currentArtist);
       setName(currentArtist.name || '');
       setProfileUrl(currentArtist.profile_url || '');
+      setOriginalProfileUrl(currentArtist.profile_url || '');
 
     } catch (error) {
-      console.error('Erro ao carregar dados do artista:', error);
       Alert.alert('Erro', 'Erro ao carregar dados do artista');
       router.back();
     } finally {
@@ -106,12 +108,6 @@ export default function EditarArtistaScreen() {
 
   const handleSelectImage = async () => {
     try {
-      console.log('🖼️ Iniciando seleção de imagem...');
-      
-      // Primeiro, vamos tentar abrir diretamente sem verificar permissões
-      // para ver se o problema é na verificação ou na abertura
-      console.log('📸 Tentando abrir galeria diretamente...');
-      
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
@@ -119,24 +115,14 @@ export default function EditarArtistaScreen() {
         quality: 0.8,
       });
 
-      console.log('📸 Resultado da seleção:', result);
-
       if (!result.canceled && result.assets[0]) {
         const imageUri = result.assets[0].uri;
         setProfileUrl(imageUri);
         setImageLoadError(false);
-        console.log('✅ Nova imagem selecionada:', imageUri);
-      } else {
-        console.log('❌ Seleção cancelada pelo usuário');
       }
     } catch (error) {
-      console.error('❌ Erro ao selecionar imagem:', error);
-      
-      // Se der erro, vamos tentar verificar permissões
       try {
-        console.log('🔐 Verificando permissões após erro...');
         const { status } = await ImagePicker.getMediaLibraryPermissionsAsync();
-        console.log('📋 Status da permissão:', status);
         
         if (status !== 'granted') {
           Alert.alert(
@@ -153,7 +139,6 @@ export default function EditarArtistaScreen() {
           );
         }
       } catch (permError) {
-        console.error('❌ Erro ao verificar permissões:', permError);
         Alert.alert(
           'Erro', 
           `Erro ao acessar galeria: ${error instanceof Error ? error.message : 'Erro desconhecido'}. Tente novamente.`
@@ -178,10 +163,34 @@ export default function EditarArtistaScreen() {
 
     try {
       setIsSaving(true);
+      let finalProfileUrl = profileUrl;
+
+      // Se a imagem foi alterada (nova imagem selecionada)
+      if (profileUrl !== originalProfileUrl && profileUrl.trim() !== '') {
+        setIsUploadingImage(true);
+
+        // Fazer upload da nova imagem para o Supabase Storage
+        const uploadResult = await uploadImageToSupabase(profileUrl, 'image_artists');
+        
+        if (uploadResult.success && uploadResult.url) {
+          finalProfileUrl = uploadResult.url;
+
+          // Se havia uma imagem anterior, remover do storage
+          if (originalProfileUrl && originalProfileUrl.trim() !== '' && !originalProfileUrl.startsWith('data:')) {
+            const oldFileName = extractFileNameFromUrl(originalProfileUrl);
+            if (oldFileName) {
+              await deleteImageFromSupabase(oldFileName, 'image_artists');
+            }
+          }
+        } else {
+          Alert.alert('Erro', `Erro ao fazer upload da imagem: ${uploadResult.error}`);
+          return;
+        }
+      }
 
       const { success, error } = await updateArtist(artist.id, {
         name: name.trim(),
-        profile_url: profileUrl.trim() || undefined,
+        profile_url: finalProfileUrl.trim() || undefined,
       });
 
       if (success) {
@@ -201,6 +210,7 @@ export default function EditarArtistaScreen() {
       Alert.alert('Erro', 'Erro ao salvar alterações');
     } finally {
       setIsSaving(false);
+      setIsUploadingImage(false);
     }
   };
 
@@ -255,9 +265,9 @@ export default function EditarArtistaScreen() {
         <TouchableOpacity 
           onPress={handleSave} 
           style={styles.saveButton}
-          disabled={isSaving}
+          disabled={isSaving || isUploadingImage}
         >
-          {isSaving ? (
+          {isSaving || isUploadingImage ? (
             <ActivityIndicator size="small" color="#667eea" />
           ) : (
             <Text style={styles.saveButtonText}>Salvar</Text>
@@ -282,13 +292,10 @@ export default function EditarArtistaScreen() {
                   }}
                   style={styles.artistAvatarImage}
                   resizeMode="cover"
-                  onError={(error) => {
-                    console.log('❌ Erro ao carregar imagem do artista na edição:', profileUrl);
-                    console.log('❌ Detalhes:', error.nativeEvent?.error);
+                  onError={() => {
                     setImageLoadError(true);
                   }}
                   onLoad={() => {
-                    console.log('✅ Imagem do artista carregada na edição:', profileUrl);
                     setImageLoadError(false);
                   }}
                 />
