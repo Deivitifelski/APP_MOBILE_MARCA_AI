@@ -34,16 +34,11 @@ export default function EditarUsuarioScreen() {
   const [profileUrl, setProfileUrl] = useState('');
   const [originalProfileUrl, setOriginalProfileUrl] = useState('');
 
-  // Function to check if URL is valid
-  const isValidImageUrl = (url: string) => {
-    if (!url || url.trim() === '') return false;
-    // Check if it's a data URL or a valid HTTP/HTTPS URL
-    return url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://');
-  };
 
   useEffect(() => {
     loadUserProfile();
   }, []);
+
 
   const loadUserProfile = async () => {
     try {
@@ -88,7 +83,11 @@ export default function EditarUsuarioScreen() {
   const handleSelectImage = async () => {
     try {
       console.log('🖼️ Iniciando seleção de imagem...');
-
+      
+      // Primeiro, vamos tentar abrir diretamente sem verificar permissões
+      // para ver se o problema é na verificação ou na abertura
+      console.log('📸 Tentando abrir galeria diretamente...');
+      
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
@@ -100,24 +99,42 @@ export default function EditarUsuarioScreen() {
 
       if (!result.canceled && result.assets[0]) {
         const imageUri = result.assets[0].uri;
-        console.log('🔍 DEBUG - URI da imagem selecionada:', imageUri);
         setProfileUrl(imageUri);
         setImageLoadError(false);
-        console.log('✅ Nova imagem selecionada e estado atualizado:', imageUri);
-        
-        // Verificar se o estado foi atualizado
-        setTimeout(() => {
-          console.log('🔍 DEBUG - Estado profileUrl após seleção:', profileUrl);
-        }, 100);
+        console.log('✅ Nova imagem selecionada:', imageUri);
       } else {
         console.log('❌ Seleção cancelada pelo usuário');
       }
     } catch (error) {
       console.error('❌ Erro ao selecionar imagem:', error);
-      Alert.alert(
-        'Erro',
-        `Erro ao selecionar imagem: ${error instanceof Error ? error.message : 'Erro desconhecido'}. Tente novamente.`
-      );
+      
+      // Se der erro, vamos tentar verificar permissões
+      try {
+        console.log('🔐 Verificando permissões após erro...');
+        const { status } = await ImagePicker.getMediaLibraryPermissionsAsync();
+        console.log('📋 Status da permissão:', status);
+        
+        if (status !== 'granted') {
+          Alert.alert(
+            'Permissão Necessária',
+            'É necessário permitir o acesso à galeria para selecionar uma imagem. Vá em Configurações > Privacidade > Fotos e permita o acesso para este app.',
+            [
+              { text: 'OK', style: 'default' }
+            ]
+          );
+        } else {
+          Alert.alert(
+            'Erro', 
+            `Erro ao selecionar imagem: ${error instanceof Error ? error.message : 'Erro desconhecido'}. Tente novamente.`
+          );
+        }
+      } catch (permError) {
+        console.error('❌ Erro ao verificar permissões:', permError);
+        Alert.alert(
+          'Erro', 
+          `Erro ao acessar galeria: ${error instanceof Error ? error.message : 'Erro desconhecido'}. Tente novamente.`
+        );
+      }
     }
   };
 
@@ -287,36 +304,29 @@ export default function EditarUsuarioScreen() {
               activeOpacity={0.7}
               disabled={isUploadingImage}
             >
-              {(() => {
-                console.log('🔍 DEBUG - Renderizando imagem do usuário:');
-                console.log('🔍 DEBUG - profileUrl:', profileUrl);
-                console.log('🔍 DEBUG - isValidImageUrl:', isValidImageUrl(profileUrl));
-                console.log('🔍 DEBUG - imageLoadError:', imageLoadError);
-                
-                return isValidImageUrl(profileUrl) && !imageLoadError ? (
-                  <Image
-                    source={{
-                      uri: profileUrl,
-                      cache: 'reload'
-                    }}
-                    style={styles.userAvatarImage}
-                    resizeMode="cover"
-                    onError={(error) => {
-                      console.log('❌ Erro ao carregar imagem do usuário na edição:', profileUrl);
-                      console.log('❌ Detalhes:', error.nativeEvent?.error);
-                      setImageLoadError(true);
-                    }}
-                    onLoad={() => {
-                      console.log('✅ Imagem do usuário carregada na edição:', profileUrl);
-                      setImageLoadError(false);
-                    }}
-                  />
-                ) : (
-                  <View style={styles.userAvatarPlaceholder}>
-                    <Ionicons name="person" size={40} color="#667eea" />
-                  </View>
-                );
-              })()}
+              {profileUrl && profileUrl.trim() !== '' && !imageLoadError ? (
+                <Image
+                  source={{
+                    uri: `${profileUrl}${profileUrl.includes('?') ? '&' : '?'}t=${Date.now()}`,
+                    cache: 'reload'
+                  }}
+                  style={styles.userAvatarImage}
+                  resizeMode="cover"
+                  onError={(error) => {
+                    console.log('❌ Erro ao carregar imagem do usuário na edição:', profileUrl);
+                    console.log('❌ Detalhes:', error.nativeEvent?.error);
+                    setImageLoadError(true);
+                  }}
+                  onLoad={() => {
+                    console.log('✅ Imagem do usuário carregada na edição:', profileUrl);
+                    setImageLoadError(false);
+                  }}
+                />
+              ) : (
+                <View style={styles.userAvatarPlaceholder}>
+                  <Ionicons name="person" size={40} color="#667eea" />
+                </View>
+              )}
               <View style={styles.editImageOverlay}>
                 {isUploadingImage ? (
                   <ActivityIndicator size="small" color="#fff" />
@@ -333,22 +343,6 @@ export default function EditarUsuarioScreen() {
           </View>
         )}
 
-        {/* Botão de teste para debug */}
-        <View style={styles.debugContainer}>
-          <TouchableOpacity 
-            style={styles.debugButton}
-            onPress={() => {
-              console.log('🔍 DEBUG - Estado atual:');
-              console.log('🔍 DEBUG - profileUrl:', profileUrl);
-              console.log('🔍 DEBUG - originalProfileUrl:', originalProfileUrl);
-              console.log('🔍 DEBUG - imageLoadError:', imageLoadError);
-              console.log('🔍 DEBUG - isValidImageUrl:', isValidImageUrl(profileUrl));
-              Alert.alert('Debug', `profileUrl: ${profileUrl}\noriginalProfileUrl: ${originalProfileUrl}\nimageLoadError: ${imageLoadError}`);
-            }}
-          >
-            <Text style={styles.debugButtonText}>Debug Estado</Text>
-          </TouchableOpacity>
-        </View>
 
         {/* Formulário */}
         <View style={styles.formContainer}>
@@ -512,20 +506,6 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 4,
     fontStyle: 'italic',
-  },
-  debugContainer: {
-    margin: 20,
-    alignItems: 'center',
-  },
-  debugButton: {
-    backgroundColor: '#ff6b6b',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  debugButtonText: {
-    color: '#fff',
-    fontWeight: '600',
   },
   userInfo: {
     flex: 1,

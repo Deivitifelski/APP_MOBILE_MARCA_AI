@@ -115,7 +115,8 @@ export default function RegisterScreen() {
               >
                 <Ionicons name="arrow-back" size={24} color={colors.text} />
               </TouchableOpacity>
-              
+              cd /Users/deiviti/Documents/APP_MOBILE_MARCA_AI
+              npx expo start
               <View style={[dynamicStyles.logoContainer, { backgroundColor: colors.primary }]}>
                 <Ionicons name="diamond" size={50} color="#fff" />
               </View>
