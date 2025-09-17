@@ -202,7 +202,9 @@ export const uploadImageToSupabaseAlternative = async (
     if (!fileName) {
       const timestamp = Date.now();
       const randomId = Math.random().toString(36).substring(2, 15);
-      fileName = `user_${timestamp}_${randomId}.jpg`;
+      // Usar prefixo baseado no bucket para melhor organização
+      const prefix = bucketName === 'image_users' ? 'user' : 'artist';
+      fileName = `${prefix}_${timestamp}_${randomId}.jpg`;
     }
 
     console.log('📝 Nome do arquivo:', fileName);
@@ -253,6 +255,8 @@ export const uploadImageToSupabaseAlternative = async (
 
     const publicUrl = urlData.publicUrl;
     console.log('🔗 URL pública gerada:', publicUrl);
+    console.log('📁 Bucket usado:', bucketName);
+    console.log('📝 Arquivo salvo:', fileName);
     console.log('✅ Upload concluído com sucesso!');
 
     return {
