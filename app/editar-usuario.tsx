@@ -9,16 +9,21 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { getCurrentUser } from '../services/supabase/authService';
 import { getUserProfile, updateUserProfile, UserProfile } from '../services/supabase/userService';
+import { uploadImageToSupabaseAlternative, deleteImageFromSupabase, extractFileNameFromUrl } from '../services/supabase/imageUploadService';
 
 export default function EditarUsuarioScreen() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [imageLoadError, setImageLoadError] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   
   // Campos do formulário
   const [name, setName] = useState('');
@@ -26,6 +31,15 @@ export default function EditarUsuarioScreen() {
   const [phone, setPhone] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
+  const [profileUrl, setProfileUrl] = useState('');
+  const [originalProfileUrl, setOriginalProfileUrl] = useState('');
+
+  // Function to check if URL is valid
+  const isValidImageUrl = (url: string) => {
+    if (!url || url.trim() === '') return false;
+    // Check if it's a data URL or a valid HTTP/HTTPS URL
+    return url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://');
+  };
 
   useEffect(() => {
     loadUserProfile();
@@ -60,12 +74,50 @@ export default function EditarUsuarioScreen() {
         setPhone(profile.phone || '');
         setCity(profile.city || '');
         setState(profile.state || '');
+        setProfileUrl(profile.profile_url || '');
+        setOriginalProfileUrl(profile.profile_url || '');
       }
     } catch (error) {
       Alert.alert('Erro', 'Erro ao carregar dados do usuário');
       router.back();
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSelectImage = async () => {
+    try {
+      console.log('🖼️ Iniciando seleção de imagem...');
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      console.log('📸 Resultado da seleção:', result);
+
+      if (!result.canceled && result.assets[0]) {
+        const imageUri = result.assets[0].uri;
+        console.log('🔍 DEBUG - URI da imagem selecionada:', imageUri);
+        setProfileUrl(imageUri);
+        setImageLoadError(false);
+        console.log('✅ Nova imagem selecionada e estado atualizado:', imageUri);
+        
+        // Verificar se o estado foi atualizado
+        setTimeout(() => {
+          console.log('🔍 DEBUG - Estado profileUrl após seleção:', profileUrl);
+        }, 100);
+      } else {
+        console.log('❌ Seleção cancelada pelo usuário');
+      }
+    } catch (error) {
+      console.error('❌ Erro ao selecionar imagem:', error);
+      Alert.alert(
+        'Erro',
+        `Erro ao selecionar imagem: ${error instanceof Error ? error.message : 'Erro desconhecido'}. Tente novamente.`
+      );
     }
   };
 
@@ -85,6 +137,52 @@ export default function EditarUsuarioScreen() {
 
     try {
       setIsSaving(true);
+      let finalProfileUrl = profileUrl;
+
+      // Se a imagem foi alterada (nova imagem selecionada)
+      console.log('🔍 DEBUG - Verificando se há nova imagem:');
+      console.log('🔍 DEBUG - profileUrl atual:', profileUrl);
+      console.log('🔍 DEBUG - originalProfileUrl:', originalProfileUrl);
+      console.log('🔍 DEBUG - São diferentes?', profileUrl !== originalProfileUrl);
+      console.log('🔍 DEBUG - profileUrl não está vazio?', profileUrl.trim() !== '');
+      
+      if (profileUrl !== originalProfileUrl && profileUrl.trim() !== '') {
+        console.log('📤 Nova imagem detectada, fazendo upload...');
+        setIsUploadingImage(true);
+
+        // Fazer upload da nova imagem para o Supabase Storage
+        console.log('📤 Fazendo upload para Supabase Storage...');
+        const uploadResult = await uploadImageToSupabaseAlternative(profileUrl, 'image_users');
+        
+        if (uploadResult.success && uploadResult.url) {
+          console.log('✅ Upload realizado com sucesso:', uploadResult.url);
+          finalProfileUrl = uploadResult.url;
+
+          // Se havia uma imagem anterior, remover do storage
+          if (originalProfileUrl && originalProfileUrl.trim() !== '' && !originalProfileUrl.startsWith('data:')) {
+            const oldFileName = extractFileNameFromUrl(originalProfileUrl);
+            if (oldFileName) {
+              console.log('🗑️ Removendo imagem anterior:', oldFileName);
+              await deleteImageFromSupabase(oldFileName, 'image_users');
+            }
+          }
+        } else {
+          console.error('❌ Erro no upload:', uploadResult.error);
+          Alert.alert('Erro', `Erro ao fazer upload da imagem: ${uploadResult.error}`);
+          return;
+        }
+      }
+
+      // Atualizar dados do usuário
+      console.log('💾 Salvando no banco de dados:', {
+        userId: userProfile.id,
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim() || undefined,
+        city: city.trim() || undefined,
+        state: state.trim() || undefined,
+        profile_url: finalProfileUrl.trim() || undefined,
+      });
 
       const { success, error } = await updateUserProfile(userProfile.id, {
         name: name.trim(),
@@ -92,9 +190,13 @@ export default function EditarUsuarioScreen() {
         phone: phone.trim() || undefined,
         city: city.trim() || undefined,
         state: state.trim() || undefined,
+        profile_url: finalProfileUrl.trim() || undefined,
       });
 
+      console.log('💾 Resultado do salvamento:', { success, error });
+
       if (success) {
+        console.log('✅ Dados salvos com sucesso!');
         Alert.alert('Sucesso', 'Perfil atualizado com sucesso!', [
           {
             text: 'OK',
@@ -102,12 +204,15 @@ export default function EditarUsuarioScreen() {
           },
         ]);
       } else {
+        console.error('❌ Erro ao salvar:', error);
         Alert.alert('Erro', error || 'Erro ao atualizar perfil');
       }
     } catch (error) {
+      console.error('❌ Erro ao salvar:', error);
       Alert.alert('Erro', 'Erro ao salvar alterações');
     } finally {
       setIsSaving(false);
+      setIsUploadingImage(false);
     }
   };
 
@@ -162,9 +267,9 @@ export default function EditarUsuarioScreen() {
         <TouchableOpacity 
           onPress={handleSave} 
           style={styles.saveButton}
-          disabled={isSaving}
+          disabled={isSaving || isUploadingImage}
         >
-          {isSaving ? (
+          {isSaving || isUploadingImage ? (
             <ActivityIndicator size="small" color="#667eea" />
           ) : (
             <Text style={styles.saveButtonText}>Salvar</Text>
@@ -176,15 +281,74 @@ export default function EditarUsuarioScreen() {
         {/* Informações do usuário logado */}
         {userProfile && (
           <View style={styles.userInfoCard}>
-            <View style={styles.userAvatar}>
-              <Ionicons name="person" size={40} color="#667eea" />
-            </View>
+            <TouchableOpacity 
+              style={styles.avatarContainer}
+              onPress={handleSelectImage}
+              activeOpacity={0.7}
+              disabled={isUploadingImage}
+            >
+              {(() => {
+                console.log('🔍 DEBUG - Renderizando imagem do usuário:');
+                console.log('🔍 DEBUG - profileUrl:', profileUrl);
+                console.log('🔍 DEBUG - isValidImageUrl:', isValidImageUrl(profileUrl));
+                console.log('🔍 DEBUG - imageLoadError:', imageLoadError);
+                
+                return isValidImageUrl(profileUrl) && !imageLoadError ? (
+                  <Image
+                    source={{
+                      uri: profileUrl,
+                      cache: 'reload'
+                    }}
+                    style={styles.userAvatarImage}
+                    resizeMode="cover"
+                    onError={(error) => {
+                      console.log('❌ Erro ao carregar imagem do usuário na edição:', profileUrl);
+                      console.log('❌ Detalhes:', error.nativeEvent?.error);
+                      setImageLoadError(true);
+                    }}
+                    onLoad={() => {
+                      console.log('✅ Imagem do usuário carregada na edição:', profileUrl);
+                      setImageLoadError(false);
+                    }}
+                  />
+                ) : (
+                  <View style={styles.userAvatarPlaceholder}>
+                    <Ionicons name="person" size={40} color="#667eea" />
+                  </View>
+                );
+              })()}
+              <View style={styles.editImageOverlay}>
+                {isUploadingImage ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Ionicons name="camera" size={20} color="#fff" />
+                )}
+              </View>
+            </TouchableOpacity>
             <View style={styles.userInfo}>
               <Text style={styles.userName}>{userProfile.name}</Text>
               <Text style={styles.userEmail}>{userProfile.email}</Text>
+              <Text style={styles.editImageText}>Toque na imagem para alterar</Text>
             </View>
           </View>
         )}
+
+        {/* Botão de teste para debug */}
+        <View style={styles.debugContainer}>
+          <TouchableOpacity 
+            style={styles.debugButton}
+            onPress={() => {
+              console.log('🔍 DEBUG - Estado atual:');
+              console.log('🔍 DEBUG - profileUrl:', profileUrl);
+              console.log('🔍 DEBUG - originalProfileUrl:', originalProfileUrl);
+              console.log('🔍 DEBUG - imageLoadError:', imageLoadError);
+              console.log('🔍 DEBUG - isValidImageUrl:', isValidImageUrl(profileUrl));
+              Alert.alert('Debug', `profileUrl: ${profileUrl}\noriginalProfileUrl: ${originalProfileUrl}\nimageLoadError: ${imageLoadError}`);
+            }}
+          >
+            <Text style={styles.debugButtonText}>Debug Estado</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Formulário */}
         <View style={styles.formContainer}>
@@ -309,14 +473,59 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
-  userAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  avatarContainer: {
+    position: 'relative',
+    marginRight: 15,
+  },
+  userAvatarImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 3,
+    borderColor: '#667eea',
+  },
+  userAvatarPlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: '#f0f0f0',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
+    borderWidth: 3,
+    borderColor: '#667eea',
+  },
+  editImageOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#667eea',
+    borderRadius: 15,
+    width: 30,
+    height: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  editImageText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  debugContainer: {
+    margin: 20,
+    alignItems: 'center',
+  },
+  debugButton: {
+    backgroundColor: '#ff6b6b',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  debugButtonText: {
+    color: '#fff',
+    fontWeight: '600',
   },
   userInfo: {
     flex: 1,

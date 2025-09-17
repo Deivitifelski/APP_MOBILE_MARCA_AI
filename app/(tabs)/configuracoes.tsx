@@ -50,6 +50,7 @@ export default function ConfiguracoesScreen() {
   });
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [imageLoadError, setImageLoadError] = useState(false);
+  const [userImageLoadError, setUserImageLoadError] = useState(false);
 
   useEffect(() => {
     loadUserProfile();
@@ -65,6 +66,23 @@ export default function ConfiguracoesScreen() {
   useEffect(() => {
     setImageLoadError(false);
   }, [currentArtist?.profile_url]);
+
+  // Function to check if URL is valid
+  const isValidImageUrl = (url: string) => {
+    if (!url || url.trim() === '') return false;
+    // Check if it's a data URL or a valid HTTP/HTTPS URL
+    return url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://');
+  };
+
+  // Debug: Log da URL da imagem do usuário
+  useEffect(() => {
+    if (userProfile?.profile_url) {
+      console.log('🔍 DEBUG - URL da imagem do usuário nas configurações:', userProfile.profile_url);
+      console.log('🔍 DEBUG - URL é válida?', isValidImageUrl(userProfile.profile_url));
+    } else {
+      console.log('🔍 DEBUG - Nenhuma URL de imagem encontrada para o usuário nas configurações');
+    }
+  }, [userProfile?.profile_url]);
 
   // Recarregar dados do artista quando a tela ganhar foco
   useFocusEffect(
@@ -337,9 +355,29 @@ export default function ConfiguracoesScreen() {
           <Text style={dynamicStyles.sectionTitle}>Usuário</Text>
           
           <View style={dynamicStyles.profileCard}>
-            <View style={dynamicStyles.profileAvatar}>
-              <Ionicons name="person" size={40} color="#667eea" />
-            </View>
+            {isValidImageUrl(userProfile?.profile_url || '') && !userImageLoadError ? (
+              <Image 
+                source={{ 
+                  uri: userProfile?.profile_url,
+                  cache: 'reload'
+                }} 
+                style={dynamicStyles.profileAvatarImage}
+                resizeMode="cover"
+                onError={(error) => {
+                  console.log('❌ Erro ao carregar imagem do usuário nas configurações:', userProfile?.profile_url);
+                  console.log('❌ Detalhes:', error.nativeEvent);
+                  setUserImageLoadError(true);
+                }}
+                onLoad={() => {
+                  console.log('✅ Imagem do usuário carregada nas configurações:', userProfile?.profile_url);
+                  setUserImageLoadError(false);
+                }}
+              />
+            ) : (
+              <View style={dynamicStyles.profileAvatar}>
+                <Ionicons name="person" size={40} color="#667eea" />
+              </View>
+            )}
             <View style={dynamicStyles.profileInfo}>
               {isLoadingProfile ? (
                 <ActivityIndicator size="small" color="#667eea" />
@@ -1000,6 +1038,12 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
     alignItems: 'center',
     marginRight: 15,
   },
+  profileAvatarImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginRight: 15,
+  },
   profileInfo: {
     flex: 1,
   },
@@ -1386,6 +1430,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 15,
+  },
+  profileAvatarImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     marginRight: 15,
   },
   profileInfo: {
