@@ -15,6 +15,7 @@ export interface Notification {
     id: string;
     name: string;
     email: string;
+    profile_url?: string;
   };
   artist?: {
     id: string;
@@ -72,7 +73,7 @@ export const getUserNotifications = async (userId: string, limit: number = 50): 
       .from('notifications')
       .select(`
         *,
-        from_user:users!from_user_id(id, name, email),
+        from_user:users!from_user_id(id, name, email, profile_url),
         artist:artists(id, name)
       `)
       .or(`user_id.eq.${userId},from_user_id.eq.${userId}`)
@@ -83,7 +84,12 @@ export const getUserNotifications = async (userId: string, limit: number = 50): 
       return { notifications: null, error: error.message };
     }
 
-    return { notifications: data || [], error: null };
+    // Filtrar notificações onde o usuário é o remetente (não mostrar notificações que o próprio usuário enviou)
+    const filteredNotifications = (data || []).filter(notification => 
+      notification.from_user_id !== userId
+    );
+
+    return { notifications: filteredNotifications, error: null };
   } catch (error) {
     return { notifications: null, error: 'Erro de conexão' };
   }

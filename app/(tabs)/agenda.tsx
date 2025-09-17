@@ -74,6 +74,7 @@ export default function AgendaScreen() {
   const [events, setEvents] = useState<any[]>([]);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [userPermissions, setUserPermissions] = useState<any>(null);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [imageLoadError, setImageLoadError] = useState(false);
   const { activeArtist, loadActiveArtist, isLoading } = useActiveArtist();
@@ -124,10 +125,13 @@ export default function AgendaScreen() {
     if (!activeArtist) return;
     
     try {
+      setPermissionsLoaded(false); // Reset permissions loaded state
+      
       // Obter usuário atual
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         console.log('❌ Nenhum usuário logado');
+        setPermissionsLoaded(true);
         return;
       }
       
@@ -142,11 +146,11 @@ export default function AgendaScreen() {
       console.log('🎭 Artistas do usuário:', userArtists);
       
       const permissions = await getUserPermissions(user.id, activeArtist.id);
-      console.log('🔐 Permissões carregadas:', permissions);
-      console.log('🔐 Role do usuário:', permissions?.role);
       setUserPermissions(permissions);
+      setPermissionsLoaded(true); // Mark permissions as loaded
     } catch (error) {
       console.error('Erro ao carregar permissões:', error);
+      setPermissionsLoaded(true); // Mark as loaded even on error
     }
   };
 
@@ -163,7 +167,6 @@ export default function AgendaScreen() {
 
   const loadEvents = async (isInitialLoad = true) => {
     if (!activeArtist) {
-      console.log('loadEvents: Nenhum artista ativo');
       return;
     }
     
@@ -264,7 +267,7 @@ export default function AgendaScreen() {
               </View>
             )}
             
-            {item.value && userPermissions?.role !== 'viewer' && (
+            {item.value && permissionsLoaded && userPermissions?.role !== 'viewer' && (
               <Text style={[styles.showValue, { color: colors.primary }]}>
                 R$ {item.value.toLocaleString('pt-BR')}
               </Text>

@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -452,12 +453,41 @@ export default function NotificacoesScreen() {
                         {isNotificationSentByUser(notification) ? 'Enviada' : 'Recebida'}
                       </Text>
                     </View>
+                    
                     <Text style={styles.notificationMessage}>
                       {notification.message}
                     </Text>
-                    <Text style={styles.notificationTime}>
-                      {formatTimeAgo(notification.created_at)}
-                    </Text>
+                    
+                    <View style={styles.notificationFooter}>
+                      <Text style={styles.notificationTime}>
+                        {formatTimeAgo(notification.created_at)}
+                      </Text>
+                      
+                      {/* Nome e imagem do usuário que criou o evento */}
+                      {notification.from_user && (
+                        <View style={styles.userInfo}>
+                          <View style={styles.userAvatarContainer}>
+                            {notification.from_user.profile_url && notification.from_user.profile_url.trim() !== '' ? (
+                              <Image
+                                source={{
+                                  uri: `${notification.from_user.profile_url}${notification.from_user.profile_url.includes('?') ? '&' : '?'}t=${Date.now()}`,
+                                  cache: 'reload'
+                                }}
+                                style={styles.userAvatar}
+                                resizeMode="cover"
+                              />
+                            ) : (
+                              <View style={styles.userAvatarPlaceholder}>
+                                <Ionicons name="person" size={16} color="#667eea" />
+                              </View>
+                            )}
+                          </View>
+                          <Text style={styles.userName}>
+                            {notification.from_user.name}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
                   
                   <TouchableOpacity
@@ -980,11 +1010,42 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#666',
     lineHeight: 18,
-    marginBottom: 4,
+    marginBottom: 2,
+  },
+  notificationFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
   },
   notificationTime: {
     fontSize: 11,
     color: '#999',
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  userAvatarContainer: {
+    marginRight: 8,
+  },
+  userAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
+  userAvatarPlaceholder: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  userName: {
+    fontSize: 12,
+    color: '#667eea',
+    fontWeight: '500',
   },
   deleteButton: {
     padding: 4,
