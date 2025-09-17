@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -153,12 +154,19 @@ export default function SelecionarArtistaScreen() {
     >
       <View style={styles.artistInfo}>
         <View style={styles.artistAvatar}>
-          {artist.profile_url ? (
-            <Ionicons name="musical-notes" size={24} color="#667eea" />
+          {artist.profile_url && artist.profile_url.trim() !== '' ? (
+            <Image
+              source={{
+                uri: `${artist.profile_url}${artist.profile_url.includes('?') ? '&' : '?'}t=${Date.now()}`,
+                cache: 'reload'
+              }}
+              style={styles.artistAvatarImage}
+              resizeMode="cover"
+            />
           ) : (
-            <Text style={styles.avatarText}>
-              {artist.name.charAt(0).toUpperCase()}
-            </Text>
+            <View style={styles.artistAvatarPlaceholder}>
+              <Ionicons name="musical-notes" size={24} color="#667eea" />
+            </View>
           )}
         </View>
         <View style={styles.artistDetails}>
@@ -322,10 +330,21 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
+    marginRight: 12,
+    overflow: 'hidden',
+  },
+  artistAvatarImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+  },
+  artistAvatarPlaceholder: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: '#667eea',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
   },
   avatarText: {
     color: '#fff',
