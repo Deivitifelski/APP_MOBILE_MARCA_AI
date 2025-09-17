@@ -209,118 +209,56 @@ export const uploadUserImage = async (
   userId?: string
 ): Promise<UploadResult> => {
   try {
-    console.log('🚀 ===== INICIANDO UPLOAD DE IMAGEM DE USUÁRIO =====');
-    console.log('📱 URI da imagem:', imageUri);
-    console.log('👤 ID do usuário:', userId || 'não fornecido');
-    console.log('📁 Bucket de destino: image_users');
-    
     // Verificar se o usuário está autenticado
-    console.log('🔐 Verificando autenticação do usuário...');
     const { user, error: authError } = await getCurrentUser();
     if (authError || !user) {
-      console.error('❌ Usuário não autenticado:', authError);
       return {
         success: false,
         error: 'Usuário não autenticado. Faça login novamente.',
       };
     }
-    console.log('✅ Usuário autenticado:', user.id);
 
-    // Tentar listar todos os buckets para debug (sem verificar bucket específico)
-    console.log('🔍 ===== VERIFICANDO BUCKETS DISPONÍVEIS =====');
-    console.log('🔍 Usuário autenticado:', user.id);
-    console.log('🔍 Email do usuário:', user.email);
-    
-    const { data: allBuckets, error: listError } = await supabase.storage.listBuckets();
-    if (listError) {
-      console.error('❌ Erro ao listar buckets:', listError);
-      console.error('❌ Detalhes do erro:', listError);
-      console.error('❌ Código do erro:', listError.statusCode);
-      console.error('❌ Mensagem do erro:', listError.message);
-      
-      // Se der erro ao listar buckets, vamos tentar fazer upload direto mesmo assim
-      console.log('⚠️ Erro ao listar buckets, mas vamos tentar upload direto...');
-    } else {
-      console.log('📋 Buckets disponíveis:', allBuckets);
-      const imageUsersBucket = allBuckets?.find(bucket => bucket.id === 'image_users');
-      if (imageUsersBucket) {
-        console.log('✅ Bucket image_users encontrado:', imageUsersBucket);
-        console.log('✅ Bucket é público?', imageUsersBucket.public);
-      } else {
-        console.error('❌ Bucket image_users não encontrado na lista');
-        console.log('⚠️ Vamos tentar upload direto mesmo assim...');
-      }
-    }
+    // Upload direto para o bucket image_users
 
     // Gerar nome único para o arquivo
     const timestamp = Date.now();
     const randomId = Math.random().toString(36).substring(2, 15);
     const fileName = `user_${timestamp}_${randomId}.jpg`;
-    console.log('📝 Nome do arquivo gerado:', fileName);
 
     // Ler o arquivo como base64
-    console.log('📖 Lendo arquivo como base64...');
     const base64 = await FileSystem.readAsStringAsync(imageUri, {
       encoding: 'base64',
     });
-    console.log('📊 Tamanho do arquivo base64:', base64.length, 'caracteres');
 
     // Converter base64 para ArrayBuffer
-    console.log('🔄 Convertendo base64 para ArrayBuffer...');
     const binaryString = atob(base64);
     const bytes = new Uint8Array(binaryString.length);
     for (let i = 0; i < binaryString.length; i++) {
       bytes[i] = binaryString.charCodeAt(i);
     }
-    console.log('📦 ArrayBuffer criado, tamanho:', bytes.length, 'bytes');
 
     // Fazer upload para o bucket image_users
-    console.log('📤 ===== INICIANDO UPLOAD PARA BUCKET IMAGE_USERS =====');
-    console.log('📝 Arquivo:', fileName);
-    console.log('👤 Usuário:', user.id);
-    console.log('📦 Tamanho do arquivo:', bytes.length, 'bytes');
-    console.log('🔐 Verificando autenticação...');
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError) {
-      console.error('❌ Erro ao obter sessão:', sessionError);
-    }
-    console.log('🔐 Sessão presente?', !!session);
-    console.log('🔐 Token presente?', !!session?.access_token);
-    console.log('🔐 Usuário da sessão:', session?.user?.id);
-    
     const { data, error } = await supabase.storage
       .from('image_users')
       .upload(fileName, bytes, {
         contentType: 'image/jpeg',
-        upsert: true, // Permitir sobrescrever se existir
+        upsert: true,
         cacheControl: '3600',
       });
 
     if (error) {
-      console.error('❌ ===== ERRO NO UPLOAD PARA IMAGE_USERS =====');
-      console.error('❌ Erro:', error);
-      console.error('❌ Código do erro:', error.statusCode);
-      console.error('❌ Mensagem:', error.message);
-      console.error('❌ Detalhes:', error);
       return {
         success: false,
         error: `Erro no upload: ${error.message}`,
       };
     }
 
-    console.log('✅ Upload para image_users realizado com sucesso:', data);
-
     // Obter URL pública da imagem
-    console.log('🔗 Gerando URL pública da imagem...');
     const { data: urlData } = supabase.storage
       .from('image_users')
       .getPublicUrl(fileName);
 
     const publicUrl = urlData.publicUrl;
-    console.log('🔗 URL pública gerada:', publicUrl);
-    console.log('📁 Bucket usado: image_users');
-    console.log('📝 Arquivo salvo:', fileName);
-    console.log('✅ ===== UPLOAD DE IMAGEM DE USUÁRIO CONCLUÍDO COM SUCESSO! =====');
 
     return {
       success: true,
@@ -328,9 +266,6 @@ export const uploadUserImage = async (
     };
 
   } catch (error) {
-    console.error('❌ ===== ERRO GERAL NO UPLOAD DE IMAGEM DE USUÁRIO =====');
-    console.error('❌ Erro:', error);
-    console.error('❌ Stack trace:', error instanceof Error ? error.stack : 'N/A');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Erro desconhecido no upload',

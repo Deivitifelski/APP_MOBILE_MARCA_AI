@@ -157,58 +157,29 @@ export default function EditarUsuarioScreen() {
       let finalProfileUrl = profileUrl;
 
       // Se a imagem foi alterada (nova imagem selecionada)
-      console.log('🔍 ===== VERIFICANDO SE HÁ NOVA IMAGEM =====');
-      console.log('🔍 profileUrl atual:', profileUrl);
-      console.log('🔍 originalProfileUrl:', originalProfileUrl);
-      console.log('🔍 São diferentes?', profileUrl !== originalProfileUrl);
-      console.log('🔍 profileUrl não está vazio?', profileUrl.trim() !== '');
-      
       if (profileUrl !== originalProfileUrl && profileUrl.trim() !== '') {
-        console.log('📤 ===== NOVA IMAGEM DETECTADA - INICIANDO UPLOAD =====');
-        console.log('📤 Fazendo upload para bucket: image_users');
-        console.log('📤 Usuário ID:', userProfile.id);
         setIsUploadingImage(true);
 
         // Fazer upload da nova imagem para o Supabase Storage usando função específica
         const uploadResult = await uploadUserImage(profileUrl, userProfile.id);
         
         if (uploadResult.success && uploadResult.url) {
-          console.log('✅ ===== UPLOAD REALIZADO COM SUCESSO! =====');
-          console.log('✅ URL da imagem gerada:', uploadResult.url);
-          console.log('✅ Bucket usado: image_users');
           finalProfileUrl = uploadResult.url;
 
           // Se havia uma imagem anterior, remover do storage
           if (originalProfileUrl && originalProfileUrl.trim() !== '' && !originalProfileUrl.startsWith('data:')) {
             const oldFileName = extractFileNameFromUrl(originalProfileUrl);
             if (oldFileName) {
-              console.log('🗑️ Removendo imagem anterior:', oldFileName);
               await deleteImageFromSupabase(oldFileName, 'image_users');
             }
           }
         } else {
-          console.error('❌ ===== ERRO NO UPLOAD =====');
-          console.error('❌ Erro:', uploadResult.error);
           Alert.alert('Erro', `Erro ao fazer upload da imagem: ${uploadResult.error}`);
           return;
         }
-      } else {
-        console.log('ℹ️ Nenhuma nova imagem detectada, mantendo URL atual');
       }
 
       // Atualizar dados do usuário
-      console.log('💾 ===== SALVANDO DADOS NO BANCO =====');
-      console.log('💾 Tabela: users');
-      console.log('💾 Usuário ID:', userProfile.id);
-      console.log('💾 Dados a serem salvos:', {
-        name: name.trim(),
-        email: email.trim(),
-        phone: phone.trim() || undefined,
-        city: city.trim() || undefined,
-        state: state.trim() || undefined,
-        profile_url: finalProfileUrl.trim() || undefined,
-      });
-
       const { success, error } = await updateUserProfile(userProfile.id, {
         name: name.trim(),
         email: email.trim(),
@@ -218,12 +189,7 @@ export default function EditarUsuarioScreen() {
         profile_url: finalProfileUrl.trim() || undefined,
       });
 
-      console.log('💾 ===== RESULTADO DO SALVAMENTO =====');
-      console.log('💾 Sucesso:', success);
-      console.log('💾 Erro:', error);
-
       if (success) {
-        console.log('✅ Dados salvos com sucesso!');
         Alert.alert('Sucesso', 'Perfil atualizado com sucesso!', [
           {
             text: 'OK',
@@ -231,11 +197,9 @@ export default function EditarUsuarioScreen() {
           },
         ]);
       } else {
-        console.error('❌ Erro ao salvar:', error);
         Alert.alert('Erro', error || 'Erro ao atualizar perfil');
       }
     } catch (error) {
-      console.error('❌ Erro ao salvar:', error);
       Alert.alert('Erro', 'Erro ao salvar alterações');
     } finally {
       setIsSaving(false);
