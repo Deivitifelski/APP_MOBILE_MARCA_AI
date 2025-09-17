@@ -13,24 +13,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { getCollaborators, updateCollaboratorRole, removeCollaborator } from '../services/supabase/collaboratorService';
+import { getCollaborators, updateCollaboratorRole, removeCollaborator, Collaborator } from '../services/supabase/collaboratorService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { useActiveArtist } from '../services/useActiveArtist';
 import { clearActiveArtist } from '../services/artistContext';
-
-interface Collaborator {
-  id: string;
-  user_id: string;
-  artist_id: string;
-  role: 'owner' | 'admin' | 'editor' | 'viewer';
-  created_at: string;
-  users: {
-    id: string;
-    name: string;
-    email: string;
-    avatar_url?: string;
-  };
-}
 
 export default function TransferirPropriedadeScreen() {
   const { activeArtist, loadActiveArtist } = useActiveArtist();
@@ -82,7 +68,7 @@ export default function TransferirPropriedadeScreen() {
 
     Alert.alert(
       'Transferir Propriedade',
-      `Tem certeza que deseja transferir a propriedade do artista "${activeArtist.name}" para ${newOwner.users.name}?\n\nEsta ação não pode ser desfeita.`,
+      `Tem certeza que deseja transferir a propriedade do artista "${activeArtist.name}" para ${newOwner.user.name}?\n\nEsta ação não pode ser desfeita.`,
       [
         {
           text: 'Cancelar',
@@ -253,22 +239,22 @@ export default function TransferirPropriedadeScreen() {
           <View style={styles.collaboratorsList}>
             {collaborators.map((collaborator) => (
               <TouchableOpacity
-                key={collaborator.id}
+                key={collaborator.user_id}
                 style={styles.collaboratorCard}
                 onPress={() => handleTransferOwnership(collaborator)}
                 disabled={isTransferring}
               >
                 <View style={styles.collaboratorInfo}>
                   <View style={styles.avatarContainer}>
-                    {collaborator.users.avatar_url ? (
+                    {collaborator.user.profile_url ? (
                       <Image
-                        source={{ uri: collaborator.users.avatar_url }}
+                        source={{ uri: collaborator.user.profile_url }}
                         style={styles.avatar}
                       />
                     ) : (
                       <View style={styles.avatarPlaceholder}>
                         <Text style={styles.avatarText}>
-                          {collaborator.users.name.charAt(0).toUpperCase()}
+                          {collaborator.user.name.charAt(0).toUpperCase()}
                         </Text>
                       </View>
                     )}
@@ -276,10 +262,10 @@ export default function TransferirPropriedadeScreen() {
                   
                   <View style={styles.collaboratorDetails}>
                     <Text style={styles.collaboratorName}>
-                      {collaborator.users.name}
+                      {collaborator.user.name}
                     </Text>
                     <Text style={styles.collaboratorEmail}>
-                      {collaborator.users.email}
+                      {collaborator.user.email}
                     </Text>
                     <View style={styles.roleContainer}>
                       <Ionicons

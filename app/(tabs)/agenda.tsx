@@ -21,6 +21,7 @@ import { getUserPermissions } from '../../services/supabase/permissionsService';
 import { debugUserPermissions, debugUserArtists } from '../../services/supabase/debugPermissionsService';
 import PermissionModal from '../../components/PermissionModal';
 import { supabase } from '../../lib/supabase';
+import { artistImageUpdateService } from '../../services/artistImageUpdateService';
 
 // Dados mockados de shows
 const mockShows = [
@@ -78,6 +79,7 @@ export default function AgendaScreen() {
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [imageLoadError, setImageLoadError] = useState(false);
   const { activeArtist, loadActiveArtist, isLoading } = useActiveArtist();
+  const [artistImageUpdated, setArtistImageUpdated] = useState<boolean>(false);
   const { unreadCount, loadUnreadCount } = useNotifications();
 
   const currentMonth = currentDate.getMonth();
@@ -87,6 +89,22 @@ export default function AgendaScreen() {
     loadActiveArtist();
     loadUnreadCount();
   }, []);
+
+  // Escutar notificações de atualização da imagem do artista
+  useEffect(() => {
+    const handleArtistImageUpdated = (data: { artistId: string; newImageUrl: string }) => {
+      if (activeArtist && data.artistId === activeArtist.id) {
+        setArtistImageUpdated(true);
+        setImageLoadError(false); // Reset error state
+      }
+    };
+
+    artistImageUpdateService.onArtistImageUpdated(handleArtistImageUpdated);
+
+    return () => {
+      artistImageUpdateService.removeArtistImageUpdatedListener(handleArtistImageUpdated);
+    };
+  }, [activeArtist]);
 
   useEffect(() => {
     if (activeArtist) {
@@ -106,8 +124,14 @@ export default function AgendaScreen() {
     React.useCallback(() => {
       if (activeArtist) {
         loadEvents(false); // Recarregamento silencioso
+        
+        // Recarregar artista ativo apenas se a imagem foi atualizada via notificação
+        if (artistImageUpdated) {
+          setArtistImageUpdated(false);
+          loadActiveArtist(); // Recarregar dados do artista ativo para atualizar imagem
+        }
       }
-    }, [activeArtist, currentMonth, currentYear])
+    }, [activeArtist, currentMonth, currentYear, artistImageUpdated])
   );
 
   // Polling para atualizações em tempo real
@@ -296,31 +320,23 @@ export default function AgendaScreen() {
             <View style={styles.artistInfo}>
               {activeArtist.profile_url && activeArtist.profile_url.trim() !== '' && !imageLoadError ? (
                 <Image 
+                  key={`artist-${activeArtist.id}-${activeArtist.profile_url}`} // Força re-render quando URL muda
                   source={{ 
                     uri: `${activeArtist.profile_url}${activeArtist.profile_url.includes('?') ? '&' : '?'}t=${Date.now()}`,
                     cache: 'reload' // Força recarregar a imagem
                   }} 
                   style={[styles.artistAvatar, { borderColor: colors.border }]}
                   resizeMode="cover"
-                  onError={(error) => {
-                    console.log('❌ Erro ao carregar imagem do artista:', activeArtist.profile_url);
-                    console.log('❌ Detalhes:', error.nativeEvent);
+                  onError={() => {
                     setImageLoadError(true);
                   }}
                   onLoad={() => {
-                    console.log('✅ Imagem do artista carregada:', activeArtist.profile_url);
                     setImageLoadError(false);
                   }}
                 />
               ) : (
                 <View style={[styles.artistAvatarPlaceholder, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
                   <Ionicons name="musical-notes" size={24} color={colors.primary} />
-                  {/* Debug: mostrar se há URL */}
-                  {activeArtist.profile_url && (
-                    <Text style={{ fontSize: 8, position: 'absolute', bottom: -10, color: 'red' }}>
-                      URL: {activeArtist.profile_url.substring(0, 20)}...
-                    </Text>
-                  )}
                 </View>
               )}
               <View style={styles.artistDetails}>

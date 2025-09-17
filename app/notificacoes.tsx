@@ -296,6 +296,13 @@ export default function NotificacoesScreen() {
     }
   };
 
+  const formatNotificationTitle = (title: string, type: string) => {
+    if (type === 'event_created' && title.includes('adicionado')) {
+      return title.replace('adicionado', '').trim();
+    }
+    return title;
+  };
+
   const getNotificationColor = (type: string) => {
     switch (type) {
       case 'artist_invite':
@@ -421,85 +428,103 @@ export default function NotificacoesScreen() {
         ) : (
           <View style={dynamicStyles.content}>
             {notifications.map((notification) => (
-              <TouchableOpacity
+              <View
                 key={notification.id}
                 style={[
-                  dynamicStyles.notificationCard,
-                  !notification.read && dynamicStyles.unreadDot
+                  styles.notificationCard,
+                  !notification.read && styles.unreadNotification
                 ]}
-                onPress={() => handleNotificationPress(notification)}
               >
-                <View style={styles.notificationContent}>
-                  <View style={styles.iconContainer}>
-                    <Ionicons
-                      name={getNotificationIcon(notification.type)}
-                      size={24}
-                      color={getNotificationColor(notification.type)}
-                    />
-                  </View>
-                  
-                  <View style={styles.notificationDetails}>
-                    <View style={styles.notificationHeader}>
-                      <Text style={[
-                        styles.notificationTitle,
-                        !notification.read && styles.unreadTitle
-                      ]}>
-                        {notification.title}
-                      </Text>
-                      <Text style={[
-                        styles.notificationStatus,
-                        isNotificationSentByUser(notification) ? styles.sentStatus : styles.receivedStatus
-                      ]}>
-                        {isNotificationSentByUser(notification) ? 'Enviada' : 'Recebida'}
-                      </Text>
-                    </View>
+                <TouchableOpacity
+                  style={styles.notificationContent}
+                  onPress={() => handleNotificationPress(notification)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.notificationLeft}>
+                    {/* Imagem do usuário com ícone de notificação */}
+                    {notification.from_user && (
+                      <View style={styles.userAvatarContainer}>
+                        {notification.from_user.profile_url && notification.from_user.profile_url.trim() !== '' ? (
+                          <View style={styles.userAvatarWithIcon}>
+                            <Image
+                              source={{
+                                uri: `${notification.from_user.profile_url}${notification.from_user.profile_url.includes('?') ? '&' : '?'}t=${Date.now()}`,
+                                cache: 'reload'
+                              }}
+                              style={styles.userAvatar}
+                              resizeMode="cover"
+                              onError={() => {
+                                // Fallback para placeholder em caso de erro
+                              }}
+                            />
+                            <View style={[
+                              styles.notificationIconBadge,
+                              { backgroundColor: getNotificationColor(notification.type) }
+                            ]}>
+                              <Ionicons
+                                name={getNotificationIcon(notification.type)}
+                                size={12}
+                                color="#FFFFFF"
+                              />
+                            </View>
+                          </View>
+                        ) : (
+                          <View style={styles.userAvatarPlaceholder}>
+                            <Ionicons name="person" size={18} color="#667eea" />
+                            <View style={[
+                              styles.notificationIconBadge,
+                              { backgroundColor: getNotificationColor(notification.type) }
+                            ]}>
+                              <Ionicons
+                                name={getNotificationIcon(notification.type)}
+                                size={12}
+                                color="#FFFFFF"
+                              />
+                            </View>
+                          </View>
+                        )}
+                      </View>
+                    )}
                     
-                    <Text style={styles.notificationMessage}>
-                      {notification.message}
-                    </Text>
-                    
-                    <View style={styles.notificationFooter}>
-                      <Text style={styles.notificationTime}>
-                        {formatTimeAgo(notification.created_at)}
+                    <View style={styles.notificationDetails}>
+                      <View style={styles.notificationHeader}>
+                        <Text style={[
+                          styles.notificationTitle,
+                          !notification.read && styles.unreadTitle
+                        ]}>
+                          {formatNotificationTitle(notification.title, notification.type)}
+                        </Text>
+                      </View>
+                      
+                      <Text style={styles.notificationMessage}>
+                        {notification.message}
                       </Text>
                       
-                      {/* Nome e imagem do usuário que criou o evento */}
-                      {notification.from_user && (
-                        <View style={styles.userInfo}>
-                          <View style={styles.userAvatarContainer}>
-                            {notification.from_user.profile_url && notification.from_user.profile_url.trim() !== '' ? (
-                              <Image
-                                source={{
-                                  uri: `${notification.from_user.profile_url}${notification.from_user.profile_url.includes('?') ? '&' : '?'}t=${Date.now()}`,
-                                  cache: 'reload'
-                                }}
-                                style={styles.userAvatar}
-                                resizeMode="cover"
-                              />
-                            ) : (
-                              <View style={styles.userAvatarPlaceholder}>
-                                <Ionicons name="person" size={16} color="#667eea" />
-                              </View>
-                            )}
-                          </View>
+                      <View style={styles.notificationFooter}>
+                        <Text style={styles.notificationTime}>
+                          {formatTimeAgo(notification.created_at)}
+                        </Text>
+                        
+                        {notification.from_user && (
                           <Text style={styles.userName}>
                             {notification.from_user.name}
                           </Text>
-                        </View>
-                      )}
+                        )}
+                      </View>
                     </View>
                   </View>
                   
-                  <TouchableOpacity
-                    style={styles.deleteButton}
-                    onPress={() => handleDeleteNotification(notification.id)}
-                  >
-                    <Ionicons name="trash-outline" size={20} color="#9CA3AF" />
-                  </TouchableOpacity>
-                </View>
-                
-                {!notification.read && <View style={styles.unreadDot} />}
-              </TouchableOpacity>
+                  <View style={styles.notificationRight}>
+                    {!notification.read && <View style={styles.unreadDot} />}
+                    <TouchableOpacity
+                      style={styles.deleteButton}
+                      onPress={() => handleDeleteNotification(notification.id)}
+                    >
+                      <Ionicons name="trash-outline" size={16} color="#9CA3AF" />
+                    </TouchableOpacity>
+                  </View>
+                </TouchableOpacity>
+              </View>
             ))}
 
             {/* Convites de Artista Recebidos */}
@@ -508,31 +533,44 @@ export default function NotificacoesScreen() {
                 <View style={styles.sectionDivider} />
                 <Text style={styles.sectionTitle}>Convites de Artista</Text>
                 {artistInvites.map((invite) => (
-                  <TouchableOpacity
+                  <View
                     key={invite.id}
-                    style={styles.inviteCard}
-                    onPress={() => !invite.read && handleMarkInviteAsRead(invite.id)}
-                    activeOpacity={0.7}
+                    style={[
+                      styles.inviteCard,
+                      !invite.read && styles.unreadNotification
+                    ]}
                   >
-                    <View style={styles.inviteContent}>
-                      <View style={styles.inviteHeader}>
-                        <Ionicons
-                          name="people"
-                          size={20}
-                          color="#3B82F6"
-                        />
-                        <Text style={styles.inviteTitle}>
-                          {invite.artist?.name || 'Artista'}
-                        </Text>
+                    <TouchableOpacity
+                      style={styles.inviteContent}
+                      onPress={() => !invite.read && handleMarkInviteAsRead(invite.id)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.inviteLeft}>
+                        <View style={[styles.inviteIconContainer, { backgroundColor: '#3B82F615' }]}>
+                          <Ionicons
+                            name="people"
+                            size={18}
+                            color="#3B82F6"
+                          />
+                        </View>
+                        
+                        <View style={styles.inviteDetails}>
+                          <Text style={styles.inviteTitle}>
+                            {invite.artist?.name || 'Artista'}
+                          </Text>
+                          <Text style={styles.inviteMessage}>
+                            {invite.from_user?.name || 'Alguém'} te convidou para colaborar
+                          </Text>
+                          <Text style={styles.inviteTime}>
+                            {formatTimeAgo(invite.created_at)}
+                          </Text>
+                        </View>
+                      </View>
+                      
+                      <View style={styles.inviteRight}>
                         {!invite.read && <View style={styles.unreadDot} />}
                       </View>
-                      <Text style={styles.inviteMessage}>
-                        {invite.from_user?.name || 'Alguém'} te convidou para colaborar
-                      </Text>
-                      <Text style={styles.inviteTime}>
-                        {formatTimeAgo(invite.created_at)}
-                      </Text>
-                    </View>
+                    </TouchableOpacity>
 
                     {/* Ações para convites pendentes */}
                     {invite.status === 'pending' && (
@@ -541,6 +579,7 @@ export default function NotificacoesScreen() {
                           style={styles.acceptButton}
                           onPress={() => handleAcceptInvite(invite.id, invite.artist?.name || 'Artista')}
                         >
+                          <Ionicons name="checkmark" size={16} color="#FFFFFF" />
                           <Text style={styles.acceptButtonText}>Aceitar</Text>
                         </TouchableOpacity>
                         
@@ -548,11 +587,12 @@ export default function NotificacoesScreen() {
                           style={styles.declineButton}
                           onPress={() => handleDeclineInvite(invite.id, invite.artist?.name || 'Artista')}
                         >
+                          <Ionicons name="close" size={16} color="#FFFFFF" />
                           <Text style={styles.declineButtonText}>Recusar</Text>
                         </TouchableOpacity>
                       </View>
                     )}
-                  </TouchableOpacity>
+                  </View>
                 ))}
               </>
             )}
@@ -953,124 +993,181 @@ const styles = StyleSheet.create({
   },
   notificationCard: {
     backgroundColor: '#fff',
-    borderRadius: 8,
-    marginBottom: 8,
+    borderRadius: 16,
+    marginBottom: 16,
+    marginHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
     borderWidth: 1,
-    borderColor: '#e9ecef',
-    position: 'relative',
+    borderColor: '#F3F4F6',
   },
   unreadNotification: {
-    borderLeftWidth: 3,
+    borderLeftWidth: 4,
     borderLeftColor: '#667eea',
+    backgroundColor: '#FAFBFC',
   },
   notificationContent: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    padding: 12,
+    padding: 20,
   },
-  iconContainer: {
-    marginRight: 10,
-    marginTop: 2,
+  notificationLeft: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    flex: 1,
+  },
+  notificationRight: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: 40,
+  },
+  userAvatarContainer: {
+    marginRight: 12,
+  },
+  userAvatarWithIcon: {
+    position: 'relative',
+  },
+  userAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  userAvatarPlaceholder: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    position: 'relative',
+  },
+  notificationIconBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
   },
   notificationDetails: {
     flex: 1,
   },
   notificationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   notificationTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#333',
-    flex: 1,
+    color: '#1F2937',
+    lineHeight: 22,
   },
   unreadTitle: {
-    fontWeight: 'bold',
-  },
-  notificationStatus: {
-    fontSize: 12,
-    fontWeight: '500',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-    marginLeft: 8,
-  },
-  sentStatus: {
-    backgroundColor: '#EFF6FF',
-    color: '#3B82F6',
-  },
-  receivedStatus: {
-    backgroundColor: '#F0FDF4',
-    color: '#10B981',
+    fontWeight: '700',
+    color: '#111827',
   },
   notificationMessage: {
-    fontSize: 13,
-    color: '#666',
-    lineHeight: 18,
-    marginBottom: 2,
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+    marginBottom: 10,
+    marginTop: 2,
   },
   notificationFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 4,
   },
   notificationTime: {
-    fontSize: 11,
-    color: '#999',
-  },
-  userInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  userAvatarContainer: {
-    marginRight: 8,
-  },
-  userAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-  },
-  userAvatarPlaceholder: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#f0f0f0',
-    justifyContent: 'center',
-    alignItems: 'center',
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontWeight: '500',
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
   userName: {
     fontSize: 12,
     color: '#667eea',
-    fontWeight: '500',
+    fontWeight: '600',
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
   deleteButton: {
-    padding: 4,
-    marginLeft: 8,
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   unreadDot: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: '#667eea',
+    marginBottom: 8,
+    shadowColor: '#667eea',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
   },
   sectionDivider: {
     height: 1,
-    backgroundColor: '#e9ecef',
-    marginVertical: 16,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 24,
+    marginHorizontal: 20,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 12,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 16,
     marginTop: 8,
+    marginHorizontal: 20,
   },
   statusBadge: {
     paddingHorizontal: 8,
@@ -1084,9 +1181,9 @@ const styles = StyleSheet.create({
   },
   inviteActions: {
     flexDirection: 'row',
-    padding: 12,
-    paddingTop: 0,
-    gap: 8,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    gap: 12,
   },
   acceptButton: {
     flex: 1,
@@ -1094,14 +1191,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#10B981',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    gap: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 6,
   },
   acceptButtonText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
   },
   declineButton: {
@@ -1110,46 +1207,74 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#EF4444',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    gap: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 6,
   },
   declineButtonText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
   },
   inviteCard: {
     backgroundColor: '#fff',
-    borderRadius: 8,
-    marginBottom: 8,
+    borderRadius: 16,
+    marginBottom: 16,
+    marginHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
     borderWidth: 1,
-    borderColor: '#e9ecef',
+    borderColor: '#F3F4F6',
   },
   inviteContent: {
-    padding: 12,
-  },
-  inviteHeader: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: 20,
+  },
+  inviteLeft: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    flex: 1,
+  },
+  inviteIconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 4,
+    marginRight: 10,
+  },
+  inviteRight: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 40,
+  },
+  inviteDetails: {
+    flex: 1,
   },
   inviteTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginLeft: 8,
-    flex: 1,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 4,
   },
   inviteMessage: {
     fontSize: 14,
-    color: '#666',
+    color: '#6B7280',
+    lineHeight: 20,
     marginBottom: 4,
   },
   inviteTime: {
     fontSize: 12,
-    color: '#999',
+    color: '#9CA3AF',
+    fontWeight: '500',
   },
   modalOverlay: {
     position: 'absolute',

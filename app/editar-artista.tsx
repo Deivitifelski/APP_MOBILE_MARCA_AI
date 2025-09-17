@@ -20,6 +20,7 @@ import { getUserPermissions } from '../services/supabase/permissionsService';
 import { uploadImageToSupabase, deleteImageFromSupabase, extractFileNameFromUrl } from '../services/supabase/imageUploadService';
 import { useActiveArtist } from '../services/useActiveArtist';
 import PermissionModal from '../components/PermissionModal';
+import { artistImageUpdateService } from '../services/artistImageUpdateService';
 
 export default function EditarArtistaScreen() {
   const { loadActiveArtist } = useActiveArtist();
@@ -196,6 +197,11 @@ export default function EditarArtistaScreen() {
       if (success) {
         // Recarregar os dados do artista ativo para atualizar as outras telas
         await loadActiveArtist();
+        
+        // Notificar que a imagem do artista foi atualizada
+        if (finalProfileUrl !== originalProfileUrl) {
+          artistImageUpdateService.notifyArtistImageUpdated(artist.id, finalProfileUrl);
+        }
         
         Alert.alert('Sucesso', 'Dados do artista atualizados com sucesso!', [
           {
