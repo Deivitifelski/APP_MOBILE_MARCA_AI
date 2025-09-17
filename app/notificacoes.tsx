@@ -412,7 +412,7 @@ export default function NotificacoesScreen() {
       </View>
 
       <ScrollView
-        style={dynamicStyles.content}
+        style={[dynamicStyles.content, { paddingHorizontal: 0 }]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
@@ -988,14 +988,14 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   notificationsList: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 0,
     paddingTop: 20,
   },
   notificationCard: {
     backgroundColor: '#fff',
     borderRadius: 16,
     marginBottom: 16,
-    marginHorizontal: 20,
+    marginHorizontal: 12,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -1159,7 +1159,7 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#E5E7EB',
     marginVertical: 24,
-    marginHorizontal: 20,
+    marginHorizontal: 12,
   },
   sectionTitle: {
     fontSize: 20,
@@ -1167,7 +1167,7 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     marginBottom: 16,
     marginTop: 8,
-    marginHorizontal: 20,
+    marginHorizontal: 12,
   },
   statusBadge: {
     paddingHorizontal: 8,
@@ -1221,7 +1221,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 16,
     marginBottom: 16,
-    marginHorizontal: 20,
+    marginHorizontal: 12,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
