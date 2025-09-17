@@ -501,14 +501,19 @@ export default function NotificacoesScreen() {
                       </Text>
                       
                       <View style={styles.notificationFooter}>
-                        <Text style={styles.notificationTime}>
-                          {formatTimeAgo(notification.created_at)}
-                        </Text>
+                        <View style={styles.footerLeft}>
+                          <Text style={styles.notificationTime}>
+                            {formatTimeAgo(notification.created_at)}
+                          </Text>
+                        </View>
                         
                         {notification.from_user && (
-                          <Text style={styles.userName}>
-                            {notification.from_user.name}
-                          </Text>
+                          <View style={styles.footerRight}>
+                            <Text style={styles.footerLabel}>por</Text>
+                            <Text style={styles.userName}>
+                              {notification.from_user.name}
+                            </Text>
+                          </View>
                         )}
                       </View>
                     </View>
@@ -1114,24 +1119,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: 8,
+  },
+  footerLeft: {
+    flex: 1,
+  },
+  footerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   notificationTime: {
     fontSize: 12,
     color: '#9CA3AF',
     fontWeight: '500',
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
+  },
+  footerLabel: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontWeight: '400',
+    marginRight: 4,
   },
   userName: {
     fontSize: 12,
     color: '#667eea',
     fontWeight: '600',
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
   },
   deleteButton: {
     padding: 10,
