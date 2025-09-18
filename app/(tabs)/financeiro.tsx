@@ -10,7 +10,6 @@ import {
     View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import PermissionModal from '../../components/PermissionModal';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { generateFinancialReport } from '../../services/financialReportService';
@@ -37,7 +36,6 @@ export default function FinanceiroScreen() {
   const [events, setEvents] = useState<EventWithExpenses[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [userPermissions, setUserPermissions] = useState<any>(null);
-  const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const { activeArtist, loadActiveArtist } = useActiveArtist();
 
@@ -56,9 +54,14 @@ export default function FinanceiroScreen() {
   useEffect(() => {
     if (activeArtist) {
       loadUserPermissions();
-      loadFinancialData();
     }
   }, [activeArtist, currentMonth, currentYear]);
+
+  useEffect(() => {
+    if (activeArtist && userPermissions !== null) {
+      loadFinancialData();
+    }
+  }, [activeArtist, userPermissions, currentMonth, currentYear]);
 
   const loadUserPermissions = async () => {
     if (!activeArtist) return;
@@ -66,22 +69,21 @@ export default function FinanceiroScreen() {
     try {
       // Obter usuário atual
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setUserPermissions(null);
+        return;
+      }
       
       const permissions = await getUserPermissions(user.id, activeArtist.id);
       setUserPermissions(permissions);
-      
-      // Se for viewer, mostrar modal de permissão
-      if (permissions?.role === 'viewer') {
-        setShowPermissionModal(true);
-      }
     } catch (error) {
       console.error('Erro ao carregar permissões:', error);
+      setUserPermissions(null);
     }
   };
 
   const loadFinancialData = async () => {
-    if (!activeArtist) return;
+    if (!activeArtist || userPermissions === null) return;
     
     // Se for viewer, não carregar dados financeiros
     if (userPermissions?.role === 'viewer') {
@@ -325,6 +327,64 @@ export default function FinanceiroScreen() {
     );
   }
 
+  // Se o usuário é viewer, mostrar mensagem de acesso restrito
+  if (userPermissions?.role === 'viewer') {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { 
+          backgroundColor: colors.surface, 
+          borderBottomColor: colors.border,
+          paddingTop: insets.top + 20
+        }]}>
+          <Text style={[styles.title, { color: colors.text }]}>Financeiro</Text>
+        </View>
+        <View style={styles.noAccessContainer}>
+          <View style={[styles.noAccessCard, { backgroundColor: colors.surface }]}>
+            <View style={styles.noAccessIcon}>
+              <Ionicons name="lock-closed" size={60} color={colors.error} />
+            </View>
+            <Text style={[styles.noAccessTitle, { color: colors.text }]}>
+              Acesso Restrito
+            </Text>
+            <Text style={[styles.noAccessMessage, { color: colors.textSecondary }]}>
+              Como visualizador, você não tem permissão para acessar dados financeiros deste artista.
+            </Text>
+            <Text style={[styles.noAccessSubMessage, { color: colors.textSecondary }]}>
+              Entre em contato com um administrador do artista para solicitar mais permissões e acessar:
+            </Text>
+            
+            <View style={styles.featuresList}>
+              <View style={styles.featureItem}>
+                <Ionicons name="lock-closed" size={20} color={colors.error} />
+                <Text style={[styles.featureText, { color: colors.textSecondary }]}>
+                  Receitas dos eventos
+                </Text>
+              </View>
+              <View style={styles.featureItem}>
+                <Ionicons name="lock-closed" size={20} color={colors.error} />
+                <Text style={[styles.featureText, { color: colors.textSecondary }]}>
+                  Controle de despesas
+                </Text>
+              </View>
+              <View style={styles.featureItem}>
+                <Ionicons name="lock-closed" size={20} color={colors.error} />
+                <Text style={[styles.featureText, { color: colors.textSecondary }]}>
+                  Relatórios financeiros
+                </Text>
+              </View>
+              <View style={styles.featureItem}>
+                <Ionicons name="lock-closed" size={20} color={colors.error} />
+                <Text style={[styles.featureText, { color: colors.textSecondary }]}>
+                  Análise de lucratividade
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -439,14 +499,6 @@ export default function FinanceiroScreen() {
 
       </ScrollView>
 
-      {/* Modal de Permissão */}
-      <PermissionModal
-        visible={showPermissionModal}
-        onClose={() => setShowPermissionModal(false)}
-        title="Acesso Restrito"
-        message="Como visualizador, você não tem permissão para acessar dados financeiros. Entre em contato com um administrador para solicitar mais permissões."
-        icon="lock-closed"
-      />
     </View>
   );
 }
@@ -815,6 +867,55 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginLeft: 12,
     flex: 1,
+  },
+  noAccessContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  noAccessCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 30,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8,
+    maxWidth: 400,
+    width: '100%',
+  },
+  noAccessIcon: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#ffebee',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  noAccessTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  noAccessMessage: {
+    fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 16,
+  },
+  noAccessSubMessage: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 20,
   },
 });
 
