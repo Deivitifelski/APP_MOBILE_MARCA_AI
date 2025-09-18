@@ -253,7 +253,7 @@ export default function AdicionarEventoScreen() {
     data: initialDate,
     horarioInicio: createDefaultTime(20, 0), // 20:00
     horarioFim: createDefaultTime(23, 0), // 23:00
-    status: 'a_confirmar',
+    status: 'confirmado',
     descricao: '',
     tag: 'evento', // Valor padrão
   });
@@ -561,26 +561,6 @@ export default function AdicionarEventoScreen() {
             <TouchableOpacity
               style={[
                 styles.statusButton,
-                form.status === 'confirmado' && styles.statusButtonActive
-              ]}
-              onPress={() => updateForm('status', 'confirmado')}
-            >
-              <Ionicons 
-                name="checkmark-circle" 
-                size={20} 
-                color={form.status === 'confirmado' ? '#fff' : '#4CAF50'} 
-              />
-              <Text style={[
-                styles.statusButtonText,
-                form.status === 'confirmado' && styles.statusButtonTextActive
-              ]}>
-                Confirmado
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.statusButton,
                 form.status === 'a_confirmar' && styles.statusButtonActive
               ]}
               onPress={() => updateForm('status', 'a_confirmar')}
@@ -595,6 +575,26 @@ export default function AdicionarEventoScreen() {
                 form.status === 'a_confirmar' && styles.statusButtonTextActive
               ]}>
                 A Confirmar
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.statusButton,
+                form.status === 'confirmado' && styles.statusButtonActive
+              ]}
+              onPress={() => updateForm('status', 'confirmado')}
+            >
+              <Ionicons 
+                name="checkmark-circle" 
+                size={20} 
+                color={form.status === 'confirmado' ? '#fff' : '#4CAF50'} 
+              />
+              <Text style={[
+                styles.statusButtonText,
+                form.status === 'confirmado' && styles.statusButtonTextActive
+              ]}>
+                Confirmado
               </Text>
             </TouchableOpacity>
           </View>

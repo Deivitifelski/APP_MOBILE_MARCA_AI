@@ -524,26 +524,6 @@ export default function EditarEventoScreen() {
             <TouchableOpacity
               style={[
                 styles.statusButton,
-                form.status === 'confirmado' && styles.statusButtonActive
-              ]}
-              onPress={() => updateForm('status', 'confirmado')}
-            >
-              <Ionicons 
-                name="checkmark-circle" 
-                size={20} 
-                color={form.status === 'confirmado' ? '#fff' : '#4CAF50'} 
-              />
-              <Text style={[
-                styles.statusButtonText,
-                form.status === 'confirmado' && styles.statusButtonTextActive
-              ]}>
-                Confirmado
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.statusButton,
                 form.status === 'a_confirmar' && styles.statusButtonActive
               ]}
               onPress={() => updateForm('status', 'a_confirmar')}
@@ -558,6 +538,26 @@ export default function EditarEventoScreen() {
                 form.status === 'a_confirmar' && styles.statusButtonTextActive
               ]}>
                 A Confirmar
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.statusButton,
+                form.status === 'confirmado' && styles.statusButtonActive
+              ]}
+              onPress={() => updateForm('status', 'confirmado')}
+            >
+              <Ionicons 
+                name="checkmark-circle" 
+                size={20} 
+                color={form.status === 'confirmado' ? '#fff' : '#4CAF50'} 
+              />
+              <Text style={[
+                styles.statusButtonText,
+                form.status === 'confirmado' && styles.statusButtonTextActive
+              ]}>
+                Confirmado
               </Text>
             </TouchableOpacity>
           </View>
