@@ -24,7 +24,7 @@ interface EventoForm {
   horarioFim: Date;
   status: 'confirmado' | 'a_confirmar';
   descricao: string;
-  tag: 'ensaio' | 'show' | 'reunião';
+  tag: 'ensaio' | 'evento' | 'reunião';
 }
 
 // Componente para seleção de data
@@ -219,7 +219,7 @@ export default function EditarEventoScreen() {
     horarioFim: new Date(),
     status: 'a_confirmar',
     descricao: '',
-    tag: 'show', // Valor padrão
+    tag: 'evento', // Valor padrão
   });
 
   const [showDateModal, setShowDateModal] = useState(false);
@@ -262,7 +262,7 @@ export default function EditarEventoScreen() {
           horarioFim: endTime,
           status: (event.confirmed ? 'confirmado' : 'a_confirmar') as 'confirmado' | 'a_confirmar',
           descricao: event.description || '',
-          tag: event.tag || 'show', // Carregar tag existente ou usar padrão
+          tag: event.tag || 'evento', // Carregar tag existente ou usar padrão
         });
       } else {
         Alert.alert('Erro', result.error || 'Erro ao carregar evento');
@@ -594,22 +594,22 @@ export default function EditarEventoScreen() {
               style={[
                 styles.tagButton,
                 {
-                  backgroundColor: form.tag === 'show' ? '#667eea' : '#fff',
-                  borderColor: form.tag === 'show' ? '#667eea' : '#e9ecef'
+                  backgroundColor: form.tag === 'evento' ? '#667eea' : '#fff',
+                  borderColor: form.tag === 'evento' ? '#667eea' : '#e9ecef'
                 }
               ]}
-              onPress={() => updateForm('tag', 'show')}
+              onPress={() => updateForm('tag', 'evento')}
             >
               <Ionicons 
                 name="mic" 
                 size={20} 
-                color={form.tag === 'show' ? '#fff' : '#667eea'} 
+                color={form.tag === 'evento' ? '#fff' : '#667eea'} 
               />
               <Text style={[
                 styles.tagButtonText,
-                { color: form.tag === 'show' ? '#fff' : '#333' }
+                { color: form.tag === 'evento' ? '#fff' : '#333' }
               ]}>
-                Show
+                Evento
               </Text>
             </TouchableOpacity>
 

@@ -147,7 +147,7 @@ export default function DetalhesEventoScreen() {
     switch (tag) {
       case 'ensaio':
         return '#10B981'; // Verde
-      case 'show':
+      case 'evento':
         return '#667eea'; // Azul
       case 'reunião':
         return '#F59E0B'; // Laranja
@@ -160,7 +160,7 @@ export default function DetalhesEventoScreen() {
     switch (tag) {
       case 'ensaio':
         return 'musical-notes';
-      case 'show':
+      case 'evento':
         return 'mic';
       case 'reunião':
         return 'people';

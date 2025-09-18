@@ -27,7 +27,7 @@ interface EventoForm {
   horarioFim: Date;
   status: 'confirmado' | 'a_confirmar';
   descricao: string;
-  tag: 'ensaio' | 'show' | 'reunião';
+  tag: 'ensaio' | 'evento' | 'reunião';
 }
 
 interface DespesaForm {
@@ -255,7 +255,7 @@ export default function AdicionarEventoScreen() {
     horarioFim: createDefaultTime(23, 0), // 23:00
     status: 'a_confirmar',
     descricao: '',
-    tag: 'show', // Valor padrão
+    tag: 'evento', // Valor padrão
   });
 
   const [despesas, setDespesas] = useState<DespesaForm[]>([]);
@@ -631,22 +631,22 @@ export default function AdicionarEventoScreen() {
               style={[
                 styles.tagButton,
                 {
-                  backgroundColor: form.tag === 'show' ? '#667eea' : '#fff',
-                  borderColor: form.tag === 'show' ? '#667eea' : '#e9ecef'
+                  backgroundColor: form.tag === 'evento' ? '#667eea' : '#fff',
+                  borderColor: form.tag === 'evento' ? '#667eea' : '#e9ecef'
                 }
               ]}
-              onPress={() => updateForm('tag', 'show')}
+              onPress={() => updateForm('tag', 'evento')}
             >
               <Ionicons 
                 name="mic" 
                 size={20} 
-                color={form.tag === 'show' ? '#fff' : '#667eea'} 
+                color={form.tag === 'evento' ? '#fff' : '#667eea'} 
               />
               <Text style={[
                 styles.tagButtonText,
-                { color: form.tag === 'show' ? '#fff' : '#333' }
+                { color: form.tag === 'evento' ? '#fff' : '#333' }
               ]}>
-                Show
+                Evento
               </Text>
             </TouchableOpacity>
 
