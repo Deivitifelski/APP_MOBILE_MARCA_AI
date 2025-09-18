@@ -1,21 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { getEventById, Event, deleteEvent, getEventByIdWithPermissions } from '../services/supabase/eventService';
-import { getTotalExpensesByEvent } from '../services/supabase/expenseService';
-import { getEventCreatorName } from '../services/supabase/eventCreatorService';
-import { generateEventPDF } from '../services/pdfService';
-import { useActiveArtist } from '../services/useActiveArtist';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+    Alert,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 import { supabase } from '../lib/supabase';
+import { generateEventPDF } from '../services/pdfService';
+import { getEventCreatorName } from '../services/supabase/eventCreatorService';
+import { Event, deleteEvent, getEventById, getEventByIdWithPermissions } from '../services/supabase/eventService';
+import { getTotalExpensesByEvent } from '../services/supabase/expenseService';
+import { useActiveArtist } from '../services/useActiveArtist';
 
 
 export default function DetalhesEventoScreen() {
@@ -141,6 +141,32 @@ export default function DetalhesEventoScreen() {
   const extractNumericValue = (formattedValue: string) => {
     const numericValue = formattedValue.replace(/\D/g, '');
     return numericValue ? parseInt(numericValue, 10) / 100 : 0;
+  };
+
+  const getTagColor = (tag: string) => {
+    switch (tag) {
+      case 'ensaio':
+        return '#10B981'; // Verde
+      case 'show':
+        return '#667eea'; // Azul
+      case 'reunião':
+        return '#F59E0B'; // Laranja
+      default:
+        return '#667eea'; // Azul padrão
+    }
+  };
+
+  const getTagIcon = (tag: string) => {
+    switch (tag) {
+      case 'ensaio':
+        return 'musical-notes';
+      case 'show':
+        return 'mic';
+      case 'reunião':
+        return 'people';
+      default:
+        return 'mic';
+    }
   };
 
   const handleDeleteEvent = () => {
@@ -330,6 +356,17 @@ export default function DetalhesEventoScreen() {
               <Ionicons name="call" size={20} color="#667eea" />
               <Text style={styles.detailText}>{event.contractor_phone || 'Não informado'}</Text>
             </View>
+
+            {event.tag && (
+              <View style={styles.detailRow}>
+                <Ionicons name={getTagIcon(event.tag)} size={20} color={getTagColor(event.tag)} />
+                <View style={styles.tagContainer}>
+                  <View style={[styles.tagBadge, { backgroundColor: getTagColor(event.tag) }]}>
+                    <Text style={styles.tagText}>{event.tag}</Text>
+                  </View>
+                </View>
+              </View>
+            )}
 
             {creatorName && (
               <View style={styles.detailRow}>
@@ -646,5 +683,20 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginLeft: 28,
     fontStyle: 'italic',
+  },
+  tagContainer: {
+    marginLeft: 12,
+  },
+  tagBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    alignSelf: 'flex-start',
+  },
+  tagText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'capitalize',
   },
 });

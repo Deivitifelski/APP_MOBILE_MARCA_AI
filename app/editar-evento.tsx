@@ -1,18 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-  Platform,
-  Modal,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+    Alert,
+    Modal,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from 'react-native';
 import { getEventById, updateEvent, UpdateEventData } from '../services/supabase/eventService';
 
 interface EventoForm {
@@ -25,6 +24,7 @@ interface EventoForm {
   horarioFim: Date;
   status: 'confirmado' | 'a_confirmar';
   descricao: string;
+  tag: 'ensaio' | 'show' | 'reunião';
 }
 
 // Componente para seleção de data
@@ -219,6 +219,7 @@ export default function EditarEventoScreen() {
     horarioFim: new Date(),
     status: 'a_confirmar',
     descricao: '',
+    tag: 'show', // Valor padrão
   });
 
   const [showDateModal, setShowDateModal] = useState(false);
@@ -261,6 +262,7 @@ export default function EditarEventoScreen() {
           horarioFim: endTime,
           status: (event.confirmed ? 'confirmado' : 'a_confirmar') as 'confirmado' | 'a_confirmar',
           descricao: event.description || '',
+          tag: event.tag || 'show', // Carregar tag existente ou usar padrão
         });
       } else {
         Alert.alert('Erro', result.error || 'Erro ao carregar evento');
@@ -303,6 +305,7 @@ export default function EditarEventoScreen() {
         start_time: form.horarioInicio.toTimeString().split(' ')[0].substring(0, 5),
         end_time: form.horarioFim.toTimeString().split(' ')[0].substring(0, 5),
         confirmed: form.status === 'confirmado',
+        tag: form.tag,
       };
 
       const result = await updateEvent(eventId, updateData);
@@ -560,6 +563,81 @@ export default function EditarEventoScreen() {
           </View>
         </View>
 
+        {/* Tipo de Evento (Tag) */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Tipo de Evento</Text>
+          <View style={styles.tagContainer}>
+            <TouchableOpacity
+              style={[
+                styles.tagButton,
+                {
+                  backgroundColor: form.tag === 'ensaio' ? '#10B981' : '#fff',
+                  borderColor: form.tag === 'ensaio' ? '#10B981' : '#e9ecef'
+                }
+              ]}
+              onPress={() => updateForm('tag', 'ensaio')}
+            >
+              <Ionicons 
+                name="musical-notes" 
+                size={20} 
+                color={form.tag === 'ensaio' ? '#fff' : '#10B981'} 
+              />
+              <Text style={[
+                styles.tagButtonText,
+                { color: form.tag === 'ensaio' ? '#fff' : '#333' }
+              ]}>
+                Ensaio
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.tagButton,
+                {
+                  backgroundColor: form.tag === 'show' ? '#667eea' : '#fff',
+                  borderColor: form.tag === 'show' ? '#667eea' : '#e9ecef'
+                }
+              ]}
+              onPress={() => updateForm('tag', 'show')}
+            >
+              <Ionicons 
+                name="mic" 
+                size={20} 
+                color={form.tag === 'show' ? '#fff' : '#667eea'} 
+              />
+              <Text style={[
+                styles.tagButtonText,
+                { color: form.tag === 'show' ? '#fff' : '#333' }
+              ]}>
+                Show
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.tagButton,
+                {
+                  backgroundColor: form.tag === 'reunião' ? '#F59E0B' : '#fff',
+                  borderColor: form.tag === 'reunião' ? '#F59E0B' : '#e9ecef'
+                }
+              ]}
+              onPress={() => updateForm('tag', 'reunião')}
+            >
+              <Ionicons 
+                name="people" 
+                size={20} 
+                color={form.tag === 'reunião' ? '#fff' : '#F59E0B'} 
+              />
+              <Text style={[
+                styles.tagButtonText,
+                { color: form.tag === 'reunião' ? '#fff' : '#333' }
+              ]}>
+                Reunião
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Botões */}
         <View style={styles.buttonContainer}>
           <TouchableOpacity
@@ -808,6 +886,26 @@ const styles = StyleSheet.create({
   },
   statusButtonTextActive: {
     color: '#fff',
+  },
+  tagContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  tagButton: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tagButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginLeft: 8,
+    color: '#333',
   },
   buttonContainer: {
     flexDirection: 'row',
