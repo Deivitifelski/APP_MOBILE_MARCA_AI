@@ -1,21 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-  Platform,
-  Modal,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { createEvent, CreateExpenseData } from '../services/supabase/eventService';
-import { getCurrentUser } from '../services/supabase/authService';
+import React, { useState } from 'react';
+import {
+    Alert,
+    Modal,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from 'react-native';
 import { getArtists } from '../services/supabase/artistService';
+import { getCurrentUser } from '../services/supabase/authService';
+import { createEvent, CreateExpenseData } from '../services/supabase/eventService';
 import { useActiveArtist } from '../services/useActiveArtist';
 
 interface EventoForm {
@@ -28,6 +27,7 @@ interface EventoForm {
   horarioFim: Date;
   status: 'confirmado' | 'a_confirmar';
   descricao: string;
+  tag: 'ensaio' | 'show' | 'reunião';
 }
 
 interface DespesaForm {
@@ -255,6 +255,7 @@ export default function AdicionarEventoScreen() {
     horarioFim: createDefaultTime(23, 0), // 23:00
     status: 'a_confirmar',
     descricao: '',
+    tag: 'show', // Valor padrão
   });
 
   const [despesas, setDespesas] = useState<DespesaForm[]>([]);
@@ -324,6 +325,7 @@ export default function AdicionarEventoScreen() {
         city: form.cidade.trim() || undefined,
         contractor_phone: form.telefoneContratante.trim() || undefined,
         confirmed: form.status === 'confirmado',
+        tag: form.tag,
         expenses: expensesData
       };
 
@@ -593,6 +595,81 @@ export default function AdicionarEventoScreen() {
                 form.status === 'a_confirmar' && styles.statusButtonTextActive
               ]}>
                 A Confirmar
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Tipo de Evento (Tag) */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Tipo de Evento</Text>
+          <View style={styles.tagContainer}>
+            <TouchableOpacity
+              style={[
+                styles.tagButton,
+                {
+                  backgroundColor: form.tag === 'ensaio' ? '#10B981' : '#fff',
+                  borderColor: form.tag === 'ensaio' ? '#10B981' : '#e9ecef'
+                }
+              ]}
+              onPress={() => updateForm('tag', 'ensaio')}
+            >
+              <Ionicons 
+                name="musical-notes" 
+                size={20} 
+                color={form.tag === 'ensaio' ? '#fff' : '#10B981'} 
+              />
+              <Text style={[
+                styles.tagButtonText,
+                { color: form.tag === 'ensaio' ? '#fff' : '#333' }
+              ]}>
+                Ensaio
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.tagButton,
+                {
+                  backgroundColor: form.tag === 'show' ? '#667eea' : '#fff',
+                  borderColor: form.tag === 'show' ? '#667eea' : '#e9ecef'
+                }
+              ]}
+              onPress={() => updateForm('tag', 'show')}
+            >
+              <Ionicons 
+                name="mic" 
+                size={20} 
+                color={form.tag === 'show' ? '#fff' : '#667eea'} 
+              />
+              <Text style={[
+                styles.tagButtonText,
+                { color: form.tag === 'show' ? '#fff' : '#333' }
+              ]}>
+                Show
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.tagButton,
+                {
+                  backgroundColor: form.tag === 'reunião' ? '#F59E0B' : '#fff',
+                  borderColor: form.tag === 'reunião' ? '#F59E0B' : '#e9ecef'
+                }
+              ]}
+              onPress={() => updateForm('tag', 'reunião')}
+            >
+              <Ionicons 
+                name="people" 
+                size={20} 
+                color={form.tag === 'reunião' ? '#fff' : '#F59E0B'} 
+              />
+              <Text style={[
+                styles.tagButtonText,
+                { color: form.tag === 'reunião' ? '#fff' : '#333' }
+              ]}>
+                Reunião
               </Text>
             </TouchableOpacity>
           </View>
@@ -899,6 +976,32 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   statusButtonTextActive: {
+    color: '#fff',
+  },
+  tagContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  tagButton: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tagButtonActive: {
+    // Cor será definida dinamicamente baseada na tag
+  },
+  tagButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginLeft: 8,
+    color: '#333',
+  },
+  tagButtonTextActive: {
     color: '#fff',
   },
   buttonContainer: {

@@ -1,27 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  TouchableOpacity,
-  FlatList,
-  Alert,
-  Image,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+    Alert,
+    FlatList,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getEventsByMonth } from '../../services/supabase/eventService';
-import { useActiveArtist } from '../../services/useActiveArtist';
-import { useNotifications } from '../../services/useNotifications';
-import { useTheme } from '../../contexts/ThemeContext';
-import { getUserPermissions } from '../../services/supabase/permissionsService';
-import { debugUserPermissions, debugUserArtists } from '../../services/supabase/debugPermissionsService';
 import PermissionModal from '../../components/PermissionModal';
+import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { artistImageUpdateService } from '../../services/artistImageUpdateService';
+import { getEventsByMonth } from '../../services/supabase/eventService';
+import { getUserPermissions } from '../../services/supabase/permissionsService';
+import { useActiveArtist } from '../../services/useActiveArtist';
+import { useNotifications } from '../../services/useNotifications';
 
 // Dados mockados de shows
 const mockShows = [
@@ -259,6 +257,32 @@ export default function AgendaScreen() {
     );
   };
 
+  const getTagColor = (tag: string) => {
+    switch (tag) {
+      case 'ensaio':
+        return '#10B981'; // Verde
+      case 'show':
+        return '#667eea'; // Azul
+      case 'reunião':
+        return '#F59E0B'; // Laranja
+      default:
+        return '#667eea'; // Azul padrão
+    }
+  };
+
+  const getTagIcon = (tag: string) => {
+    switch (tag) {
+      case 'ensaio':
+        return 'musical-notes';
+      case 'show':
+        return 'mic';
+      case 'reunião':
+        return 'people';
+      default:
+        return 'mic';
+    }
+  };
+
   const renderShow = ({ item }: { item: any }) => {
     // Parse da data sem conversão de fuso horário
     const [year, month, day] = item.event_date.split('-').map(Number);
@@ -278,7 +302,15 @@ export default function AgendaScreen() {
           </View>
           
           <View style={styles.showInfoSection}>
-            <Text style={[styles.showName, { color: colors.text }]}>{item.name}</Text>
+            <View style={styles.showHeaderRow}>
+              <Text style={[styles.showName, { color: colors.text }]}>{item.name}</Text>
+              {item.tag && (
+                <View style={[styles.tagContainer, { backgroundColor: getTagColor(item.tag) }]}>
+                  <Ionicons name={getTagIcon(item.tag)} size={12} color="#fff" />
+                  <Text style={styles.tagText}>{item.tag}</Text>
+                </View>
+              )}
+            </View>
             
             <View style={styles.showDetailItem}>
               <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
@@ -609,12 +641,33 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingRight: 12,
   },
+  showHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
   showName: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 8,
+    flex: 1,
     lineHeight: 20,
+  },
+  tagContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  tagText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
+    marginLeft: 4,
+    textTransform: 'capitalize',
   },
   showDetailItem: {
     flexDirection: 'row',
