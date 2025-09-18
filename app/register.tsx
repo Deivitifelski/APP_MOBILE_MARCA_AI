@@ -1,21 +1,21 @@
+import { Ionicons } from '@expo/vector-icons';
+import { Link, router } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  ScrollView,
-  ActivityIndicator,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import { Link, router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../lib/supabase';
 import { useTheme } from '../contexts/ThemeContext';
+import { supabase } from '../lib/supabase';
 
 export default function RegisterScreen() {
   const { colors } = useTheme();
@@ -115,8 +115,6 @@ export default function RegisterScreen() {
               >
                 <Ionicons name="arrow-back" size={24} color={colors.text} />
               </TouchableOpacity>
-              cd /Users/deiviti/Documents/APP_MOBILE_MARCA_AI
-              npx expo start
               <View style={[dynamicStyles.logoContainer, { backgroundColor: colors.primary }]}>
                 <Ionicons name="diamond" size={50} color="#fff" />
               </View>

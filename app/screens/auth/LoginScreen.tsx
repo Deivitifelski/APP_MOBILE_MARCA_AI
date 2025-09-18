@@ -1,18 +1,18 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import React, { useState } from 'react';
+import {
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 import { loginUser } from '../../../services/supabase/authService';
 import { checkUserExists } from '../../../services/supabase/userService';
 
@@ -21,6 +21,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('campobom209');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showCompleteProfileModal, setShowCompleteProfileModal] = useState(false);
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -46,17 +47,8 @@ export default function LoginScreen() {
           }
           
           if (!userCheck.exists) {
-            // Usuário não existe na tabela users, mostrar mensagem e redirecionar
-            Alert.alert(
-              'Complete seu Cadastro',
-              'Para continuar, você precisa completar seu perfil. Vamos te redirecionar para a tela de cadastro.',
-              [
-                {
-                  text: 'OK',
-                  onPress: () => router.replace('/cadastro-usuario')
-                }
-              ]
-            );
+            // Usuário não existe na tabela users, mostrar modal personalizado
+            setShowCompleteProfileModal(true);
           } else {
             // Usuário existe, pode acessar a agenda
             router.replace('/(tabs)/agenda');
@@ -170,6 +162,73 @@ export default function LoginScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Modal para completar cadastro */}
+      {showCompleteProfileModal && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalIcon}>
+                <Ionicons name="person-add" size={32} color="#667eea" />
+              </View>
+              <Text style={styles.modalTitle}>Complete seu Cadastro</Text>
+              <Text style={styles.modalSubtitle}>
+                Você precisa finalizar seu perfil pessoal para continuar
+              </Text>
+            </View>
+
+            {/* Fluxo de cadastro visual */}
+            <View style={styles.modalFlowContainer}>
+              <View style={styles.modalFlowStep}>
+                <View style={[styles.modalFlowIcon, { backgroundColor: '#667eea' }]}>
+                  <Ionicons name="person" size={20} color="#fff" />
+                </View>
+                <Text style={[styles.modalFlowText, { color: '#667eea', fontWeight: 'bold' }]}>
+                  Perfil Pessoal
+                </Text>
+                <Text style={styles.modalFlowDescription}>
+                  Nome, telefone, cidade
+                </Text>
+              </View>
+
+              <View style={styles.modalFlowArrow}>
+                <Ionicons name="arrow-forward" size={20} color="#999" />
+              </View>
+
+              <View style={styles.modalFlowStep}>
+                <View style={[styles.modalFlowIcon, { backgroundColor: '#e9ecef' }]}>
+                  <Ionicons name="musical-notes" size={20} color="#999" />
+                </View>
+                <Text style={[styles.modalFlowText, { color: '#999' }]}>
+                  Perfil Artista
+                </Text>
+                <Text style={[styles.modalFlowDescription, { color: '#999' }]}>
+                  Nome artístico, foto
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setShowCompleteProfileModal(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.modalContinueButton}
+                onPress={() => {
+                  setShowCompleteProfileModal(false);
+                  router.replace('/cadastro-usuario');
+                }}
+              >
+                <Text style={styles.modalContinueText}>Continuar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -332,5 +391,126 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#667eea',
     fontWeight: '600',
+  },
+  // Estilos do modal
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  modalContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    marginHorizontal: 20,
+    maxWidth: 400,
+    width: '90%',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#f8f9fa',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  modalFlowContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+    paddingHorizontal: 16,
+  },
+  modalFlowStep: {
+    alignItems: 'center',
+    flex: 1,
+    minWidth: 100,
+  },
+  modalFlowIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  modalFlowText: {
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  modalFlowDescription: {
+    fontSize: 11,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 14,
+  },
+  modalFlowArrow: {
+    marginHorizontal: 8,
+    alignItems: 'center',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  modalCancelButton: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  modalCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  modalContinueButton: {
+    flex: 1,
+    backgroundColor: '#667eea',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  modalContinueText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
 });

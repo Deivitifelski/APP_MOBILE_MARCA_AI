@@ -1,29 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  TouchableOpacity,
-  Switch,
-  Alert,
-  ActivityIndicator,
-  Modal,
-  TextInput,
-  Linking,
-  Image,
-} from 'react-native';
-import { setStringAsync } from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
+import { setStringAsync } from 'expo-clipboard';
 import { router, useFocusEffect } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    Image,
+    Modal,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getCurrentUser, updatePassword } from '../../services/supabase/authService';
-import { getUserProfile, UserProfile } from '../../services/supabase/userService';
+import { useTheme } from '../../contexts/ThemeContext';
 import { getArtists } from '../../services/supabase/artistService';
+import { getCurrentUser, updatePassword } from '../../services/supabase/authService';
 import { createFeedback } from '../../services/supabase/feedbackService';
 import { getUserPermissions } from '../../services/supabase/permissionsService';
-import { useTheme } from '../../contexts/ThemeContext';
+import { getUserProfile, UserProfile } from '../../services/supabase/userService';
 
 export default function ConfiguracoesScreen() {
   const { isDarkMode, toggleDarkMode, colors } = useTheme();
@@ -557,8 +556,9 @@ export default function ConfiguracoesScreen() {
             
             {renderSettingItem(
               'card',
-              'Pagamentos',
-              'Gerenciar métodos de pagamento'
+              'Planos e Pagamentos',
+              'Escolher plano e gerenciar pagamentos',
+              () => router.push('/planos-pagamentos')
             )}
           </View>
         </View>

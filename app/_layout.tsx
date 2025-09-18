@@ -42,6 +42,7 @@ export default function RootLayout() {
             <Stack.Screen name="selecionar-artista" options={{ headerShown: false }} />
             <Stack.Screen name="sair-artista" options={{ headerShown: false }} />
             <Stack.Screen name="transferir-propriedade" options={{ headerShown: false }} />
+            <Stack.Screen name="planos-pagamentos" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
           </Stack>
