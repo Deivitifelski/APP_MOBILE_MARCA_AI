@@ -1,37 +1,37 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  RefreshControl,
-  Image,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { 
-  getUserNotifications, 
-  markNotificationAsRead, 
-  markAllNotificationsAsRead, 
-  deleteNotification,
-  Notification 
-} from '../services/supabase/notificationService';
-import { getCurrentUser } from '../services/supabase/authService';
-import { 
-  getArtistInvitesReceived, 
-  acceptArtistInvite, 
-  declineArtistInvite, 
-  markInviteAsRead,
-  ArtistInvite 
-} from '../services/supabase/artistInviteService';
-import { hasPermission } from '../services/supabase/permissionsService';
-import { getEventById } from '../services/supabase/eventService';
-import { useTheme } from '../contexts/ThemeContext';
+import React, { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    Image,
+    RefreshControl,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 import PermissionModal from '../components/PermissionModal';
+import { useTheme } from '../contexts/ThemeContext';
+import {
+    acceptArtistInvite,
+    ArtistInvite,
+    declineArtistInvite,
+    getArtistInvitesReceived,
+    markInviteAsRead
+} from '../services/supabase/artistInviteService';
+import { getCurrentUser } from '../services/supabase/authService';
+import { getEventById } from '../services/supabase/eventService';
+import {
+    deleteNotification,
+    getUserNotifications,
+    markAllNotificationsAsRead,
+    markNotificationAsRead,
+    Notification
+} from '../services/supabase/notificationService';
+import { hasPermission } from '../services/supabase/permissionsService';
 
 export default function NotificacoesScreen() {
   const { colors, isDarkMode } = useTheme();
@@ -264,7 +264,7 @@ export default function NotificacoesScreen() {
     );
   };
 
-  const handleAcceptInvite = async (inviteId: string, artistName: string) => {
+  const handleAcceptInvite = async (inviteId: string, artistName: string, artistId: string) => {
     if (!currentUserId) return;
 
     Alert.alert(
@@ -280,11 +280,48 @@ export default function NotificacoesScreen() {
               const { success, error } = await acceptArtistInvite(inviteId, currentUserId);
               
               if (success) {
-                // Mostrar modal com informações sobre as permissões
-                setSuccessMessage(`Você foi adicionado como colaborador do artista "${artistName}" com permissões de visualização. Você pode visualizar informações do artista, mas não pode fazer alterações.`);
-                setShowSuccessModal(true);
-                // Recarregar dados
-                await loadNotifications();
+                // Perguntar se quer trocar para este artista
+                Alert.alert(
+                  'Trocar Artista Ativo?',
+                  `Convite aceito com sucesso! Deseja trocar para o artista "${artistName}" como seu artista ativo?`,
+                  [
+                    {
+                      text: 'Manter Atual',
+                      style: 'cancel',
+                      onPress: () => {
+                        setSuccessMessage(`Convite aceito! Você foi adicionado como colaborador do artista "${artistName}" com permissões de visualização. Você pode trocar de artista a qualquer momento nas configurações.`);
+                        setShowSuccessModal(true);
+                        loadNotifications();
+                      }
+                    },
+                    {
+                      text: 'Trocar para Este',
+                      style: 'default',
+                      onPress: async () => {
+                        try {
+                          // Importar e usar o serviço de artista ativo
+                          const { setActiveArtist } = await import('../services/artistContext');
+                          
+                          // Definir o novo artista ativo
+                          await setActiveArtist({
+                            id: artistId,
+                            name: artistName,
+                            role: 'viewer' // Role padrão para convites
+                          });
+                          
+                          setSuccessMessage(`Artista alterado! Agora você está trabalhando com o artista "${artistName}". Você foi adicionado como colaborador com permissões de visualização.`);
+                          setShowSuccessModal(true);
+                          loadNotifications();
+                        } catch (error) {
+                          console.error('Erro ao trocar artista:', error);
+                          setSuccessMessage(`Convite aceito! Erro ao trocar artista, mas você foi adicionado como colaborador do artista "${artistName}". Você pode trocar manualmente nas configurações.`);
+                          setShowSuccessModal(true);
+                          loadNotifications();
+                        }
+                      }
+                    }
+                  ]
+                );
               } else {
                 Alert.alert('Erro', error || 'Erro ao aceitar convite');
               }
@@ -630,7 +667,7 @@ export default function NotificacoesScreen() {
                       <View style={styles.inviteActions}>
                         <TouchableOpacity
                           style={styles.acceptButton}
-                          onPress={() => handleAcceptInvite(invite.id, invite.artist?.name || 'Artista')}
+                          onPress={() => handleAcceptInvite(invite.id, invite.artist?.name || 'Artista', invite.artist_id)}
                         >
                           <Ionicons name="checkmark" size={16} color="#FFFFFF" />
                           <Text style={styles.acceptButtonText}>Aceitar</Text>

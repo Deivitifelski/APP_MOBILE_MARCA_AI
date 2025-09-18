@@ -282,6 +282,42 @@ export const updateCollaboratorRole = async (userId: string, artistId: string, n
   }
 };
 
+// Adicionar colaborador via convite (sem verificação de permissão)
+export const addCollaboratorViaInvite = async (artistId: string, collaboratorData: AddCollaboratorData): Promise<{ success: boolean; error: string | null }> => {
+  try {
+    // Verificar se o usuário já é colaborador deste artista
+    const { data: existingMember, error: checkError } = await supabase
+      .from('artist_members')
+      .select('user_id')
+      .eq('artist_id', artistId)
+      .eq('user_id', collaboratorData.userId)
+      .single();
+
+    if (existingMember) {
+      return { success: false, error: 'Usuário já é colaborador deste artista' };
+    }
+
+    // Adicionar o colaborador
+    const { error } = await supabase
+      .from('artist_members')
+      .insert({
+        user_id: collaboratorData.userId,
+        artist_id: artistId,
+        role: collaboratorData.role,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, error: null };
+  } catch (error) {
+    return { success: false, error: 'Erro de conexão' };
+  }
+};
+
 // Verificar se usuário é owner do artista
 export const isUserOwner = async (userId: string, artistId: string): Promise<{ isOwner: boolean; error: string | null }> => {
   try {

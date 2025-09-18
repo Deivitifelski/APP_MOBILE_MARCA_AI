@@ -1,25 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  TouchableOpacity,
-  FlatList,
-  Alert,
-  Linking,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import React, { useEffect, useState } from 'react';
+import {
+    Alert,
+    FlatList,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getEventsByMonth } from '../../services/supabase/eventService';
-import { getExpensesByEvent } from '../../services/supabase/expenseService';
-import { useActiveArtist } from '../../services/useActiveArtist';
-import { useTheme } from '../../contexts/ThemeContext';
-import { getUserPermissions } from '../../services/supabase/permissionsService';
 import PermissionModal from '../../components/PermissionModal';
+import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { generateFinancialReport } from '../../services/financialReportService';
+import { getEventsByMonth } from '../../services/supabase/eventService';
+import { getExpensesByEvent } from '../../services/supabase/expenseService';
+import { getUserPermissions } from '../../services/supabase/permissionsService';
+import { useActiveArtist } from '../../services/useActiveArtist';
 // import * as FileSystem from 'expo-file-system';
 // import * as Sharing from 'expo-sharing';
 
@@ -268,6 +266,64 @@ export default function FinanceiroScreen() {
       )}
     </View>
   );
+
+  // Se não há artista ativo, mostrar mensagem informativa
+  if (!activeArtist) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { 
+          backgroundColor: colors.surface, 
+          borderBottomColor: colors.border,
+          paddingTop: insets.top + 20
+        }]}>
+          <Text style={[styles.title, { color: colors.text }]}>Financeiro</Text>
+        </View>
+        <View style={styles.noArtistContainer}>
+          <View style={[styles.noArtistCard, { backgroundColor: colors.surface }]}>
+            <View style={styles.noArtistIcon}>
+              <Ionicons name="musical-notes" size={60} color={colors.primary} />
+            </View>
+            <Text style={[styles.noArtistTitle, { color: colors.text }]}>
+              Nenhum Artista Selecionado
+            </Text>
+            <Text style={[styles.noArtistMessage, { color: colors.textSecondary }]}>
+              Para visualizar dados financeiros, você precisa ter um perfil de artista ativo.
+            </Text>
+            <Text style={[styles.noArtistSubMessage, { color: colors.textSecondary }]}>
+              Após criar seu perfil de artista e começar a adicionar eventos, você poderá acompanhar:
+            </Text>
+            
+            <View style={styles.featuresList}>
+              <View style={styles.featureItem}>
+                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                <Text style={[styles.featureText, { color: colors.textSecondary }]}>
+                  Receitas dos seus eventos
+                </Text>
+              </View>
+              <View style={styles.featureItem}>
+                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                <Text style={[styles.featureText, { color: colors.textSecondary }]}>
+                  Controle de despesas
+                </Text>
+              </View>
+              <View style={styles.featureItem}>
+                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                <Text style={[styles.featureText, { color: colors.textSecondary }]}>
+                  Relatórios financeiros
+                </Text>
+              </View>
+              <View style={styles.featureItem}>
+                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                <Text style={[styles.featureText, { color: colors.textSecondary }]}>
+                  Análise de lucratividade
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -695,6 +751,70 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 12,
     textAlign: 'center',
+  },
+  noArtistContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  noArtistCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 30,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8,
+    maxWidth: 400,
+    width: '100%',
+  },
+  noArtistIcon: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#f8f9fa',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  noArtistTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  noArtistMessage: {
+    fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 16,
+  },
+  noArtistSubMessage: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  featuresList: {
+    width: '100%',
+    alignItems: 'flex-start',
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    width: '100%',
+  },
+  featureText: {
+    fontSize: 14,
+    marginLeft: 12,
+    flex: 1,
   },
 });
 

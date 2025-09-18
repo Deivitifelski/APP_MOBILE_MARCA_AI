@@ -180,8 +180,8 @@ export const acceptArtistInvite = async (inviteId: string, userId: string): Prom
     }
 
     // Adicionar como colaborador com role padrão (viewer)
-    const { addCollaborator } = await import('./collaboratorService');
-    const { success: addSuccess, error: addError } = await addCollaborator(
+    const { addCollaboratorViaInvite } = await import('./collaboratorService');
+    const { success: addSuccess, error: addError } = await addCollaboratorViaInvite(
       invite.artist_id, 
       { userId: invite.to_user_id, role: 'viewer' }
     );

@@ -1,20 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  FlatList,
-  RefreshControl,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    RefreshControl,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
+import { acceptArtistInvite, ArtistInvite, declineArtistInvite, getArtistInvitesReceived } from '../services/supabase/artistInviteService';
 import { getCurrentUser } from '../services/supabase/authService';
-import { getArtistInvitesReceived, acceptArtistInvite, declineArtistInvite, ArtistInvite } from '../services/supabase/artistInviteService';
 
 export default function ConvitesRecebidosScreen() {
   const [invites, setInvites] = useState<ArtistInvite[]>([]);
@@ -61,7 +60,7 @@ export default function ConvitesRecebidosScreen() {
     setIsRefreshing(false);
   };
 
-  const handleAcceptInvite = async (inviteId: string, artistName: string) => {
+  const handleAcceptInvite = async (inviteId: string, artistName: string, artistId: string) => {
     if (!currentUserId) return;
 
     Alert.alert(
@@ -77,8 +76,57 @@ export default function ConvitesRecebidosScreen() {
               const { success, error } = await acceptArtistInvite(inviteId, currentUserId);
               
               if (success) {
-                Alert.alert('Sucesso', 'Convite aceito com sucesso!');
-                loadData(); // Recarregar dados
+                // Perguntar se quer trocar para este artista
+                Alert.alert(
+                  'Trocar Artista Ativo?',
+                  `Convite aceito com sucesso! Deseja trocar para o artista "${artistName}" como seu artista ativo?`,
+                  [
+                    {
+                      text: 'Manter Atual',
+                      style: 'cancel',
+                      onPress: () => {
+                        Alert.alert('Sucesso', 'Convite aceito! Você pode trocar de artista a qualquer momento nas configurações.');
+                        loadData();
+                      }
+                    },
+                    {
+                      text: 'Trocar para Este',
+                      style: 'default',
+                      onPress: async () => {
+                        try {
+                          // Importar e usar o serviço de artista ativo
+                          const { setActiveArtist } = await import('../services/artistContext');
+                          
+                          // Definir o novo artista ativo
+                          await setActiveArtist({
+                            id: artistId,
+                            name: artistName,
+                            role: 'viewer' // Role padrão para convites
+                          });
+                          
+                          Alert.alert(
+                            'Artista Alterado!', 
+                            `Agora você está trabalhando com o artista "${artistName}".`,
+                            [
+                              {
+                                text: 'OK',
+                                onPress: () => {
+                                  loadData();
+                                  // Opcional: navegar para a agenda
+                                  router.push('/(tabs)/agenda');
+                                }
+                              }
+                            ]
+                          );
+                        } catch (error) {
+                          console.error('Erro ao trocar artista:', error);
+                          Alert.alert('Sucesso', 'Convite aceito! Erro ao trocar artista, mas você pode fazer isso manualmente nas configurações.');
+                          loadData();
+                        }
+                      }
+                    }
+                  ]
+                );
               } else {
                 Alert.alert('Erro', error || 'Erro ao aceitar convite');
               }
@@ -194,7 +242,7 @@ export default function ConvitesRecebidosScreen() {
         <View style={styles.inviteActions}>
           <TouchableOpacity
             style={styles.acceptButton}
-            onPress={() => handleAcceptInvite(item.id, item.artist?.name || 'Artista')}
+            onPress={() => handleAcceptInvite(item.id, item.artist?.name || 'Artista', item.artist_id)}
           >
             <Ionicons name="checkmark" size={16} color="#FFFFFF" />
             <Text style={styles.acceptButtonText}>Aceitar</Text>
