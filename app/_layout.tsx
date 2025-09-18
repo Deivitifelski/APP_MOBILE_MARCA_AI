@@ -1,13 +1,13 @@
-import React from 'react';
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import React from 'react';
 import 'react-native-reanimated';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { useColorScheme } from '../hooks/use-color-scheme';
-import { ThemeProvider } from '../contexts/ThemeContext';
 import AuthDeepLinkHandler from '../components/AuthDeepLinkHandler';
+import { ThemeProvider } from '../contexts/ThemeContext';
+import { useColorScheme } from '../hooks/use-color-scheme';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -28,9 +28,20 @@ export default function RootLayout() {
             <Stack.Screen name="cadastro-usuario" options={{ headerShown: false }} />
             <Stack.Screen name="cadastro-artista" options={{ headerShown: false }} />
             <Stack.Screen name="adicionar-evento" options={{ headerShown: false }} />
+            <Stack.Screen name="editar-evento" options={{ headerShown: false }} />
+            <Stack.Screen name="detalhes-evento" options={{ headerShown: false }} />
+            <Stack.Screen name="adicionar-despesa" options={{ headerShown: false }} />
+            <Stack.Screen name="despesas-evento" options={{ headerShown: false }} />
+            <Stack.Screen name="notificacoes" options={{ headerShown: false }} />
             <Stack.Screen name="editar-usuario" options={{ headerShown: false }} />
+            <Stack.Screen name="editar-artista" options={{ headerShown: false }} />
             <Stack.Screen name="configuracoes-artista" options={{ headerShown: false }} />
             <Stack.Screen name="colaboradores-artista" options={{ headerShown: false }} />
+            <Stack.Screen name="convites-enviados" options={{ headerShown: false }} />
+            <Stack.Screen name="convites-recebidos" options={{ headerShown: false }} />
+            <Stack.Screen name="selecionar-artista" options={{ headerShown: false }} />
+            <Stack.Screen name="sair-artista" options={{ headerShown: false }} />
+            <Stack.Screen name="transferir-propriedade" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
           </Stack>
