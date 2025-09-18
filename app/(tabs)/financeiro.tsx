@@ -35,6 +35,7 @@ export default function FinanceiroScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [events, setEvents] = useState<EventWithExpenses[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [userPermissions, setUserPermissions] = useState<any>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const { activeArtist, loadActiveArtist } = useActiveArtist();
@@ -64,21 +65,27 @@ export default function FinanceiroScreen() {
   }, [activeArtist, userPermissions, currentMonth, currentYear]);
 
   const loadUserPermissions = async () => {
-    if (!activeArtist) return;
+    if (!activeArtist) {
+      setIsInitialLoading(false);
+      return;
+    }
     
     try {
       // Obter usuário atual
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setUserPermissions(null);
+        setIsInitialLoading(false);
         return;
       }
       
       const permissions = await getUserPermissions(user.id, activeArtist.id);
       setUserPermissions(permissions);
+      setIsInitialLoading(false);
     } catch (error) {
       console.error('Erro ao carregar permissões:', error);
       setUserPermissions(null);
+      setIsInitialLoading(false);
     }
   };
 
@@ -269,6 +276,24 @@ export default function FinanceiroScreen() {
     </View>
   );
 
+  // Se ainda está carregando inicialmente, mostrar loading
+  if (isInitialLoading) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { 
+          backgroundColor: colors.surface, 
+          borderBottomColor: colors.border,
+          paddingTop: insets.top + 20
+        }]}>
+          <Text style={[styles.title, { color: colors.text }]}>Financeiro</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Carregando...</Text>
+        </View>
+      </View>
+    );
+  }
+
   // Se não há artista ativo, mostrar mensagem informativa
   if (!activeArtist) {
     return (
@@ -326,6 +351,7 @@ export default function FinanceiroScreen() {
       </View>
     );
   }
+
 
   // Se o usuário é viewer, mostrar mensagem de acesso restrito
   if (userPermissions?.role === 'viewer') {

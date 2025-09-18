@@ -1,40 +1,39 @@
+import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Image,
+    ActivityIndicator,
+    Alert,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { setActiveArtist } from '../../../services/artistContext';
 import { createArtist } from '../../../services/supabase/artistService';
 import { getCurrentUser } from '../../../services/supabase/authService';
-import { setActiveArtist } from '../../../services/artistContext';
-import * as ImagePicker from 'expo-image-picker';
+import { uploadImageToSupabase } from '../../../services/supabase/imageUploadService';
 
 export default function ArtistProfileScreen() {
   const [name, setName] = useState('');
   const [profileUrl, setProfileUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   const pickImage = async () => {
     try {
-      // Solicitar permissão
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      console.log('🖼️ Iniciando seleção de imagem do artista...');
       
-      if (status !== 'granted') {
-        Alert.alert('Permissão negada', 'Precisamos de permissão para acessar sua galeria.');
-        return;
-      }
-
-      // Abrir galeria
+      // Primeiro, vamos tentar abrir diretamente sem verificar permissões
+      console.log('📸 Tentando abrir galeria diretamente...');
+      
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
@@ -42,13 +41,62 @@ export default function ArtistProfileScreen() {
         quality: 0.8,
       });
 
+      console.log('📸 Resultado da seleção:', result);
+
       if (!result.canceled && result.assets[0]) {
-        setProfileUrl(result.assets[0].uri);
-        Alert.alert('Sucesso', 'Foto do artista selecionada com sucesso!');
+        const imageUri = result.assets[0].uri;
+        setIsUploadingImage(true);
+        
+        console.log('📤 Fazendo upload da imagem do artista...');
+        
+        // Fazer upload da imagem para o Supabase Storage (bucket image_artists)
+        const uploadResult = await uploadImageToSupabase(imageUri, 'image_artists');
+        
+        if (uploadResult.success && uploadResult.url) {
+          setProfileUrl(uploadResult.url);
+          console.log('✅ Upload realizado com sucesso:', uploadResult.url);
+          Alert.alert('Sucesso', 'Foto do artista selecionada e salva com sucesso!');
+        } else {
+          console.error('❌ Erro no upload:', uploadResult.error);
+          Alert.alert('Erro', `Erro ao fazer upload da imagem: ${uploadResult.error}`);
+          // Manter a URI local como fallback
+          setProfileUrl(imageUri);
+        }
+      } else {
+        console.log('❌ Seleção cancelada pelo usuário');
       }
     } catch (error) {
-      console.error('Erro ao selecionar imagem:', error);
-      Alert.alert('Erro', 'Erro ao selecionar imagem da galeria');
+      console.error('❌ Erro ao selecionar imagem:', error);
+      
+      // Se der erro, vamos tentar verificar permissões
+      try {
+        console.log('🔐 Verificando permissões após erro...');
+        const { status } = await ImagePicker.getMediaLibraryPermissionsAsync();
+        console.log('📋 Status da permissão:', status);
+        
+        if (status !== 'granted') {
+          Alert.alert(
+            'Permissão Necessária',
+            'É necessário permitir o acesso à galeria para selecionar uma imagem. Vá em Configurações > Privacidade > Fotos e permita o acesso para este app.',
+            [
+              { text: 'OK', style: 'default' }
+            ]
+          );
+        } else {
+          Alert.alert(
+            'Erro', 
+            `Erro ao selecionar imagem: ${error instanceof Error ? error.message : 'Erro desconhecido'}. Tente novamente.`
+          );
+        }
+      } catch (permError) {
+        console.error('❌ Erro ao verificar permissões:', permError);
+        Alert.alert(
+          'Erro', 
+          `Erro ao acessar galeria: ${error instanceof Error ? error.message : 'Erro desconhecido'}. Tente novamente.`
+        );
+      }
+    } finally {
+      setIsUploadingImage(false);
     }
   };
 
@@ -139,13 +187,28 @@ export default function ArtistProfileScreen() {
               {/* Foto de Perfil */}
               <View style={styles.photoSection}>
                 <Text style={styles.label}>Foto do Artista</Text>
-                <TouchableOpacity style={styles.photoContainer} onPress={pickImage}>
+                <TouchableOpacity 
+                  style={styles.photoContainer} 
+                  onPress={pickImage}
+                  disabled={isUploadingImage}
+                >
                   {profileUrl ? (
-                    <Image source={{ uri: profileUrl }} style={styles.photo} />
+                    <Image 
+                      source={{ 
+                        uri: `${profileUrl}${profileUrl.includes('?') ? '&' : '?'}t=${Date.now()}`,
+                        cache: 'reload'
+                      }} 
+                      style={styles.photo} 
+                    />
                   ) : (
                     <View style={styles.photoPlaceholder}>
                       <Ionicons name="camera" size={40} color="#667eea" />
                       <Text style={styles.photoText}>Adicionar Foto</Text>
+                    </View>
+                  )}
+                  {isUploadingImage && (
+                    <View style={styles.uploadOverlay}>
+                      <ActivityIndicator size="small" color="#fff" />
                     </View>
                   )}
                 </TouchableOpacity>
@@ -324,6 +387,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#667eea',
     fontWeight: '500',
+  },
+  uploadOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   inputGroup: {
     marginBottom: 20,
