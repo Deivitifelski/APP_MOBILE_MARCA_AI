@@ -28,6 +28,8 @@ import {
   markInviteAsRead,
   ArtistInvite 
 } from '../services/supabase/artistInviteService';
+import { hasPermission } from '../services/supabase/permissionsService';
+import { getEventById } from '../services/supabase/eventService';
 import { useTheme } from '../contexts/ThemeContext';
 
 export default function NotificacoesScreen() {
@@ -125,11 +127,63 @@ export default function NotificacoesScreen() {
         break;
       case 'event_created':
       case 'event_updated':
-        router.push('/(tabs)/agenda');
+        // Se a notificação tem event_id, verificar permissões antes de navegar
+        if (notification.event_id) {
+          await handleEventNotificationPress(notification.event_id);
+        } else {
+          // Fallback para a agenda se não houver event_id
+          router.push('/(tabs)/agenda');
+        }
         break;
       default:
         // Não navegar para tipos desconhecidos
         break;
+    }
+  };
+
+  const handleEventNotificationPress = async (eventId: string) => {
+    try {
+      // Se não temos usuário logado, navegar para agenda
+      if (!currentUserId) {
+        router.push('/(tabs)/agenda');
+        return;
+      }
+
+      // Buscar o evento para obter o artist_id
+      const eventResult = await getEventById(eventId);
+      
+      if (!eventResult.success || !eventResult.event) {
+        Alert.alert('Erro', 'Evento não encontrado');
+        return;
+      }
+
+      // Verificar se o usuário tem permissão para visualizar eventos
+      const canViewEvents = await hasPermission(currentUserId, eventResult.event.artist_id, 'canViewEvents');
+      
+      if (!canViewEvents) {
+        Alert.alert(
+          'Sem Permissão', 
+          'Você não tem permissão para visualizar este evento. Você será redirecionado para a agenda.',
+          [
+            {
+              text: 'OK',
+              onPress: () => router.push('/(tabs)/agenda')
+            }
+          ]
+        );
+        return;
+      }
+
+      // Se tem permissão, navegar para os detalhes do evento
+      router.push({
+        pathname: '/detalhes-evento',
+        params: { eventId: eventId }
+      });
+
+    } catch (error) {
+      console.error('Erro ao verificar permissões do evento:', error);
+      Alert.alert('Erro', 'Erro ao verificar permissões. Redirecionando para a agenda.');
+      router.push('/(tabs)/agenda');
     }
   };
 

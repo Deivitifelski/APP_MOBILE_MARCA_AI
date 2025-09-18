@@ -48,57 +48,49 @@ export default function DetalhesEventoScreen() {
     }
     
     try {
-      // Se não temos o userId ainda, usar a função sem permissões
-      if (!currentUserId) {
-        const [eventResult, expensesResult] = await Promise.all([
-          getEventById(eventId),
-          getTotalExpensesByEvent(eventId)
-        ]);
-
-        if (eventResult.success) {
-          setEvent(eventResult.event || null);
-          
-          // Buscar nome do criador do evento
-          if (eventResult.event?.created_by) {
-            const creatorResult = await getEventCreatorName(eventResult.event.created_by);
-            if (creatorResult.name) {
-              setCreatorName(creatorResult.name);
-            }
-          }
-        } else {
-          Alert.alert('Erro', eventResult.error || 'Erro ao carregar evento');
-        }
-
-        if (expensesResult.success) {
-          setTotalExpenses(expensesResult.total || 0);
-        }
-        return;
-      }
-
-      // Usar função com verificação de permissões
+      // Primeiro, sempre tentar carregar o evento sem permissões para obter todos os dados
       const [eventResult, expensesResult] = await Promise.all([
-        getEventByIdWithPermissions(eventId, currentUserId),
+        getEventById(eventId),
         getTotalExpensesByEvent(eventId)
       ]);
 
-      if (eventResult.event) {
-        setEvent(eventResult.event);
+      if (eventResult.success && eventResult.event) {
+        let finalEvent = eventResult.event;
+        
+        // Se temos um usuário logado, verificar permissões
+        if (currentUserId) {
+          // Verificar se o usuário tem permissão para visualizar este evento
+          const permissionResult = await getEventByIdWithPermissions(eventId, currentUserId);
+          
+          if (permissionResult.error) {
+            Alert.alert('Erro', permissionResult.error);
+            return;
+          }
+          
+          // Se o usuário não tem permissão para ver valores financeiros, remover o valor
+          if (permissionResult.event && !permissionResult.event.value) {
+            finalEvent = { ...finalEvent, value: undefined };
+          }
+        }
+        
+        setEvent(finalEvent);
         
         // Buscar nome do criador do evento
-        if (eventResult.event.created_by) {
-          const creatorResult = await getEventCreatorName(eventResult.event.created_by);
+        if (finalEvent.created_by) {
+          const creatorResult = await getEventCreatorName(finalEvent.created_by);
           if (creatorResult.name) {
             setCreatorName(creatorResult.name);
           }
         }
-      } else if (eventResult.error) {
-        Alert.alert('Erro', eventResult.error);
+      } else {
+        Alert.alert('Erro', eventResult.error || 'Erro ao carregar evento');
       }
 
       if (expensesResult.success) {
         setTotalExpenses(expensesResult.total || 0);
       }
     } catch (error) {
+      console.error('Erro ao carregar dados do evento:', error);
       Alert.alert('Erro', 'Erro ao carregar dados do evento');
     } finally {
       if (isInitialLoad) {
