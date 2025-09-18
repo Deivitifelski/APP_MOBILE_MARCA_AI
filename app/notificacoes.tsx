@@ -31,6 +31,7 @@ import {
 import { hasPermission } from '../services/supabase/permissionsService';
 import { getEventById } from '../services/supabase/eventService';
 import { useTheme } from '../contexts/ThemeContext';
+import PermissionModal from '../components/PermissionModal';
 
 export default function NotificacoesScreen() {
   const { colors, isDarkMode } = useTheme();
@@ -42,6 +43,7 @@ export default function NotificacoesScreen() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
 
   useEffect(() => {
     loadNotifications();
@@ -157,20 +159,12 @@ export default function NotificacoesScreen() {
         return;
       }
 
-      // Verificar se o usuário tem permissão para visualizar eventos
-      const canViewEvents = await hasPermission(currentUserId, eventResult.event.artist_id, 'canViewEvents');
+      // Verificar se o usuário tem permissão para ver detalhes do evento
+      // Apenas editor, admin e owner podem ver detalhes dos eventos
+      const canEditEvents = await hasPermission(currentUserId, eventResult.event.artist_id, 'canEditEvents');
       
-      if (!canViewEvents) {
-        Alert.alert(
-          'Sem Permissão', 
-          'Você não tem permissão para visualizar este evento. Você será redirecionado para a agenda.',
-          [
-            {
-              text: 'OK',
-              onPress: () => router.push('/(tabs)/agenda')
-            }
-          ]
-        );
+      if (!canEditEvents) {
+        setShowPermissionModal(true);
         return;
       }
 
@@ -658,6 +652,15 @@ export default function NotificacoesScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Modal de Permissão */}
+      <PermissionModal
+        visible={showPermissionModal}
+        onClose={() => setShowPermissionModal(false)}
+        title="Sem Permissão"
+        message="Você não tem permissão para visualizar detalhes deste evento. Apenas colaboradores com permissão de edição podem acessar os detalhes."
+        icon="lock-closed"
+      />
 
       {/* Modal de Sucesso */}
       {showSuccessModal && (
