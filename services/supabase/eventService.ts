@@ -14,7 +14,7 @@ export interface Event {
   city?: string;
   contractor_phone?: string;
   confirmed: boolean;
-  tag: 'ensaio' | 'show' | 'reunião';
+  tag: 'ensaio' | 'evento' | 'reunião';
   created_at: string;
   updated_at: string;
 }
@@ -41,7 +41,7 @@ export interface CreateEventData {
   city?: string;
   contractor_phone?: string;
   confirmed?: boolean;
-  tag?: 'ensaio' | 'show' | 'reunião';
+  tag?: 'ensaio' | 'evento' | 'reunião';
   expenses?: CreateExpenseData[];
 }
 
@@ -61,7 +61,7 @@ export interface UpdateEventData {
   start_time?: string;
   end_time?: string;
   confirmed?: boolean;
-  tag?: 'ensaio' | 'show' | 'reunião';
+  tag?: 'ensaio' | 'evento' | 'reunião';
 }
 
 // Criar evento com despesas
@@ -82,7 +82,7 @@ export const createEvent = async (eventData: CreateEventData): Promise<{ success
         city: eventData.city || null,
         contractor_phone: eventData.contractor_phone || null,
         confirmed: eventData.confirmed || false,
-        tag: eventData.tag || 'show', // Default para 'show' se não especificado
+        tag: eventData.tag || 'evento', // Default para 'evento' se não especificado
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
