@@ -282,9 +282,32 @@ export const updateCollaboratorRole = async (userId: string, artistId: string, n
   }
 };
 
-// Adicionar colaborador via convite (sem verificação de permissão)
+// Adicionar colaborador via convite (com verificação de plano do owner)
 export const addCollaboratorViaInvite = async (artistId: string, collaboratorData: AddCollaboratorData): Promise<{ success: boolean; error: string | null }> => {
   try {
+    // Buscar o owner do artista para verificar o plano
+    const { data: ownerData, error: ownerError } = await supabase
+      .from('artist_members')
+      .select('user_id')
+      .eq('artist_id', artistId)
+      .eq('role', 'owner')
+      .single();
+
+    if (ownerError || !ownerData) {
+      return { success: false, error: 'Proprietário do artista não encontrado' };
+    }
+
+    // Verificar se o owner pode adicionar mais colaboradores
+    const { canAddColaborador } = await import('./planService');
+    const { success: canAdd, canAdd: canAddMore, error: limitError } = await canAddColaborador(ownerData.user_id);
+    
+    if (!canAdd || !canAddMore) {
+      return { 
+        success: false, 
+        error: limitError || 'Limite de colaboradores atingido para este artista' 
+      };
+    }
+
     // Verificar se o usuário já é colaborador deste artista
     const { data: existingMember, error: checkError } = await supabase
       .from('artist_members')

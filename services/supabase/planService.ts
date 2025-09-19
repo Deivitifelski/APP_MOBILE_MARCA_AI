@@ -131,16 +131,28 @@ export const canAddColaborador = async (userId: string): Promise<{ success: bool
 
     const plano = usuarioPlano.plano;
     
+    // Verificar se o plano tem o recurso "colaboradores" habilitado
+    if (!plano.recursos?.colaboradores) {
+      return { 
+        success: true, 
+        canAdd: false, 
+        currentCount: 0, 
+        maxCount: 0,
+        error: `Seu plano ${plano.nome} não permite adicionar colaboradores`
+      };
+    }
+    
     // Se max_usuarios é null, significa ilimitado
     if (plano.max_usuarios === null) {
       return { success: true, canAdd: true, currentCount: 0, maxCount: null };
     }
 
-    // Contar colaboradores atuais
+    // Contar colaboradores atuais (excluindo o próprio usuário owner)
     const { data: colaboradores, error: countError } = await supabase
       .from('artist_members')
       .select('id', { count: 'exact' })
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .neq('role', 'owner'); // Excluir o owner da contagem
 
     if (countError) {
       return { success: false, canAdd: false, error: countError.message };

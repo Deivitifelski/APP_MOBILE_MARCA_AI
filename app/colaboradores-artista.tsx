@@ -40,6 +40,8 @@ export default function ColaboradoresArtistaScreen() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [isInviting, setIsInviting] = useState(false);
   const [planoInfo, setPlanoInfo] = useState<{nome: string; maxUsuarios: number | null; currentCount: number} | null>(null);
+  const [showResourceModal, setShowResourceModal] = useState(false);
+  const [resourceModalInfo, setResourceModalInfo] = useState<{title: string; message: string; planName: string} | null>(null);
 
   useEffect(() => {
     loadActiveArtist();
@@ -147,11 +149,25 @@ export default function ColaboradoresArtistaScreen() {
     setShowInviteModal(true);
   };
 
+  const handleResourceModalUpgrade = () => {
+    setShowResourceModal(false);
+    router.push('/planos-pagamentos');
+  };
+
+  const handleResourceModalCancel = () => {
+    setShowResourceModal(false);
+  };
+
+  const handleResourceModalClose = () => {
+    setShowResourceModal(false);
+  };
+
   const handleConfirmInvite = async () => {
     if (!selectedUser || !activeArtist) return;
 
     try {
       setIsInviting(true);
+      console.log('🔍 Iniciando envio de convite...');
 
       // Obter o usuário atual para ser o remetente
       const { user: currentUser, error: userError } = await getCurrentUser();
@@ -160,6 +176,58 @@ export default function ColaboradoresArtistaScreen() {
         Alert.alert('Erro', 'Erro ao obter dados do usuário atual');
         return;
       }
+
+      console.log('🔍 Usuário atual obtido:', currentUser.id);
+
+      // Verificar se pode adicionar mais colaboradores (validação do plano)
+      const { success: canAdd, canAdd: canAddMore, currentCount, maxCount, error: limitError } = await canAddColaborador(currentUser.id);
+      console.log('🔍 Resultado da validação:', { canAdd, canAddMore, limitError });
+      
+      if (!canAdd || !canAddMore) {
+        // Se é erro de recurso não disponível (plano Free)
+        if (limitError && limitError.includes('não permite adicionar colaboradores')) {
+          console.log('🔍 Erro de recurso detectado, mostrando modal...');
+          // Extrair nome do plano do erro
+          const planName = limitError.match(/plano (\w+)/i)?.[1] || 'Free';
+          
+          // Usar Alert temporariamente para testar
+          Alert.alert(
+            'Recurso Indisponível',
+            `Seu plano ${planName.toUpperCase()} não permite enviar convites.\n\nFaça upgrade do seu plano para desbloquear esta funcionalidade.`,
+            [
+              { text: 'Cancelar', style: 'cancel' },
+              { text: 'Fazer Upgrade', onPress: () => router.push('/planos-pagamentos') }
+            ]
+          );
+          
+          setIsInviting(false);
+          return;
+        }
+        
+        // Se é erro de limite atingido
+        const message = maxCount === null 
+          ? 'Erro ao verificar limite de colaboradores'
+          : `Você atingiu o limite de ${maxCount} colaborador${maxCount > 1 ? 'es' : ''} do seu plano. Atualmente você tem ${currentCount} colaborador${currentCount > 1 ? 'es' : ''}.`;
+        
+        Alert.alert(
+          'Limite Atingido',
+          message,
+          [
+            {
+              text: 'Ver Planos',
+              onPress: () => router.push('/planos-pagamentos')
+            },
+            {
+              text: 'OK',
+              style: 'cancel'
+            }
+          ]
+        );
+        setIsInviting(false);
+        return;
+      }
+
+      console.log('🔍 Validação passou, continuando com o convite...');
 
       // Verificar se já existe convite pendente
       const { success: checkSuccess, invite: existingInvite } = await checkPendingInvite(
@@ -199,8 +267,10 @@ export default function ColaboradoresArtistaScreen() {
         Alert.alert('Erro', error || 'Erro ao enviar convite');
       }
     } catch (error) {
+      console.log('🔍 Erro no envio do convite:', error);
       Alert.alert('Erro', 'Erro ao enviar convite');
     } finally {
+      console.log('🔍 Finalizando envio de convite...');
       setIsInviting(false);
     }
   };
@@ -246,6 +316,20 @@ export default function ColaboradoresArtistaScreen() {
       // Verificar se pode adicionar mais colaboradores
       const { success: canAdd, canAdd: canAddMore, currentCount, maxCount, error: limitError } = await canAddColaborador(user.id);
       if (!canAdd || !canAddMore) {
+        // Se é erro de recurso não disponível (plano Free)
+        if (limitError && limitError.includes('não permite adicionar colaboradores')) {
+          // Extrair nome do plano do erro
+          const planName = limitError.match(/plano (\w+)/i)?.[1] || 'Free';
+          setResourceModalInfo({
+            title: 'Recurso Indisponível',
+            message: 'não permite adicionar colaboradores.',
+            planName: planName
+          });
+          setShowResourceModal(true);
+          return;
+        }
+        
+        // Se é erro de limite atingido
         const message = maxCount === null 
           ? 'Erro ao verificar limite de colaboradores'
           : `Você atingiu o limite de ${maxCount} colaborador${maxCount > 1 ? 'es' : ''} do seu plano. Atualmente você tem ${currentCount} colaborador${currentCount > 1 ? 'es' : ''}.`;
@@ -748,6 +832,19 @@ export default function ColaboradoresArtistaScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      {/* Modal de Recurso Indisponível - Temporariamente desabilitado */}
+      {/* {resourceModalInfo && (
+        <ResourceUnavailableModal
+          visible={showResourceModal}
+          title={resourceModalInfo.title}
+          message={resourceModalInfo.message}
+          planName={resourceModalInfo.planName}
+          onClose={handleResourceModalClose}
+          onUpgrade={handleResourceModalUpgrade}
+          onCancel={handleResourceModalCancel}
+        />
+      )} */}
     </SafeAreaView>
   );
 }
