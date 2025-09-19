@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -46,6 +46,15 @@ export default function ColaboradoresArtistaScreen() {
   useEffect(() => {
     loadActiveArtist();
   }, []);
+
+  // Recarregar permissões quando a tela ganhar foco (ex: voltar dos planos)
+  useFocusEffect(
+    useCallback(() => {
+      if (activeArtist) {
+        loadData();
+      }
+    }, [activeArtist])
+  );
 
   useEffect(() => {
     if (activeArtist) {
@@ -167,7 +176,6 @@ export default function ColaboradoresArtistaScreen() {
 
     try {
       setIsInviting(true);
-      console.log('🔍 Iniciando envio de convite...');
 
       // Obter o usuário atual para ser o remetente
       const { user: currentUser, error: userError } = await getCurrentUser();
@@ -177,20 +185,15 @@ export default function ColaboradoresArtistaScreen() {
         return;
       }
 
-      console.log('🔍 Usuário atual obtido:', currentUser.id);
-
       // Verificar se pode adicionar mais colaboradores (validação do plano)
       const { success: canAdd, canAdd: canAddMore, currentCount, maxCount, error: limitError } = await canAddColaborador(currentUser.id);
-      console.log('🔍 Resultado da validação:', { canAdd, canAddMore, limitError });
       
       if (!canAdd || !canAddMore) {
         // Se é erro de recurso não disponível (plano Free)
         if (limitError && limitError.includes('não permite adicionar colaboradores')) {
-          console.log('🔍 Erro de recurso detectado, mostrando modal...');
           // Extrair nome do plano do erro
           const planName = limitError.match(/plano (\w+)/i)?.[1] || 'Free';
           
-          // Usar Alert temporariamente para testar
           Alert.alert(
             'Recurso Indisponível',
             `Seu plano ${planName.toUpperCase()} não permite enviar convites.\n\nFaça upgrade do seu plano para desbloquear esta funcionalidade.`,
@@ -226,8 +229,6 @@ export default function ColaboradoresArtistaScreen() {
         setIsInviting(false);
         return;
       }
-
-      console.log('🔍 Validação passou, continuando com o convite...');
 
       // Verificar se já existe convite pendente
       const { success: checkSuccess, invite: existingInvite } = await checkPendingInvite(
@@ -267,10 +268,8 @@ export default function ColaboradoresArtistaScreen() {
         Alert.alert('Erro', error || 'Erro ao enviar convite');
       }
     } catch (error) {
-      console.log('🔍 Erro no envio do convite:', error);
       Alert.alert('Erro', 'Erro ao enviar convite');
     } finally {
-      console.log('🔍 Finalizando envio de convite...');
       setIsInviting(false);
     }
   };

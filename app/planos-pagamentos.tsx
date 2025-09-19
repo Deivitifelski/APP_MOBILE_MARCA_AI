@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
+import { getCurrentUser } from '../services/supabase/authService';
+import { getPlanos, setUsuarioPlano } from '../services/supabase/planService';
 
 const { width } = Dimensions.get('window');
 
@@ -109,23 +111,60 @@ export default function PlanosPagamentosScreen() {
     setSelectedPlan(planId);
     setIsLoading(true);
 
-    // Simular processamento
-    setTimeout(() => {
-      setIsLoading(false);
-      Alert.alert(
-        'Plano Selecionado',
-        `Você selecionou o plano ${plans.find(p => p.id === planId)?.name}. Em breve implementaremos o sistema de pagamento!`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              setSelectedPlan(null);
-              router.back();
+    try {
+      // Obter usuário atual
+      const { user, error: userError } = await getCurrentUser();
+      if (userError || !user) {
+        Alert.alert('Erro', 'Erro ao obter dados do usuário');
+        return;
+      }
+
+      // Obter planos disponíveis
+      const { success, planos: planosData, error: planosError } = await getPlanos();
+      if (!success || !planosData) {
+        Alert.alert('Erro', 'Erro ao obter planos: ' + planosError);
+        return;
+      }
+
+      // Mapear IDs dos planos para nomes no banco
+      const planMapping: { [key: string]: string } = {
+        'free': 'free',
+        'basico': 'basic',
+        'pro': 'pro'
+      };
+
+      // Encontrar o plano selecionado
+      const planoSelecionado = planosData.find(p => p.nome.toLowerCase() === planMapping[planId]);
+      if (!planoSelecionado) {
+        Alert.alert('Erro', 'Plano não encontrado');
+        return;
+      }
+
+      // Salvar o plano do usuário
+      const { success: saveSuccess, error: saveError } = await setUsuarioPlano(user.id, planoSelecionado.id);
+      
+      if (saveSuccess) {
+        Alert.alert(
+          'Plano Atualizado!',
+          `Seu plano foi alterado para ${planoSelecionado.nome.toUpperCase()}. As permissões foram atualizadas!`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setSelectedPlan(null);
+                router.back();
+              }
             }
-          }
-        ]
-      );
-    }, 1500);
+          ]
+        );
+      } else {
+        Alert.alert('Erro', 'Erro ao salvar plano: ' + saveError);
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Erro ao processar plano');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const renderPlanCard = (plan: Plan) => (
