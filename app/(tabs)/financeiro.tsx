@@ -56,13 +56,13 @@ export default function FinanceiroScreen() {
     if (activeArtist) {
       loadUserPermissions();
     }
-  }, [activeArtist, currentMonth, currentYear]);
+  }, [activeArtist]); // Só carrega permissões quando muda o artista
 
   useEffect(() => {
     if (activeArtist && userPermissions !== null) {
       loadFinancialData();
     }
-  }, [activeArtist, userPermissions, currentMonth, currentYear]);
+  }, [activeArtist, userPermissions, currentMonth, currentYear]); // Só carrega dados financeiros
 
   const loadUserPermissions = async () => {
     if (!activeArtist) {
@@ -79,11 +79,13 @@ export default function FinanceiroScreen() {
         return;
       }
       
+      // Carregar permissões diretamente do servidor
       const permissions = await getUserPermissions(user.id, activeArtist.id);
       setUserPermissions(permissions);
       setIsInitialLoading(false);
+      console.log('🔐 Permissões carregadas');
     } catch (error) {
-      console.error('Erro ao carregar permissões:', error);
+      console.error('❌ Erro ao carregar permissões:', error);
       setUserPermissions(null);
       setIsInitialLoading(false);
     }
@@ -130,7 +132,9 @@ export default function FinanceiroScreen() {
       );
 
       setEvents(eventsWithExpenses);
+      console.log('💰 Dados financeiros carregados:', eventsWithExpenses.length, 'eventos');
     } catch (error) {
+      console.error('❌ Erro ao carregar dados financeiros:', error);
       Alert.alert('Erro', 'Erro ao carregar dados financeiros');
     } finally {
       setIsLoading(false);
@@ -145,6 +149,7 @@ export default function FinanceiroScreen() {
       newDate.setMonth(currentMonth + 1);
     }
     setSelectedDate(newDate);
+    console.log('📅 Navegando para mês:', newDate.getMonth() + 1, '/', newDate.getFullYear());
   };
 
   const formatCurrency = (value: number) => {
@@ -411,22 +416,7 @@ export default function FinanceiroScreen() {
     );
   }
 
-  if (isLoading) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { 
-          backgroundColor: colors.surface, 
-          borderBottomColor: colors.border,
-          paddingTop: insets.top + 20
-        }]}>
-          <Text style={[styles.title, { color: colors.text }]}>Financeiro</Text>
-        </View>
-        <View style={styles.loadingContainer}>
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Carregando dados financeiros...</Text>
-        </View>
-      </View>
-    );
-  }
+  // Removido o loading da tela toda - agora só na área dos dados
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -506,7 +496,13 @@ export default function FinanceiroScreen() {
             Eventos de {months[currentMonth]} ({events.length})
           </Text>
           
-          {events.length > 0 ? (
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+                Carregando dados financeiros...
+              </Text>
+            </View>
+          ) : events.length > 0 ? (
             <FlatList
               data={events}
               renderItem={renderEvent}

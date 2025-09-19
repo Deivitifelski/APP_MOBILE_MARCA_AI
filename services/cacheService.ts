@@ -13,16 +13,21 @@ interface CacheOptions {
 
 class CacheService {
   private readonly CACHE_PREFIX = '@marca_ai_cache_';
-  private readonly DEFAULT_TTL = 5 * 60 * 1000; // 5 minutos
-  private readonly IMAGE_CACHE_TTL = 30 * 60 * 1000; // 30 minutos para imagens
-  private readonly USER_DATA_TTL = 10 * 60 * 1000; // 10 minutos para dados do usuário
-  private readonly ARTIST_DATA_TTL = 15 * 60 * 1000; // 15 minutos para dados do artista
+  private readonly DEFAULT_TTL = 2 * 60 * 1000; // 2 minutos (reduzido)
+  private readonly IMAGE_CACHE_TTL = 10 * 60 * 1000; // 10 minutos para imagens (reduzido)
+  private readonly USER_DATA_TTL = 5 * 60 * 1000; // 5 minutos para dados do usuário (reduzido)
+  private readonly ARTIST_DATA_TTL = 5 * 60 * 1000; // 5 minutos para dados do artista (reduzido)
+  private readonly MAX_CACHE_SIZE = 50; // Máximo de 50 itens em cache
+  private readonly MAX_CACHE_SIZE_MB = 10; // Máximo de 10MB em cache
 
   /**
-   * Armazena dados no cache
+   * Armazena dados no cache com limpeza automática
    */
   async set<T>(key: string, data: T, options: CacheOptions = {}): Promise<void> {
     try {
+      // Verificar tamanho do cache antes de adicionar
+      await this.cleanupCacheIfNeeded();
+
       const ttl = options.ttl || this.DEFAULT_TTL;
       const cacheItem: CacheItem<T> = {
         data,
@@ -30,9 +35,18 @@ class CacheService {
         expiry: Date.now() + ttl,
       };
 
+      const serializedData = JSON.stringify(cacheItem);
+      
+      // Verificar se o item é muito grande (mais de 1MB)
+      const dataSizeMB = new Blob([serializedData]).size / (1024 * 1024);
+      if (dataSizeMB > 1) {
+        console.warn('⚠️ Item muito grande para cache:', key, `${dataSizeMB.toFixed(2)}MB`);
+        return; // Não salvar itens muito grandes
+      }
+
       await AsyncStorage.setItem(
         `${this.CACHE_PREFIX}${key}`,
-        JSON.stringify(cacheItem)
+        serializedData
       );
     } catch (error) {
       console.error('Erro ao salvar no cache:', error);
@@ -133,10 +147,16 @@ class CacheService {
   }
 
   /**
-   * Cache para imagens (URLs e metadados)
+   * Cache para imagens (URLs e metadados) - Leve
    */
   async setImageData<T>(imageKey: string, data: T): Promise<void> {
-    await this.set(`image_${imageKey}`, data, { ttl: this.IMAGE_CACHE_TTL });
+    // Para imagens, só cacheamos metadados, não a imagem em si
+    const lightweightData = {
+      url: (data as any)?.url || '',
+      lastLoaded: (data as any)?.lastLoaded || Date.now(),
+      loadCount: (data as any)?.loadCount || 0,
+    };
+    await this.set(`image_${imageKey}`, lightweightData, { ttl: this.IMAGE_CACHE_TTL });
   }
 
   async getImageData<T>(imageKey: string): Promise<T | null> {
@@ -170,6 +190,47 @@ class CacheService {
   }
 
   /**
+   * Limpeza automática do cache quando necessário
+   */
+  private async cleanupCacheIfNeeded(): Promise<void> {
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const cacheKeys = keys.filter(key => key.startsWith(this.CACHE_PREFIX));
+      
+      // Se temos muitos itens, limpar os mais antigos
+      if (cacheKeys.length > this.MAX_CACHE_SIZE) {
+        const itemsToRemove = cacheKeys.length - this.MAX_CACHE_SIZE;
+        console.log(`🧹 Limpando ${itemsToRemove} itens antigos do cache`);
+        
+        // Remover os itens mais antigos
+        const itemsWithTimestamps = await Promise.all(
+          cacheKeys.map(async (key) => {
+            try {
+              const cached = await AsyncStorage.getItem(key);
+              if (cached) {
+                const cacheItem = JSON.parse(cached);
+                return { key, timestamp: cacheItem.timestamp };
+              }
+            } catch (error) {
+              // Item corrompido, remover
+              return { key, timestamp: 0 };
+            }
+            return null;
+          })
+        );
+        
+        const validItems = itemsWithTimestamps.filter(item => item !== null);
+        validItems.sort((a, b) => a!.timestamp - b!.timestamp);
+        
+        const keysToRemove = validItems.slice(0, itemsToRemove).map(item => item!.key);
+        await AsyncStorage.multiRemove(keysToRemove);
+      }
+    } catch (error) {
+      console.error('Erro na limpeza do cache:', error);
+    }
+  }
+
+  /**
    * Invalida cache específico quando dados são atualizados
    */
   async invalidateUserData(userId: string): Promise<void> {
@@ -190,6 +251,20 @@ class CacheService {
 
   async invalidateImageData(imageKey: string): Promise<void> {
     await this.remove(`image_${imageKey}`);
+  }
+
+  /**
+   * Obtém informações sobre o cache atual
+   */
+  async getCacheInfo(): Promise<{ size: number; keys: string[] }> {
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const cacheKeys = keys.filter(key => key.startsWith(this.CACHE_PREFIX));
+      return { size: cacheKeys.length, keys: cacheKeys };
+    } catch (error) {
+      console.error('Erro ao obter informações do cache:', error);
+      return { size: 0, keys: [] };
+    }
   }
 }
 
