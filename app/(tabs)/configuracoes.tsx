@@ -5,7 +5,6 @@ import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
-    Image,
     Modal,
     SafeAreaView,
     ScrollView,
@@ -17,7 +16,9 @@ import {
     View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import OptimizedImage from '../../components/OptimizedImage';
 import { useTheme } from '../../contexts/ThemeContext';
+import { cacheService } from '../../services/cacheService';
 import { getArtists } from '../../services/supabase/artistService';
 import { getCurrentUser, updatePassword } from '../../services/supabase/authService';
 import { createFeedback } from '../../services/supabase/feedbackService';
@@ -100,6 +101,17 @@ export default function ConfiguracoesScreen() {
         return;
       }
 
+      // Verificar cache primeiro
+      const cachedProfile = await cacheService.getUserData<UserProfile>(user.id);
+      
+      if (cachedProfile) {
+        setUserProfile(cachedProfile);
+        setIsLoadingProfile(false);
+        console.log('👤 Perfil do usuário carregado do cache');
+        return;
+      }
+
+      // Carregar do servidor
       const { profile, error: profileError } = await getUserProfile(user.id);
       
       if (profileError) {
@@ -107,9 +119,14 @@ export default function ConfiguracoesScreen() {
         return;
       }
 
-      setUserProfile(profile);
+      if (profile) {
+        setUserProfile(profile);
+        // Salvar no cache
+        await cacheService.setUserData(user.id, profile);
+        console.log('👤 Perfil do usuário carregado do servidor');
+      }
     } catch (error) {
-      console.error('Erro ao carregar perfil do usuário:', error);
+      console.error('❌ Erro ao carregar perfil do usuário:', error);
     } finally {
       setIsLoadingProfile(false);
     }
@@ -123,6 +140,33 @@ export default function ConfiguracoesScreen() {
         return;
       }
 
+      // Verificar cache primeiro
+      const cachedArtists = await cacheService.getUserData<any[]>(`artists_${user.id}`);
+      
+      if (cachedArtists && cachedArtists.length > 0) {
+        setHasArtist(true);
+        const currentArtist = cachedArtists[0];
+        setCurrentArtist(currentArtist);
+        
+        // Verificar cache de permissões
+        const cachedPermissions = await cacheService.getPermissionsData(user.id, currentArtist.id);
+        if (cachedPermissions) {
+          setUserPermissions(cachedPermissions);
+          console.log('🎭 Dados do artista carregados do cache');
+          return;
+        }
+        
+        // Carregar permissões do servidor se não estiver em cache
+        const permissions = await getUserPermissions(user.id, currentArtist.id);
+        if (permissions) {
+          setUserPermissions(permissions);
+          await cacheService.setPermissionsData(user.id, currentArtist.id, permissions);
+        }
+        console.log('🎭 Dados do artista carregados do cache');
+        return;
+      }
+
+      // Carregar do servidor
       const { artists, error: artistsError } = await getArtists(user.id);
       
       if (!artistsError && artists && artists.length > 0) {
@@ -130,18 +174,20 @@ export default function ConfiguracoesScreen() {
         const currentArtist = artists[0];
         setCurrentArtist(currentArtist);
         
+        // Salvar no cache
+        await cacheService.setUserData(`artists_${user.id}`, artists);
+        
         // Carregar permissões do usuário para o artista
-        const permissions = await getUserPermissions(
-          user.id,
-          currentArtist.id
-        );
+        const permissions = await getUserPermissions(user.id, currentArtist.id);
         
         if (permissions) {
           setUserPermissions(permissions);
+          await cacheService.setPermissionsData(user.id, currentArtist.id, permissions);
         }
+        console.log('🎭 Dados do artista carregados do servidor');
       }
     } catch (error) {
-      console.error('Erro ao carregar dados do artista:', error);
+      console.error('❌ Erro ao carregar dados do artista:', error);
     }
   };
 
@@ -353,29 +399,23 @@ export default function ConfiguracoesScreen() {
           <Text style={dynamicStyles.sectionTitle}>Usuário</Text>
           
           <View style={dynamicStyles.profileCard}>
-            {userProfile?.profile_url && userProfile.profile_url.trim() !== '' && !userImageLoadError ? (
-              <Image 
-                source={{ 
-                  uri: `${userProfile.profile_url}${userProfile.profile_url.includes('?') ? '&' : '?'}t=${Date.now()}`,
-                  cache: 'reload'
-                }} 
-                style={dynamicStyles.profileAvatarImage}
-                resizeMode="cover"
-                onError={(error) => {
-                  console.log('❌ Erro ao carregar imagem do usuário nas configurações:', userProfile.profile_url);
-                  console.log('❌ Detalhes:', error.nativeEvent);
-                  setUserImageLoadError(true);
-                }}
-                onLoad={() => {
-                  console.log('✅ Imagem do usuário carregada nas configurações:', userProfile.profile_url);
-                  setUserImageLoadError(false);
-                }}
-              />
-            ) : (
-              <View style={dynamicStyles.profileAvatar}>
-                <Ionicons name="person" size={40} color="#667eea" />
-              </View>
-            )}
+            <OptimizedImage
+              imageUrl={userProfile?.profile_url || ''}
+              style={dynamicStyles.profileAvatarImage}
+              cacheKey={`user_${userProfile?.id || 'current'}`}
+              fallbackIcon="person"
+              fallbackIconSize={40}
+              fallbackIconColor="#667eea"
+              onLoadSuccess={() => {
+                console.log('✅ Imagem do usuário carregada nas configurações:', userProfile?.profile_url);
+                setUserImageLoadError(false);
+              }}
+              onLoadError={(error) => {
+                console.log('❌ Erro ao carregar imagem do usuário nas configurações:', userProfile?.profile_url);
+                console.log('❌ Detalhes:', error);
+                setUserImageLoadError(true);
+              }}
+            />
             <View style={dynamicStyles.profileInfo}>
               {isLoadingProfile ? (
                 <ActivityIndicator size="small" color="#667eea" />
@@ -411,29 +451,23 @@ export default function ConfiguracoesScreen() {
             <Text style={dynamicStyles.sectionTitle}>Artista</Text>
             
             <View style={dynamicStyles.artistCard}>
-              {currentArtist.profile_url && currentArtist.profile_url.trim() !== '' && !imageLoadError ? (
-                <Image 
-                  source={{ 
-                    uri: `${currentArtist.profile_url}${currentArtist.profile_url.includes('?') ? '&' : '?'}t=${Date.now()}`,
-                    cache: 'reload'
-                  }} 
-                  style={dynamicStyles.artistAvatarImage}
-                  resizeMode="cover"
-                  onError={(error) => {
-                    console.log('❌ Erro ao carregar imagem do artista nas configurações:', currentArtist.profile_url);
-                    console.log('❌ Detalhes:', error.nativeEvent);
-                    setImageLoadError(true);
-                  }}
-                  onLoad={() => {
-                    console.log('✅ Imagem do artista carregada nas configurações:', currentArtist.profile_url);
-                    setImageLoadError(false);
-                  }}
-                />
-              ) : (
-                <View style={dynamicStyles.artistAvatar}>
-                  <Ionicons name="musical-notes" size={24} color="#667eea" />
-                </View>
-              )}
+              <OptimizedImage
+                imageUrl={currentArtist.profile_url || ''}
+                style={dynamicStyles.artistAvatarImage}
+                cacheKey={`artist_${currentArtist.id}`}
+                fallbackIcon="musical-notes"
+                fallbackIconSize={24}
+                fallbackIconColor="#667eea"
+                onLoadSuccess={() => {
+                  console.log('✅ Imagem do artista carregada nas configurações:', currentArtist.profile_url);
+                  setImageLoadError(false);
+                }}
+                onLoadError={(error) => {
+                  console.log('❌ Erro ao carregar imagem do artista nas configurações:', currentArtist.profile_url);
+                  console.log('❌ Detalhes:', error);
+                  setImageLoadError(true);
+                }}
+              />
               <View style={dynamicStyles.artistInfo}>
                 <Text style={dynamicStyles.artistName}>{currentArtist.name}</Text>
                 <Text style={dynamicStyles.artistRole}>

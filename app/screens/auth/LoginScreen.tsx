@@ -13,6 +13,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { supabase } from '../../../lib/supabase';
 import { loginUser } from '../../../services/supabase/authService';
 import { checkUserExists } from '../../../services/supabase/userService';
 
@@ -59,6 +60,103 @@ export default function LoginScreen() {
       }
     } catch (error) {
       Alert.alert('Erro', 'Ocorreu um erro inesperado');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      setLoading(true);
+      
+      // Log detalhado para debug
+      console.log('🔍 Iniciando login com Google...');
+      console.log('📱 Platform:', Platform.OS);
+      console.log('🌐 Redirect URL:', window.location?.origin || 'Expo development');
+      
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location?.origin || 'exp://192.168.1.100:8081', // pode trocar por rota específica
+        },
+      });
+      
+      if (error) {
+        console.error('❌ Erro detalhado do Supabase:', {
+          message: error.message,
+          status: error.status,
+          name: error.name,
+          stack: error.stack,
+        });
+        
+        // Soluções automáticas baseadas no tipo de erro
+        let errorMessage = error.message;
+        let suggestedSolution = '';
+        
+        if (error.message.includes('redirect_uri_mismatch')) {
+          suggestedSolution = 'Problema de configuração de redirect URI. Verifique as configurações do Google OAuth.';
+          console.log('🔧 Solução sugerida: Configurar redirect URI no Google Console');
+        } else if (error.message.includes('invalid_client')) {
+          suggestedSolution = 'Client ID inválido. Verifique as configurações do Google OAuth.';
+          console.log('🔧 Solução sugerida: Verificar Client ID no Google Console');
+        } else if (error.message.includes('access_denied')) {
+          suggestedSolution = 'Usuário cancelou a autenticação ou não concedeu permissões.';
+          console.log('🔧 Solução sugerida: Usuário precisa conceder permissões');
+        } else if (error.message.includes('network')) {
+          suggestedSolution = 'Problema de conexão. Verifique sua internet.';
+          console.log('🔧 Solução sugerida: Verificar conexão com internet');
+        } else if (error.message.includes('popup_blocked')) {
+          suggestedSolution = 'Popup bloqueado pelo navegador. Permita popups para este site.';
+          console.log('🔧 Solução sugerida: Permitir popups no navegador');
+        }
+        
+        Alert.alert(
+          'Erro no Login Google', 
+          `${errorMessage}\n\n${suggestedSolution || 'Tente novamente ou entre em contato com o suporte.'}`,
+          [
+            { text: 'OK', style: 'default' },
+            ...(error.message.includes('redirect_uri_mismatch') ? [{
+              text: 'Ver Configurações',
+              onPress: () => {
+                console.log('🔧 Usuário quer verificar configurações de redirect URI');
+                // Aqui você pode adicionar navegação para página de configurações
+              }
+            }] : [])
+          ]
+        );
+      } else {
+        console.log('✅ Login iniciado com sucesso');
+        // O usuário será redirecionado para o Google
+      }
+    } catch (error) {
+      // Log completo do erro inesperado
+      console.error('💥 Erro inesperado completo:', {
+        error,
+        message: error?.message,
+        stack: error?.stack,
+        name: error?.name,
+      });
+      
+      // Tentar identificar o tipo de erro
+      let errorType = 'Desconhecido';
+      if (error?.message?.includes('Network')) errorType = 'Rede';
+      if (error?.message?.includes('Timeout')) errorType = 'Timeout';
+      if (error?.message?.includes('CORS')) errorType = 'CORS';
+      
+      Alert.alert(
+        'Erro Inesperado', 
+        `Tipo: ${errorType}\nMensagem: ${error?.message || 'Erro desconhecido'}\n\nTente novamente ou verifique sua conexão.`,
+        [
+          { text: 'OK', style: 'default' },
+          { 
+            text: 'Tentar Novamente', 
+            onPress: () => {
+              console.log('🔄 Tentando login novamente...');
+              handleGoogleLogin();
+            }
+          }
+        ]
+      );
     } finally {
       setLoading(false);
     }
@@ -147,9 +245,15 @@ export default function LoginScreen() {
                 <View style={styles.dividerLine} />
               </View>
 
-              <TouchableOpacity style={styles.googleButton}>
+              <TouchableOpacity 
+                style={[styles.googleButton, loading && styles.loginButtonDisabled]}
+                onPress={handleGoogleLogin}
+                disabled={loading}
+              >
                 <Ionicons name="logo-google" size={20} color="#fff" />
-                <Text style={styles.googleButtonText}>Entrar com Google</Text>
+                <Text style={styles.googleButtonText}>
+                  {loading ? 'Entrando...' : 'Entrar com Google'}
+                </Text>
               </TouchableOpacity>
 
               <View style={styles.signupContainer}>

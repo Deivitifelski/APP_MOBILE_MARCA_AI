@@ -4,7 +4,6 @@ import React, { useEffect, useState } from 'react';
 import {
     Alert,
     FlatList,
-    Image,
     ScrollView,
     StyleSheet,
     Text,
@@ -12,10 +11,12 @@ import {
     View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import OptimizedImage from '../../components/OptimizedImage';
 import PermissionModal from '../../components/PermissionModal';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { artistImageUpdateService } from '../../services/artistImageUpdateService';
+import { cacheService } from '../../services/cacheService';
 import { getEventsByMonth } from '../../services/supabase/eventService';
 import { getUserPermissions } from '../../services/supabase/permissionsService';
 import { useActiveArtist } from '../../services/useActiveArtist';
@@ -155,11 +156,27 @@ export default function AgendaScreen() {
         return;
       }
       
+      // Verificar cache primeiro
+      const cachedPermissions = await cacheService.getPermissionsData(user.id, activeArtist.id);
+      
+      if (cachedPermissions) {
+        setUserPermissions(cachedPermissions);
+        setPermissionsLoaded(true);
+        console.log('🔐 Permissões carregadas do cache');
+        return;
+      }
+      
+      // Carregar do servidor
       const permissions = await getUserPermissions(user.id, activeArtist.id);
+      
+      // Salvar no cache
+      await cacheService.setPermissionsData(user.id, activeArtist.id, permissions);
+      
       setUserPermissions(permissions);
       setPermissionsLoaded(true);
+      console.log('🔐 Permissões carregadas do servidor');
     } catch (error) {
-      console.error('Erro ao carregar permissões:', error);
+      console.error('❌ Erro ao carregar permissões:', error);
       setPermissionsLoaded(true);
     }
   };
@@ -181,26 +198,43 @@ export default function AgendaScreen() {
     }
     
     if (isInitialLoad) {
-      console.log('loadEvents: Carregando eventos para artista:', activeArtist.id, 'Mês:', currentMonth, 'Ano:', currentYear);
+      console.log('📅 Carregando eventos para artista:', activeArtist.id, 'Mês:', currentMonth, 'Ano:', currentYear);
     }
     
     try {
+      // Verificar cache primeiro
+      const cacheKey = `events_${activeArtist.id}_${currentYear}_${currentMonth}`;
+      const cachedEvents = await cacheService.getEventsData<any[]>(activeArtist.id, currentYear, currentMonth);
+      
+      if (cachedEvents && !isInitialLoad) {
+        // Usar dados do cache para atualizações silenciosas
+        setEvents(cachedEvents);
+        console.log('📅 Eventos carregados do cache:', cachedEvents.length);
+        return;
+      }
+      
+      // Carregar dados frescos do servidor
       const result = await getEventsByMonth(activeArtist.id, currentYear, currentMonth);
       
       if (result.success) {
-        setEvents(result.events || []);
+        const eventsData = result.events || [];
+        setEvents(eventsData);
         setLastUpdate(new Date());
+        
+        // Salvar no cache
+        await cacheService.setEventsData(activeArtist.id, currentYear, currentMonth, eventsData);
+        
         if (isInitialLoad) {
-          console.log('loadEvents: Eventos carregados:', result.events?.length || 0);
+          console.log('📅 Eventos carregados do servidor:', eventsData.length);
         }
       } else {
-        console.error('Erro ao carregar eventos:', result.error);
+        console.error('❌ Erro ao carregar eventos:', result.error);
         if (isInitialLoad) {
           setEvents([]);
         }
       }
     } catch (error) {
-      console.error('Erro ao carregar eventos:', error);
+      console.error('❌ Erro ao carregar eventos:', error);
       if (isInitialLoad) {
         setEvents([]);
       }
@@ -350,27 +384,23 @@ export default function AgendaScreen() {
         {activeArtist && (
           <View style={styles.artistHeader}>
             <View style={styles.artistInfo}>
-              {activeArtist.profile_url && activeArtist.profile_url.trim() !== '' && !imageLoadError ? (
-                <Image 
-                  key={`artist-${activeArtist.id}-${activeArtist.profile_url}`} // Força re-render quando URL muda
-                  source={{ 
-                    uri: `${activeArtist.profile_url}${activeArtist.profile_url.includes('?') ? '&' : '?'}t=${Date.now()}`,
-                    cache: 'reload' // Força recarregar a imagem
-                  }} 
-                  style={[styles.artistAvatar, { borderColor: colors.border }]}
-                  resizeMode="cover"
-                  onError={() => {
-                    setImageLoadError(true);
-                  }}
-                  onLoad={() => {
-                    setImageLoadError(false);
-                  }}
-                />
-              ) : (
-                <View style={[styles.artistAvatarPlaceholder, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
-                  <Ionicons name="musical-notes" size={24} color={colors.primary} />
-                </View>
-              )}
+              <OptimizedImage
+                imageUrl={activeArtist.profile_url || ''}
+                style={[styles.artistAvatar, { borderColor: colors.border }]}
+                cacheKey={`artist_${activeArtist.id}`}
+                fallbackIcon="musical-notes"
+                fallbackIconSize={24}
+                fallbackIconColor={colors.primary}
+                showLoadingIndicator={false}
+                onLoadSuccess={() => {
+                  console.log('✅ Imagem do artista carregada na agenda:', activeArtist.profile_url);
+                  setImageLoadError(false);
+                }}
+                onLoadError={(error) => {
+                  console.log('❌ Erro ao carregar imagem do artista na agenda:', activeArtist.profile_url);
+                  setImageLoadError(true);
+                }}
+              />
               <View style={styles.artistDetails}>
                 <View style={styles.artistNameRow}>
                   <Text style={[styles.artistName, { color: colors.text }]}>{activeArtist.name}</Text>

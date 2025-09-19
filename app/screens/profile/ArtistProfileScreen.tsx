@@ -24,15 +24,13 @@ import { uploadImageToSupabase } from '../../../services/supabase/imageUploadSer
 export default function ArtistProfileScreen() {
   const [name, setName] = useState('');
   const [profileUrl, setProfileUrl] = useState<string | null>(null);
+  const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   const pickImage = async () => {
     try {
       console.log('🖼️ Iniciando seleção de imagem do artista...');
-      
-      // Primeiro, vamos tentar abrir diretamente sem verificar permissões
-      console.log('📸 Tentando abrir galeria diretamente...');
       
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -45,42 +43,25 @@ export default function ArtistProfileScreen() {
 
       if (!result.canceled && result.assets[0]) {
         const imageUri = result.assets[0].uri;
-        setIsUploadingImage(true);
         
-        console.log('📤 Fazendo upload da imagem do artista...');
-        
-        // Fazer upload da imagem para o Supabase Storage (bucket image_artists)
-        const uploadResult = await uploadImageToSupabase(imageUri, 'image_artists');
-        
-        if (uploadResult.success && uploadResult.url) {
-          setProfileUrl(uploadResult.url);
-          console.log('✅ Upload realizado com sucesso:', uploadResult.url);
-          Alert.alert('Sucesso', 'Foto do artista selecionada e salva com sucesso!');
-        } else {
-          console.error('❌ Erro no upload:', uploadResult.error);
-          Alert.alert('Erro', `Erro ao fazer upload da imagem: ${uploadResult.error}`);
-          // Manter a URI local como fallback
-          setProfileUrl(imageUri);
-        }
+        // Apenas salvar a URI local - upload será feito no submit
+        setSelectedImageUri(imageUri);
+        setProfileUrl(imageUri); // Para preview
+        console.log('✅ Imagem selecionada (upload será feito no submit):', imageUri);
       } else {
         console.log('❌ Seleção cancelada pelo usuário');
       }
     } catch (error) {
       console.error('❌ Erro ao selecionar imagem:', error);
       
-      // Se der erro, vamos tentar verificar permissões
       try {
-        console.log('🔐 Verificando permissões após erro...');
         const { status } = await ImagePicker.getMediaLibraryPermissionsAsync();
-        console.log('📋 Status da permissão:', status);
         
         if (status !== 'granted') {
           Alert.alert(
             'Permissão Necessária',
             'É necessário permitir o acesso à galeria para selecionar uma imagem. Vá em Configurações > Privacidade > Fotos e permita o acesso para este app.',
-            [
-              { text: 'OK', style: 'default' }
-            ]
+            [{ text: 'OK', style: 'default' }]
           );
         } else {
           Alert.alert(
@@ -95,8 +76,6 @@ export default function ArtistProfileScreen() {
           `Erro ao acessar galeria: ${error instanceof Error ? error.message : 'Erro desconhecido'}. Tente novamente.`
         );
       }
-    } finally {
-      setIsUploadingImage(false);
     }
   };
 
@@ -116,10 +95,32 @@ export default function ArtistProfileScreen() {
         return;
       }
 
+      let finalProfileUrl = null;
+
+      // Se há uma imagem selecionada, fazer upload agora
+      if (selectedImageUri) {
+        console.log('📤 Fazendo upload da imagem do artista no momento do cadastro...');
+        setIsUploadingImage(true);
+        
+        const uploadResult = await uploadImageToSupabase(selectedImageUri, 'image_artists');
+        
+        if (uploadResult.success && uploadResult.url) {
+          finalProfileUrl = uploadResult.url;
+          console.log('✅ Upload realizado com sucesso:', uploadResult.url);
+        } else {
+          console.error('❌ Erro no upload:', uploadResult.error);
+          Alert.alert('Erro', `Erro ao fazer upload da imagem: ${uploadResult.error}`);
+          setIsUploadingImage(false);
+          setLoading(false);
+          return;
+        }
+        setIsUploadingImage(false);
+      }
+
       // Criar o perfil do artista
       const { success, error, artist } = await createArtist({
         name: name.trim(),
-        profile_url: profileUrl || undefined,
+        profile_url: finalProfileUrl,
         user_id: user.id
       });
 
