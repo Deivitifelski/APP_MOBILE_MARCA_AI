@@ -73,19 +73,10 @@ export default function ConfiguracoesScreen() {
   }, [userProfile?.profile_url]);
 
 
-  // Debug: Log da URL da imagem do usuário
-  useEffect(() => {
-    if (userProfile?.profile_url) {
-      console.log('🔍 DEBUG - URL da imagem do usuário nas configurações:', userProfile.profile_url);
-    } else {
-      console.log('🔍 DEBUG - Nenhuma URL de imagem encontrada para o usuário nas configurações');
-    }
-  }, [userProfile?.profile_url]);
 
   // Recarregar dados do artista e usuário quando a tela ganhar foco
   useFocusEffect(
     React.useCallback(() => {
-      console.log('🔄 Configurações ganhou foco - recarregando dados...');
       // Invalidar cache e recarregar dados frescos
       invalidateCacheAndReload();
     }, [])
@@ -98,11 +89,9 @@ export default function ConfiguracoesScreen() {
       if (user) {
         // Invalidar cache do usuário
         await cacheService.invalidateUserData(user.id);
-        console.log('🗑️ Cache do usuário invalidado');
         
         // Invalidar cache dos artistas
         await cacheService.invalidateArtistData(user.id);
-        console.log('🗑️ Cache dos artistas invalidado');
       }
     } catch (error) {
       console.error('Erro ao invalidar cache:', error);

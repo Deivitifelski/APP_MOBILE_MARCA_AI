@@ -16,10 +16,13 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import LimitReachedModal from '../../../components/LimitReachedModal';
+import SuccessModal from '../../../components/SuccessModal';
 import { setActiveArtist } from '../../../services/artistContext';
 import { createArtist } from '../../../services/supabase/artistService';
 import { getCurrentUser } from '../../../services/supabase/authService';
 import { uploadImageToSupabase } from '../../../services/supabase/imageUploadService';
+import { getUsuarioPlano } from '../../../services/supabase/planService';
 
 export default function ArtistProfileScreen() {
   const [name, setName] = useState('');
@@ -27,6 +30,10 @@ export default function ArtistProfileScreen() {
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [createdArtist, setCreatedArtist] = useState<any>(null);
+  const [showLimitModal, setShowLimitModal] = useState(false);
+  const [limitInfo, setLimitInfo] = useState<{currentCount: number; maxCount: number; planName: string} | null>(null);
 
   const pickImage = async () => {
     try {
@@ -125,42 +132,123 @@ export default function ArtistProfileScreen() {
       });
 
       if (!success || !artist) {
+        console.log('🔍 Erro ao criar artista:', error);
+        
+        // Verificar se é erro de limite de plano (múltiplas variações)
+        if (error && (
+          error.includes('atingiu o limite') || 
+          error.includes('limite') ||
+          error.includes('Você atingiu') ||
+          error.includes('artista') && error.includes('plano')
+        )) {
+          console.log('🔍 Erro de limite detectado, extraindo informações...');
+          
+          // Tentar extrair informações do erro com regex mais flexível
+          let maxCount = 1;
+          let currentCount = 1;
+          
+          // Padrão 1: "Você atingiu o limite de X artista(s). Atualmente você tem Y artista(s)."
+          let match = error.match(/Você atingiu o limite de (\d+) artista.*?Atualmente você tem (\d+)/);
+          if (match) {
+            maxCount = parseInt(match[1]);
+            currentCount = parseInt(match[2]);
+          } else {
+            // Padrão 2: "limite de X artista"
+            match = error.match(/limite de (\d+) artista/);
+            if (match) {
+              maxCount = parseInt(match[1]);
+              // Assumir que já tem o máximo
+              currentCount = maxCount;
+            } else {
+              // Padrão 3: Se não conseguir extrair, usar valores padrão para plano Free
+              maxCount = 1;
+              currentCount = 1;
+            }
+          }
+          
+          console.log('🔍 Limite extraído:', { maxCount, currentCount });
+          
+          // Buscar nome do plano atual
+          const { success: planoSuccess, usuarioPlano } = await getUsuarioPlano(user.id);
+          const planName = planoSuccess && usuarioPlano ? usuarioPlano.plano.nome : 'Free';
+          
+          console.log('🔍 Plano encontrado:', planName);
+          
+          setLimitInfo({
+            currentCount,
+            maxCount,
+            planName
+          });
+          setShowLimitModal(true);
+          return;
+        }
+        
         Alert.alert('Erro', 'Erro ao criar perfil do artista: ' + error);
         return;
       }
 
-      // Armazenar dados do artista criado para usar nos callbacks
-      const newArtist = artist;
+      // Armazenar dados do artista criado
+      setCreatedArtist(artist);
 
-      Alert.alert(
-        'Sucesso', 
-        'Perfil do artista criado com sucesso!',
-        [
-          {
-            text: 'Continuar com Artista Atual',
-            onPress: () => router.replace('/(tabs)/agenda')
-          },
-          {
-            text: 'Alternar para Novo Artista',
-            onPress: async () => {
-              // Definir o novo artista como ativo
-              await setActiveArtist({
-                id: newArtist.id,
-                name: newArtist.name,
-                role: 'owner'
-              });
-              
-              Alert.alert('Sucesso', `Agora você está usando o artista: ${newArtist.name}`);
-              // Recarregar a tela principal para atualizar com o novo artista
-              router.replace('/(tabs)/agenda');
-            }
-          }
-        ]
-      );
+      // Definir o novo artista como ativo
+      await setActiveArtist({
+        id: artist.id,
+        name: artist.name,
+        role: 'owner'
+      });
+
+      // Mostrar modal de sucesso
+      setShowSuccessModal(true);
     } catch (error) {
       Alert.alert('Erro', 'Ocorreu um erro ao criar o perfil do artista');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSuccessModalContinue = async () => {
+    setShowSuccessModal(false);
+    await navigateBasedOnPlan();
+  };
+
+  const handleSuccessModalClose = () => {
+    setShowSuccessModal(false);
+  };
+
+  const handleLimitModalUpgrade = () => {
+    setShowLimitModal(false);
+    router.push('/planos-pagamentos');
+  };
+
+  const handleLimitModalCancel = () => {
+    setShowLimitModal(false);
+  };
+
+  const handleLimitModalClose = () => {
+    setShowLimitModal(false);
+  };
+
+  // Função auxiliar para verificar plano e navegar
+  const navigateBasedOnPlan = async () => {
+    try {
+      // Verificar se o usuário já tem um plano definido
+      const { user, error: userError } = await getCurrentUser();
+      
+      if (!userError && user) {
+        const { success, usuarioPlano } = await getUsuarioPlano(user.id);
+        
+        if (success && usuarioPlano) {
+          // Usuário já tem plano, ir direto para a agenda
+          router.replace('/(tabs)/agenda');
+          return;
+        }
+      }
+      
+      // Usuário não tem plano, ir para seleção de planos
+      router.push('/selecionar-plano');
+    } catch (error) {
+      // Em caso de erro, ir para seleção de planos por segurança
+      router.push('/selecionar-plano');
     }
   };
 
@@ -241,6 +329,7 @@ export default function ArtistProfileScreen() {
                 </Text>
               </TouchableOpacity>
 
+
               <View style={styles.divider}>
                 <View style={styles.dividerLine} />
                 <Text style={styles.dividerText}>ou</Text>
@@ -249,44 +338,14 @@ export default function ArtistProfileScreen() {
 
               <TouchableOpacity
                 style={styles.skipButton}
-                onPress={() => {
-                  Alert.alert(
-                    'Pular Cadastro',
-                    'Você pode criar o perfil do artista mais tarde ou aguardar um convite para gerenciar um artista existente.',
-                    [
-                      {
-                        text: 'Criar Mais Tarde',
-                        onPress: () => router.replace('/(tabs)/agenda')
-                      },
-                      {
-                        text: 'Aguardar Convite',
-                        onPress: () => router.replace('/(tabs)/agenda')
-                      },
-                      {
-                        text: 'Cancelar',
-                        style: 'cancel'
-                      }
-                    ]
-                  );
-                }}
+                onPress={navigateBasedOnPlan}
               >
                 <Text style={styles.skipButtonText}>Criar Mais Tarde</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.inviteButton}
-                onPress={() => {
-                  Alert.alert(
-                    'Aguardar Convite',
-                    'Você será notificado quando receber um convite para gerenciar um artista.',
-                    [
-                      {
-                        text: 'OK',
-                        onPress: () => router.replace('/(tabs)/agenda')
-                      }
-                    ]
-                  );
-                }}
+                onPress={navigateBasedOnPlan}
               >
                 <Text style={styles.inviteButtonText}>Aguardar Convite</Text>
               </TouchableOpacity>
@@ -294,6 +353,32 @@ export default function ArtistProfileScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Modal de Sucesso */}
+      <SuccessModal
+        visible={showSuccessModal}
+        title="🎉 Artista Criado!"
+        message={`Perfil do artista "${createdArtist?.name}" criado com sucesso!`}
+        onClose={handleSuccessModalClose}
+        onContinue={handleSuccessModalContinue}
+        buttonText="Continuar"
+        icon="musical-notes"
+        iconColor="#667eea"
+      />
+
+      {/* Modal de Limite Atingido */}
+      {limitInfo && (
+        <LimitReachedModal
+          visible={showLimitModal}
+          currentCount={limitInfo.currentCount}
+          maxCount={limitInfo.maxCount}
+          planName={limitInfo.planName}
+          onClose={handleLimitModalClose}
+          onUpgrade={handleLimitModalUpgrade}
+          onCancel={handleLimitModalCancel}
+        />
+      )}
+      
     </SafeAreaView>
   );
 }

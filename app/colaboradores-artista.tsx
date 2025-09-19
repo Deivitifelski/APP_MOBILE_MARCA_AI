@@ -1,24 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  Modal,
-  TextInput,
-  FlatList,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import { checkPendingInvite, createArtistInvite } from '../services/supabase/artistInviteService';
 import { getCurrentUser } from '../services/supabase/authService';
-import { getArtists } from '../services/supabase/artistService';
+import { addCollaborator, Collaborator, getCollaborators, removeCollaborator, searchUsers, updateCollaboratorRole } from '../services/supabase/collaboratorService';
+import { canAddColaborador, getUsuarioPlano, hasRecurso } from '../services/supabase/planService';
 import { useActiveArtist } from '../services/useActiveArtist';
-import { getCollaborators, addCollaborator, removeCollaborator, updateCollaboratorRole, searchUsers, Collaborator } from '../services/supabase/collaboratorService';
-import { createArtistInvite, checkPendingInvite } from '../services/supabase/artistInviteService';
 
 export default function ColaboradoresArtistaScreen() {
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
@@ -37,6 +37,7 @@ export default function ColaboradoresArtistaScreen() {
   const [isSearching, setIsSearching] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [isInviting, setIsInviting] = useState(false);
+  const [planoInfo, setPlanoInfo] = useState<{nome: string; maxUsuarios: number | null; currentCount: number} | null>(null);
 
   useEffect(() => {
     loadActiveArtist();
@@ -48,10 +49,6 @@ export default function ColaboradoresArtistaScreen() {
     }
   }, [activeArtist]);
 
-  // Debug: Monitorar mudanças no showInviteModal
-  useEffect(() => {
-    console.log('showInviteModal mudou para:', showInviteModal);
-  }, [showInviteModal]);
 
   const loadData = async () => {
     if (!activeArtist) return;
@@ -75,6 +72,22 @@ export default function ColaboradoresArtistaScreen() {
       setUserRole(userRole);
       setCanManage(canManage);
       setCanAddCollaborators(canAddCollaborators);
+
+      // Carregar informações do plano do usuário
+      const { user, error: userError } = await getCurrentUser();
+      if (!userError && user) {
+        const { success: planoSuccess, usuarioPlano } = await getUsuarioPlano(user.id);
+        if (planoSuccess && usuarioPlano) {
+          const { success: canAdd, currentCount, maxCount } = await canAddColaborador(user.id);
+          if (canAdd) {
+            setPlanoInfo({
+              nome: usuarioPlano.plano.nome,
+              maxUsuarios: maxCount,
+              currentCount: currentCount || 0
+            });
+          }
+        }
+      }
     } catch (error) {
       Alert.alert('Erro', 'Erro ao carregar dados');
     } finally {
@@ -200,6 +213,57 @@ export default function ColaboradoresArtistaScreen() {
 
     try {
       setIsAdding(true);
+
+      // Verificar se o usuário tem permissão para adicionar colaboradores
+      const { user, error: userError } = await getCurrentUser();
+      if (userError || !user) {
+        Alert.alert('Erro', 'Usuário não encontrado');
+        return;
+      }
+
+      // Verificar se o plano permite colaboradores
+      const { success: hasColaboradores, hasAccess } = await hasRecurso(user.id, 'colaboradores');
+      if (!hasColaboradores || !hasAccess) {
+        Alert.alert(
+          'Plano Insuficiente',
+          'Seu plano atual não permite adicionar colaboradores. Faça upgrade para um plano Basic ou Pro.',
+          [
+            {
+              text: 'Ver Planos',
+              onPress: () => router.push('/planos-pagamentos')
+            },
+            {
+              text: 'OK',
+              style: 'cancel'
+            }
+          ]
+        );
+        return;
+      }
+
+      // Verificar se pode adicionar mais colaboradores
+      const { success: canAdd, canAdd: canAddMore, currentCount, maxCount, error: limitError } = await canAddColaborador(user.id);
+      if (!canAdd || !canAddMore) {
+        const message = maxCount === null 
+          ? 'Erro ao verificar limite de colaboradores'
+          : `Você atingiu o limite de ${maxCount} colaborador${maxCount > 1 ? 'es' : ''} do seu plano. Atualmente você tem ${currentCount} colaborador${currentCount > 1 ? 'es' : ''}.`;
+        
+        Alert.alert(
+          'Limite Atingido',
+          message,
+          [
+            {
+              text: 'Ver Planos',
+              onPress: () => router.push('/planos-pagamentos')
+            },
+            {
+              text: 'OK',
+              style: 'cancel'
+            }
+          ]
+        );
+        return;
+      }
 
       const { success, error } = await addCollaborator(activeArtist.id, {
         userId: selectedUser.id,
@@ -444,6 +508,30 @@ export default function ColaboradoresArtistaScreen() {
             <Text style={styles.collaboratorCount}>
               {collaborators.length} colaborador{collaborators.length !== 1 ? 'es' : ''}
             </Text>
+          </View>
+        )}
+
+        {/* Informações do plano */}
+        {planoInfo && (
+          <View style={styles.planoInfo}>
+            <View style={styles.planoHeader}>
+              <Ionicons name="card-outline" size={20} color="#667eea" />
+              <Text style={styles.planoTitle}>Plano {planoInfo.nome.toUpperCase()}</Text>
+            </View>
+            <Text style={styles.planoDetails}>
+              {planoInfo.maxUsuarios === null 
+                ? 'Colaboradores: Ilimitados' 
+                : `Colaboradores: ${planoInfo.currentCount}/${planoInfo.maxUsuarios}`
+              }
+            </Text>
+            {planoInfo.maxUsuarios !== null && planoInfo.currentCount >= planoInfo.maxUsuarios && (
+              <TouchableOpacity 
+                style={styles.upgradeButton}
+                onPress={() => router.push('/planos-pagamentos')}
+              >
+                <Text style={styles.upgradeButtonText}>Fazer Upgrade</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -734,6 +822,48 @@ const styles = StyleSheet.create({
   collaboratorCount: {
     fontSize: 14,
     color: '#666',
+  },
+  planoInfo: {
+    backgroundColor: '#fff',
+    margin: 20,
+    marginTop: 0,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  planoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  planoTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginLeft: 8,
+  },
+  planoDetails: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 8,
+  },
+  upgradeButton: {
+    backgroundColor: '#667eea',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  upgradeButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   collaboratorsList: {
     paddingHorizontal: 20,

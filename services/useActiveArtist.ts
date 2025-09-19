@@ -10,33 +10,25 @@ export const useActiveArtist = () => {
   const loadActiveArtist = async () => {
     try {
       setIsLoading(true);
-      console.log('useActiveArtist: Iniciando carregamento do artista ativo');
       
       // Sempre obter o usuário atual primeiro
       const { user, error: userError } = await getCurrentUser();
       
       if (userError || !user) {
-        console.log('useActiveArtist: Usuário não encontrado, limpando artista ativo');
         setActiveArtistState(null);
         return;
       }
-      
-      console.log('useActiveArtist: Usuário atual:', user.id);
       
       // Buscar artistas do usuário atual
       const { artists, error: artistsError } = await getArtists(user.id);
       
       if (artistsError) {
-        console.log('useActiveArtist: Erro ao buscar artistas:', artistsError);
         setActiveArtistState(null);
         return;
       }
       
-      console.log('useActiveArtist: Artistas do usuário:', artists?.length || 0);
-      
       // Se não há artistas, limpar artista ativo
       if (!artists || artists.length === 0) {
-        console.log('useActiveArtist: Usuário não tem artistas, limpando artista ativo');
         await clearActiveArtist();
         setActiveArtistState(null);
         return;
