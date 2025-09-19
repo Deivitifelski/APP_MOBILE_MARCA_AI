@@ -12,6 +12,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getEventById, updateEvent, UpdateEventData } from '../services/supabase/eventService';
 
 interface EventoForm {

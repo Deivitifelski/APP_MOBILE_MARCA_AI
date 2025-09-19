@@ -12,6 +12,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getArtists } from '../services/supabase/artistService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { createEvent, CreateExpenseData } from '../services/supabase/eventService';
@@ -230,6 +231,7 @@ const TimePickerComponent = ({ selectedTime, onTimeChange }: { selectedTime: Dat
 };
 
 export default function AdicionarEventoScreen() {
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
   
   // Sempre usar dados atualizados - data atual como padrão
@@ -422,7 +424,7 @@ export default function AdicionarEventoScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
@@ -891,7 +893,6 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#fff',
     paddingHorizontal: 20,
-    paddingTop: 20,
     paddingBottom: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',

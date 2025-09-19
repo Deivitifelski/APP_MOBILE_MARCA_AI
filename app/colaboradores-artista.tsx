@@ -14,6 +14,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { checkPendingInvite, createArtistInvite } from '../services/supabase/artistInviteService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { addCollaborator, Collaborator, getCollaborators, removeCollaborator, searchUsers, updateCollaboratorRole } from '../services/supabase/collaboratorService';
@@ -21,6 +22,7 @@ import { canAddColaborador, getUsuarioPlano, hasRecurso } from '../services/supa
 import { useActiveArtist } from '../services/useActiveArtist';
 
 export default function ColaboradoresArtistaScreen() {
+  const insets = useSafeAreaInsets();
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
@@ -444,13 +446,13 @@ export default function ColaboradoresArtistaScreen() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#333" />
-          </TouchableOpacity>
-          <Text style={styles.title}>Colaboradores</Text>
-          <View style={styles.placeholder} />
-        </View>
+      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <Text style={styles.title}>Colaboradores</Text>
+        <View style={styles.placeholder} />
+      </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#667eea" />
           <Text style={styles.loadingText}>Carregando colaboradores...</Text>
@@ -461,7 +463,7 @@ export default function ColaboradoresArtistaScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
         <TouchableOpacity onPress={() => {
           console.log('Botão voltar pressionado');
           router.back();
@@ -758,7 +760,6 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#fff',
     paddingHorizontal: 20,
-    paddingTop: 20,
     paddingBottom: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
