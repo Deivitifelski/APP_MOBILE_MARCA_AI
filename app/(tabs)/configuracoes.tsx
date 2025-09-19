@@ -85,12 +85,35 @@ export default function ConfiguracoesScreen() {
   // Recarregar dados do artista e usuário quando a tela ganhar foco
   useFocusEffect(
     React.useCallback(() => {
-      loadArtistData();
-      loadUserProfile();
+      console.log('🔄 Configurações ganhou foco - recarregando dados...');
+      // Invalidar cache e recarregar dados frescos
+      invalidateCacheAndReload();
     }, [])
   );
 
-  const loadUserProfile = async () => {
+  // Função para invalidar cache e recarregar dados
+  const invalidateCacheAndReload = async () => {
+    try {
+      const { user } = await getCurrentUser();
+      if (user) {
+        // Invalidar cache do usuário
+        await cacheService.invalidateUserData(user.id);
+        console.log('🗑️ Cache do usuário invalidado');
+        
+        // Invalidar cache dos artistas
+        await cacheService.invalidateArtistData(user.id);
+        console.log('🗑️ Cache dos artistas invalidado');
+      }
+    } catch (error) {
+      console.error('Erro ao invalidar cache:', error);
+    }
+    
+    // Recarregar dados frescos (forçar refresh)
+    loadUserProfile(true); // true = forceRefresh
+    loadArtistData(true); // true = forceRefresh
+  };
+
+  const loadUserProfile = async (forceRefresh = false) => {
     try {
       setIsLoadingProfile(true);
       
@@ -101,17 +124,20 @@ export default function ConfiguracoesScreen() {
         return;
       }
 
-      // Verificar cache primeiro
-      const cachedProfile = await cacheService.getUserData<UserProfile>(user.id);
-      
-      if (cachedProfile) {
-        setUserProfile(cachedProfile);
-        setIsLoadingProfile(false);
-        console.log('👤 Perfil do usuário carregado do cache');
-        return;
+      // Se não forçar refresh, verificar cache primeiro
+      if (!forceRefresh) {
+        const cachedProfile = await cacheService.getUserData<UserProfile>(user.id);
+        
+        if (cachedProfile) {
+          setUserProfile(cachedProfile);
+          setIsLoadingProfile(false);
+          console.log('👤 Perfil do usuário carregado do cache');
+          return;
+        }
       }
 
-      // Carregar do servidor
+      // Carregar do servidor (sempre frescos)
+      console.log('👤 Carregando perfil do usuário do servidor...');
       const { profile, error: profileError } = await getUserProfile(user.id);
       
       if (profileError) {
@@ -121,9 +147,9 @@ export default function ConfiguracoesScreen() {
 
       if (profile) {
         setUserProfile(profile);
-        // Salvar no cache
+        // Salvar no cache para próxima vez
         await cacheService.setUserData(user.id, profile);
-        console.log('👤 Perfil do usuário carregado do servidor');
+        console.log('👤 Perfil do usuário carregado do servidor:', profile.name);
       }
     } catch (error) {
       console.error('❌ Erro ao carregar perfil do usuário:', error);
@@ -132,7 +158,7 @@ export default function ConfiguracoesScreen() {
     }
   };
 
-  const loadArtistData = async () => {
+  const loadArtistData = async (forceRefresh = false) => {
     try {
       const { user, error: userError } = await getCurrentUser();
       
@@ -140,33 +166,36 @@ export default function ConfiguracoesScreen() {
         return;
       }
 
-      // Verificar cache primeiro
-      const cachedArtists = await cacheService.getUserData<any[]>(`artists_${user.id}`);
-      
-      if (cachedArtists && cachedArtists.length > 0) {
-        setHasArtist(true);
-        const currentArtist = cachedArtists[0];
-        setCurrentArtist(currentArtist);
+      // Se não forçar refresh, verificar cache primeiro
+      if (!forceRefresh) {
+        const cachedArtists = await cacheService.getUserData<any[]>(`artists_${user.id}`);
         
-        // Verificar cache de permissões
-        const cachedPermissions = await cacheService.getPermissionsData(user.id, currentArtist.id);
-        if (cachedPermissions) {
-          setUserPermissions(cachedPermissions);
+        if (cachedArtists && cachedArtists.length > 0) {
+          setHasArtist(true);
+          const currentArtist = cachedArtists[0];
+          setCurrentArtist(currentArtist);
+          
+          // Verificar cache de permissões
+          const cachedPermissions = await cacheService.getPermissionsData(user.id, currentArtist.id);
+          if (cachedPermissions) {
+            setUserPermissions(cachedPermissions);
+            console.log('🎭 Dados do artista carregados do cache');
+            return;
+          }
+          
+          // Carregar permissões do servidor se não estiver em cache
+          const permissions = await getUserPermissions(user.id, currentArtist.id);
+          if (permissions) {
+            setUserPermissions(permissions);
+            await cacheService.setPermissionsData(user.id, currentArtist.id, permissions);
+          }
           console.log('🎭 Dados do artista carregados do cache');
           return;
         }
-        
-        // Carregar permissões do servidor se não estiver em cache
-        const permissions = await getUserPermissions(user.id, currentArtist.id);
-        if (permissions) {
-          setUserPermissions(permissions);
-          await cacheService.setPermissionsData(user.id, currentArtist.id, permissions);
-        }
-        console.log('🎭 Dados do artista carregados do cache');
-        return;
       }
 
-      // Carregar do servidor
+      // Carregar do servidor (sempre frescos)
+      console.log('🎭 Carregando dados do artista do servidor...');
       const { artists, error: artistsError } = await getArtists(user.id);
       
       if (!artistsError && artists && artists.length > 0) {
@@ -174,7 +203,7 @@ export default function ConfiguracoesScreen() {
         const currentArtist = artists[0];
         setCurrentArtist(currentArtist);
         
-        // Salvar no cache
+        // Salvar no cache para próxima vez
         await cacheService.setUserData(`artists_${user.id}`, artists);
         
         // Carregar permissões do usuário para o artista
@@ -184,7 +213,7 @@ export default function ConfiguracoesScreen() {
           setUserPermissions(permissions);
           await cacheService.setPermissionsData(user.id, currentArtist.id, permissions);
         }
-        console.log('🎭 Dados do artista carregados do servidor');
+        console.log('🎭 Dados do artista carregados do servidor:', currentArtist.name);
       }
     } catch (error) {
       console.error('❌ Erro ao carregar dados do artista:', error);
