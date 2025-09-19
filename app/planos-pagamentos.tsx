@@ -2,17 +2,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    Alert,
-    Dimensions,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  Dimensions,
+  Linking,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
+import { supabase } from '../lib/supabase';
 
 const { width } = Dimensions.get('window');
 
@@ -109,23 +111,104 @@ export default function PlanosPagamentosScreen() {
     setSelectedPlan(planId);
     setIsLoading(true);
 
-    // Simular processamento
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      // Se for o plano gratuito, apenas mostra a mensagem
+      if (planId === 'free') {
+        setTimeout(() => {
+          setIsLoading(false);
+          Alert.alert(
+            'Plano Selecionado',
+            `Você selecionou o plano ${plans.find(p => p.id === planId)?.name}. Em breve implementaremos o sistema de pagamento!`,
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  setSelectedPlan(null);
+                  router.back();
+                }
+              }
+            ]
+          );
+        }, 1500);
+        return;
+      }
+
+      // Para planos pagos (basic/pro), chama a função do Supabase
+      const planName = planId === 'basico' ? 'basic' : 'pro';
+      
+      const { data, error } = await supabase.functions.invoke('stripe-checkout-session', {
+        body: { plan: planName }
+      });
+
+      if (error) {
+        console.error('Erro ao criar sessão de pagamento:', error);
+        Alert.alert(
+          'Erro',
+          'Ocorreu um erro ao processar o pagamento. Tente novamente.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setSelectedPlan(null);
+                setIsLoading(false);
+              }
+            }
+          ]
+        );
+        return;
+      }
+
+      if (data && data.url) {
+        // Abre a URL do Stripe no navegador
+        const canOpen = await Linking.canOpenURL(data.url);
+        if (canOpen) {
+          await Linking.openURL(data.url);
+        } else {
+          Alert.alert(
+            'Erro',
+            'Não foi possível abrir o link de pagamento.',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  setSelectedPlan(null);
+                  setIsLoading(false);
+                }
+              }
+            ]
+          );
+        }
+      } else {
+        Alert.alert(
+          'Erro',
+          'Resposta inválida do servidor.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setSelectedPlan(null);
+                setIsLoading(false);
+              }
+            }
+          ]
+        );
+      }
+    } catch (err) {
+      console.error('Erro inesperado:', err);
       Alert.alert(
-        'Plano Selecionado',
-        `Você selecionou o plano ${plans.find(p => p.id === planId)?.name}. Em breve implementaremos o sistema de pagamento!`,
+        'Erro',
+        'Ocorreu um erro inesperado. Tente novamente.',
         [
           {
             text: 'OK',
             onPress: () => {
               setSelectedPlan(null);
-              router.back();
+              setIsLoading(false);
             }
           }
         ]
       );
-    }, 1500);
+    }
   };
 
   const renderPlanCard = (plan: Plan) => (
