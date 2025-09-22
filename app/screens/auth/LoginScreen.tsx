@@ -2,16 +2,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { supabase } from '../../../lib/supabase';
 import { loginUser } from '../../../services/supabase/authService';
@@ -132,20 +132,21 @@ export default function LoginScreen() {
       // Log completo do erro inesperado
       console.error('💥 Erro inesperado completo:', {
         error,
-        message: error?.message,
-        stack: error?.stack,
-        name: error?.name,
+        message: (error as any)?.message,
+        stack: (error as any)?.stack,
+        name: (error as any)?.name,
       });
       
       // Tentar identificar o tipo de erro
       let errorType = 'Desconhecido';
-      if (error?.message?.includes('Network')) errorType = 'Rede';
-      if (error?.message?.includes('Timeout')) errorType = 'Timeout';
-      if (error?.message?.includes('CORS')) errorType = 'CORS';
+      const errorMessage = (error as any)?.message || '';
+      if (errorMessage.includes('Network')) errorType = 'Rede';
+      if (errorMessage.includes('Timeout')) errorType = 'Timeout';
+      if (errorMessage.includes('CORS')) errorType = 'CORS';
       
       Alert.alert(
         'Erro Inesperado', 
-        `Tipo: ${errorType}\nMensagem: ${error?.message || 'Erro desconhecido'}\n\nTente novamente ou verifique sua conexão.`,
+        `Tipo: ${errorType}\nMensagem: ${errorMessage || 'Erro desconhecido'}\n\nTente novamente ou verifique sua conexão.`,
         [
           { text: 'OK', style: 'default' },
           { 
