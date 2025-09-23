@@ -54,7 +54,6 @@ export default function PlanosPagamentosScreen() {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
       if (userError || !user) {
-        console.log('Usuário não autenticado');
         return;
       }
 
@@ -66,7 +65,6 @@ export default function PlanosPagamentosScreen() {
         .single();
 
       if (userDataError || !userData) {
-        console.log('Erro ao buscar dados do usuário:', userDataError);
         return;
       }
 
@@ -79,30 +77,18 @@ export default function PlanosPagamentosScreen() {
           name: userData.name || ''
         };
 
-        const { success, customerId, error: customerError } = await createStripeCustomer(customerData);
+        const { success, customerId } = await createStripeCustomer(customerData);
 
         if (success && customerId) {
-          console.log('Customer criado com sucesso:', customerId);
-          
           // Atualizar customer_id na tabela users
-          const { error: updateError } = await supabase
+          await supabase
             .from('users')
             .update({ customer_id: customerId })
             .eq('id', user.id);
-          
-          if (updateError) {
-            console.error('Erro ao atualizar customer_id na tabela users:', updateError);
-          } else {
-            console.log('Customer ID atualizado na tabela users');
-          }
-        } else {
-          console.error('Erro ao criar customer no Stripe:', customerError);
         }
-      } else {
-        console.log('Customer ID já existe na tabela users:', userData.customer_id);
       }
     } catch (error) {
-      console.error('Erro ao verificar/criar customer:', error);
+      // Silencioso - não logar erros
     }
   };
 
