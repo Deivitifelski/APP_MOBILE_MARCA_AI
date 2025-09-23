@@ -153,13 +153,6 @@ export default function UserProfileScreen() {
         userId: user.id
       };
       
-      console.log('🎯 Criando customer no Stripe...');
-      console.log('📋 Dados do usuário enviados para create-customers:');
-      console.log('   📧 Email:', customerData.email);
-      console.log('   👤 Nome:', customerData.name);
-      console.log('   🆔 User ID:', customerData.userId);
-      console.log('📦 Objeto completo:', JSON.stringify(customerData, null, 2));
-      
       const { success: customerSuccess, customerId, error: customerError } = await createStripeCustomer(customerData);
 
       if (customerSuccess && customerId) {

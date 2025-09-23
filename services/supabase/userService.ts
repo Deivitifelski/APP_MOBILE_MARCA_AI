@@ -123,6 +123,8 @@ export const createStripeCustomer = async (customerData: CreateCustomerData): Pr
 
     console.log('🔍 Debug - Resposta da função:');
     console.log('   📦 data:', data);
+    console.log('   📦 tipo de data:', typeof data);
+    console.log('   📦 data.customerId:', data?.customerId);
     console.log('   ❌ error:', error);
 
     if (error) {

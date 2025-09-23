@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { supabase } from '../../../lib/supabase';
 import { loginUser } from '../../../services/supabase/authService';
-import { checkUserExists, createStripeCustomer } from '../../../services/supabase/userService';
+import { checkUserExists } from '../../../services/supabase/userService';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('deivitifelskiefisio@outlook.com');
@@ -38,24 +38,6 @@ export default function LoginScreen() {
       if (result.error) {
         Alert.alert('Erro', result.error.message);
       } else if (result.data?.user) {
-        // TESTE: Chamar createStripeCustomer com dados fixos
-        console.log('🧪 TESTE: Chamando createStripeCustomer no login...');
-        const testCustomerData = {
-          email: "deivitifelskiefisio@outloo.com",
-          userId: "83f7bfd0-5793-4548-bf82-3c6443d3c903",
-          name: "Deiviti"
-        };
-        
-        console.log('📋 Dados de teste enviados:', JSON.stringify(testCustomerData, null, 2));
-        
-        const { success, customerId, error: customerError } = await createStripeCustomer(testCustomerData);
-        
-        if (success) {
-          console.log('✅ TESTE: Customer criado com sucesso:', customerId);
-        } else {
-          console.log('❌ TESTE: Erro ao criar customer:', customerError);
-        }
-        
         // Verificar se o email foi confirmado
         if (result.data.user.email_confirmed_at) {
           // Verificar se o usuário existe na tabela users
