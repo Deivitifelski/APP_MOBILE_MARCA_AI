@@ -49,13 +49,13 @@ export default function PaymentSheetScreen() {
     return formatter.format(numValue / 100); // Stripe usa centavos
   };
 
-  const openPaymentSheet = async (setupIntentClientSecret: string) => {
+  const openPaymentSheet = async (paymentIntentClientSecret: string) => {
     setIsLoading(true);
     
     try {
-      // Inicializa o PaymentSheet com o SetupIntent
+      // Inicializa o PaymentSheet com o PaymentIntent
       const { error } = await initPaymentSheet({
-        setupIntentClientSecret,
+        paymentIntentClientSecret: paymentIntentClientSecret,
         merchantDisplayName: "App Organizei",
         allowsDelayedPaymentMethods: false,
         // Personalizações de layout com cores do app Marca AI
@@ -72,7 +72,7 @@ export default function PaymentSheetScreen() {
             placeholderText: '#9BA1A6',
           },
           shapes: {
-            borderRadius: 16, // Bordas mais arredondadas
+            borderRadius: 4, // Bordas mais arredondadas
             shadow: {
               color: '#000000',
               opacity: 0.08,

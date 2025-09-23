@@ -199,10 +199,14 @@ export const createSubscription = async (subscriptionData: CreateSubscriptionDat
       }
     }
 
-    if (parsedData && parsedData.setupIntentClientSecret && parsedData.subscriptionId && parsedData.subscriptionStatus) {
+    console.log('📦 Debug - createSubscription data recebido:', parsedData);
+    console.log('📦 Debug - setupIntentClientSecret:', parsedData?.setupIntentClientSecret);
+    console.log('📦 Debug - paymentIntentClientSecret:', parsedData?.paymentIntentClientSecret);
+
+    if (parsedData && parsedData.subscriptionId && parsedData.subscriptionStatus) {
       return { 
         success: true, 
-        setupIntentClientSecret: parsedData.setupIntentClientSecret,
+        setupIntentClientSecret: parsedData.setupIntentClientSecret || parsedData.paymentIntentClientSecret,
         subscriptionId: parsedData.subscriptionId,
         subscriptionStatus: parsedData.subscriptionStatus,
         error: null 

@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useStripe } from '@stripe/stripe-react-native';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -32,6 +33,7 @@ interface StripeProduct {
 export default function PlanosPagamentosScreen() {
   const { colors, isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [plans, setPlans] = useState<StripeProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
@@ -177,19 +179,35 @@ export default function PlanosPagamentosScreen() {
         throw new Error(subscriptionError || 'Erro ao criar subscription');
       }
 
-      // 4. Navegar para tela de pagamento com Stripe PaymentSheet
-      router.push({
-        pathname: '/payment-sheet',
-        params: {
-          subscriptionId,
-          customerId: userData.customer_id,
-          planName: plan.name,
-          planValue: plan.value.toString(),
-          planCurrency: plan.currency,
-          clientSecret: setupIntentClientSecret,
-          hasClientSecret: 'true'
+      // 4. Inicializar e apresentar PaymentSheet diretamente
+      if (setupIntentClientSecret) {
+        const { error } = await initPaymentSheet({
+          setupIntentClientSecret,
+          merchantDisplayName: "App Organizei",
+          allowsDelayedPaymentMethods: false,
+        });
+
+        if (error) {
+          throw new Error(`Erro ao inicializar PaymentSheet: ${error.message}`);
         }
-      });
+
+        // Apresentar o PaymentSheet
+        const { error: presentError } = await presentPaymentSheet();
+
+        if (presentError) {
+          throw new Error(`Erro ao apresentar PaymentSheet: ${presentError.message}`);
+        }
+
+        // Sucesso! Mostrar mensagem e navegar
+        Alert.alert('Sucesso', 'Pagamento realizado com sucesso!', [
+          {
+            text: 'OK',
+            onPress: () => router.replace('/(tabs)/agenda')
+          }
+        ]);
+      } else {
+        throw new Error('Client Secret não foi retornado');
+      }
 
     } catch (error: any) {
       setPaymentError(error.message || 'Erro ao processar pagamento. Tente novamente.');
