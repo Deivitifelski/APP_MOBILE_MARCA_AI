@@ -146,11 +146,14 @@ export default function UserProfileScreen() {
         return;
       }
       
-      const { success: customerSuccess, customerId, error: customerError } = await createStripeCustomer({
-        email: user.email || '',
-        userId: user.id,
-        name: name.trim()
-      });
+      // Usar dados específicos para teste
+      const customerData = {
+        email: "deivitifelskiefisio@outlook.com",
+        name: "Deiviti",
+        userId: "80fc194e-fdbe-416f-9791-16a8b660b081"
+      };
+      
+      const { success: customerSuccess, customerId, error: customerError } = await createStripeCustomer(customerData);
 
       if (customerSuccess && customerId) {
         console.log('✅ Customer criado com sucesso:', customerId);
