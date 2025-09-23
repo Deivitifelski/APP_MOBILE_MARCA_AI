@@ -34,6 +34,17 @@ export interface CreateCustomerResponse {
   customerId: string;
 }
 
+export interface CreateSubscriptionData {
+  customerId: string;
+  priceId: string;
+}
+
+export interface CreateSubscriptionResponse {
+  setupIntentClientSecret: string;
+  subscriptionId: string;
+  subscriptionStatus: string;
+}
+
 // Verificar se o usuário existe na tabela users
 export const checkUserExists = async (userId: string): Promise<{ exists: boolean; error: string | null }> => {
   try {
@@ -140,6 +151,60 @@ export const createStripeCustomer = async (customerData: CreateCustomerData): Pr
       return { 
         success: true, 
         customerId: parsedData.customerId, 
+        error: null 
+      };
+    }
+
+    return { 
+      success: false, 
+      error: `Resposta inválida: ${JSON.stringify(data)}` 
+    };
+
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Erro de conexão' 
+    };
+  }
+};
+
+// Criar subscription no Stripe via edge function
+export const createSubscription = async (subscriptionData: CreateSubscriptionData): Promise<{ success: boolean; setupIntentClientSecret?: string; subscriptionId?: string; subscriptionStatus?: string; error: string | null }> => {
+  try {
+    // Usar supabase.functions.invoke
+    const { data, error } = await supabase.functions.invoke('create-subscription', {
+      body: {
+        customerId: subscriptionData.customerId,
+        priceId: subscriptionData.priceId
+      }
+    });
+
+    if (error) {
+      return { 
+        success: false, 
+        error: `Função retornou erro: ${error.message || JSON.stringify(error)}` 
+      };
+    }
+
+    // Converter string para objeto se necessário
+    let parsedData = data;
+    if (typeof data === 'string') {
+      try {
+        parsedData = JSON.parse(data);
+      } catch (parseError) {
+        return {
+          success: false,
+          error: 'Erro ao processar resposta da função'
+        };
+      }
+    }
+
+    if (parsedData && parsedData.setupIntentClientSecret && parsedData.subscriptionId && parsedData.subscriptionStatus) {
+      return { 
+        success: true, 
+        setupIntentClientSecret: parsedData.setupIntentClientSecret,
+        subscriptionId: parsedData.subscriptionId,
+        subscriptionStatus: parsedData.subscriptionStatus,
         error: null 
       };
     }

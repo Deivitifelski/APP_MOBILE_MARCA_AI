@@ -5,7 +5,6 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
-  Modal,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -16,7 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
-import { createStripeCustomer } from '../services/supabase/userService';
+import { createStripeCustomer, createSubscription } from '../services/supabase/userService';
 
 const { width } = Dimensions.get('window');
 
@@ -37,9 +36,7 @@ export default function PlanosPagamentosScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [isSubscribing, setIsSubscribing] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedPlanForPayment, setSelectedPlanForPayment] = useState<StripeProduct | null>(null);
-  // Não precisamos mais do formulário de pagamento
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
   // Buscar planos do Supabase
@@ -144,137 +141,63 @@ export default function PlanosPagamentosScreen() {
     }
   };
 
-  const handleSubscribe = (plan: StripeProduct) => {
+  const handleSubscribe = async (plan: StripeProduct) => {
     setSelectedPlanForPayment(plan);
-    setShowPaymentModal(true);
-    setPaymentError(null);
-  };
-
-  const handlePaymentSubmit = async () => {
-    if (!selectedPlanForPayment) return;
-
-    // Não há validações necessárias - só precisamos do plano selecionado
-
     setIsSubscribing(true);
     setPaymentError(null);
 
     try {
-      // 1. Verificar configuração do Supabase
-      console.log('Supabase configurado:', !!supabase);
-
-      // 2. Obter usuário autenticado
+      // 1. Obter usuário autenticado
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       
       if (authError || !user) {
         throw new Error('Usuário não autenticado');
       }
 
-      // 3. Obter token de autenticação
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      console.log('Usuário autenticado:', user.id);
-      console.log('Token presente:', !!session?.access_token);
+      // 2. Buscar customer_id do usuário
+      const { data: userData, error: userDataError } = await supabase
+        .from('users')
+        .select('customer_id')
+        .eq('id', user.id)
+        .single();
 
-      // 4. Criar assinatura no Supabase
-      console.log('=== DEBUG DETALHADO ===');
-      console.log('priceId enviado:', selectedPlanForPayment.id);
-      console.log('userId enviado:', user.id);
-      console.log('Exemplo que funciona:', 'price_1S94AlFP5oK5C2EuKtuowWZt');
-      console.log('Comparação priceId:', selectedPlanForPayment.id === 'price_1S94AlFP5oK5C2EuKtuowWZt');
-      console.log('Token de autenticação:', session?.access_token?.substring(0, 20) + '...');
-      console.log('========================');
+      if (userDataError || !userData?.customer_id) {
+        throw new Error('Customer ID não encontrado. Faça login novamente.');
+      }
 
-      // Usar fetch direto como no teste do Supabase
-      const supabaseUrl = 'https://ctulmpyaikxsnjqmrzxf.supabase.co';
-      const functionUrl = `${supabaseUrl}/functions/v1/create-subscription`;
-      
-      const response = await fetch(functionUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
-          'Content-Type': 'application/json',
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN0dWxtcHlhaWt4c25qcW1yenhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDc4MzIxNjUsImV4cCI6MjAyMzQwODE2NX0.xeDf7zJKk8lFbWdShCIjNdOFJwqPePALHcWcBjRvKj8'
-        },
-        body: JSON.stringify({
-          priceId: selectedPlanForPayment.default_price,
-          userId: user.id
-        })
+      // 3. Criar subscription usando a nova função
+      const subscriptionData = {
+        customerId: userData.customer_id,
+        priceId: plan.default_price
+      };
+
+      const { success, setupIntentClientSecret, subscriptionId, subscriptionStatus, error: subscriptionError } = await createSubscription(subscriptionData);
+
+      if (!success) {
+        throw new Error(subscriptionError || 'Erro ao criar subscription');
+      }
+
+      // 4. Navegar para tela de confirmação de pagamento
+      router.push({
+        pathname: '/payment-confirmation',
+        params: {
+          subscriptionId,
+          customerId: userData.customer_id,
+          planName: plan.name,
+          planValue: plan.value.toString(),
+          planCurrency: plan.currency,
+          clientSecret: setupIntentClientSecret,
+          hasClientSecret: 'true'
+        }
       });
 
-      let data, error;
-      if (response.ok) {
-        data = await response.json();
-        error = null;
-      } else {
-        const errorText = await response.text();
-        console.log('Erro do Supabase (texto completo):', errorText);
-        error = { 
-          message: `HTTP ${response.status}: ${errorText}`,
-          context: { status: response.status }
-        };
-        data = null;
-      }
-
-      console.log('Resposta da função:', { data, error });
-
-      if (error) {
-      
-        // Log do status do erro
-        console.error('Status do erro:', error.context?.status);
-        
-        // Para erro 400, mostrar detalhes específicos
-        let errorMessage = error.message || `Erro ${error.context?.status || 'desconhecido'} ao criar assinatura`;
-        
-        if (error.context?.status === 400) {
-          errorMessage = `Erro 400: Parâmetros inválidos. Verifique se priceId e userId estão corretos.`;
-          console.error('Parâmetros enviados:', { 
-            priceId: selectedPlanForPayment.id, 
-            userId: user.id,
-            priceIdType: typeof selectedPlanForPayment.id,
-            userIdType: typeof user.id
-          });
-        }
-        
-        throw new Error(errorMessage);
-      }
-
-      const { subscriptionId, clientSecret, customer } = data;
-
-      if (!subscriptionId) {
-        throw new Error('Subscription ID não recebido');
-      }
-
-      // 2. Fechar modal e processar assinatura criada
-      setShowPaymentModal(false);
-      
-      if (subscriptionId && customer) {
-        // Navegar para tela de confirmação de pagamento
-        router.push({
-          pathname: '/payment-confirmation',
-          params: {
-            subscriptionId,
-            customerId: customer,
-            planName: selectedPlanForPayment.name,
-            planValue: selectedPlanForPayment.value.toString(),
-            planCurrency: selectedPlanForPayment.currency,
-            clientSecret: 'cus_T5bkXLhxa5Q2da',
-            hasClientSecret: 'true'
-          }
-        });
-        
-        setSelectedPlanForPayment(null);
-      } else {
-        throw new Error('Dados da assinatura incompletos');
-      }
-
     } catch (error: any) {
-      console.error('Erro no pagamento:', error);
       setPaymentError(error.message || 'Erro ao processar pagamento. Tente novamente.');
-      setShowPaymentModal(true); // Reabrir modal em caso de erro
     } finally {
       setIsSubscribing(false);
     }
   };
+
 
   const formatPrice = (value: number, currency: string) => {
     const formatter = new Intl.NumberFormat('pt-BR', {
@@ -374,6 +297,14 @@ export default function PlanosPagamentosScreen() {
               </View>
 
 
+              {/* Erro de Pagamento */}
+              {paymentError && (
+                <View style={[styles.errorContainer, { backgroundColor: '#FEF2F2' }]}>
+                  <Ionicons name="alert-circle" size={20} color="#F44336" />
+                  <Text style={[styles.errorText, { color: '#F44336' }]}>{paymentError}</Text>
+                </View>
+              )}
+
               {/* Plans Grid */}
               <View style={styles.plansContainer}>
                 {plans && plans.length > 0 ? (
@@ -438,100 +369,6 @@ export default function PlanosPagamentosScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      {/* Modal de Pagamento */}
-      <Modal
-        visible={showPaymentModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowPaymentModal(false)}
-      >
-        <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background }]}>
-          <View style={[styles.modalHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-            <TouchableOpacity
-              onPress={() => setShowPaymentModal(false)}
-              style={styles.modalCloseButton}
-            >
-              <Ionicons name="close" size={24} color={colors.text} />
-            </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Criar Assinatura</Text>
-            <View style={styles.modalPlaceholder} />
-          </View>
-
-          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-            {selectedPlanForPayment && (
-              <View style={[styles.paymentPlanCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <View style={styles.paymentPlanHeader}>
-                  <View style={[styles.paymentPlanIcon, { backgroundColor: '#F59E0B' + '20' }]}>
-                    <Ionicons name="diamond" size={24} color="#F59E0B" />
-                  </View>
-                  <View style={styles.paymentPlanInfo}>
-                    <Text style={[styles.paymentPlanName, { color: colors.text }]}>
-                      {selectedPlanForPayment.name}
-                    </Text>
-                    <Text style={[styles.paymentPlanPrice, { color: '#F59E0B' }]}>
-                      {formatPrice(selectedPlanForPayment.value, selectedPlanForPayment.currency)}/mês
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            )}
-
-            <View style={[styles.paymentForm, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.paymentFormTitle, { color: colors.text }]}>Confirmar Assinatura</Text>
-              
-              {/* Informação sobre a assinatura */}
-              <View style={[styles.infoContainer, { backgroundColor: colors.background }]}>
-                <Ionicons name="information-circle" size={20} color="#3B82F6" />
-                <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-                  Sua assinatura será criada automaticamente utilizando seus dados de usuário. Você receberá os detalhes da assinatura após a confirmação.
-                </Text>
-              </View>
-
-              {/* Resumo do plano */}
-              {selectedPlanForPayment && (
-                <View style={[styles.summaryContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                  <Text style={[styles.summaryTitle, { color: colors.text }]}>Resumo da Assinatura</Text>
-                  <Text style={[styles.summaryItem, { color: colors.textSecondary }]}>
-                    Plano: {selectedPlanForPayment.name}
-                  </Text>
-                  <Text style={[styles.summaryItem, { color: colors.textSecondary }]}>
-                    Valor: {formatPrice(selectedPlanForPayment.value, selectedPlanForPayment.currency)}/mês
-                  </Text>
-                  <Text style={[styles.summaryItem, { color: colors.textSecondary }]}>
-                    Price ID: {selectedPlanForPayment.id}
-                  </Text>
-                </View>
-              )}
-
-              {/* Erro de Pagamento */}
-              {paymentError && (
-                <View style={styles.errorContainer}>
-                  <Ionicons name="alert-circle" size={20} color="#F44336" />
-                  <Text style={styles.errorText}>{paymentError}</Text>
-                </View>
-              )}
-
-              {/* Botão de Pagamento */}
-              <TouchableOpacity
-                style={[styles.paymentButton, { backgroundColor: '#F59E0B' }]}
-                onPress={handlePaymentSubmit}
-                disabled={isSubscribing}
-              >
-                {isSubscribing ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <>
-                    <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                    <Text style={styles.paymentButtonText}>
-                      Criar Assinatura
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
     </View>
   );
 }
