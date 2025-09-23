@@ -267,7 +267,7 @@ export default function PlanosPagamentosScreen() {
               {/* Hero Section */}
               <View style={styles.heroSection}>
                 <Text style={[styles.heroTitle, { color: colors.text }]}>
-                  Escolha o plano ideal para sua banda
+                  Seja Premium
                 </Text>
                 <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]}>
                   Gerencie eventos, finanças e colaboradores com facilidade
