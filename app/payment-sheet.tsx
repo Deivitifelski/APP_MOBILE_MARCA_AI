@@ -3,13 +3,13 @@ import { useStripe } from "@stripe/stripe-react-native";
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
@@ -56,8 +56,44 @@ export default function PaymentSheetScreen() {
       // Inicializa o PaymentSheet com o SetupIntent
       const { error } = await initPaymentSheet({
         setupIntentClientSecret,
-        merchantDisplayName: "Marca AI",
+        merchantDisplayName: "App Organizei",
         allowsDelayedPaymentMethods: false,
+        // Personalizações de layout com cores do app Marca AI
+        appearance: {
+          colors: {
+            primary: '#0a7ea4', // Cor principal do app (tint)
+            background: '#FFFFFF', // Background claro
+            componentBackground: '#F8F9FA',
+            componentBorder: '#E9ECEF',
+            componentDivider: '#E9ECEF',
+            primaryText: '#11181C', // Texto principal do tema
+            secondaryText: '#687076', // Texto secundário do tema
+            componentText: '#11181C',
+            placeholderText: '#9BA1A6',
+          },
+          shapes: {
+            borderRadius: 16, // Bordas mais arredondadas
+            shadow: {
+              color: '#000000',
+              opacity: 0.08,
+              offset: { width: 0, height: 4 },
+              radius: 12,
+            }
+          },
+          primaryButton: {
+            colors: {
+              background: '#0a7ea4', // Cor principal do app
+              text: '#FFFFFF',
+              border: '#0a7ea4',
+            },
+            shapes: {
+              borderRadius: 4,
+            }
+          }
+        },
+        // Configurações de estilo
+        style: 'alwaysLight', // Força tema claro
+        returnURL: 'exp://192.168.1.2:8081/--/(tabs)/agenda',
       });
 
       if (error) {
@@ -151,7 +187,7 @@ export default function PaymentSheetScreen() {
           
           <View style={styles.buttonContainer}>
             <TouchableOpacity
-              style={[styles.retryButton, { backgroundColor: '#F59E0B' }]}
+              style={[styles.retryButton, { backgroundColor: '#0a7ea4' }]}
               onPress={handleRetryPayment}
               disabled={isLoading}
             >
@@ -171,8 +207,8 @@ export default function PaymentSheetScreen() {
 
     // Estado de loading/processando
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#F59E0B" />
+        <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#0a7ea4" />
         <Text style={[styles.loadingTitle, { color: colors.text }]}>
           Processando Pagamento
         </Text>
@@ -186,7 +222,7 @@ export default function PaymentSheetScreen() {
           <Text style={[styles.planInfoName, { color: colors.text }]}>
             {planName || 'Plano Premium'}
           </Text>
-          <Text style={[styles.planInfoPrice, { color: '#F59E0B' }]}>
+          <Text style={[styles.planInfoPrice, { color: '#0a7ea4' }]}>
             {planValue && planCurrency ? formatPrice(planValue as string, planCurrency as string) : 'R$ 29,90'}/mês
           </Text>
         </View>
