@@ -116,43 +116,76 @@ export default function PlanosPagamentosScreen() {
       console.log('Supabase configurado:', !!supabase);
 
       // 2. Obter usuário autenticado
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
       
-      if (!user) {
+      if (authError || !user) {
         throw new Error('Usuário não autenticado');
       }
 
+      // 3. Obter token de autenticação
+      const { data: { session } } = await supabase.auth.getSession();
+      
       console.log('Usuário autenticado:', user.id);
+      console.log('Token presente:', !!session?.access_token);
 
-      // 3. Criar assinatura no Supabase
-      console.log('Chamando create-subscription com:', { 
-        priceId: selectedPlanForPayment.id,
-        userId: user.id
-      });
+      // 4. Criar assinatura no Supabase
+      console.log('=== DEBUG DETALHADO ===');
+      console.log('priceId enviado:', selectedPlanForPayment.id);
+      console.log('userId enviado:', user.id);
+      console.log('Exemplo que funciona:', 'price_1S94AlFP5oK5C2EuKtuowWZt');
+      console.log('Comparação priceId:', selectedPlanForPayment.id === 'price_1S94AlFP5oK5C2EuKtuowWZt');
+      console.log('Token de autenticação:', session?.access_token?.substring(0, 20) + '...');
+      console.log('========================');
 
-      const { data, error } = await supabase.functions.invoke('create-subscription', {
+      // Usar fetch direto como no teste do Supabase
+      const supabaseUrl = 'https://ctulmpyaikxsnjqmrzxf.supabase.co';
+      const functionUrl = `${supabaseUrl}/functions/v1/create-subscription`;
+      
+      const response = await fetch(functionUrl, {
         method: 'POST',
-        body: { 
-          priceId: selectedPlanForPayment.id,
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'Content-Type': 'application/json',
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN0dWxtcHlhaWt4c25qcW1yenhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDc4MzIxNjUsImV4cCI6MjAyMzQwODE2NX0.xeDf7zJKk8lFbWdShCIjNdOFJwqPePALHcWcBjRvKj8'
+        },
+        body: JSON.stringify({
+          priceId: "price_1S94AlFP5oK5C2EuKtuowWZt",
           userId: user.id
-        }
+        })
       });
+
+      let data, error;
+      if (response.ok) {
+        data = await response.json();
+        error = null;
+      } else {
+        const errorText = await response.text();
+        console.log('Erro do Supabase (texto completo):', errorText);
+        error = { 
+          message: `HTTP ${response.status}: ${errorText}`,
+          context: { status: response.status }
+        };
+        data = null;
+      }
 
       console.log('Resposta da função:', { data, error });
 
       if (error) {
-        console.error('Erro detalhado:', error);
-        console.error('Tipo do erro:', error.constructor.name);
-        console.error('Status do erro:', error.status);
-        console.error('Detalhes completos:', JSON.stringify(error, null, 2));
+      
+        // Log do status do erro
+        console.error('Status do erro:', error.context?.status);
         
-        // Tentar obter mais detalhes do erro
-        let errorMessage = 'Erro ao criar assinatura';
-        if (error.message) {
-          errorMessage = error.message;
-        }
-        if (error.status) {
-          errorMessage += ` (Status: ${error.status})`;
+        // Para erro 400, mostrar detalhes específicos
+        let errorMessage = error.message || `Erro ${error.context?.status || 'desconhecido'} ao criar assinatura`;
+        
+        if (error.context?.status === 400) {
+          errorMessage = `Erro 400: Parâmetros inválidos. Verifique se priceId e userId estão corretos.`;
+          console.error('Parâmetros enviados:', { 
+            priceId: selectedPlanForPayment.id, 
+            userId: user.id,
+            priceIdType: typeof selectedPlanForPayment.id,
+            userIdType: typeof user.id
+          });
         }
         
         throw new Error(errorMessage);
