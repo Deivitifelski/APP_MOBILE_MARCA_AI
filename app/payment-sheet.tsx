@@ -76,8 +76,7 @@ export default function PaymentSheetScreen() {
             shadow: {
               color: '#000000',
               opacity: 0.08,
-              offset: { width: 0, height: 4 },
-              radius: 12,
+              offset: { x: 0, y: 4 },
             }
           },
           primaryButton: {
