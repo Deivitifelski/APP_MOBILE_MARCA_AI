@@ -177,9 +177,9 @@ export default function PlanosPagamentosScreen() {
         throw new Error(subscriptionError || 'Erro ao criar subscription');
       }
 
-      // 4. Navegar para tela de confirmação de pagamento
+      // 4. Navegar para tela de pagamento com Stripe PaymentSheet
       router.push({
-        pathname: '/payment-confirmation',
+        pathname: '/payment-sheet',
         params: {
           subscriptionId,
           customerId: userData.customer_id,
