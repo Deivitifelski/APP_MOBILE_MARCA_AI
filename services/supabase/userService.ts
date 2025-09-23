@@ -109,7 +109,7 @@ export const createStripeCustomer = async (customerData: CreateCustomerData): Pr
   try {
 
     // Usar supabase.functions.invoke é mais seguro e não expõe URLs
-    const { data, error } = await supabase.functions.invoke('create-customers', {
+    const { data, error } = await supabase.functions.invoke('create-custumer', {
       body: {
         email: customerData.email,
         userId: customerData.userId,

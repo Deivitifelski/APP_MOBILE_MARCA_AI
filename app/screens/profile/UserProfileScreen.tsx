@@ -146,12 +146,19 @@ export default function UserProfileScreen() {
         return;
       }
       
-      // Usar dados específicos para teste
+      // Usar dados reais do usuário
       const customerData = {
-        email: "deivitifelskiefisio@outlook.com",
-        name: "Deiviti",
-        userId: "80fc194e-fdbe-416f-9791-16a8b660b081"
+        email: user.email || '',
+        name: name.trim(),
+        userId: user.id
       };
+      
+      console.log('🎯 Criando customer no Stripe...');
+      console.log('📋 Dados do usuário enviados para create-customers:');
+      console.log('   📧 Email:', customerData.email);
+      console.log('   👤 Nome:', customerData.name);
+      console.log('   🆔 User ID:', customerData.userId);
+      console.log('📦 Objeto completo:', JSON.stringify(customerData, null, 2));
       
       const { success: customerSuccess, customerId, error: customerError } = await createStripeCustomer(customerData);
 
