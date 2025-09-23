@@ -3,22 +3,22 @@ import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { getCurrentUser } from '../../../services/supabase/authService';
 import { uploadUserImage } from '../../../services/supabase/imageUploadService';
-import { createUserProfile } from '../../../services/supabase/userService';
+import { createStripeCustomer, createUserProfile, updateUserCustomerId } from '../../../services/supabase/userService';
 
 const estadosBrasil = [
   'Acre', 'Alagoas', 'Amapá', 'Amazonas', 'Bahia', 'Ceará',
@@ -138,12 +138,36 @@ export default function UserProfileScreen() {
         city: city.trim(),
         state: state,
         phone: phone.trim(),
-        profile_url: finalProfileUrl
+        profile_url: finalProfileUrl || undefined
       });
 
       if (!success) {
         Alert.alert('Erro', 'Erro ao salvar dados do usuário: ' + error);
         return;
+      }
+      
+      const { success: customerSuccess, customerId, error: customerError } = await createStripeCustomer({
+        email: user.email || '',
+        userId: user.id,
+        name: name.trim()
+      });
+
+      if (customerSuccess && customerId) {
+        console.log('✅ Customer criado com sucesso:', customerId);
+        
+        // Atualizar o customer_id na tabela users
+        const { success: updateSuccess, error: updateError } = await updateUserCustomerId(user.id, customerId);
+        
+        if (!updateSuccess) {
+          console.error('❌ Erro ao atualizar customer_id:', updateError);
+          // Não bloquear o fluxo se der erro ao atualizar o customer_id
+        } else {
+          console.log('✅ Customer ID atualizado na tabela users');
+        }
+      } else {
+        console.error('❌ Erro ao criar customer no Stripe:', customerError);
+        console.log('ℹ️ O cadastro continuará mesmo com erro no Stripe. Customer pode ser criado posteriormente.');
+        // Não bloquear o fluxo se der erro ao criar customer
       }
 
       Alert.alert(

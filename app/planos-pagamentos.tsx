@@ -198,42 +198,25 @@ export default function PlanosPagamentosScreen() {
         throw new Error('Subscription ID não recebido');
       }
 
-      // 2. Fechar modal
+      // 2. Fechar modal e processar assinatura criada
       setShowPaymentModal(false);
-
-      // 3. Processar assinatura criada
+      
       if (subscriptionId && customer) {
-        // Se não há clientSecret, a assinatura foi criada com sucesso diretamente
-        if (!clientSecret) {
-          Alert.alert(
-            '✅ Assinatura Criada!',
-            `Sua assinatura do ${selectedPlanForPayment.name} foi criada com sucesso!\n\nSubscription ID: ${subscriptionId}\nCustomer ID: ${customer}`,
-            [
-              {
-                text: 'OK',
-                onPress: () => {
-                  setSelectedPlanForPayment(null);
-                  router.back();
-                }
-              }
-            ]
-          );
-        } else {
-          // Se há clientSecret, pode precisar de confirmação adicional
-          Alert.alert(
-            '⚠️ Confirmação Necessária',
-            `Assinatura criada mas requer confirmação adicional.\n\nSubscription ID: ${subscriptionId}`,
-            [
-              {
-                text: 'OK',
-                onPress: () => {
-                  setSelectedPlanForPayment(null);
-                  router.back();
-                }
-              }
-            ]
-          );
-        }
+        // Navegar para tela de confirmação de pagamento
+        router.push({
+          pathname: '/payment-confirmation',
+          params: {
+            subscriptionId,
+            customerId: customer,
+            planName: selectedPlanForPayment.name,
+            planValue: selectedPlanForPayment.value.toString(),
+            planCurrency: selectedPlanForPayment.currency,
+            clientSecret: 'cus_T5bkXLhxa5Q2da',
+            hasClientSecret: 'true'
+          }
+        });
+        
+        setSelectedPlanForPayment(null);
       } else {
         throw new Error('Dados da assinatura incompletos');
       }

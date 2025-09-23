@@ -8,6 +8,7 @@ export interface UserProfile {
   state?: string;
   phone?: string;
   profile_url?: string;
+  customer_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -20,6 +21,17 @@ export interface CreateUserProfileData {
   state?: string;
   phone?: string;
   profile_url?: string;
+  customer_id?: string;
+}
+
+export interface CreateCustomerData {
+  email: string;
+  userId: string;
+  name: string;
+}
+
+export interface CreateCustomerResponse {
+  customerId: string;
 }
 
 // Verificar se o usuário existe na tabela users
@@ -58,6 +70,7 @@ export const createUserProfile = async (userData: CreateUserProfileData): Promis
         state: userData.state || null,
         phone: userData.phone || null,
         profile_url: userData.profile_url || null,
+        customer_id: userData.customer_id || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       });
@@ -88,6 +101,59 @@ export const getUserProfile = async (userId: string): Promise<{ profile: UserPro
     return { profile: data, error: null };
   } catch (error) {
     return { profile: null, error: 'Erro de conexão' };
+  }
+};
+
+// Criar customer no Stripe via edge function
+export const createStripeCustomer = async (customerData: CreateCustomerData): Promise<{ success: boolean; customerId?: string; error: string | null }> => {
+  try {
+    // Log detalhado para debug
+    console.log('🔧 Chamando função create-customers com dados:', customerData);
+    
+    const { data, error } = await supabase.functions.invoke('create-customers', {
+      body: {
+        email: customerData.email,
+        userId: customerData.userId,
+        name: customerData.name
+      }
+    });
+
+    console.log('📦 Resposta da função:', { data, error });
+
+    if (error) {
+      console.error('❌ Erro retornado pela função:', error);
+      return { success: false, error: `Edge Function Error: ${error.message}` };
+    }
+
+    if (data && data.customerId) {
+      return { success: true, customerId: data.customerId, error: null };
+    }
+
+    return { success: false, error: 'Resposta inválida da função create-customers' };
+  } catch (error) {
+    console.error('❌ Erro na chamada da função:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Erro de conexão' };
+  }
+};
+
+// Atualizar customer_id do usuário
+export const updateUserCustomerId = async (userId: string, customerId: string): Promise<{ success: boolean; error: string | null }> => {
+  try {
+    const { error } = await supabase
+      .from('users')
+      .update({
+        customer_id: customerId,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, error: null };
+  } catch (error) {
+    return { success: false, error: 'Erro de conexão' };
   }
 };
 
