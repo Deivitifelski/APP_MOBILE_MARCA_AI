@@ -17,6 +17,7 @@
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
+    "@stripe/stripe-react-native": "^0.53.1",
     "@supabase/supabase-js": "^2.57.4",
     "expo": "~54.0.10",
     "expo-clipboard": "^8.0.7",
