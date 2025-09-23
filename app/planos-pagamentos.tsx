@@ -45,43 +45,33 @@ export default function PlanosPagamentosScreen() {
     try {
       setIsLoading(true);
       const { data, error } = await supabase.functions.invoke('list-stripe-products');
-      console.log('✅ Resposta da função list-stripe-products:', data);
       
       if (error) {
-        console.error('Erro ao buscar planos:', error);
         Alert.alert('Erro', 'Não foi possível carregar os planos. Tente novamente.');
         setPlans([]);
         return;
       }
 
       if (data) {
-        console.log('✅ Dados recebidos (tipo):', typeof data);
-        console.log('✅ Dados recebidos (string):', JSON.stringify(data, null, 2));
-        
         // Se data já é um array, usar diretamente
         if (Array.isArray(data)) {
-          console.log('✅ Dados são um array:', data.length, 'planos');
           setPlans(data);
         } 
         // Se data é uma string JSON, fazer parse
         else if (typeof data === 'string') {
           try {
             const parsedData = JSON.parse(data);
-            console.log('✅ JSON parseado:', parsedData);
             if (Array.isArray(parsedData)) {
               setPlans(parsedData);
             } else {
               setPlans([]);
             }
           } catch (parseError) {
-            console.error('❌ Erro ao fazer parse do JSON:', parseError);
             setPlans([]);
           }
         }
         // Se data é um objeto, tentar extrair array
         else if (typeof data === 'object') {
-          console.log('✅ Dados são um objeto, tentando extrair array...');
-          // Se tem propriedade que é array
           const arrayData = Object.values(data).find(item => Array.isArray(item));
           if (arrayData) {
             setPlans(arrayData as StripeProduct[]);
@@ -90,15 +80,12 @@ export default function PlanosPagamentosScreen() {
           }
         }
         else {
-          console.log('⚠️ Tipo de dados não reconhecido:', typeof data);
           setPlans([]);
         }
       } else {
-        console.log('⚠️ Nenhum dado recebido');
         setPlans([]);
       }
     } catch (err) {
-      console.error('Erro inesperado:', err);
       Alert.alert('Erro', 'Ocorreu um erro inesperado. Tente novamente.');
       setPlans([]);
     } finally {
@@ -211,8 +198,8 @@ export default function PlanosPagamentosScreen() {
     >
       {/* Header */}
       <View style={styles.planHeader}>
-        <View style={[styles.planIcon, { backgroundColor: '#3B82F6' + '20' }]}>
-          <Ionicons name="star" size={32} color="#3B82F6" />
+        <View style={[styles.planIcon, { backgroundColor: '#F59E0B' + '20' }]}>
+          <Ionicons name="diamond" size={32} color="#F59E0B" />
         </View>
         <Text style={[styles.planName, { color: colors.text }]}>{plan.name}</Text>
         <Text style={[styles.planDescription, { color: colors.textSecondary }]}>
@@ -222,7 +209,7 @@ export default function PlanosPagamentosScreen() {
 
       {/* Price */}
       <View style={styles.priceContainer}>
-        <Text style={[styles.price, { color: '#3B82F6' }]}>
+        <Text style={[styles.price, { color: '#F59E0B' }]}>
           {formatPrice(plan.value, plan.currency)}
         </Text>
         <Text style={[styles.period, { color: colors.textSecondary }]}>/mês</Text>
@@ -233,7 +220,7 @@ export default function PlanosPagamentosScreen() {
         style={[
           styles.subscribeButton,
           {
-            backgroundColor: '#3B82F6',
+            backgroundColor: '#F59E0B',
             opacity: selectedPlan === plan.id ? 0.7 : 1,
           }
         ]}
@@ -299,6 +286,53 @@ export default function PlanosPagamentosScreen() {
                     </Text>
                   </View>
                 )}
+              </View>
+
+              {/* Comparison Table */}
+              <View style={[styles.comparisonSection, { backgroundColor: colors.surface }]}>
+                <Text style={[styles.comparisonTitle, { color: colors.text }]}>
+                  Comparação de Planos
+                </Text>
+                
+                <View style={styles.comparisonTable}>
+                  <View style={styles.tableHeader}>
+                    <Text style={[styles.tableHeaderText, { color: colors.textSecondary }]}>
+                      Funcionalidade
+                    </Text>
+                    <Text style={[styles.tableHeaderText, { color: colors.textSecondary }]}>
+                      Free
+                    </Text>
+                    <Text style={[styles.tableHeaderText, { color: colors.textSecondary }]}>
+                      Premium
+                    </Text>
+                  </View>
+
+                  {[
+                    { feature: 'Usuários', free: '1', premium: 'Ilimitado' },
+                    { feature: 'Eventos', free: 'Básicos', premium: 'Completos' },
+                    { feature: 'Finanças', free: '❌', premium: '✅' },
+                    { feature: 'Relatórios', free: '❌', premium: '✅' },
+                    { feature: 'Suporte', free: '❌', premium: '✅' },
+                    { feature: 'Exportação', free: '❌', premium: '✅' },
+                    { feature: 'Colaboradores', free: '❌', premium: '✅' },
+                    { feature: 'Agenda Compartilhada', free: '❌', premium: '✅' }
+                  ].map((row, index) => (
+                    <View key={index} style={[
+                      styles.tableRow,
+                      { borderBottomColor: colors.border }
+                    ]}>
+                      <Text style={[styles.tableCell, { color: colors.text }]}>
+                        {row.feature}
+                      </Text>
+                      <Text style={[styles.tableCell, { color: colors.textSecondary }]}>
+                        {row.free}
+                      </Text>
+                      <Text style={[styles.tableCell, { color: colors.textSecondary }]}>
+                        {row.premium}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
               </View>
             </>
           )}
@@ -441,5 +475,52 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  comparisonSection: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 32,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  comparisonTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  comparisonTable: {
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#f8f9fa',
+    paddingVertical: 12,
+  },
+  tableHeaderText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    textAlign: 'center',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  tableCell: {
+    flex: 1,
+    fontSize: 14,
+    color: '#333',
+    textAlign: 'center',
   },
 });

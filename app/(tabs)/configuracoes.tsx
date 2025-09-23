@@ -616,13 +616,32 @@ export default function ConfiguracoesScreen() {
               'Alterar senha e configurações de segurança',
               handleSecurity
             )}
-            
-            {renderSettingItem(
-              'card',
-              'Planos e Pagamentos',
-              'Escolher plano e gerenciar pagamentos',
-              () => router.push('/planos-pagamentos')
-            )}
+          </View>
+        </View>
+
+        {/* Seja Premium */}
+        <View style={dynamicStyles.section}>
+          <View style={[dynamicStyles.premiumCard, { backgroundColor: colors.surface }]}>
+            <View style={dynamicStyles.premiumContent}>
+              <View style={dynamicStyles.premiumIcon}>
+                <Ionicons name="diamond" size={32} color="#F59E0B" />
+              </View>
+              <View style={dynamicStyles.premiumText}>
+                <Text style={[dynamicStyles.premiumTitle, { color: colors.text }]}>
+                  Seja Premium
+                </Text>
+                <Text style={[dynamicStyles.premiumDescription, { color: colors.textSecondary }]}>
+                  Desbloqueie recursos avançados, usuários ilimitados, relatórios detalhados e suporte prioritário para sua banda.
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity 
+              style={[dynamicStyles.premiumButton, { backgroundColor: '#F59E0B' }]}
+              onPress={() => router.push('/planos-pagamentos')}
+            >
+              <Text style={dynamicStyles.premiumButtonText}>Assinar Premium</Text>
+              <Ionicons name="arrow-forward" size={16} color="#fff" />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -1232,6 +1251,58 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
     fontWeight: '600',
     color: colors.error,
     marginLeft: 8,
+  },
+  premiumCard: {
+    marginHorizontal: 20,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: isDark ? 0.3 : 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+  },
+  premiumContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  premiumIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#F59E0B20',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  premiumText: {
+    flex: 1,
+  },
+  premiumTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  premiumDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  premiumButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 8,
+  },
+  premiumButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   // Estilos do modal de ajuda
   modalContainer: {
