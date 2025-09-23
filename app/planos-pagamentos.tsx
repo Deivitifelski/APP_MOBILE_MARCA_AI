@@ -10,7 +10,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View
 } from 'react-native';
@@ -38,12 +37,7 @@ export default function PlanosPagamentosScreen() {
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedPlanForPayment, setSelectedPlanForPayment] = useState<StripeProduct | null>(null);
-  const [paymentForm, setPaymentForm] = useState({
-    cardNumber: '',
-    expiryDate: '',
-    cvv: '',
-    cardholderName: '',
-  });
+  // Não precisamos mais do formulário de pagamento
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
   // Buscar planos do Supabase
@@ -107,48 +101,113 @@ export default function PlanosPagamentosScreen() {
     setSelectedPlanForPayment(plan);
     setShowPaymentModal(true);
     setPaymentError(null);
-    setPaymentForm({
-      cardNumber: '',
-      expiryDate: '',
-      cvv: '',
-      cardholderName: '',
-    });
   };
 
   const handlePaymentSubmit = async () => {
     if (!selectedPlanForPayment) return;
 
-    // Validações básicas
-    if (!paymentForm.cardNumber.trim() || !paymentForm.expiryDate.trim() || 
-        !paymentForm.cvv.trim() || !paymentForm.cardholderName.trim()) {
-      setPaymentError('Por favor, preencha todos os campos do cartão.');
-      return;
-    }
+    // Não há validações necessárias - só precisamos do plano selecionado
 
     setIsSubscribing(true);
     setPaymentError(null);
 
     try {
-      // Aqui você integraria com o Stripe real
-      // Por enquanto, vamos simular o processo
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // 1. Verificar configuração do Supabase
+      console.log('Supabase configurado:', !!supabase);
+
+      // 2. Obter usuário autenticado
+      const { data: { user } } = await supabase.auth.getUser();
       
+      if (!user) {
+        throw new Error('Usuário não autenticado');
+      }
+
+      console.log('Usuário autenticado:', user.id);
+
+      // 3. Criar assinatura no Supabase
+      console.log('Chamando create-subscription com:', { 
+        priceId: selectedPlanForPayment.id,
+        userId: user.id
+      });
+
+      const { data, error } = await supabase.functions.invoke('create-subscription', {
+        method: 'POST',
+        body: { 
+          priceId: selectedPlanForPayment.id,
+          userId: user.id
+        }
+      });
+
+      console.log('Resposta da função:', { data, error });
+
+      if (error) {
+        console.error('Erro detalhado:', error);
+        console.error('Tipo do erro:', error.constructor.name);
+        console.error('Status do erro:', error.status);
+        console.error('Detalhes completos:', JSON.stringify(error, null, 2));
+        
+        // Tentar obter mais detalhes do erro
+        let errorMessage = 'Erro ao criar assinatura';
+        if (error.message) {
+          errorMessage = error.message;
+        }
+        if (error.status) {
+          errorMessage += ` (Status: ${error.status})`;
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      const { subscriptionId, clientSecret, customer } = data;
+
+      if (!subscriptionId) {
+        throw new Error('Subscription ID não recebido');
+      }
+
+      // 2. Fechar modal
       setShowPaymentModal(false);
-      Alert.alert(
-        '✅ Pagamento Realizado!',
-        `Seu plano ${selectedPlanForPayment.name} foi ativado com sucesso!`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              setSelectedPlanForPayment(null);
-              router.back();
-            }
-          }
-        ]
-      );
-    } catch (error) {
-      setPaymentError('Erro ao processar pagamento. Tente novamente.');
+
+      // 3. Processar assinatura criada
+      if (subscriptionId && customer) {
+        // Se não há clientSecret, a assinatura foi criada com sucesso diretamente
+        if (!clientSecret) {
+          Alert.alert(
+            '✅ Assinatura Criada!',
+            `Sua assinatura do ${selectedPlanForPayment.name} foi criada com sucesso!\n\nSubscription ID: ${subscriptionId}\nCustomer ID: ${customer}`,
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  setSelectedPlanForPayment(null);
+                  router.back();
+                }
+              }
+            ]
+          );
+        } else {
+          // Se há clientSecret, pode precisar de confirmação adicional
+          Alert.alert(
+            '⚠️ Confirmação Necessária',
+            `Assinatura criada mas requer confirmação adicional.\n\nSubscription ID: ${subscriptionId}`,
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  setSelectedPlanForPayment(null);
+                  router.back();
+                }
+              }
+            ]
+          );
+        }
+      } else {
+        throw new Error('Dados da assinatura incompletos');
+      }
+
+    } catch (error: any) {
+      console.error('Erro no pagamento:', error);
+      setPaymentError(error.message || 'Erro ao processar pagamento. Tente novamente.');
+      setShowPaymentModal(true); // Reabrir modal em caso de erro
     } finally {
       setIsSubscribing(false);
     }
@@ -331,7 +390,7 @@ export default function PlanosPagamentosScreen() {
             >
               <Ionicons name="close" size={24} color={colors.text} />
             </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Finalizar Pagamento</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Criar Assinatura</Text>
             <View style={styles.modalPlaceholder} />
           </View>
 
@@ -355,62 +414,31 @@ export default function PlanosPagamentosScreen() {
             )}
 
             <View style={[styles.paymentForm, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.paymentFormTitle, { color: colors.text }]}>Informações do Cartão</Text>
+              <Text style={[styles.paymentFormTitle, { color: colors.text }]}>Confirmar Assinatura</Text>
               
-              {/* Nome do Portador */}
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: colors.text }]}>Nome no Cartão</Text>
-                <TextInput
-                  style={[styles.textInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
-                  value={paymentForm.cardholderName}
-                  onChangeText={(text) => setPaymentForm(prev => ({ ...prev, cardholderName: text }))}
-                  placeholder="Nome como aparece no cartão"
-                  placeholderTextColor={colors.textSecondary}
-                />
+              {/* Informação sobre a assinatura */}
+              <View style={[styles.infoContainer, { backgroundColor: colors.background }]}>
+                <Ionicons name="information-circle" size={20} color="#3B82F6" />
+                <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+                  Sua assinatura será criada automaticamente utilizando seus dados de usuário. Você receberá os detalhes da assinatura após a confirmação.
+                </Text>
               </View>
 
-              {/* Número do Cartão */}
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: colors.text }]}>Número do Cartão</Text>
-                <TextInput
-                  style={[styles.textInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
-                  value={paymentForm.cardNumber}
-                  onChangeText={(text) => setPaymentForm(prev => ({ ...prev, cardNumber: text }))}
-                  placeholder="1234 5678 9012 3456"
-                  placeholderTextColor={colors.textSecondary}
-                  keyboardType="numeric"
-                  maxLength={19}
-                />
-              </View>
-
-              {/* Data de Vencimento e CVV */}
-              <View style={styles.rowInputs}>
-                <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                  <Text style={[styles.inputLabel, { color: colors.text }]}>Vencimento</Text>
-                  <TextInput
-                    style={[styles.textInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
-                    value={paymentForm.expiryDate}
-                    onChangeText={(text) => setPaymentForm(prev => ({ ...prev, expiryDate: text }))}
-                    placeholder="MM/AA"
-                    placeholderTextColor={colors.textSecondary}
-                    keyboardType="numeric"
-                    maxLength={5}
-                  />
+              {/* Resumo do plano */}
+              {selectedPlanForPayment && (
+                <View style={[styles.summaryContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <Text style={[styles.summaryTitle, { color: colors.text }]}>Resumo da Assinatura</Text>
+                  <Text style={[styles.summaryItem, { color: colors.textSecondary }]}>
+                    Plano: {selectedPlanForPayment.name}
+                  </Text>
+                  <Text style={[styles.summaryItem, { color: colors.textSecondary }]}>
+                    Valor: {formatPrice(selectedPlanForPayment.value, selectedPlanForPayment.currency)}/mês
+                  </Text>
+                  <Text style={[styles.summaryItem, { color: colors.textSecondary }]}>
+                    Price ID: {selectedPlanForPayment.id}
+                  </Text>
                 </View>
-                <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                  <Text style={[styles.inputLabel, { color: colors.text }]}>CVV</Text>
-                  <TextInput
-                    style={[styles.textInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
-                    value={paymentForm.cvv}
-                    onChangeText={(text) => setPaymentForm(prev => ({ ...prev, cvv: text }))}
-                    placeholder="123"
-                    placeholderTextColor={colors.textSecondary}
-                    keyboardType="numeric"
-                    maxLength={4}
-                    secureTextEntry
-                  />
-                </View>
-              </View>
+              )}
 
               {/* Erro de Pagamento */}
               {paymentError && (
@@ -430,9 +458,9 @@ export default function PlanosPagamentosScreen() {
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
                   <>
-                    <Ionicons name="card" size={20} color="#fff" />
+                    <Ionicons name="checkmark-circle" size={20} color="#fff" />
                     <Text style={styles.paymentButtonText}>
-                      Pagar {selectedPlanForPayment && formatPrice(selectedPlanForPayment.value, selectedPlanForPayment.currency)}
+                      Criar Assinatura
                     </Text>
                   </>
                 )}
@@ -713,6 +741,36 @@ const styles = StyleSheet.create({
   rowInputs: {
     flexDirection: 'row',
     marginBottom: 16,
+  },
+  infoContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#EBF8FF',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  infoText: {
+    fontSize: 14,
+    marginLeft: 8,
+    flex: 1,
+    lineHeight: 20,
+  },
+  summaryContainer: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 16,
+  },
+  summaryTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 12,
+  },
+  summaryItem: {
+    fontSize: 14,
+    marginBottom: 6,
+    lineHeight: 20,
   },
   errorContainer: {
     flexDirection: 'row',

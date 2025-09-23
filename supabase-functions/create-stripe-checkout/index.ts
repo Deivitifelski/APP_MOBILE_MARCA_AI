@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { productId, productName, amount, currency } = await req.json()
+    const { productId, productName, amount, currency, customerName } = await req.json()
 
     if (!productId || !productName || !amount || !currency) {
       return new Response(
@@ -31,23 +31,37 @@ serve(async (req) => {
       httpClient: Stripe.createFetchHttpClient(),
     });
 
-    // Criar PaymentIntent para uso no React Native
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: amount,
-      currency: currency,
+    // Criar sessão de checkout
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: currency,
+            product_data: {
+              name: productName,
+              description: `Assinatura do ${productName}`,
+            },
+            unit_amount: amount,
+            recurring: { interval: 'month' },
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'subscription',
+      success_url: 'https://your-app.com/success?session_id={CHECKOUT_SESSION_ID}',
+      cancel_url: 'https://your-app.com/cancel',
+      customer_email: '', // Opcional: pode pedir o email do usuário
       metadata: {
         productId: productId,
-        productName: productName,
-      },
-      automatic_payment_methods: {
-        enabled: true,
+        customerName: customerName || '',
       },
     });
 
     return new Response(
       JSON.stringify({ 
-        clientSecret: paymentIntent.client_secret,
-        paymentIntentId: paymentIntent.id
+        url: session.url,
+        sessionId: session.id
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -55,10 +69,10 @@ serve(async (req) => {
       },
     )
   } catch (error) {
-    console.error('Erro ao criar sessão de checkout:', error)
+    console.error('Erro ao criar checkout do Stripe:', error)
     
     return new Response(
-      JSON.stringify({ error: 'Erro interno do servidor' }),
+      JSON.stringify({ error: error.message || 'Erro interno do servidor' }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
