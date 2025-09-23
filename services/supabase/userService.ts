@@ -107,50 +107,40 @@ export const getUserProfile = async (userId: string): Promise<{ profile: UserPro
 // Criar customer no Stripe via edge function
 export const createStripeCustomer = async (customerData: CreateCustomerData): Promise<{ success: boolean; customerId?: string; error: string | null }> => {
   try {
-    console.log('🔧 Testando função create-customers...');
-    console.log('📋 Dados exatos:', JSON.stringify(customerData, null, 2));
-    
-    // Primeira tentativa: padrão supabase.functions.invoke
-    const response = await supabase.functions.invoke('create-customer', {
-      body: customerData
+
+    // Usar supabase.functions.invoke é mais seguro e não expõe URLs
+    const { data, error } = await supabase.functions.invoke('create-customers', {
+      body: {
+        email: customerData.email,
+        userId: customerData.userId,
+        name: customerData.name
+      }
     });
 
-    console.log('📦 Resposta completa:', JSON.stringify(response, null, 2));
-    console.log('📊 Status da resposta:', response.error ? 'ERRO' : 'SUCESSO');
-    
-    if (response.error) {
-      console.error('❌ Detalhes do erro:', {
-        message: response.error.message,
-        context: response.error.context,
-        details: response.error
-      });
-      
+    if (error) {
       return { 
         success: false, 
-        error: `Função retornou erro: ${response.error.message || JSON.stringify(response.error)}` 
+        error: `Função retornou erro: ${error.message || JSON.stringify(error)}` 
       };
     }
 
-    if (response.data && response.data.customerId) {
-      console.log('✅ Customer ID recebido:', response.data.customerId);
+    if (data && data.customerId) {
       return { 
         success: true, 
-        customerId: response.data.customerId, 
+        customerId: data.customerId, 
         error: null 
       };
     }
 
-    console.warn('⚠️ Resposta sem customerId:', response.data);
     return { 
       success: false, 
-      error: `Resposta inesperada: ${JSON.stringify(response.data)}` 
+      error: `Resposta inválida: ${JSON.stringify(data)}` 
     };
-    
+
   } catch (error) {
-    console.error('💥 Erro na tentativa de chamada:', error);
     return { 
       success: false, 
-      error: `Exceção: ${error instanceof Error ? error.message : String(error)}` 
+      error: error instanceof Error ? error.message : 'Erro de conexão' 
     };
   }
 };
