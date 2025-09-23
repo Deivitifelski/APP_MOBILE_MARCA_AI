@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
+  Linking,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -26,6 +27,7 @@ interface StripeProduct {
   currency: string;
 }
 
+
 export default function PlanosPagamentosScreen() {
   const { colors, isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
@@ -43,25 +45,148 @@ export default function PlanosPagamentosScreen() {
     try {
       setIsLoading(true);
       const { data, error } = await supabase.functions.invoke('list-stripe-products');
+      console.log('✅ Resposta da função list-stripe-products:', data);
       
       if (error) {
         console.error('Erro ao buscar planos:', error);
         Alert.alert('Erro', 'Não foi possível carregar os planos. Tente novamente.');
-        setPlans([]); // Garante que plans seja sempre um array
+        setPlans([]);
         return;
       }
 
-      if (data && Array.isArray(data)) {
-        setPlans(data);
+      if (data) {
+        console.log('✅ Dados recebidos (tipo):', typeof data);
+        console.log('✅ Dados recebidos (string):', JSON.stringify(data, null, 2));
+        
+        // Se data já é um array, usar diretamente
+        if (Array.isArray(data)) {
+          console.log('✅ Dados são um array:', data.length, 'planos');
+          setPlans(data);
+        } 
+        // Se data é uma string JSON, fazer parse
+        else if (typeof data === 'string') {
+          try {
+            const parsedData = JSON.parse(data);
+            console.log('✅ JSON parseado:', parsedData);
+            if (Array.isArray(parsedData)) {
+              setPlans(parsedData);
+            } else {
+              setPlans([]);
+            }
+          } catch (parseError) {
+            console.error('❌ Erro ao fazer parse do JSON:', parseError);
+            setPlans([]);
+          }
+        }
+        // Se data é um objeto, tentar extrair array
+        else if (typeof data === 'object') {
+          console.log('✅ Dados são um objeto, tentando extrair array...');
+          // Se tem propriedade que é array
+          const arrayData = Object.values(data).find(item => Array.isArray(item));
+          if (arrayData) {
+            setPlans(arrayData as StripeProduct[]);
+          } else {
+            setPlans([]);
+          }
+        }
+        else {
+          console.log('⚠️ Tipo de dados não reconhecido:', typeof data);
+          setPlans([]);
+        }
       } else {
-        setPlans([]); // Se data não for um array, inicializa como vazio
+        console.log('⚠️ Nenhum dado recebido');
+        setPlans([]);
       }
     } catch (err) {
       console.error('Erro inesperado:', err);
       Alert.alert('Erro', 'Ocorreu um erro inesperado. Tente novamente.');
-      setPlans([]); // Garante que plans seja sempre um array
+      setPlans([]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSubscribe = async (plan: StripeProduct) => {
+    setSelectedPlan(plan.id);
+    setIsSubscribing(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('stripe-checkout-session', {
+        body: { 
+          productId: plan.id,
+          productName: plan.name,
+          amount: plan.value,
+          currency: plan.currency
+        }
+      });
+
+      if (error) {
+        console.error('Erro ao criar sessão de pagamento:', error);
+        Alert.alert(
+          'Erro',
+          'Ocorreu um erro ao processar o pagamento. Tente novamente.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setSelectedPlan(null);
+                setIsSubscribing(false);
+              }
+            }
+          ]
+        );
+        return;
+      }
+
+      if (data && data.url) {
+        const canOpen = await Linking.canOpenURL(data.url);
+        if (canOpen) {
+          await Linking.openURL(data.url);
+        } else {
+          Alert.alert(
+            'Erro',
+            'Não foi possível abrir o link de pagamento.',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  setSelectedPlan(null);
+                  setIsSubscribing(false);
+                }
+              }
+            ]
+          );
+        }
+      } else {
+        Alert.alert(
+          'Erro',
+          'Resposta inválida do servidor.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setSelectedPlan(null);
+                setIsSubscribing(false);
+              }
+            }
+          ]
+        );
+      }
+    } catch (err) {
+      console.error('Erro inesperado:', err);
+      Alert.alert(
+        'Erro',
+        'Ocorreu um erro inesperado. Tente novamente.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              setSelectedPlan(null);
+              setIsSubscribing(false);
+            }
+          }
+        ]
+      );
     }
   };
 
@@ -112,7 +237,7 @@ export default function PlanosPagamentosScreen() {
             opacity: selectedPlan === plan.id ? 0.7 : 1,
           }
         ]}
-        onPress={() => {}}
+        onPress={() => handleSubscribe(plan)}
         disabled={isSubscribing}
       >
         {isSubscribing && selectedPlan === plan.id ? (
@@ -161,6 +286,7 @@ export default function PlanosPagamentosScreen() {
                   Gerencie eventos, finanças e colaboradores com facilidade
                 </Text>
               </View>
+
 
               {/* Plans Grid */}
               <View style={styles.plansContainer}>
