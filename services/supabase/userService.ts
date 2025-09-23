@@ -124,7 +124,6 @@ export const createStripeCustomer = async (customerData: CreateCustomerData): Pr
     console.log('🔍 Debug - Resposta da função:');
     console.log('   📦 data:', data);
     console.log('   📦 tipo de data:', typeof data);
-    console.log('   📦 data.customerId:', data?.customerId);
     console.log('   ❌ error:', error);
 
     if (error) {
@@ -135,11 +134,28 @@ export const createStripeCustomer = async (customerData: CreateCustomerData): Pr
       };
     }
 
-    if (data && data.customerId) {
-      console.log('✅ Customer ID encontrado:', data.customerId);
+    // Converter string para objeto se necessário
+    let parsedData = data;
+    if (typeof data === 'string') {
+      try {
+        parsedData = JSON.parse(data);
+        console.log('✅ Data convertido de string para objeto:', parsedData);
+      } catch (parseError) {
+        console.error('❌ Erro ao fazer parse do JSON:', parseError);
+        return {
+          success: false,
+          error: 'Erro ao processar resposta da função'
+        };
+      }
+    }
+
+    console.log('   📦 parsedData.customerId:', parsedData?.customerId);
+
+    if (parsedData && parsedData.customerId) {
+      console.log('✅ Customer ID encontrado:', parsedData.customerId);
       return { 
         success: true, 
-        customerId: data.customerId, 
+        customerId: parsedData.customerId, 
         error: null 
       };
     }
