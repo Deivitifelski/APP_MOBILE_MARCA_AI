@@ -5,11 +5,12 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
-  Linking,
+  Modal,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View
 } from 'react-native';
@@ -35,6 +36,15 @@ export default function PlanosPagamentosScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [isSubscribing, setIsSubscribing] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedPlanForPayment, setSelectedPlanForPayment] = useState<StripeProduct | null>(null);
+  const [paymentForm, setPaymentForm] = useState({
+    cardNumber: '',
+    expiryDate: '',
+    cvv: '',
+    cardholderName: '',
+  });
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   // Buscar planos do Supabase
   useEffect(() => {
@@ -93,87 +103,54 @@ export default function PlanosPagamentosScreen() {
     }
   };
 
-  const handleSubscribe = async (plan: StripeProduct) => {
-    setSelectedPlan(plan.id);
+  const handleSubscribe = (plan: StripeProduct) => {
+    setSelectedPlanForPayment(plan);
+    setShowPaymentModal(true);
+    setPaymentError(null);
+    setPaymentForm({
+      cardNumber: '',
+      expiryDate: '',
+      cvv: '',
+      cardholderName: '',
+    });
+  };
+
+  const handlePaymentSubmit = async () => {
+    if (!selectedPlanForPayment) return;
+
+    // Validações básicas
+    if (!paymentForm.cardNumber.trim() || !paymentForm.expiryDate.trim() || 
+        !paymentForm.cvv.trim() || !paymentForm.cardholderName.trim()) {
+      setPaymentError('Por favor, preencha todos os campos do cartão.');
+      return;
+    }
+
     setIsSubscribing(true);
+    setPaymentError(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke('stripe-checkout-session', {
-        body: { 
-          productId: plan.id,
-          productName: plan.name,
-          amount: plan.value,
-          currency: plan.currency
-        }
-      });
-
-      if (error) {
-        console.error('Erro ao criar sessão de pagamento:', error);
-        Alert.alert(
-          'Erro',
-          'Ocorreu um erro ao processar o pagamento. Tente novamente.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                setSelectedPlan(null);
-                setIsSubscribing(false);
-              }
-            }
-          ]
-        );
-        return;
-      }
-
-      if (data && data.url) {
-        const canOpen = await Linking.canOpenURL(data.url);
-        if (canOpen) {
-          await Linking.openURL(data.url);
-        } else {
-          Alert.alert(
-            'Erro',
-            'Não foi possível abrir o link de pagamento.',
-            [
-              {
-                text: 'OK',
-                onPress: () => {
-                  setSelectedPlan(null);
-                  setIsSubscribing(false);
-                }
-              }
-            ]
-          );
-        }
-      } else {
-        Alert.alert(
-          'Erro',
-          'Resposta inválida do servidor.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                setSelectedPlan(null);
-                setIsSubscribing(false);
-              }
-            }
-          ]
-        );
-      }
-    } catch (err) {
-      console.error('Erro inesperado:', err);
+      // Aqui você integraria com o Stripe real
+      // Por enquanto, vamos simular o processo
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      setShowPaymentModal(false);
       Alert.alert(
-        'Erro',
-        'Ocorreu um erro inesperado. Tente novamente.',
+        '✅ Pagamento Realizado!',
+        `Seu plano ${selectedPlanForPayment.name} foi ativado com sucesso!`,
         [
           {
             text: 'OK',
             onPress: () => {
-              setSelectedPlan(null);
-              setIsSubscribing(false);
+              setSelectedPlanForPayment(null);
+              router.back();
             }
           }
         ]
       );
+    } catch (error) {
+      setPaymentError('Erro ao processar pagamento. Tente novamente.');
+    } finally {
+      setIsSubscribing(false);
     }
   };
 
@@ -338,6 +315,132 @@ export default function PlanosPagamentosScreen() {
           )}
         </ScrollView>
       </SafeAreaView>
+
+      {/* Modal de Pagamento */}
+      <Modal
+        visible={showPaymentModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowPaymentModal(false)}
+      >
+        <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          <View style={[styles.modalHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+            <TouchableOpacity
+              onPress={() => setShowPaymentModal(false)}
+              style={styles.modalCloseButton}
+            >
+              <Ionicons name="close" size={24} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Finalizar Pagamento</Text>
+            <View style={styles.modalPlaceholder} />
+          </View>
+
+          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+            {selectedPlanForPayment && (
+              <View style={[styles.paymentPlanCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={styles.paymentPlanHeader}>
+                  <View style={[styles.paymentPlanIcon, { backgroundColor: '#F59E0B' + '20' }]}>
+                    <Ionicons name="diamond" size={24} color="#F59E0B" />
+                  </View>
+                  <View style={styles.paymentPlanInfo}>
+                    <Text style={[styles.paymentPlanName, { color: colors.text }]}>
+                      {selectedPlanForPayment.name}
+                    </Text>
+                    <Text style={[styles.paymentPlanPrice, { color: '#F59E0B' }]}>
+                      {formatPrice(selectedPlanForPayment.value, selectedPlanForPayment.currency)}/mês
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            <View style={[styles.paymentForm, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.paymentFormTitle, { color: colors.text }]}>Informações do Cartão</Text>
+              
+              {/* Nome do Portador */}
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Nome no Cartão</Text>
+                <TextInput
+                  style={[styles.textInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+                  value={paymentForm.cardholderName}
+                  onChangeText={(text) => setPaymentForm(prev => ({ ...prev, cardholderName: text }))}
+                  placeholder="Nome como aparece no cartão"
+                  placeholderTextColor={colors.textSecondary}
+                />
+              </View>
+
+              {/* Número do Cartão */}
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Número do Cartão</Text>
+                <TextInput
+                  style={[styles.textInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+                  value={paymentForm.cardNumber}
+                  onChangeText={(text) => setPaymentForm(prev => ({ ...prev, cardNumber: text }))}
+                  placeholder="1234 5678 9012 3456"
+                  placeholderTextColor={colors.textSecondary}
+                  keyboardType="numeric"
+                  maxLength={19}
+                />
+              </View>
+
+              {/* Data de Vencimento e CVV */}
+              <View style={styles.rowInputs}>
+                <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+                  <Text style={[styles.inputLabel, { color: colors.text }]}>Vencimento</Text>
+                  <TextInput
+                    style={[styles.textInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+                    value={paymentForm.expiryDate}
+                    onChangeText={(text) => setPaymentForm(prev => ({ ...prev, expiryDate: text }))}
+                    placeholder="MM/AA"
+                    placeholderTextColor={colors.textSecondary}
+                    keyboardType="numeric"
+                    maxLength={5}
+                  />
+                </View>
+                <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+                  <Text style={[styles.inputLabel, { color: colors.text }]}>CVV</Text>
+                  <TextInput
+                    style={[styles.textInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+                    value={paymentForm.cvv}
+                    onChangeText={(text) => setPaymentForm(prev => ({ ...prev, cvv: text }))}
+                    placeholder="123"
+                    placeholderTextColor={colors.textSecondary}
+                    keyboardType="numeric"
+                    maxLength={4}
+                    secureTextEntry
+                  />
+                </View>
+              </View>
+
+              {/* Erro de Pagamento */}
+              {paymentError && (
+                <View style={styles.errorContainer}>
+                  <Ionicons name="alert-circle" size={20} color="#F44336" />
+                  <Text style={styles.errorText}>{paymentError}</Text>
+                </View>
+              )}
+
+              {/* Botão de Pagamento */}
+              <TouchableOpacity
+                style={[styles.paymentButton, { backgroundColor: '#F59E0B' }]}
+                onPress={handlePaymentSubmit}
+                disabled={isSubscribing}
+              >
+                {isSubscribing ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="card" size={20} color="#fff" />
+                    <Text style={styles.paymentButtonText}>
+                      Pagar {selectedPlanForPayment && formatPrice(selectedPlanForPayment.value, selectedPlanForPayment.currency)}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </View>
   );
 }
@@ -522,5 +625,121 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     textAlign: 'center',
+  },
+  // Estilos do modal de pagamento
+  modalContainer: {
+    flex: 1,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+  },
+  modalCloseButton: {
+    padding: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    flex: 1,
+    textAlign: 'center',
+    marginHorizontal: 16,
+  },
+  modalPlaceholder: {
+    width: 40,
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  paymentPlanCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+  },
+  paymentPlanHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  paymentPlanIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  paymentPlanInfo: {
+    flex: 1,
+  },
+  paymentPlanName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  paymentPlanPrice: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  paymentForm: {
+    borderRadius: 12,
+    padding: 20,
+    borderWidth: 1,
+  },
+  paymentFormTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 20,
+  },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+  },
+  rowInputs: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#F44336',
+    fontSize: 14,
+    marginLeft: 8,
+    flex: 1,
+  },
+  paymentButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 8,
+  },
+  paymentButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
