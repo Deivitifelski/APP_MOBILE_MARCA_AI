@@ -107,8 +107,12 @@ export const getUserProfile = async (userId: string): Promise<{ profile: UserPro
 // Criar customer no Stripe via edge function
 export const createStripeCustomer = async (customerData: CreateCustomerData): Promise<{ success: boolean; customerId?: string; error: string | null }> => {
   try {
+    console.log('🔍 Debug - Dados enviados:');
+    console.log('   📦 email:', customerData.email);
+    console.log('   ❌ userId:', customerData.userId);
+    console.log('   📊 name:', customerData.name);
 
-    // Usar supabase.functions.invoke é mais seguro e não expõe URLs
+    // Usar supabase.functions.invoke
     const { data, error } = await supabase.functions.invoke('create-custumer', {
       body: {
         email: customerData.email,
@@ -117,7 +121,12 @@ export const createStripeCustomer = async (customerData: CreateCustomerData): Pr
       }
     });
 
+    console.log('🔍 Debug - Resposta da função:');
+    console.log('   📦 data:', data);
+    console.log('   ❌ error:', error);
+
     if (error) {
+      console.log('❌ Erro retornado pela função:', error);
       return { 
         success: false, 
         error: `Função retornou erro: ${error.message || JSON.stringify(error)}` 
@@ -125,6 +134,7 @@ export const createStripeCustomer = async (customerData: CreateCustomerData): Pr
     }
 
     if (data && data.customerId) {
+      console.log('✅ Customer ID encontrado:', data.customerId);
       return { 
         success: true, 
         customerId: data.customerId, 
@@ -132,15 +142,17 @@ export const createStripeCustomer = async (customerData: CreateCustomerData): Pr
       };
     }
 
+    console.log('❌ Customer ID não encontrado na resposta');
     return { 
       success: false, 
       error: `Resposta inválida: ${JSON.stringify(data)}` 
     };
 
   } catch (error) {
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Erro de conexão' 
+    console.error('💥 Erro na chamada da função:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro de conexão'
     };
   }
 };
