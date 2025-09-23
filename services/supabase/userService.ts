@@ -107,32 +107,51 @@ export const getUserProfile = async (userId: string): Promise<{ profile: UserPro
 // Criar customer no Stripe via edge function
 export const createStripeCustomer = async (customerData: CreateCustomerData): Promise<{ success: boolean; customerId?: string; error: string | null }> => {
   try {
-    // Log detalhado para debug
-    console.log('🔧 Chamando função create-customers com dados:', customerData);
+    console.log('🔧 Testando função create-customers...');
+    console.log('📋 Dados exatos:', JSON.stringify(customerData, null, 2));
     
-    const { data, error } = await supabase.functions.invoke('create-customers', {
-      body: {
-        email: customerData.email,
-        userId: customerData.userId,
-        name: customerData.name
-      }
+    // Primeira tentativa: padrão supabase.functions.invoke
+    const response = await supabase.functions.invoke('create-customer', {
+      body: customerData
     });
 
-    console.log('📦 Resposta da função:', { data, error });
-
-    if (error) {
-      console.error('❌ Erro retornado pela função:', error);
-      return { success: false, error: `Edge Function Error: ${error.message}` };
+    console.log('📦 Resposta completa:', JSON.stringify(response, null, 2));
+    console.log('📊 Status da resposta:', response.error ? 'ERRO' : 'SUCESSO');
+    
+    if (response.error) {
+      console.error('❌ Detalhes do erro:', {
+        message: response.error.message,
+        context: response.error.context,
+        details: response.error
+      });
+      
+      return { 
+        success: false, 
+        error: `Função retornou erro: ${response.error.message || JSON.stringify(response.error)}` 
+      };
     }
 
-    if (data && data.customerId) {
-      return { success: true, customerId: data.customerId, error: null };
+    if (response.data && response.data.customerId) {
+      console.log('✅ Customer ID recebido:', response.data.customerId);
+      return { 
+        success: true, 
+        customerId: response.data.customerId, 
+        error: null 
+      };
     }
 
-    return { success: false, error: 'Resposta inválida da função create-customers' };
+    console.warn('⚠️ Resposta sem customerId:', response.data);
+    return { 
+      success: false, 
+      error: `Resposta inesperada: ${JSON.stringify(response.data)}` 
+    };
+    
   } catch (error) {
-    console.error('❌ Erro na chamada da função:', error);
-    return { success: false, error: error instanceof Error ? error.message : 'Erro de conexão' };
+    console.error('💥 Erro na tentativa de chamada:', error);
+    return { 
+      success: false, 
+      error: `Exceção: ${error instanceof Error ? error.message : String(error)}` 
+    };
   }
 };
 

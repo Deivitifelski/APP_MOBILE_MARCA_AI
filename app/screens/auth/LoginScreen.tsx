@@ -2,20 +2,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { supabase } from '../../../lib/supabase';
 import { loginUser } from '../../../services/supabase/authService';
-import { checkUserExists } from '../../../services/supabase/userService';
+import { checkUserExists, createStripeCustomer, getUserProfile, updateUserCustomerId } from '../../../services/supabase/userService';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('deivitifelskiefisio@outlook.com');
@@ -23,6 +23,56 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showCompleteProfileModal, setShowCompleteProfileModal] = useState(false);
+
+  const handleCreateStripeCustomer = async (user: any) => {
+    try {
+      console.log('🎯 Verificando se usuário tem customer_id...');
+      
+      // Buscar perfil do usuário para verificar se já tem customer_id
+      const { profile, error: profileError } = await getUserProfile(user.id);
+      
+      if (profileError) {
+        console.error('❌ Erro ao buscar perfil:', profileError);
+        return;
+      }
+
+      if (profile && profile.customer_id) {
+        console.log('✅ Usuário já tem customer_id:', profile.customer_id);
+        return;
+      }
+
+      console.log('🎯 Criando customer no Stripe para login...');
+      
+      // Usar dados específicos solicitados
+      const customerData = {
+        email: "deivitifelskiefisio@outlook.com",
+        name: "Deiviti", 
+        userId: "80fc194e-fdbe-416f-9791-16a8b660b081"
+      };
+      
+      console.log('📋 Dados enviados para create-customers:', customerData);
+
+      // Criar customer no Stripe
+      const { success: customerSuccess, customerId, error: customerError } = await createStripeCustomer(customerData);
+
+      if (customerSuccess && customerId) {
+        console.log('✅ Customer criado com sucesso no login:', customerId);
+        
+        // Atualizar o customer_id na tabela users
+        const { success: updateSuccess, error: updateError } = await updateUserCustomerId(user.id, customerId);
+        
+        if (!updateSuccess) {
+          console.error('❌ Erro ao atualizar customer_id no login:', updateError);
+        } else {
+          console.log('✅ Customer ID atualizado na tabela users');
+        }
+      } else {
+        console.error('❌ Erro ao criar customer no Stripe no login:', customerError);
+      }
+    } catch (error) {
+      console.error('❌ Erro geral ao criar customer no login:', error);
+    }
+  };
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -51,7 +101,10 @@ export default function LoginScreen() {
             // Usuário não existe na tabela users, mostrar modal personalizado
             setShowCompleteProfileModal(true);
           } else {
-            // Usuário existe, pode acessar a agenda
+            // Usuário existe, verificar se tem customer_id no Stripe
+            await handleCreateStripeCustomer(result.data.user);
+            
+            // Acessar a agenda
             router.replace('/(tabs)/agenda');
           }
         } else {
@@ -128,7 +181,7 @@ export default function LoginScreen() {
         console.log('✅ Login iniciado com sucesso');
         // O usuário será redirecionado para o Google
       }
-    } catch (error) {
+    } catch (error: any) {
       // Log completo do erro inesperado
       console.error('💥 Erro inesperado completo:', {
         error,
