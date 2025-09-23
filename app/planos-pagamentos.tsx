@@ -25,6 +25,7 @@ interface StripeProduct {
   description: string;
   value: number;
   currency: string;
+  default_price: string;
 }
 
 
@@ -149,7 +150,7 @@ export default function PlanosPagamentosScreen() {
           'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN0dWxtcHlhaWt4c25qcW1yenhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDc4MzIxNjUsImV4cCI6MjAyMzQwODE2NX0.xeDf7zJKk8lFbWdShCIjNdOFJwqPePALHcWcBjRvKj8'
         },
         body: JSON.stringify({
-          priceId: "price_1S94AlFP5oK5C2EuKtuowWZt",
+          priceId: selectedPlanForPayment.default_price,
           userId: user.id
         })
       });
