@@ -107,11 +107,6 @@ export const getUserProfile = async (userId: string): Promise<{ profile: UserPro
 // Criar customer no Stripe via edge function
 export const createStripeCustomer = async (customerData: CreateCustomerData): Promise<{ success: boolean; customerId?: string; error: string | null }> => {
   try {
-    console.log('🔍 Debug - Dados enviados:');
-    console.log('   📦 email:', customerData.email);
-    console.log('   ❌ userId:', customerData.userId);
-    console.log('   📊 name:', customerData.name);
-
     // Usar supabase.functions.invoke
     const { data, error } = await supabase.functions.invoke('create-custumer', {
       body: {
@@ -121,13 +116,7 @@ export const createStripeCustomer = async (customerData: CreateCustomerData): Pr
       }
     });
 
-    console.log('🔍 Debug - Resposta da função:');
-    console.log('   📦 data:', data);
-    console.log('   📦 tipo de data:', typeof data);
-    console.log('   ❌ error:', error);
-
     if (error) {
-      console.log('❌ Erro retornado pela função:', error);
       return { 
         success: false, 
         error: `Função retornou erro: ${error.message || JSON.stringify(error)}` 
@@ -139,9 +128,7 @@ export const createStripeCustomer = async (customerData: CreateCustomerData): Pr
     if (typeof data === 'string') {
       try {
         parsedData = JSON.parse(data);
-        console.log('✅ Data convertido de string para objeto:', parsedData);
       } catch (parseError) {
-        console.error('❌ Erro ao fazer parse do JSON:', parseError);
         return {
           success: false,
           error: 'Erro ao processar resposta da função'
@@ -149,10 +136,7 @@ export const createStripeCustomer = async (customerData: CreateCustomerData): Pr
       }
     }
 
-    console.log('   📦 parsedData.customerId:', parsedData?.customerId);
-
     if (parsedData && parsedData.customerId) {
-      console.log('✅ Customer ID encontrado:', parsedData.customerId);
       return { 
         success: true, 
         customerId: parsedData.customerId, 
@@ -160,17 +144,15 @@ export const createStripeCustomer = async (customerData: CreateCustomerData): Pr
       };
     }
 
-    console.log('❌ Customer ID não encontrado na resposta');
     return { 
       success: false, 
       error: `Resposta inválida: ${JSON.stringify(data)}` 
     };
 
   } catch (error) {
-    console.error('💥 Erro na chamada da função:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Erro de conexão'
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Erro de conexão' 
     };
   }
 };

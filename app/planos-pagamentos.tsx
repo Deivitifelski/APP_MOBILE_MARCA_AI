@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
+import { createStripeCustomer } from '../services/supabase/userService';
 
 const { width } = Dimensions.get('window');
 
@@ -44,7 +45,66 @@ export default function PlanosPagamentosScreen() {
   // Buscar planos do Supabase
   useEffect(() => {
     fetchPlans();
+    checkAndCreateCustomer();
   }, []);
+
+  // Verificar se customer_id existe na tabela users, se não, criar
+  const checkAndCreateCustomer = async () => {
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        console.log('Usuário não autenticado');
+        return;
+      }
+
+      // Buscar dados do usuário na tabela users
+      const { data: userData, error: userDataError } = await supabase
+        .from('users')
+        .select('customer_id, name')
+        .eq('id', user.id)
+        .single();
+
+      if (userDataError || !userData) {
+        console.log('Erro ao buscar dados do usuário:', userDataError);
+        return;
+      }
+
+      // Verificar se customer_id é null na tabela users
+      if (!userData.customer_id) {       
+        // Criar customer no Stripe
+        const customerData = {
+          email: user.email || '',
+          userId: user.id,
+          name: userData.name || ''
+        };
+
+        const { success, customerId, error: customerError } = await createStripeCustomer(customerData);
+
+        if (success && customerId) {
+          console.log('Customer criado com sucesso:', customerId);
+          
+          // Atualizar customer_id na tabela users
+          const { error: updateError } = await supabase
+            .from('users')
+            .update({ customer_id: customerId })
+            .eq('id', user.id);
+          
+          if (updateError) {
+            console.error('Erro ao atualizar customer_id na tabela users:', updateError);
+          } else {
+            console.log('Customer ID atualizado na tabela users');
+          }
+        } else {
+          console.error('Erro ao criar customer no Stripe:', customerError);
+        }
+      } else {
+        console.log('Customer ID já existe na tabela users:', userData.customer_id);
+      }
+    } catch (error) {
+      console.error('Erro ao verificar/criar customer:', error);
+    }
+  };
 
   const fetchPlans = async () => {
     try {
