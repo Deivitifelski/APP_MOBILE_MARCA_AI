@@ -1,11 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useStripe } from '@stripe/stripe-react-native';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Dimensions,
-  Linking,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -31,10 +31,10 @@ interface StripeProduct {
 export default function PlanosPagamentosScreen() {
   const { colors, isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [plans, setPlans] = useState<StripeProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
-  const [isSubscribing, setIsSubscribing] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   // Buscar planos do Supabase
   useEffect(() => {
@@ -93,87 +93,149 @@ export default function PlanosPagamentosScreen() {
     }
   };
 
-  const handleSubscribe = async (plan: StripeProduct) => {
-    setSelectedPlan(plan.id);
-    setIsSubscribing(true);
-
+  const fetchPaymentSheetParams = async (plan: StripeProduct) => {
     try {
-      const { data, error } = await supabase.functions.invoke('stripe-checkout-session', {
-        body: { 
-          productId: plan.id,
-          productName: plan.name,
+      console.log('🔍 [DEBUG] Chamando função Supabase create-payment-intent...');
+      console.log('💰 [DEBUG] Dados do plano:', {
+        amount: plan.value,
+        currency: plan.currency,
+        name: plan.name
+      });
+
+      const { data, error } = await supabase.functions.invoke('create-payment-intent', {
+        body: {
           amount: plan.value,
-          currency: plan.currency
+          currency: plan.currency.toLowerCase(),
+          email: '', // Pode ser obtido do usuário logado
+          name: 'Usuário' // Pode ser obtido do usuário logado
         }
       });
 
+      console.log('📋 [DEBUG] Resposta da função Supabase:');
+      console.log('✅ [DEBUG] Data:', data);
+      
       if (error) {
-        console.error('Erro ao criar sessão de pagamento:', error);
-        Alert.alert(
-          'Erro',
-          'Ocorreu um erro ao processar o pagamento. Tente novamente.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                setSelectedPlan(null);
-                setIsSubscribing(false);
-              }
-            }
-          ]
-        );
-        return;
+        console.error('❌ [DEBUG] Erro da função Supabase:', error);
+        throw new Error(`Erro na função Supabase: ${error.message}`);
       }
 
-      if (data && data.url) {
-        const canOpen = await Linking.canOpenURL(data.url);
-        if (canOpen) {
-          await Linking.openURL(data.url);
-        } else {
-          Alert.alert(
-            'Erro',
-            'Não foi possível abrir o link de pagamento.',
-            [
-              {
-                text: 'OK',
-                onPress: () => {
-                  setSelectedPlan(null);
-                  setIsSubscribing(false);
-                }
-              }
-            ]
-          );
+      // Parse da resposta se vier como string JSON
+      let parsedData = data;
+      if (typeof data === 'string') {
+        try {
+          parsedData = JSON.parse(data);
+          console.log('🔍 [DEBUG] Dados parseados:', parsedData);
+        } catch (parseError) {
+          console.error('❌ [DEBUG] Erro ao fazer parse dos dados:', parseError);
+          throw new Error('Erro ao processar resposta do servidor');
         }
-      } else {
-        Alert.alert(
-          'Erro',
-          'Resposta inválida do servidor.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                setSelectedPlan(null);
-                setIsSubscribing(false);
-              }
-            }
-          ]
-        );
       }
-    } catch (err) {
-      console.error('Erro inesperado:', err);
+
+      if (parsedData && parsedData.error) {
+        console.error('❌ [DEBUG] Erro retornado pela função:', parsedData.error);
+        throw new Error(`Erro: ${parsedData.error}`);
+      }
+
+      console.log('✅ [DEBUG] Parâmetros do Payment Sheet obtidos com sucesso');
+      return {
+        paymentIntent: parsedData.paymentIntent,
+        ephemeralKey: parsedData.ephemeralKey,
+        customer: parsedData.customer,
+      };
+
+    } catch (error) {
+      console.error('❌ [DEBUG] Erro ao buscar parâmetros:', error);
+      throw error;
+    }
+  };
+
+  const initializePaymentSheet = async (plan: StripeProduct) => {
+    try {
+      const {
+        paymentIntent,
+        ephemeralKey,
+        customer,
+      } = await fetchPaymentSheetParams(plan);
+
+      console.log('🔍 [DEBUG] Inicializando Payment Sheet...');
+      const { error } = await initPaymentSheet({
+        merchantDisplayName: "Marca AI",
+        customerId: customer,
+        customerEphemeralKeySecret: ephemeralKey,
+        paymentIntentClientSecret: paymentIntent,
+        allowsDelayedPaymentMethods: true,
+        defaultBillingDetails: {
+          name: 'Usuário',
+        }
+      });
+
+      if (!error) {
+        console.log('✅ [DEBUG] Payment Sheet inicializado com sucesso');
+        setLoading(true);
+        return true;
+      } else {
+        console.error('❌ [DEBUG] Erro ao inicializar Payment Sheet:', error);
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ [DEBUG] Erro na inicialização:', error);
+      return false;
+    }
+  };
+
+  const openPaymentSheet = async () => {
+    try {
+      console.log('🔍 [DEBUG] Abrindo Payment Sheet...');
+      const { error } = await presentPaymentSheet();
+
+      if (error) {
+        console.error('❌ [DEBUG] Erro no Payment Sheet:', error);
+        Alert.alert(`Erro: ${error.code}`, error.message);
+      } else {
+        console.log('✅ [DEBUG] Pagamento realizado com sucesso');
+        Alert.alert('Sucesso', 'Seu pedido foi confirmado!');
+      }
+    } catch (error) {
+      console.error('❌ [DEBUG] Erro ao abrir Payment Sheet:', error);
+      Alert.alert('Erro', 'Não foi possível abrir o pagamento. Tente novamente.');
+    }
+  };
+
+  const handleSubscribe = async (plan: StripeProduct) => {
+    console.log('🔍 [DEBUG] Botão Assinar clicado para:', plan.name);
+    
+    // Verificar se é um plano gratuito
+    if (plan.value === 0) {
       Alert.alert(
-        'Erro',
-        'Ocorreu um erro inesperado. Tente novamente.',
+        'Plano Gratuito',
+        'Este é um plano gratuito. Você pode começar a usar agora mesmo!',
         [
           {
             text: 'OK',
-            onPress: () => {
-              setSelectedPlan(null);
-              setIsSubscribing(false);
-            }
+            onPress: () => router.push('/')
           }
         ]
       );
+      return;
+    }
+
+    try {
+      console.log('🔄 [DEBUG] Iniciando checkout para produto:', plan.name);
+      console.log('💰 [DEBUG] Valor do plano:', plan.value, plan.currency);
+      
+      const success = await initializePaymentSheet(plan);
+      
+      if (success) {
+        console.log('✅ [DEBUG] Payment Sheet inicializado, aguardando...');
+        // Aguardar um pouco para garantir que o loading foi setado
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await openPaymentSheet();
+      } else {
+        Alert.alert('Erro', 'Não foi possível inicializar o pagamento. Tente novamente.');
+      }
+    } catch (error) {
+      console.error('❌ [DEBUG] Erro no checkout:', error);
+      Alert.alert('Erro', 'Não foi possível processar o pagamento. Tente novamente.');
     }
   };
 
@@ -221,13 +283,13 @@ export default function PlanosPagamentosScreen() {
           styles.subscribeButton,
           {
             backgroundColor: '#F59E0B',
-            opacity: selectedPlan === plan.id ? 0.7 : 1,
+            opacity: loading ? 0.7 : 1,
           }
         ]}
         onPress={() => handleSubscribe(plan)}
-        disabled={isSubscribing}
+        disabled={loading}
       >
-        {isSubscribing && selectedPlan === plan.id ? (
+        {loading ? (
           <ActivityIndicator color="#fff" size="small" />
         ) : (
           <Text style={styles.buttonText}>Assinar</Text>
