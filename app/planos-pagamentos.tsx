@@ -161,7 +161,7 @@ export default function PlanosPagamentosScreen() {
     }
   };
 
-  const initializePaymentSheet = async (plan: StripeProduct) => {
+  const initializePaymentSheet = async (plan: StripeProduct, userName: string) => {
     try {
       const {
         paymentIntent,
@@ -171,13 +171,13 @@ export default function PlanosPagamentosScreen() {
 
       console.log('🔍 [DEBUG] Inicializando Payment Sheet...');
       const { error } = await initPaymentSheet({
-        merchantDisplayName: "Marca AI",
+        merchantDisplayName: "App Organizei",
         customerId: customer,
         customerEphemeralKeySecret: ephemeralKey,
         paymentIntentClientSecret: paymentIntent,
         allowsDelayedPaymentMethods: true,
         defaultBillingDetails: {
-          name: 'Usuário',
+          name: userName,
         }
       });
 
@@ -235,7 +235,11 @@ export default function PlanosPagamentosScreen() {
       console.log('🔄 [DEBUG] Iniciando checkout para produto:', plan.name);
       console.log('💰 [DEBUG] Valor do plano:', plan.value, plan.currency);
       
-      const success = await initializePaymentSheet(plan);
+      // Obter dados do usuário logado
+      const { data: { user } } = await supabase.auth.getUser();
+      const userName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Usuário';
+      
+      const success = await initializePaymentSheet(plan, userName);
       
       if (success) {
         console.log('✅ [DEBUG] Payment Sheet inicializado, aguardando...');
