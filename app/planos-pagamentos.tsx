@@ -199,7 +199,7 @@ export default function PlanosPagamentosScreen() {
       {/* Header */}
       <View style={styles.planHeader}>
         <View style={[styles.planIcon, { backgroundColor: '#F59E0B' + '20' }]}>
-          <Ionicons name="diamond" size={32} color="#F59E0B" />
+          <Ionicons name="diamond" size={24} color="#F59E0B" />
         </View>
         <Text style={[styles.planName, { color: colors.text }]}>{plan.name}</Text>
         <Text style={[styles.planDescription, { color: colors.textSecondary }]}>
@@ -404,8 +404,8 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   plansContainer: {
-    gap: 20,
-    marginBottom: 40,
+    gap: 16,
+    marginBottom: 32,
   },
   noPlansContainer: {
     alignItems: 'center',
@@ -418,36 +418,36 @@ const styles = StyleSheet.create({
   },
   planCard: {
     backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 24,
+    borderRadius: 12,
+    padding: 16,
     borderWidth: 1,
     borderColor: '#e9ecef',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 3,
   },
   planHeader: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 12,
   },
   planIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  planName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
     marginBottom: 8,
   },
+  planName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
   planDescription: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#666',
     textAlign: 'center',
   },
@@ -455,20 +455,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   price: {
-    fontSize: 36,
+    fontSize: 28,
     fontWeight: 'bold',
   },
   period: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#666',
     marginLeft: 4,
   },
   subscribeButton: {
-    paddingVertical: 16,
-    borderRadius: 12,
+    paddingVertical: 12,
+    borderRadius: 8,
     alignItems: 'center',
   },
   buttonText: {
