@@ -176,7 +176,33 @@ export default function PlanosPagamentosScreen() {
       const { error } = await presentPaymentSheet();
 
       if (error) {
-        Alert.alert(`Erro: ${error.code}`, error.message);
+        // Converter erros comuns do Stripe para português
+        let errorMessage = error.message;
+        
+        switch (error.code) {
+          case 'Canceled':
+            // Usuário cancelou o pagamento - não mostrar erro
+            return;
+          case 'Failed':
+            if (error.message.includes('Your card was declined')) {
+              errorMessage = 'Seu cartão foi recusado. Verifique os dados ou tente outro cartão.';
+            } else if (error.message.includes('Your card has insufficient funds')) {
+              errorMessage = 'Saldo insuficiente no cartão. Verifique sua conta bancária.';
+            } else if (error.message.includes('Your card has expired')) {
+              errorMessage = 'Seu cartão expirou. Use um cartão válido.';
+            } else if (error.message.includes('Invalid card number')) {
+              errorMessage = 'Número do cartão inválido. Verifique os dados inseridos.';
+            } else if (error.message.includes('Incorrect CVC')) {
+              errorMessage = 'Código de segurança (CVC) incorreto.';
+            } else {
+              errorMessage = 'Erro ao processar o pagamento. Tente novamente.';
+            }
+            break;
+          default:
+            errorMessage = 'Erro ao processar o pagamento. Tente novamente.';
+        }
+        
+        Alert.alert('Erro no Pagamento', errorMessage);
       } else {
         setShowSuccessModal(true);
       }
@@ -220,8 +246,23 @@ export default function PlanosPagamentosScreen() {
       } else {
         Alert.alert('Erro', 'Não foi possível inicializar o pagamento. Tente novamente.');
       }
-    } catch (error) {
-      Alert.alert('Erro', 'Não foi possível processar o pagamento. Tente novamente.');
+    } catch (error: any) {
+      let errorMessage = 'Não foi possível processar o pagamento. Tente novamente.';
+      
+      // Tratar erros específicos
+      if (error.message) {
+        if (error.message.includes('Network request failed')) {
+          errorMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
+        } else if (error.message.includes('STRIPE_SECRET_KEY')) {
+          errorMessage = 'Erro de configuração do pagamento. Entre em contato com o suporte.';
+        } else if (error.message.includes('customer')) {
+          errorMessage = 'Erro ao criar conta de pagamento. Tente novamente.';
+        } else if (error.message.includes('payment intent')) {
+          errorMessage = 'Erro ao processar pagamento. Verifique seus dados e tente novamente.';
+        }
+      }
+      
+      Alert.alert('Erro', errorMessage);
     } finally {
       setProcessingPlan(null);
     }
