@@ -102,12 +102,24 @@ export default function PlanosPagamentosScreen() {
         name: plan.name
       });
 
+      // Obter dados do usuário logado
+      const { data: { user } } = await supabase.auth.getUser();
+      const userEmail = user?.email || '';
+      const userName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Usuário';
+
+      console.log('👤 [DEBUG] Dados do usuário:', {
+        email: userEmail,
+        name: userName,
+        userId: user?.id
+      });
+
       const { data, error } = await supabase.functions.invoke('create-payment-intent', {
         body: {
           amount: plan.value,
           currency: plan.currency.toLowerCase(),
-          email: '', // Pode ser obtido do usuário logado
-          name: 'Usuário' // Pode ser obtido do usuário logado
+          email: userEmail,
+          name: userName,
+          description: `Assinatura ${plan.name}` // Descrição mais clara
         }
       });
 
