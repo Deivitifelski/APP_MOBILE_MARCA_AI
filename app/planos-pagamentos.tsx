@@ -157,6 +157,12 @@ export default function PlanosPagamentosScreen() {
         allowsDelayedPaymentMethods: true,
         defaultBillingDetails: {
           name: userName,
+        },
+        applePay: {
+          merchantCountryCode: 'BR',
+        },
+        googlePay: {
+          merchantCountryCode: 'BR',
         }
       });
 
