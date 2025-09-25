@@ -35,6 +35,8 @@ export default function PlanosPagamentosScreen() {
   const [plans, setPlans] = useState<StripeProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [processingPlan, setProcessingPlan] = useState<string | null>(null);
 
   // Buscar planos do Supabase
   useEffect(() => {
@@ -95,23 +97,10 @@ export default function PlanosPagamentosScreen() {
 
   const fetchPaymentSheetParams = async (plan: StripeProduct) => {
     try {
-      console.log('🔍 [DEBUG] Chamando função Supabase create-payment-intent...');
-      console.log('💰 [DEBUG] Dados do plano:', {
-        amount: plan.value,
-        currency: plan.currency,
-        name: plan.name
-      });
-
       // Obter dados do usuário logado
       const { data: { user } } = await supabase.auth.getUser();
       const userEmail = user?.email || '';
       const userName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Usuário';
-
-      console.log('👤 [DEBUG] Dados do usuário:', {
-        email: userEmail,
-        name: userName,
-        userId: user?.id
-      });
 
       const { data, error } = await supabase.functions.invoke('create-payment-intent', {
         body: {
@@ -119,15 +108,11 @@ export default function PlanosPagamentosScreen() {
           currency: plan.currency.toLowerCase(),
           email: userEmail,
           name: userName,
-          description: `Assinatura ${plan.name}` // Descrição mais clara
+          description: `Assinatura ${plan.name}`
         }
       });
-
-      console.log('📋 [DEBUG] Resposta da função Supabase:');
-      console.log('✅ [DEBUG] Data:', data);
       
       if (error) {
-        console.error('❌ [DEBUG] Erro da função Supabase:', error);
         throw new Error(`Erro na função Supabase: ${error.message}`);
       }
 
@@ -136,19 +121,15 @@ export default function PlanosPagamentosScreen() {
       if (typeof data === 'string') {
         try {
           parsedData = JSON.parse(data);
-          console.log('🔍 [DEBUG] Dados parseados:', parsedData);
         } catch (parseError) {
-          console.error('❌ [DEBUG] Erro ao fazer parse dos dados:', parseError);
           throw new Error('Erro ao processar resposta do servidor');
         }
       }
 
       if (parsedData && parsedData.error) {
-        console.error('❌ [DEBUG] Erro retornado pela função:', parsedData.error);
         throw new Error(`Erro: ${parsedData.error}`);
       }
 
-      console.log('✅ [DEBUG] Parâmetros do Payment Sheet obtidos com sucesso');
       return {
         paymentIntent: parsedData.paymentIntent,
         ephemeralKey: parsedData.ephemeralKey,
@@ -156,7 +137,6 @@ export default function PlanosPagamentosScreen() {
       };
 
     } catch (error) {
-      console.error('❌ [DEBUG] Erro ao buscar parâmetros:', error);
       throw error;
     }
   };
@@ -169,7 +149,6 @@ export default function PlanosPagamentosScreen() {
         customer,
       } = await fetchPaymentSheetParams(plan);
 
-      console.log('🔍 [DEBUG] Inicializando Payment Sheet...');
       const { error } = await initPaymentSheet({
         merchantDisplayName: "App Organizei",
         customerId: customer,
@@ -182,39 +161,33 @@ export default function PlanosPagamentosScreen() {
       });
 
       if (!error) {
-        console.log('✅ [DEBUG] Payment Sheet inicializado com sucesso');
         setLoading(true);
         return true;
       } else {
-        console.error('❌ [DEBUG] Erro ao inicializar Payment Sheet:', error);
         return false;
       }
     } catch (error) {
-      console.error('❌ [DEBUG] Erro na inicialização:', error);
       return false;
     }
   };
 
   const openPaymentSheet = async () => {
     try {
-      console.log('🔍 [DEBUG] Abrindo Payment Sheet...');
       const { error } = await presentPaymentSheet();
 
       if (error) {
-        console.error('❌ [DEBUG] Erro no Payment Sheet:', error);
         Alert.alert(`Erro: ${error.code}`, error.message);
       } else {
-        console.log('✅ [DEBUG] Pagamento realizado com sucesso');
-        Alert.alert('Sucesso', 'Seu pedido foi confirmado!');
+        setShowSuccessModal(true);
       }
     } catch (error) {
-      console.error('❌ [DEBUG] Erro ao abrir Payment Sheet:', error);
       Alert.alert('Erro', 'Não foi possível abrir o pagamento. Tente novamente.');
     }
   };
 
   const handleSubscribe = async (plan: StripeProduct) => {
-    console.log('🔍 [DEBUG] Botão Assinar clicado para:', plan.name);
+    // Evitar múltiplos cliques
+    if (processingPlan) return;
     
     // Verificar se é um plano gratuito
     if (plan.value === 0) {
@@ -231,10 +204,9 @@ export default function PlanosPagamentosScreen() {
       return;
     }
 
+    setProcessingPlan(plan.id);
+    
     try {
-      console.log('🔄 [DEBUG] Iniciando checkout para produto:', plan.name);
-      console.log('💰 [DEBUG] Valor do plano:', plan.value, plan.currency);
-      
       // Obter dados do usuário logado
       const { data: { user } } = await supabase.auth.getUser();
       const userName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Usuário';
@@ -242,7 +214,6 @@ export default function PlanosPagamentosScreen() {
       const success = await initializePaymentSheet(plan, userName);
       
       if (success) {
-        console.log('✅ [DEBUG] Payment Sheet inicializado, aguardando...');
         // Aguardar um pouco para garantir que o loading foi setado
         await new Promise(resolve => setTimeout(resolve, 1000));
         await openPaymentSheet();
@@ -250,8 +221,9 @@ export default function PlanosPagamentosScreen() {
         Alert.alert('Erro', 'Não foi possível inicializar o pagamento. Tente novamente.');
       }
     } catch (error) {
-      console.error('❌ [DEBUG] Erro no checkout:', error);
       Alert.alert('Erro', 'Não foi possível processar o pagamento. Tente novamente.');
+    } finally {
+      setProcessingPlan(null);
     }
   };
 
@@ -299,13 +271,13 @@ export default function PlanosPagamentosScreen() {
           styles.subscribeButton,
           {
             backgroundColor: '#F59E0B',
-            opacity: loading ? 0.7 : 1,
+            opacity: processingPlan === plan.id ? 0.7 : 1,
           }
         ]}
         onPress={() => handleSubscribe(plan)}
-        disabled={loading}
+        disabled={processingPlan === plan.id}
       >
-        {loading ? (
+        {processingPlan === plan.id ? (
           <ActivityIndicator color="#fff" size="small" />
         ) : (
           <Text style={styles.buttonText}>Assinar</Text>
@@ -317,6 +289,32 @@ export default function PlanosPagamentosScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <SafeAreaView style={{ flex: 1 }}>
+        {/* Modal de Sucesso */}
+        {showSuccessModal && (
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
+              <View style={styles.successIconContainer}>
+                <Ionicons name="checkmark-circle" size={80} color="#10B981" />
+              </View>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Parabéns! 🎉
+              </Text>
+              <Text style={[styles.modalMessage, { color: colors.textSecondary }]}>
+                Seu pagamento foi processado com sucesso!{'\n'}
+                Bem-vindo ao plano Premium!
+              </Text>
+              <TouchableOpacity
+                style={styles.modalButton}
+                onPress={() => {
+                  setShowSuccessModal(false);
+                  router.back();
+                }}
+              >
+                <Text style={styles.modalButtonText}>Continuar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
         {/* Header */}
         <View style={[styles.header, { 
           backgroundColor: colors.surface, 
@@ -599,6 +597,60 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: '#333',
+    textAlign: 'center',
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  modalContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 32,
+    marginHorizontal: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 10,
+    maxWidth: 320,
+  },
+  successIconContainer: {
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 24,
+  },
+  modalButton: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 8,
+    minWidth: 120,
+  },
+  modalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
     textAlign: 'center',
   },
 });
