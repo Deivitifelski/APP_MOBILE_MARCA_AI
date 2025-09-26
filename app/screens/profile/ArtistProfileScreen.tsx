@@ -16,10 +16,12 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import UpgradeModal from '../../../components/UpgradeModal';
 import { setActiveArtist } from '../../../services/artistContext';
 import { createArtist } from '../../../services/supabase/artistService';
 import { getCurrentUser } from '../../../services/supabase/authService';
 import { uploadImageToSupabase } from '../../../services/supabase/imageUploadService';
+import { canCreateArtist } from '../../../services/supabase/userService';
 
 export default function ArtistProfileScreen() {
   const [name, setName] = useState('');
@@ -27,6 +29,7 @@ export default function ArtistProfileScreen() {
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const pickImage = async () => {
     try {
@@ -92,6 +95,21 @@ export default function ArtistProfileScreen() {
       
       if (userError || !user) {
         Alert.alert('Erro', 'Usuário não encontrado. Faça login novamente.');
+        return;
+      }
+
+      // Verificar se o usuário pode criar mais artistas
+      const { canCreate, error: canCreateError } = await canCreateArtist(user.id);
+      
+      if (canCreateError) {
+        Alert.alert('Erro', 'Erro ao verificar permissões: ' + canCreateError);
+        setLoading(false);
+        return;
+      }
+
+      if (!canCreate) {
+        setLoading(false);
+        setShowUpgradeModal(true);
         return;
       }
 
@@ -294,6 +312,14 @@ export default function ArtistProfileScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <UpgradeModal
+        visible={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        title="Seja Premium"
+        message="Desbloqueie recursos avançados, usuários ilimitados, relatórios detalhados e suporte prioritário para sua banda."
+        feature="artists"
+      />
     </SafeAreaView>
   );
 }

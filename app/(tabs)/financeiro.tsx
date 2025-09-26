@@ -10,12 +10,14 @@ import {
     View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import UpgradeModal from '../../components/UpgradeModal';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { generateFinancialReport } from '../../services/financialReportService';
 import { getEventsByMonth } from '../../services/supabase/eventService';
 import { getExpensesByEvent } from '../../services/supabase/expenseService';
 import { getUserPermissions } from '../../services/supabase/permissionsService';
+import { canExportData } from '../../services/supabase/userService';
 import { useActiveArtist } from '../../services/useActiveArtist';
 // import * as FileSystem from 'expo-file-system';
 // import * as Sharing from 'expo-sharing';
@@ -38,10 +40,23 @@ export default function FinanceiroScreen() {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [userPermissions, setUserPermissions] = useState<any>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { activeArtist, loadActiveArtist } = useActiveArtist();
 
   const currentMonth = selectedDate.getMonth();
   const currentYear = selectedDate.getFullYear();
+
+  // Obter usuário atual
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUserId(user.id);
+      }
+    };
+    getCurrentUser();
+  }, []);
 
   const months = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -174,6 +189,31 @@ export default function FinanceiroScreen() {
       Alert.alert('Aviso', 'Não há eventos para exportar neste mês.');
       return;
     }
+
+    if (!currentUserId) {
+      Alert.alert('Erro', 'Usuário não encontrado. Faça login novamente.');
+      return;
+    }
+    
+    console.log('🔍 Verificando permissões de exportação para usuário:', currentUserId);
+    
+    // Verificar se o usuário pode exportar dados
+    const { canExport, error: canExportError } = await canExportData(currentUserId);
+    
+    console.log('📊 Resultado da verificação:', { canExport, error: canExportError });
+    
+    if (canExportError) {
+      Alert.alert('Erro', 'Erro ao verificar permissões: ' + canExportError);
+      return;
+    }
+
+    if (!canExport) {
+      console.log('🚫 Usuário não pode exportar - mostrando modal de upgrade');
+      setShowUpgradeModal(true);
+      return;
+    }
+    
+    console.log('✅ Usuário pode exportar - continuando com exportação');
     
     // Modal melhorado para escolher tipo de relatório
     Alert.alert(
@@ -521,6 +561,13 @@ export default function FinanceiroScreen() {
 
       </ScrollView>
 
+      <UpgradeModal
+        visible={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        title="Seja Premium"
+        message="Desbloqueie recursos avançados, usuários ilimitados, relatórios detalhados e suporte prioritário para sua banda."
+        feature="finances"
+      />
     </View>
   );
 }

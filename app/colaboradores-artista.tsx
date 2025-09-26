@@ -1,24 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  Modal,
-  TextInput,
-  FlatList,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import UpgradeModal from '../components/UpgradeModal';
+import { checkPendingInvite, createArtistInvite } from '../services/supabase/artistInviteService';
 import { getCurrentUser } from '../services/supabase/authService';
-import { getArtists } from '../services/supabase/artistService';
+import { addCollaborator, Collaborator, getCollaborators, removeCollaborator, searchUsers, updateCollaboratorRole } from '../services/supabase/collaboratorService';
+import { canExportData } from '../services/supabase/userService';
 import { useActiveArtist } from '../services/useActiveArtist';
-import { getCollaborators, addCollaborator, removeCollaborator, updateCollaboratorRole, searchUsers, Collaborator } from '../services/supabase/collaboratorService';
-import { createArtistInvite, checkPendingInvite } from '../services/supabase/artistInviteService';
 
 export default function ColaboradoresArtistaScreen() {
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
@@ -37,10 +38,20 @@ export default function ColaboradoresArtistaScreen() {
   const [isSearching, setIsSearching] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [isInviting, setIsInviting] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
     loadActiveArtist();
+    loadCurrentUser();
   }, []);
+
+  const loadCurrentUser = async () => {
+    const { user } = await getCurrentUser();
+    if (user) {
+      setCurrentUserId(user.id);
+    }
+  };
 
   useEffect(() => {
     if (activeArtist) {
@@ -133,7 +144,20 @@ export default function ColaboradoresArtistaScreen() {
   };
 
   const handleConfirmInvite = async () => {
-    if (!selectedUser || !activeArtist) return;
+    if (!selectedUser || !activeArtist || !currentUserId) return;
+
+    // Verificar se o usuário pode convidar colaboradores (plano premium)
+    const { canExport, error: canExportError } = await canExportData(currentUserId);
+    
+    if (canExportError) {
+      Alert.alert('Erro', 'Erro ao verificar permissões: ' + canExportError);
+      return;
+    }
+
+    if (!canExport) {
+      setShowUpgradeModal(true);
+      return;
+    }
 
     try {
       setIsInviting(true);
@@ -425,8 +449,27 @@ export default function ColaboradoresArtistaScreen() {
           {canAddCollaborators && (
             <TouchableOpacity 
               style={styles.addButton}
-              onPress={() => {
+              onPress={async () => {
                 console.log('Botão adicionar pressionado');
+                
+                // Verificar se o usuário pode adicionar colaboradores (plano premium)
+                if (!currentUserId) {
+                  Alert.alert('Erro', 'Usuário não encontrado. Faça login novamente.');
+                  return;
+                }
+
+                const { canExport, error: canExportError } = await canExportData(currentUserId);
+                
+                if (canExportError) {
+                  Alert.alert('Erro', 'Erro ao verificar permissões: ' + canExportError);
+                  return;
+                }
+
+                if (!canExport) {
+                  setShowUpgradeModal(true);
+                  return;
+                }
+
                 setShowAddModal(true);
               }}
             >
@@ -658,6 +701,19 @@ export default function ColaboradoresArtistaScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      {/* Modal de Upgrade */}
+      <UpgradeModal
+        visible={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        title="Colaboradores Premium"
+        message="
+ Gerenciamento total dos colaboradores:
+• Convites ilimitados e personalizados
+• Controle de permissões
+• Gestão em tempo real"
+        feature="collaborators"
+      />
     </SafeAreaView>
   );
 }
