@@ -109,7 +109,8 @@ export default function PlanosPagamentosScreen() {
           email: userEmail,
           name: userName,
           amount: plan.value,
-          currency: plan.currency.toLowerCase()
+          currency: plan.currency.toLowerCase(),
+          priceId: 'price_1SAbrtFP5oK5C2EuTatVrtVv'
         }
       });
       
