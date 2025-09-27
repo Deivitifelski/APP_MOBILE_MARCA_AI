@@ -292,9 +292,24 @@ const activateSubscription = async () => {
         customerEphemeralKeySecret: ephemeralKey,
         setupIntentClientSecret: setupIntent, 
         allowsDelayedPaymentMethods: true,
+        allowsCreditCardPayments: true,
+        allowsApplePay: true,
+        allowsGooglePay: true,
+        applePay: {
+          merchantId: "merchant.com.organizei.app", // Substitua pelo seu Merchant ID
+          merchantCountryCode: "BR",
+        },
+        googlePay: {
+          merchantId: "merchant.com.organizei.app", // Substitua pelo seu Merchant ID
+          merchantCountryCode: "BR",
+        },
         defaultBillingDetails: {
           name: userName,
         },
+        // Configuração de localização para português brasileiro
+        locale: "pt-BR",
+        // Personalizar texto do botão principal
+        primaryButtonLabel: "Assinar",
       };
 
       console.log('⚙️ [initializePaymentSheet] Configuração do PaymentSheet:', paymentSheetConfig);
