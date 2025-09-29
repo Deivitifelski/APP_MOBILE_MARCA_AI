@@ -3,27 +3,28 @@ import { setStringAsync } from 'expo-clipboard';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Modal,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Modal,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import OptimizedImage from '../../components/OptimizedImage';
 import { useTheme } from '../../contexts/ThemeContext';
+import { supabase } from '../../lib/supabase';
 import { cacheService } from '../../services/cacheService';
 import { getArtists } from '../../services/supabase/artistService';
 import { getCurrentUser, updatePassword } from '../../services/supabase/authService';
 import { createFeedback } from '../../services/supabase/feedbackService';
 import { getUserPermissions } from '../../services/supabase/permissionsService';
-import { getUserProfile, UserProfile } from '../../services/supabase/userService';
+import { canExportData, getUserPlan, getUserProfile, isPremiumUser, UserProfile } from '../../services/supabase/userService';
 
 export default function ConfiguracoesScreen() {
   const { isDarkMode, toggleDarkMode, colors } = useTheme();
@@ -35,6 +36,8 @@ export default function ConfiguracoesScreen() {
   const [hasArtist, setHasArtist] = useState(false);
   const [currentArtist, setCurrentArtist] = useState<any>(null);
   const [userPermissions, setUserPermissions] = useState<any>(null);
+  const [isPremium, setIsPremium] = useState<boolean>(false);
+  const [isLoadingPlan, setIsLoadingPlan] = useState(true);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -55,6 +58,7 @@ export default function ConfiguracoesScreen() {
   useEffect(() => {
     loadUserProfile();
     loadArtistData();
+    checkUserPlan(); // Verificar plano automaticamente
   }, []);
 
   useEffect(() => {
@@ -386,6 +390,134 @@ export default function ConfiguracoesScreen() {
     }
   };
 
+  const checkUserPlan = async () => {
+    try {
+      setIsLoadingPlan(true);
+      const { user } = await getCurrentUser();
+      
+      if (!user) {
+        console.log('❌ Nenhum usuário logado para verificar plano');
+        setIsPremium(false);
+        return;
+      }
+
+      console.log('🔍 Verificando plano do usuário:', user.id);
+
+      // Verificar se é premium
+      const { isPremium: premiumStatus, error: premiumError } = await isPremiumUser(user.id);
+      if (premiumError) {
+        console.log('❌ Erro ao verificar premium:', premiumError);
+        setIsPremium(false);
+      } else {
+        console.log('✅ Status premium:', premiumStatus);
+        setIsPremium(premiumStatus);
+      }
+
+      console.log('📊 Resumo do plano:', {
+        isPremium: premiumStatus
+      });
+
+    } catch (error) {
+      console.log('💥 Erro ao verificar plano:', error);
+      setIsPremium(false);
+    } finally {
+      setIsLoadingPlan(false);
+    }
+  };
+
+  const handleCancelPlan = async () => {
+    Alert.alert(
+      'Cancelar Plano Premium',
+      'Tem certeza que deseja cancelar seu plano premium? Você perderá acesso aos recursos avançados.',
+      [
+        {
+          text: 'Não',
+          style: 'cancel'
+        },
+        {
+          text: 'Sim, Cancelar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Aqui você implementaria a lógica para cancelar o plano
+              // Por enquanto, vamos apenas mostrar uma mensagem
+              Alert.alert(
+                'Cancelamento',
+                'Para cancelar seu plano premium, entre em contato conosco em contato@marcaai.com ou através do suporte no app.',
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => {
+                      // Recarregar dados do plano após cancelamento
+                      checkUserPlan();
+                    }
+                  }
+                ]
+              );
+            } catch (error) {
+              Alert.alert('Erro', 'Erro ao cancelar plano: ' + error);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleDebugPlan = async () => {
+    try {
+      const { user } = await getCurrentUser();
+      if (!user) {
+        Alert.alert('Erro', 'Usuário não encontrado');
+        return;
+      }
+
+      console.log('🔍 DEBUG: Verificando plano para usuário:', user.id);
+      
+      // Verificar diretamente no banco primeiro
+      const { data: userData, error: dbError } = await supabase
+        .from('users')
+        .select('id, plan, created_at')
+        .eq('id', user.id)
+        .single();
+      
+      console.log('🗄️ Dados diretos do banco:', { userData, error: dbError });
+      
+      // Testar getUserPlan
+      const { plan, error: planError } = await getUserPlan(user.id);
+      console.log('📋 getUserPlan resultado:', { plan, error: planError });
+      
+      // Testar isPremiumUser
+      const { isPremium, error: premiumError } = await isPremiumUser(user.id);
+      console.log('👑 isPremiumUser resultado:', { isPremium, error: premiumError });
+      
+      // Testar canExportData
+      const { canExport, error: exportError } = await canExportData(user.id);
+      console.log('📤 canExportData resultado:', { canExport, error: exportError });
+      
+      // Verificar comparações
+      const planFromDB = userData?.plan;
+      const isPlanPremium = planFromDB === 'premium';
+      const isPlanStringPremium = String(planFromDB) === 'premium';
+      
+      console.log('🔍 Comparações detalhadas:');
+      console.log('- planFromDB:', planFromDB, typeof planFromDB);
+      console.log('- isPlanPremium:', isPlanPremium);
+      console.log('- isPlanStringPremium:', isPlanStringPremium);
+      console.log('- plan === "premium":', plan === 'premium');
+      console.log('- String(plan) === "premium":', String(plan) === 'premium');
+      
+      Alert.alert(
+        'Debug do Plano',
+        `Banco: ${planFromDB} (${typeof planFromDB})\nFunção: ${plan}\nÉ Premium: ${isPremium}\nPode Exportar: ${canExport}\n\nComparações:\n- DB === 'premium': ${isPlanPremium}\n- Função === 'premium': ${plan === 'premium'}\n\nVerifique o console para logs detalhados.`,
+        [{ text: 'OK' }]
+      );
+      
+    } catch (error) {
+      console.log('💥 Erro no debug:', error);
+      Alert.alert('Erro', 'Erro ao debugar: ' + error);
+    }
+  };
+
   const renderSettingItem = (
     icon: string,
     title: string,
@@ -616,34 +748,63 @@ export default function ConfiguracoesScreen() {
               'Alterar senha e configurações de segurança',
               handleSecurity
             )}
+            
+            {/* Status do Plano - apenas para usuários premium */}
+            {!isLoadingPlan && isPremium && (
+              <>
+                {renderSettingItem(
+                  'diamond',
+                  'Status do Plano',
+                  'Plano Premium Ativo',
+                  undefined,
+                  <View style={[
+                    dynamicStyles.planBadge,
+                    { backgroundColor: '#F59E0B' }
+                  ]}>
+                    <Text style={dynamicStyles.planBadgeText}>
+                      PREMIUM
+                    </Text>
+                  </View>
+                )}
+                
+                {renderSettingItem(
+                  'close-circle',
+                  'Cancelar Plano Premium',
+                  'Cancelar assinatura premium',
+                  handleCancelPlan
+                )}
+              </>
+            )}
           </View>
         </View>
 
-        {/* Seja Premium */}
-        <View style={dynamicStyles.section}>
-          <View style={[dynamicStyles.premiumCard, { backgroundColor: colors.surface }]}>
-            <View style={dynamicStyles.premiumContent}>
-              <View style={dynamicStyles.premiumIcon}>
-                <Ionicons name="diamond" size={32} color="#F59E0B" />
+        {/* Seja Premium - apenas para usuários não premium */}
+        {!isLoadingPlan && !isPremium && (
+          <View style={dynamicStyles.section}>
+            <View style={[dynamicStyles.premiumCard, { backgroundColor: colors.surface }]}>
+              <View style={dynamicStyles.premiumContent}>
+                <View style={dynamicStyles.premiumIcon}>
+                  <Ionicons name="diamond" size={32} color="#F59E0B" />
+                </View>
+                <View style={dynamicStyles.premiumText}>
+                  <Text style={[dynamicStyles.premiumTitle, { color: colors.text }]}>
+                    Seja Premium
+                  </Text>
+                  <Text style={[dynamicStyles.premiumDescription, { color: colors.textSecondary }]}>
+                    Desbloqueie recursos avançados, usuários ilimitados, relatórios detalhados e suporte prioritário para sua banda.
+                  </Text>
+                </View>
               </View>
-              <View style={dynamicStyles.premiumText}>
-                <Text style={[dynamicStyles.premiumTitle, { color: colors.text }]}>
-                  Seja Premium
-                </Text>
-                <Text style={[dynamicStyles.premiumDescription, { color: colors.textSecondary }]}>
-                  Desbloqueie recursos avançados, usuários ilimitados, relatórios detalhados e suporte prioritário para sua banda.
-                </Text>
-              </View>
+              <TouchableOpacity 
+                style={[dynamicStyles.premiumButton, { backgroundColor: '#F59E0B' }]}
+                onPress={() => router.push('/planos-pagamentos')}
+              >
+                <Text style={dynamicStyles.premiumButtonText}>Assinar Premium</Text>
+                <Ionicons name="arrow-forward" size={16} color="#fff" />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity 
-              style={[dynamicStyles.premiumButton, { backgroundColor: '#F59E0B' }]}
-              onPress={() => router.push('/planos-pagamentos')}
-            >
-              <Text style={dynamicStyles.premiumButtonText}>Assinar Premium</Text>
-              <Ionicons name="arrow-forward" size={16} color="#fff" />
-            </TouchableOpacity>
           </View>
-        </View>
+        )}
 
         {/* Aplicativo */}
         <View style={dynamicStyles.section}>
@@ -670,6 +831,13 @@ export default function ConfiguracoesScreen() {
               'Versão 1.0.0',
               undefined,
               null
+            )}
+            
+            {renderSettingItem(
+              'bug',
+              'Debug Plano',
+              'Verificar status do plano',
+              handleDebugPlan
             )}
           </View>
         </View>
@@ -1030,7 +1198,7 @@ export default function ConfiguracoesScreen() {
                          • Combine maiúsculas, minúsculas, números e símbolos
                        </Text>
                        <Text style={[dynamicStyles.securityTipsItem, { color: colors.textSecondary }]}>
-                         • Evite senhas óbvias como "123456"
+                         • Evite senhas óbvias como &quot;123456&quot;
                        </Text>
                        <Text style={[dynamicStyles.securityTipsItem, { color: colors.textSecondary }]}>
                          • Não use informações pessoais
@@ -1303,6 +1471,18 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  planBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  planBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   // Estilos do modal de ajuda
   modalContainer: {
