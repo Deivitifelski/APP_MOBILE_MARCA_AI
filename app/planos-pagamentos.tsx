@@ -116,7 +116,7 @@ export default function PlanosPagamentosScreen() {
         userId: userId,
         email: userEmail,
         name: userName,
-        priceId: 'price_1SAbrtFP5oK5C2EuTatVrtVv' 
+        priceId: "price_1SCmCuCeuRyMxVXeVf7A02Ad"
       };
 
       console.log('📤 [fetchPaymentSheetParams] Enviando requisição:', requestBody);

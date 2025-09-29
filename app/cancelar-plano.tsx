@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
+import { supabase } from '../lib/supabase';
+import { getCurrentUser } from '../services/supabase/authService';
 
 export default function CancelarPlanoScreen() {
   const { colors } = useTheme();
@@ -35,24 +37,62 @@ export default function CancelarPlanoScreen() {
             try {
               setIsLoading(true);
               
-              // Aqui você implementaria a lógica real de cancelamento
-              // Por enquanto, vamos simular o processo
-              await new Promise(resolve => setTimeout(resolve, 2000));
+              // Obter o usuário atual
+              const { user, error: userError } = await getCurrentUser();
               
-              Alert.alert(
-                'Cancelamento Processado',
-                'Seu plano premium foi cancelado com sucesso. Você ainda terá acesso aos recursos premium até o final do período de cobrança atual.',
-                [
-                  {
-                    text: 'OK',
-                    onPress: () => {
-                      router.back();
+              if (userError || !user) {
+                Alert.alert('Erro', 'Usuário não autenticado. Faça login novamente.');
+                return;
+              }
+
+              console.log('🔄 [cancelPlan] Iniciando cancelamento do plano para usuário:', user.id);
+              
+              // Chamar a função do Supabase para cancelar o plano
+              const { data, error } = await supabase.functions.invoke('cancel-plan-stripe', {
+                body: { userId: user.id }
+              });
+
+              console.log('📥 [cancelPlan] Resposta recebida:', { data, error });
+
+              if (error) {
+                console.error('❌ [cancelPlan] Erro na função Supabase:', error);
+                Alert.alert(
+                  'Erro no Cancelamento', 
+                  `Erro ao cancelar plano: ${error.message}. Tente novamente ou entre em contato com o suporte.`
+                );
+                return;
+              }
+
+              // Processar o resultado
+              const parsedData = (typeof data === 'string') ? JSON.parse(data) : data;
+              console.log('🔍 [cancelPlan] Dados parseados:', parsedData);
+
+              if (parsedData.status === 'success') {
+                Alert.alert(
+                  'Cancelamento Processado',
+                  'Seu plano premium foi cancelado com sucesso. Você ainda terá acesso aos recursos premium até o final do período de cobrança atual.',
+                  [
+                    {
+                      text: 'OK',
+                      onPress: () => {
+                        router.back();
+                      }
                     }
-                  }
-                ]
-              );
+                  ]
+                );
+              } else {
+                Alert.alert(
+                  'Erro no Cancelamento',
+                  parsedData.message || 'Não foi possível cancelar o plano. Tente novamente ou entre em contato com o suporte.'
+                );
+              }
+              
             } catch (error) {
-              Alert.alert('Erro', 'Erro ao cancelar plano: ' + error);
+              console.error('💥 [cancelPlan] Erro geral:', error);
+              Alert.alert(
+                'Erro de Conexão', 
+                'Ocorreu um erro inesperado. Verifique sua conexão com a internet e tente novamente.'
+              );
             } finally {
               setIsLoading(false);
             }
