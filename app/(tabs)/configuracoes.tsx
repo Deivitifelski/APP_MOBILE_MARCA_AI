@@ -52,8 +52,6 @@ export default function ConfiguracoesScreen() {
     confirmPassword: '',
   });
   const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [imageLoadError, setImageLoadError] = useState(false);
-  const [userImageLoadError, setUserImageLoadError] = useState(false);
 
   useEffect(() => {
     loadUserProfile();
@@ -61,20 +59,6 @@ export default function ConfiguracoesScreen() {
     checkUserPlan(); // Verificar plano automaticamente
   }, []);
 
-  useEffect(() => {
-    // Reset image error state when artist changes
-    setImageLoadError(false);
-  }, [currentArtist]);
-
-  // Reset image error when artist profile_url changes
-  useEffect(() => {
-    setImageLoadError(false);
-  }, [currentArtist?.profile_url]);
-
-  // Reset user image error when user profile_url changes
-  useEffect(() => {
-    setUserImageLoadError(false);
-  }, [userProfile?.profile_url]);
 
 
   // Debug: Log da URL da imagem do usuário
@@ -86,17 +70,8 @@ export default function ConfiguracoesScreen() {
     }
   }, [userProfile?.profile_url]);
 
-  // Recarregar dados do artista e usuário quando a tela ganhar foco
-  useFocusEffect(
-    React.useCallback(() => {
-      console.log('🔄 Configurações ganhou foco - recarregando dados...');
-      // Invalidar cache e recarregar dados frescos
-      invalidateCacheAndReload();
-    }, [])
-  );
-
   // Função para invalidar cache e recarregar dados
-  const invalidateCacheAndReload = async () => {
+  const invalidateCacheAndReload = React.useCallback(async () => {
     try {
       const { user } = await getCurrentUser();
       if (user) {
@@ -115,7 +90,16 @@ export default function ConfiguracoesScreen() {
     // Recarregar dados frescos (forçar refresh)
     loadUserProfile(true); // true = forceRefresh
     loadArtistData(true); // true = forceRefresh
-  };
+  }, []);
+
+  // Recarregar dados do artista e usuário quando a tela ganhar foco
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('🔄 Configurações ganhou foco - recarregando dados...');
+      // Invalidar cache e recarregar dados frescos
+      invalidateCacheAndReload();
+    }, [invalidateCacheAndReload])
+  );
 
   const loadUserProfile = async (forceRefresh = false) => {
     try {
@@ -385,7 +369,7 @@ export default function ConfiguracoesScreen() {
     try {
       await setStringAsync('contato@marcaai.com');
       Alert.alert('Sucesso', 'Email copiado para a área de transferência!');
-    } catch (error) {
+    } catch {
       Alert.alert('Erro', 'Não foi possível copiar o email.');
     }
   };
@@ -425,42 +409,9 @@ export default function ConfiguracoesScreen() {
     }
   };
 
-  const handleCancelPlan = async () => {
-    Alert.alert(
-      'Cancelar Plano Premium',
-      'Tem certeza que deseja cancelar seu plano premium? Você perderá acesso aos recursos avançados.',
-      [
-        {
-          text: 'Não',
-          style: 'cancel'
-        },
-        {
-          text: 'Sim, Cancelar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // Aqui você implementaria a lógica para cancelar o plano
-              // Por enquanto, vamos apenas mostrar uma mensagem
-              Alert.alert(
-                'Cancelamento',
-                'Para cancelar seu plano premium, entre em contato conosco em contato@marcaai.com ou através do suporte no app.',
-                [
-                  {
-                    text: 'OK',
-                    onPress: () => {
-                      // Recarregar dados do plano após cancelamento
-                      checkUserPlan();
-                    }
-                  }
-                ]
-              );
-            } catch (error) {
-              Alert.alert('Erro', 'Erro ao cancelar plano: ' + error);
-            }
-          }
-        }
-      ]
-    );
+  const handleCancelPlan = () => {
+    // Navegar para a página de cancelamento do plano
+    router.push('/cancelar-plano');
   };
 
   const handleDebugPlan = async () => {
@@ -569,12 +520,10 @@ export default function ConfiguracoesScreen() {
               fallbackIconColor="#667eea"
               onLoadSuccess={() => {
                 console.log('✅ Imagem do usuário carregada nas configurações:', userProfile?.profile_url);
-                setUserImageLoadError(false);
               }}
               onLoadError={(error) => {
                 console.log('❌ Erro ao carregar imagem do usuário nas configurações:', userProfile?.profile_url);
                 console.log('❌ Detalhes:', error);
-                setUserImageLoadError(true);
               }}
             />
             <View style={dynamicStyles.profileInfo}>
@@ -621,12 +570,10 @@ export default function ConfiguracoesScreen() {
                 fallbackIconColor="#667eea"
                 onLoadSuccess={() => {
                   console.log('✅ Imagem do artista carregada nas configurações:', currentArtist.profile_url);
-                  setImageLoadError(false);
                 }}
                 onLoadError={(error) => {
                   console.log('❌ Erro ao carregar imagem do artista nas configurações:', currentArtist.profile_url);
                   console.log('❌ Detalhes:', error);
-                  setImageLoadError(true);
                 }}
               />
               <View style={dynamicStyles.artistInfo}>
@@ -1677,205 +1624,3 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
          },
 });
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8f9fa',
-  },
-  header: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  content: {
-    flex: 1,
-  },
-  section: {
-    marginTop: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 16,
-    paddingHorizontal: 20,
-  },
-  settingsCard: {
-    backgroundColor: '#fff',
-    marginHorizontal: 20,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-    overflow: 'hidden',
-  },
-  profileCard: {
-    backgroundColor: '#fff',
-    marginHorizontal: 20,
-    marginBottom: 15,
-    borderRadius: 12,
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  profileAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#f0f0f0',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 15,
-  },
-  profileAvatarImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    marginRight: 15,
-  },
-  profileInfo: {
-    flex: 1,
-  },
-  profileName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  profileEmail: {
-    fontSize: 14,
-    color: '#666',
-  },
-  editButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: '#f0f0f0',
-  },
-  artistCard: {
-    backgroundColor: '#fff',
-    marginHorizontal: 20,
-    marginBottom: 15,
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  artistAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#f0f0f0',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 15,
-  },
-  artistAvatarImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 15,
-    borderWidth: 2,
-    borderColor: '#e9ecef',
-  },
-  artistInfo: {
-    flex: 1,
-  },
-  artistName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  artistRole: {
-    fontSize: 12,
-    color: '#667eea',
-    fontWeight: '600',
-  },
-  settingItem: {
-    backgroundColor: '#fff',
-    marginHorizontal: 20,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  settingLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  settingIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#f0f0f0',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  settingText: {
-    flex: 1,
-  },
-  settingTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
-    marginBottom: 2,
-  },
-  settingSubtitle: {
-    fontSize: 14,
-    color: '#666',
-  },
-  logoutButton: {
-    backgroundColor: '#fff',
-    marginHorizontal: 20,
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  logoutText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#F44336',
-    marginLeft: 8,
-  },
-});
