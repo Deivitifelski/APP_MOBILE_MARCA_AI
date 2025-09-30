@@ -756,6 +756,13 @@ export default function ConfiguracoesScreen() {
                 )}
                 
                 {renderSettingItem(
+                  'card',
+                  'Alterar Cartão',
+                  'Atualizar método de pagamento',
+                  () => router.push('/planos-pagamentos')
+                )}
+
+                {renderSettingItem(
                   'close-circle',
                   'Cancelar Plano Premium',
                   'Cancelar assinatura premium',
