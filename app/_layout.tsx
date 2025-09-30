@@ -9,6 +9,7 @@ import { StripeProvider } from '@stripe/stripe-react-native';
 import AuthDeepLinkHandler from '../components/AuthDeepLinkHandler';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { useColorScheme } from '../hooks/use-color-scheme';
+import { STRIPE_KEYS } from '../config/stripe-keys';
 
 export const unstable_settings = {
   anchor: '(tabs)',
