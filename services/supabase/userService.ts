@@ -29,22 +29,26 @@ export interface CreateUserProfileData {
 // Verificar se o usuário existe na tabela users
 export const checkUserExists = async (userId: string): Promise<{ exists: boolean; error: string | null }> => {
   try {
+    console.log('🔍 checkUserExists: Verificando usuário:', userId);
+    
     const { data, error } = await supabase
       .from('users')
       .select('id')
       .eq('id', userId)
-      .single();
+      .maybeSingle(); // Usar maybeSingle() para evitar erro quando não encontrar
+
+    console.log('📋 checkUserExists: Resultado:', { data, error });
 
     if (error) {
-      // Se o erro for "PGRST116" significa que nenhum registro foi encontrado
-      if (error.code === 'PGRST116') {
-        return { exists: false, error: null };
-      }
+      console.error('❌ checkUserExists: Erro na consulta:', error);
       return { exists: false, error: error.message };
     }
 
-    return { exists: true, error: null };
+    const exists = data !== null;
+    console.log('✅ checkUserExists: Usuário existe?', exists);
+    return { exists, error: null };
   } catch (error) {
+    console.error('💥 checkUserExists: Erro de conexão:', error);
     return { exists: false, error: 'Erro de conexão' };
   }
 };

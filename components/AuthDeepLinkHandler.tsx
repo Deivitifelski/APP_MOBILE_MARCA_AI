@@ -49,10 +49,24 @@ export default function AuthDeepLinkHandler() {
             console.log('🔍 Sessão verificada após setSession:', session);
             
             if (session && session.user) {
+              // Verificar se o usuário existe na tabela users antes de redirecionar
+              const { checkUserExists } = await import('../services/supabase/userService');
+              const userCheck = await checkUserExists(data.user.id);
+              
+              if (userCheck.error) {
+                console.error('❌ Erro ao verificar usuário:', userCheck.error);
+                return;
+              }
+              
               // Navegar baseado no status do usuário
               if (data.user?.email_confirmed_at) {
-                console.log('🎯 Usuário com email confirmado, redirecionando para agenda');
-                router.replace('/(tabs)/agenda');
+                if (userCheck.exists) {
+                  console.log('🎯 Usuário com email confirmado e perfil completo, redirecionando para agenda');
+                  router.replace('/(tabs)/agenda');
+                } else {
+                  console.log('👤 Usuário com email confirmado mas sem perfil, redirecionando para cadastro');
+                  router.replace('/cadastro-usuario');
+                }
               } else {
                 console.log('📧 Email não confirmado, redirecionando para confirmação');
                 router.replace('/email-confirmation');
@@ -94,9 +108,29 @@ export default function AuthDeepLinkHandler() {
             const { data: { session } } = await supabase.auth.getSession();
             console.log('Sessão verificada após setSession:', session);
             
-            if (session) {
-              // Navegar para a tela de confirmação
-              router.replace('/email-confirmation');
+            if (session && session.user) {
+              // Verificar se o usuário existe na tabela users antes de redirecionar
+              const { checkUserExists } = await import('../services/supabase/userService');
+              const userCheck = await checkUserExists(session.user.id);
+              
+              if (userCheck.error) {
+                console.error('❌ Erro ao verificar usuário:', userCheck.error);
+                return;
+              }
+              
+              // Navegar baseado no status do usuário
+              if (session.user.email_confirmed_at) {
+                if (userCheck.exists) {
+                  console.log('🎯 Usuário com email confirmado e perfil completo, redirecionando para agenda');
+                  router.replace('/(tabs)/agenda');
+                } else {
+                  console.log('👤 Usuário com email confirmado mas sem perfil, redirecionando para cadastro');
+                  router.replace('/cadastro-usuario');
+                }
+              } else {
+                console.log('📧 Email não confirmado, redirecionando para confirmação');
+                router.replace('/email-confirmation');
+              }
             } else {
               console.error('Sessão não foi salva corretamente');
             }
