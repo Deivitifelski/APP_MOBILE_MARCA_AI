@@ -7,7 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { StripeProvider } from '@stripe/stripe-react-native';
 import AuthDeepLinkHandler from '../components/AuthDeepLinkHandler';
-import { STRIPE_KEYS } from '../config/stripe-keys';
+import { getStripePublishableKey } from '../config/stripe-keys';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { useColorScheme } from '../hooks/use-color-scheme';
 
@@ -20,8 +20,8 @@ export default function RootLayout() {
   const [publishableKey, setPublishableKey] = useState('');
 
   const fetchPublishableKey = async () => {
-    // Chave pública do Stripe para PRODUÇÃO
-    const key = STRIPE_KEYS.PUBLISHABLE_KEY;
+    // Chave pública do Stripe baseada no ambiente
+    const key = getStripePublishableKey();
     setPublishableKey(key);
   };
 
