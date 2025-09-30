@@ -1230,7 +1230,8 @@ export default function ConfiguracoesScreen() {
       <UpgradeModal 
         visible={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}
-        feature="criar múltiplos artistas"
+        title="Criar Múltiplos Artistas"
+        message="Crie e gerencie vários perfis de artistas com o plano Premium. Desbloqueie recursos avançados como colaboradores ilimitados, relatórios detalhados e suporte prioritário."
       />
     </View>
   );
