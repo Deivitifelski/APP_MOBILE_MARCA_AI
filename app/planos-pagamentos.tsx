@@ -5,7 +5,6 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Dimensions,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -17,7 +16,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 
-const { width } = Dimensions.get('window');
 
 interface StripeProduct {
   id: string;
@@ -29,12 +27,11 @@ interface StripeProduct {
 
 
 export default function PlanosPagamentosScreen() {
-  const { colors, isDarkMode } = useTheme();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [plans, setPlans] = useState<StripeProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [loading, setLoading] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [processingPlan, setProcessingPlan] = useState<string | null>(null);
 
@@ -46,9 +43,14 @@ export default function PlanosPagamentosScreen() {
   const fetchPlans = async () => {
     try {
       setIsLoading(true);
+      console.log('🔍 [list-stripe-products] Enviando requisição...');
+      
       const { data, error } = await supabase.functions.invoke('list-stripe-products');
       
+      console.log('📥 [list-stripe-products] Resposta:', { data, error });
+      
       if (error) {
+        console.error('❌ [list-stripe-products] Erro:', error);
         Alert.alert('Erro', 'Não foi possível carregar os planos. Tente novamente.');
         setPlans([]);
         return;
@@ -68,7 +70,7 @@ export default function PlanosPagamentosScreen() {
             } else {
               setPlans([]);
             }
-          } catch (parseError) {
+          } catch {
             setPlans([]);
           }
         }
@@ -87,7 +89,7 @@ export default function PlanosPagamentosScreen() {
       } else {
         setPlans([]);
       }
-    } catch (err) {
+    } catch {
       Alert.alert('Erro', 'Ocorreu um erro inesperado. Tente novamente.');
       setPlans([]);
     } finally {
@@ -95,10 +97,9 @@ export default function PlanosPagamentosScreen() {
     }
   };
 
-  const fetchPaymentSheetParams = async (plan: StripeProduct) => {
+  const fetchPaymentSheetParams = async (plan: StripeProduct, forceNew = false) => {
     try {
-      console.log('🔍 [fetchPaymentSheetParams] Iniciando...');
-      console.log('📋 [fetchPaymentSheetParams] Plano:', plan);
+      console.log('🔍 [create-payment-intent] Enviando requisição...');
 
       // Obter dados do usuário logado
       const { data: { user } } = await supabase.auth.getUser();
@@ -106,47 +107,70 @@ export default function PlanosPagamentosScreen() {
       const userEmail = user?.email || '';
       const userName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Usuário';
 
-      console.log('👤 [fetchPaymentSheetParams] Dados do usuário:', {
-        userId,
-        userEmail,
-        userName
-      });
-
       const requestBody = {
         userId: userId,
         email: userEmail,
         name: userName,
-        priceId: "price_1SCmCuCeuRyMxVXeVf7A02Ad"
+        priceId: "price_1SCmCuCeuRyMxVXeVf7A02Ad",
+        forceProduction: true,
       };
-
-      console.log('📤 [fetchPaymentSheetParams] Enviando requisição:', requestBody);
+      console.log('🔍 [create-payment-intent] Request Body:', requestBody);
 
       const { data, error } = await supabase.functions.invoke('create-payment-intent', {
         body: requestBody
       });
       
-      console.log('📥 [fetchPaymentSheetParams] Resposta recebida:', {
-        data,
-        error,
-        dataType: typeof data
-      });
-      
-      if (error) {
-        console.error('❌ [fetchPaymentSheetParams] Erro na função Supabase:', error);
-        console.error('❌ [fetchPaymentSheetParams] Detalhes do erro:', {
-          message: error.message,
-          status: error.status,
-          statusText: error.statusText,
-          name: error.name
+    
+      // Log detalhado dos dados recebidos
+      if (data) {
+        let parsedData = data;
+        if (typeof data === 'string') {
+          parsedData = JSON.parse(data);
+        }
+        console.log('🔍 [create-payment-intent] Dados recebidos:', {
+          setupIntent: parsedData.setupIntent,
+          setupIntentLength: parsedData.setupIntent?.length,
+          hasSecret: parsedData.setupIntent?.includes('_secret_'),
+          ephemeralKey: parsedData.ephemeralKey,
+          ephemeralKeyLength: parsedData.ephemeralKey?.length,
+          customer: parsedData.customer,
+          customerLength: parsedData.customer?.length
         });
         
-        // Tratar diferentes tipos de erro
+        // Verificar se a função Supabase está usando chaves de produção
+        const isSetupIntentLive = parsedData.setupIntent?.includes('seti_live_');
+        const isSetupIntentTest = parsedData.setupIntent?.includes('seti_1') && !parsedData.setupIntent?.includes('seti_live_');
+        const isEphemeralKeyLive = parsedData.ephemeralKey?.includes('ek_live_');
+        
+        console.log('🔍 [create-payment-intent] Verificação de ambiente:', {
+          isSetupIntentLive: isSetupIntentLive,
+          isSetupIntentTest: isSetupIntentTest,
+          isEphemeralKeyLive: isEphemeralKeyLive,
+          environmentMatch: isSetupIntentLive && isEphemeralKeyLive,
+          environmentMismatch: isSetupIntentTest && isEphemeralKeyLive
+        });
+        
+        if (isSetupIntentTest && isEphemeralKeyLive) {
+          console.warn('⚠️ [create-payment-intent] PROBLEMA: Função Supabase está criando Setup Intent de TESTE com chave LIVE!');
+          console.warn('⚠️ [create-payment-intent] A função Supabase precisa ser configurada para usar chaves de PRODUÇÃO');
+          console.warn('⚠️ [create-payment-intent] Setup Intent deve começar com: seti_live_ (não seti_1)');
+          console.warn('⚠️ [create-payment-intent] Verificar configuração das chaves no Supabase');
+          
+          // Forçar criação de novo Setup Intent de produção
+          console.log('🔄 [create-payment-intent] Forçando criação de novo Setup Intent de PRODUÇÃO...');
+          return await fetchPaymentSheetParams(plan, true);
+        }
+        
+        if (isSetupIntentLive && isEphemeralKeyLive) {
+          console.log('✅ [create-payment-intent] Setup Intent de PRODUÇÃO criado com sucesso!');
+          console.log('✅ [create-payment-intent] Ambiente consistente: Live + Live');
+          console.log('✅ [create-payment-intent] Chaves de produção configuradas corretamente no Supabase');
+        }
+      }
+      
+      if (error) {
+        console.error('❌ [create-payment-intent] Erro:', error);
         if (error.message.includes('non-2xx status code')) {
-          console.error('❌ [fetchPaymentSheetParams] Erro HTTP da Edge Function - possíveis causas:');
-          console.error('   - Função não existe ou não está deployada');
-          console.error('   - Erro interno na função (verificar logs do Supabase)');
-          console.error('   - Problema de autenticação/autorização');
-          console.error('   - Erro na configuração do Stripe na função');
           throw new Error('Erro no servidor: A função do Supabase retornou um erro. Verifique se a função "create-payment-intent" está deployada e funcionando.');
         } else if (error.message.includes('Network request failed')) {
           throw new Error('Erro de conexão: Verifique sua internet e tente novamente.');
@@ -155,34 +179,21 @@ export default function PlanosPagamentosScreen() {
         }
       }
 
-      // Verificar se data é null ou undefined
       if (!data) {
-        console.error('❌ [fetchPaymentSheetParams] Data é null/undefined');
         throw new Error('A função do Supabase não retornou dados. Verifique se a função está funcionando corretamente.');
       }
 
       // Parse da resposta se vier como string JSON
       let parsedData = data;
       if (typeof data === 'string') {
-        console.log('🔄 [fetchPaymentSheetParams] Fazendo parse de string JSON...');
         try {
           parsedData = JSON.parse(data);
-          console.log('✅ [fetchPaymentSheetParams] Parse bem-sucedido:', parsedData);
-        } catch (parseError) {
-          console.error('❌ [fetchPaymentSheetParams] Erro no parse JSON:', parseError);
+        } catch {
           throw new Error('Erro ao processar resposta do servidor');
         }
       }
 
-      console.log('🔍 [fetchPaymentSheetParams] Dados parseados:', parsedData);
-      console.log('📋 [fetchPaymentSheetParams] Estrutura esperada:', {
-        setupIntent: "seti_xxx_secret_xxx",
-        ephemeralKey: "ek_test_xxx", 
-        customer: "cus_xxx"
-      });
-
       if (parsedData && parsedData.error) {
-        console.error('❌ [fetchPaymentSheetParams] Erro nos dados:', parsedData.error);
         throw new Error(`Erro: ${parsedData.error}`);
       }
 
@@ -192,23 +203,8 @@ export default function PlanosPagamentosScreen() {
         customer: parsedData.customer,
       };
 
-      console.log('✅ [fetchPaymentSheetParams] Resultado final:', result);
-      console.log('🔍 [fetchPaymentSheetParams] Verificação dos campos:', {
-        hasSetupIntent: !!result.setupIntent,
-        hasEphemeralKey: !!result.ephemeralKey,
-        hasCustomer: !!result.customer,
-        setupIntentLength: result.setupIntent?.length || 0,
-        ephemeralKeyLength: result.ephemeralKey?.length || 0,
-        customerLength: result.customer?.length || 0
-      });
-
       // Validação específica para a estrutura esperada
       if (!result.setupIntent || !result.ephemeralKey || !result.customer) {
-        console.error('❌ [fetchPaymentSheetParams] Campos obrigatórios ausentes:', {
-          setupIntent: result.setupIntent,
-          ephemeralKey: result.ephemeralKey,
-          customer: result.customer
-        });
         throw new Error('Dados do Stripe incompletos - campos obrigatórios ausentes');
       }
 
@@ -225,65 +221,117 @@ export default function PlanosPagamentosScreen() {
 
 const activateSubscription = async () => {
   try {
-    console.log('🔄 [activateSubscription] Iniciando ativação da assinatura...');
+    console.log('🔍 [activate-subscription] Enviando requisição...');
     
-    // 1. Obter o userId do usuário logado
     const { data: { user } } = await supabase.auth.getUser();
     const userId = user?.id;
 
-    console.log('👤 [activateSubscription] User ID:', userId);
-
     if (!userId) {
-      console.error('❌ [activateSubscription] Usuário não autenticado');
       throw new Error("Usuário não autenticado.");
     }
 
-    // 2. Chamar a função de ativação
-    console.log('📤 [activateSubscription] Enviando requisição para activate-subscription...');
     const { data, error } = await supabase.functions.invoke('activate-subscription', {
-      body: { userId: userId }
+      body: { userId: userId , forceProduction: true}
     });
 
-    console.log('📥 [activateSubscription] Resposta recebida:', { data, error });
+    console.log('📥 [activate-subscription] Resposta:', { data, error });
 
     if (error) {
-      console.error('❌ [activateSubscription] Erro na função Supabase:', error);
+      console.error('❌ [activate-subscription] Erro:', error);
       throw new Error(`Erro na função Supabase: ${error.message}`);
     }
 
-    // 3. Processar o resultado (data)
     const parsedData = (typeof data === 'string') ? JSON.parse(data) : data;
-    console.log('🔍 [activateSubscription] Dados parseados:', parsedData);
 
     if (parsedData.status === "success") {
-      console.log('✅ [activateSubscription] Assinatura ativada com sucesso!');
+      console.log('✅ [activate-subscription] Assinatura ativada com sucesso!');
       return true;
     } else {
-      console.log('⚠️ [activateSubscription] Status não é success:', parsedData.status);
       return false;
     }
   } catch (error) {
-    console.error('💥 [activateSubscription] Erro geral:', error);
+    console.error('❌ [activateSubscription] Erro:', error);
     return false;
   }
 };
 
-  const initializePaymentSheet = async (plan: StripeProduct, userName: string) => {
+  const initializePaymentSheet = async (plan: StripeProduct, userName: string, retryCount = 0) => {
     try {
-      console.log('🚀 [initializePaymentSheet] Iniciando...');
-      console.log('📋 [initializePaymentSheet] Plano:', plan);
-      console.log('👤 [initializePaymentSheet] Nome do usuário:', userName);
+      console.log('🔍 [create-payment-intent] Enviando requisição...');
 
       const {
         setupIntent,
         ephemeralKey,
         customer,
-      } = await fetchPaymentSheetParams(plan);
+      } = await fetchPaymentSheetParams(plan, true);
 
-      console.log('📥 [initializePaymentSheet] Dados recebidos:', {
-        setupIntent: setupIntent ? 'Presente' : 'Ausente',
-        ephemeralKey: ephemeralKey ? 'Presente' : 'Ausente',
-        customer: customer ? 'Presente' : 'Ausente'
+      // Validar Setup Intent antes de usar
+      if (!setupIntent || !setupIntent.includes('_secret_')) {
+        console.error('❌ [initializePaymentSheet] Setup Intent inválido:', {
+          setupIntent,
+          hasSecret: setupIntent?.includes('_secret_'),
+          length: setupIntent?.length
+        });
+        throw new Error('Setup Intent inválido recebido do servidor');
+      }
+
+      // Verificar se o Setup Intent tem o formato correto
+      const setupIntentParts = setupIntent.split('_secret_');
+      if (setupIntentParts.length !== 2) {
+        console.error('❌ [initializePaymentSheet] Setup Intent malformado:', {
+          setupIntent,
+          parts: setupIntentParts.length
+        });
+        throw new Error('Setup Intent malformado');
+      }
+
+      console.log('✅ [create-payment-intent] Setup Intent validado:', {
+        id: setupIntentParts[0],
+        secret: setupIntentParts[1]?.substring(0, 10) + '...',
+        totalLength: setupIntent.length
+      });
+
+      // Aguardar um pouco para garantir que o Setup Intent esteja ativo no Stripe
+      console.log('⏳ [create-payment-intent] Aguardando Setup Intent ficar ativo...');
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Verificar se estamos em produção
+      const isLiveKey = ephemeralKey.includes('ek_live_');
+      const isTestSetupIntent = setupIntentParts[0].includes('seti_1') && !setupIntentParts[0].includes('seti_live_');
+      
+      console.log('🔍 [create-payment-intent] Verificando ambiente:', {
+        setupIntentId: setupIntentParts[0],
+        isLiveKey: isLiveKey,
+        isTestMode: isTestSetupIntent,
+        environmentMismatch: isLiveKey && isTestSetupIntent
+      });
+      
+      // Verificar inconsistência de ambiente
+      if (isLiveKey && isTestSetupIntent) {
+        console.warn('⚠️ [create-payment-intent] INCONSISTÊNCIA: Chave live com Setup Intent de teste!');
+        console.warn('⚠️ [create-payment-intent] Isso pode causar o erro "resource_missing"');
+        console.warn('⚠️ [create-payment-intent] SOLUÇÃO: Verificar se a função Supabase está usando chaves de PRODUÇÃO');
+        console.warn('⚠️ [create-payment-intent] Chave secreta deve ser: sk_live_... (não sk_test_...)');
+        
+        // Forçar retry imediato para tentar novamente
+        console.log('🔄 [create-payment-intent] Forçando retry devido à inconsistência...');
+        if (retryCount < 2) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return await initializePaymentSheet(plan, userName, retryCount + 1);
+        }
+      }
+      
+      // Verificar se as chaves estão corretas para produção
+      const expectedLiveKey = 'ek_live_';
+      const expectedSetupIntent = 'seti_';
+      
+      console.log('🔍 [create-payment-intent] Verificação de chaves:', {
+        ephemeralKeyPrefix: ephemeralKey.substring(0, 7),
+        setupIntentPrefix: setupIntentParts[0].substring(0, 5),
+        expectedLiveKey: expectedLiveKey,
+        expectedSetupIntent: expectedSetupIntent,
+        isCorrectEphemeralKey: ephemeralKey.startsWith(expectedLiveKey),
+        isCorrectSetupIntent: setupIntentParts[0].startsWith(expectedSetupIntent)
       });
 
       const paymentSheetConfig = {
@@ -310,42 +358,107 @@ const activateSubscription = async () => {
         locale: "pt-BR",
         // Personalizar texto do botão principal
         primaryButtonLabel: "Assinar",
+        // Adicionar returnURL para iOS
+        returnURL: "marcaai://stripe-redirect",
       };
 
-      console.log('⚙️ [initializePaymentSheet] Configuração do PaymentSheet:', paymentSheetConfig);
+      // Log detalhado da configuração antes de enviar para o Stripe
+      console.log('🔍 [create-payment-intent] Configuração enviada para Stripe:', {
+        setupIntentClientSecret: setupIntent,
+        setupIntentLength: setupIntent?.length,
+        hasSecret: setupIntent?.includes('_secret_'),
+        customerId: customer,
+        customerEphemeralKeySecret: ephemeralKey,
+        ephemeralKeyLength: ephemeralKey?.length
+      });
 
       const { error } = await initPaymentSheet(paymentSheetConfig);
   
-      console.log('📤 [initializePaymentSheet] Resultado do initPaymentSheet:', { error });
+      console.log('📥 [create-payment-intent] Resposta:', { error });
 
       if (!error) {
-        console.log('✅ [initializePaymentSheet] PaymentSheet inicializado com sucesso');
-        setLoading(true);
+        console.log('✅ [create-payment-intent] PaymentSheet inicializado com sucesso');
         return true;
       } else {
-        console.error('❌ [initializePaymentSheet] Erro ao inicializar PaymentSheet:', error);
+        console.error('❌ [create-payment-intent] Erro:', error);
+        
+        // Verificar se é erro de Setup Intent expirado
+        if (error.message && error.message.includes('setupintent')) {
+          console.log('🔄 [create-payment-intent] Setup Intent com problema, criando novo...');
+          console.log('🔍 [create-payment-intent] Erro detalhado:', {
+            message: error.message,
+            stripeErrorCode: error.stripeErrorCode,
+            type: error.type,
+            isResourceMissing: error.stripeErrorCode === 'resource_missing'
+          });
+          
+          // Se for erro de resource_missing em produção, aguardar mais tempo
+          if (error.stripeErrorCode === 'resource_missing') {
+            console.log('⚠️ [create-payment-intent] Erro resource_missing em produção - aguardando mais tempo...');
+            await new Promise(resolve => setTimeout(resolve, 5000));
+          }
+          
+          // Retry com novo Setup Intent (máximo 2 tentativas)
+          if (retryCount < 2) {
+            console.log(`🔄 [create-payment-intent] Tentativa ${retryCount + 1}/2`);
+            // Aguardar mais tempo entre tentativas
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            return await initializePaymentSheet(plan, userName, retryCount + 1);
+          } else {
+            console.error('❌ [create-payment-intent] Máximo de tentativas atingido');
+            return false;
+          }
+        }
+        
         return false;
       }
     } catch (error) {
-      console.error('💥 [initializePaymentSheet] Erro geral:', error);
+      console.error('💥 [create-payment-intent] Erro geral:', error);
       return false;
     }
   };
 
   const openPaymentSheet = async () => {
     try {
-      console.log('💳 [openPaymentSheet] Abrindo PaymentSheet...');
+      console.log('🔍 [presentPaymentSheet] Enviando requisição...');
       const { error } = await presentPaymentSheet();
 
       if (error) {
-        console.log('❌ [openPaymentSheet] Erro no pagamento:', error);
+        // Verificar se é erro de Setup Intent expirado
+        if (error.message && error.message.includes('setupintent')) {
+          Alert.alert(
+            'Sessão Expirada', 
+            'A sessão de pagamento expirou. Vamos criar uma nova sessão.',
+            [
+              {
+                text: 'Tentar Novamente',
+                onPress: async () => {
+                  try {
+                    const { data: { user } } = await supabase.auth.getUser();
+                    const userName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Usuário';
+                    
+                    const success = await initializePaymentSheet(plans[0], userName);
+                    if (success) {
+                      await openPaymentSheet();
+                    } else {
+                      Alert.alert('Erro', 'Não foi possível recriar a sessão de pagamento.');
+                    }
+                  } catch (retryError) {
+                    console.error('❌ [presentPaymentSheet] Erro no retry:', retryError);
+                    Alert.alert('Erro', 'Não foi possível recriar a sessão de pagamento.');
+                  }
+                }
+              }
+            ]
+          );
+          return;
+        }
+        
         // Converter erros comuns do Stripe para português
         let errorMessage = error.message;
         
         switch (error.code) {
           case 'Canceled':
-            // Usuário cancelou o pagamento - não mostrar erro
-            console.log('🚫 [openPaymentSheet] Usuário cancelou o pagamento');
             return;
           case 'Failed':
             if (error.message.includes('Your card was declined')) {
@@ -368,17 +481,14 @@ const activateSubscription = async () => {
         
         Alert.alert('Erro no Pagamento', errorMessage);
       } else {
-        console.log('✅ [openPaymentSheet] Pagamento processado com sucesso!');
-        console.log('🔄 [openPaymentSheet] Ativando assinatura...');
+        console.log('✅ [presentPaymentSheet] Pagamento processado com sucesso!');
         
-        // Chamar a função de ativação da assinatura
         const subscriptionActivated = await activateSubscription();
         
         if (subscriptionActivated) {
-          console.log('🎉 [openPaymentSheet] Assinatura ativada com sucesso!');
+          console.log('✅ [presentPaymentSheet] Assinatura ativada com sucesso!');
           setShowSuccessModal(true);
         } else {
-          console.error('❌ [openPaymentSheet] Falha ao ativar assinatura');
           Alert.alert(
             'Atenção', 
             'Pagamento processado, mas houve um problema ao ativar sua assinatura. Entre em contato com o suporte.'
@@ -386,7 +496,7 @@ const activateSubscription = async () => {
         }
       }
     } catch (error) {
-      console.error('💥 [openPaymentSheet] Erro geral:', error);
+      console.error('💥 [presentPaymentSheet] Erro geral:', error);
       Alert.alert('Erro', 'Não foi possível abrir o pagamento. Tente novamente.');
     }
   };
@@ -420,8 +530,7 @@ const activateSubscription = async () => {
       const success = await initializePaymentSheet(plan, userName);
       
       if (success) {
-        // Aguardar um pouco para garantir que o loading foi setado
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 500));
         await openPaymentSheet();
       } else {
         Alert.alert('Erro', 'Não foi possível inicializar o pagamento. Tente novamente.');
@@ -439,6 +548,10 @@ const activateSubscription = async () => {
           errorMessage = 'Erro ao criar conta de pagamento. Tente novamente.';
         } else if (error.message.includes('payment intent')) {
           errorMessage = 'Erro ao processar pagamento. Verifique seus dados e tente novamente.';
+        } else if (error.message.includes('setupintent')) {
+          errorMessage = 'Erro na sessão de pagamento. Tente novamente.';
+        } else if (error.message.includes('Setup Intent inválido')) {
+          errorMessage = 'Erro na configuração do pagamento. Tente novamente.';
         }
       }
       
