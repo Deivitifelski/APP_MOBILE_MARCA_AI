@@ -202,6 +202,44 @@ export const subscribeToArtistMembers = (
   };
 };
 
+// Escutar mudanças na tabela users
+export const subscribeToUsers = (
+  userId: string,
+  onUserChange: (payload: any) => void
+): RealtimeSubscription => {
+  console.log('realtimeService: Criando subscription para users do usuário:', userId);
+
+  const channel = supabase
+    .channel(`users:${userId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*', // INSERT, UPDATE, DELETE
+        schema: 'public',
+        table: 'users',
+        filter: `id=eq.${userId}`,
+      },
+      (payload) => {
+        console.log('realtimeService: Mudança detectada em users:', payload);
+        
+        if (payload.eventType === 'UPDATE') {
+          onUserChange(payload);
+        }
+      }
+    )
+    .subscribe((status) => {
+      console.log('realtimeService: Status da subscription de users:', status);
+    });
+
+  return {
+    channel,
+    unsubscribe: () => {
+      console.log('realtimeService: Removendo subscription de users');
+      supabase.removeChannel(channel);
+    }
+  };
+};
+
 // Função para limpar todas as subscriptions
 export const cleanupSubscriptions = (subscriptions: RealtimeSubscription[]) => {
   console.log('realtimeService: Limpando todas as subscriptions');

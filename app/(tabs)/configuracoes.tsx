@@ -25,6 +25,7 @@ import { getCurrentUser, updatePassword } from '../../services/supabase/authServ
 import { createFeedback } from '../../services/supabase/feedbackService';
 import { getUserPermissions } from '../../services/supabase/permissionsService';
 import { canExportData, getUserPlan, getUserProfile, isPremiumUser, UserProfile } from '../../services/supabase/userService';
+import { subscribeToUsers, RealtimeSubscription } from '../../services/realtimeService';
 
 export default function ConfiguracoesScreen() {
   const { isDarkMode, toggleDarkMode, colors } = useTheme();
@@ -52,11 +53,18 @@ export default function ConfiguracoesScreen() {
     confirmPassword: '',
   });
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [realtimeSubscriptions, setRealtimeSubscriptions] = useState<RealtimeSubscription[]>([]);
 
   useEffect(() => {
     loadUserProfile();
     loadArtistData();
     checkUserPlan(); // Verificar plano automaticamente
+    setupRealtimeSubscriptions();
+    
+    // Cleanup function
+    return () => {
+      cleanupRealtimeSubscriptions();
+    };
   }, []);
 
 
@@ -69,6 +77,39 @@ export default function ConfiguracoesScreen() {
       console.log('🔍 DEBUG - Nenhuma URL de imagem encontrada para o usuário nas configurações');
     }
   }, [userProfile?.profile_url]);
+
+  // Configurar subscriptions de realtime
+  const setupRealtimeSubscriptions = async () => {
+    try {
+      const { user } = await getCurrentUser();
+      if (!user) return;
+
+      console.log('🔔 Configurando realtime para usuário:', user.id);
+
+      // Subscription para mudanças na tabela users
+      const userSubscription = subscribeToUsers(user.id, (payload) => {
+        console.log('👤 Mudança detectada no perfil do usuário:', payload);
+        
+        // Recarregar dados do usuário quando houver mudanças
+        loadUserProfile();
+        checkUserPlan();
+      });
+
+      setRealtimeSubscriptions([userSubscription]);
+      console.log('✅ Realtime configurado com sucesso');
+    } catch (error) {
+      console.error('❌ Erro ao configurar realtime:', error);
+    }
+  };
+
+  // Limpar subscriptions de realtime
+  const cleanupRealtimeSubscriptions = () => {
+    console.log('🧹 Limpando subscriptions de realtime');
+    realtimeSubscriptions.forEach(subscription => {
+      subscription.unsubscribe();
+    });
+    setRealtimeSubscriptions([]);
+  };
 
   // Função para invalidar cache e recarregar dados
   const invalidateCacheAndReload = React.useCallback(async () => {
