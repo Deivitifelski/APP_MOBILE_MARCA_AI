@@ -14,6 +14,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import LogoMarcaAi from '../components/LogoMarcaAi';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 
@@ -115,9 +116,7 @@ export default function RegisterScreen() {
               >
                 <Ionicons name="arrow-back" size={24} color={colors.text} />
               </TouchableOpacity>
-              <View style={[dynamicStyles.logoContainer, { backgroundColor: colors.primary }]}>
-                <Ionicons name="diamond" size={50} color="#fff" />
-              </View>
+              <LogoMarcaAi size="medium" showTagline={false} />
               <Text style={[dynamicStyles.title, { color: colors.text }]}>Criar Conta</Text>
               <Text style={[dynamicStyles.subtitle, { color: colors.textSecondary }]}>
                 Preencha os dados para criar sua conta
