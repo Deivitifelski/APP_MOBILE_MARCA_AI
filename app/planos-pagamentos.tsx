@@ -215,7 +215,7 @@ const activateSubscription = async () => {
       } = await fetchPaymentSheetParams(plan);
 
       const paymentSheetConfig = {
-        merchantDisplayName: "App Organizei",
+        merchantDisplayName: "MarcaAi - Agenda & Finanças",
         customerId: customer,
         customerEphemeralKeySecret: ephemeralKey,
         setupIntentClientSecret: setupIntent, 
@@ -224,20 +224,50 @@ const activateSubscription = async () => {
         allowsApplePay: true,
         allowsGooglePay: true,
         applePay: {
-          merchantId: "merchant.com.organizei.app", // Substitua pelo seu Merchant ID
+          merchantId: "merchant.com.marcaai.app",
           merchantCountryCode: "BR",
         },
         googlePay: {
-          merchantId: "merchant.com.organizei.app", // Substitua pelo seu Merchant ID
+          merchantId: "merchant.com.marcaai.app",
           merchantCountryCode: "BR",
         },
         defaultBillingDetails: {
           name: userName,
         },
+        // Personalização visual com cores da marca
+        appearance: {
+          colors: {
+            primary: '#667eea', // Cor azul roxo da marca
+            background: '#ffffff',
+            componentBackground: '#f8f9fa',
+            componentBorder: '#e9ecef',
+            componentDivider: '#e9ecef',
+            primaryText: '#333333',
+            secondaryText: '#666666',
+            componentText: '#333333',
+            placeholderText: '#999999',
+            icon: '#667eea',
+            error: '#F44336',
+          },
+          shapes: {
+            borderRadius: 12,
+            borderWidth: 1,
+          },
+          primaryButton: {
+            colors: {
+              background: '#667eea',
+              text: '#ffffff',
+              border: '#667eea',
+            },
+            shapes: {
+              borderRadius: 8,
+            },
+          },
+        },
         // Configuração de localização para português brasileiro
         locale: "pt-BR",
         // Personalizar texto do botão principal
-        primaryButtonLabel: "Assinar",
+        primaryButtonLabel: "Assinar Premium",
         // Adicionar returnURL para iOS
         returnURL: "marcaai://stripe-redirect",
       };
