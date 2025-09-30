@@ -3,29 +3,30 @@ import { setStringAsync } from 'expo-clipboard';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Modal,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Modal,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import OptimizedImage from '../../components/OptimizedImage';
+import LogoMarcaAi from '../../components/LogoMarcaAi';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { cacheService } from '../../services/cacheService';
+import { RealtimeSubscription, subscribeToUsers } from '../../services/realtimeService';
 import { getArtists } from '../../services/supabase/artistService';
 import { getCurrentUser, updatePassword } from '../../services/supabase/authService';
 import { createFeedback } from '../../services/supabase/feedbackService';
 import { getUserPermissions } from '../../services/supabase/permissionsService';
 import { canExportData, getUserPlan, getUserProfile, isPremiumUser, UserProfile } from '../../services/supabase/userService';
-import { subscribeToUsers, RealtimeSubscription } from '../../services/realtimeService';
 
 export default function ConfiguracoesScreen() {
   const { isDarkMode, toggleDarkMode, colors } = useTheme();
@@ -543,6 +544,7 @@ export default function ConfiguracoesScreen() {
   return (
     <View style={dynamicStyles.container}>
       <View style={[dynamicStyles.header, { paddingTop: insets.top + 20 }]}>
+        <LogoMarcaAi size="small" showTagline={false} />
         <Text style={dynamicStyles.title}>Configurações</Text>
       </View>
 
@@ -1226,6 +1228,7 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
     paddingBottom: 15,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    gap: 12,
   },
   title: {
     fontSize: 24,
