@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import OptimizedImage from '../components/OptimizedImage';
 import UpgradeModal from '../components/UpgradeModal';
 import { checkPendingInvite, createArtistInvite } from '../services/supabase/artistInviteService';
 import { getCurrentUser } from '../services/supabase/authService';
@@ -94,27 +95,36 @@ export default function ColaboradoresArtistaScreen() {
   };
 
   const handleSearchUsers = async (term: string) => {
+    console.log('🔎 handleSearchUsers chamado com termo:', term);
+    
     if (term.length < 2) {
+      console.log('⚠️ Termo muito curto, limpando resultados');
       setSearchResults([]);
       return;
     }
 
     try {
       setIsSearching(true);
+      console.log('📡 Chamando searchUsers...');
       const { users, error } = await searchUsers(term);
       
+      console.log('📥 Resposta recebida:', { users, error });
+      
       if (error) {
-        console.error('Erro ao buscar usuários:', error);
+        console.error('❌ Erro ao buscar usuários:', error);
         return;
       }
 
       // Filtrar usuários que já são colaboradores
       const existingCollaboratorIds = collaborators.map(c => c.user_id);
+      console.log('👥 IDs de colaboradores existentes:', existingCollaboratorIds);
+      
       const filteredUsers = users?.filter(user => !existingCollaboratorIds.includes(user.id)) || [];
+      console.log('✅ Usuários filtrados:', filteredUsers);
       
       setSearchResults(filteredUsers);
     } catch (error) {
-      console.error('Erro ao buscar usuários:', error);
+      console.error('💥 Erro ao buscar usuários:', error);
     } finally {
       setIsSearching(false);
     }
@@ -550,7 +560,7 @@ export default function ColaboradoresArtistaScreen() {
                   setSearchTerm(text);
                   handleSearchUsers(text);
                 }}
-                placeholder="Digite nome ou email do usuário"
+                placeholder="Digite o nome do usuário"
                 autoCapitalize="none"
               />
               
@@ -563,14 +573,21 @@ export default function ColaboradoresArtistaScreen() {
                       style={styles.searchResultItem}
                       onPress={() => handleSelectUser(user)}
                     >
-                      <View style={styles.userAvatar}>
-                        <Text style={styles.userAvatarText}>
-                          {user.name.charAt(0).toUpperCase()}
-                        </Text>
-                      </View>
+                      <OptimizedImage
+                        imageUrl={user.profile_url || ''}
+                        style={styles.userAvatarImage}
+                        cacheKey={`user_search_${user.id}`}
+                        fallbackIcon="person"
+                        fallbackIconSize={20}
+                        fallbackIconColor="#667eea"
+                      />
                       <View style={styles.userInfo}>
                         <Text style={styles.userName}>{user.name}</Text>
-                        <Text style={styles.userEmail}>{user.email}</Text>
+                        <Text style={styles.userEmail}>
+                          {user.city && user.state 
+                            ? `${user.city}, ${user.state}`
+                            : user.city || user.state || 'Localização não informada'}
+                        </Text>
                       </View>
                     </TouchableOpacity>
                   ))}
@@ -963,6 +980,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#667eea',
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 12,
+  },
+  userAvatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     marginRight: 12,
   },
   userAvatarText: {

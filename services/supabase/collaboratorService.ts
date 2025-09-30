@@ -104,18 +104,28 @@ export const getCollaborators = async (artistId: string): Promise<{
 // Buscar usuários por nome ou email
 export const searchUsers = async (searchTerm: string): Promise<{ users: any[] | null; error: string | null }> => {
   try {
+    console.log('🔍 Buscando usuários com termo:', searchTerm);
+    
     const { data, error } = await supabase
       .from('users')
-      .select('*')
+      .select('id, name, email, profile_url, city, state')
       .or(`email.ilike.%${searchTerm}%,name.ilike.%${searchTerm}%`)
       .limit(10);
 
+    console.log('📊 Resultado da busca:', { 
+      encontrados: data?.length || 0, 
+      usuarios: data,
+      erro: error 
+    });
+
     if (error) {
+      console.error('❌ Erro na busca:', error);
       return { users: null, error: error.message };
     }
 
     return { users: data || [], error: null };
   } catch (error) {
+    console.error('❌ Erro de conexão na busca:', error);
     return { users: null, error: 'Erro de conexão' };
   }
 };

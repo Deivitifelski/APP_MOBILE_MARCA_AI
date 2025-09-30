@@ -80,18 +80,28 @@ export const createUserProfile = async (userData: CreateUserProfileData): Promis
 // Buscar perfil do usuário
 export const getUserProfile = async (userId: string): Promise<{ profile: UserProfile | null; error: string | null }> => {
   try {
+    console.log('👤 Buscando perfil do usuário:', userId);
+    
     const { data, error } = await supabase
       .from('users')
       .select('*')
       .eq('id', userId)
-      .single();
+      .maybeSingle(); // Usar maybeSingle() ao invés de single() para evitar erro se não houver resultado
 
     if (error) {
+      console.error('❌ Erro ao buscar perfil:', error);
       return { profile: null, error: error.message };
     }
 
+    if (!data) {
+      console.warn('⚠️ Nenhum perfil encontrado para o usuário:', userId);
+      return { profile: null, error: 'Perfil não encontrado' };
+    }
+
+    console.log('✅ Perfil encontrado:', data);
     return { profile: data, error: null };
   } catch (error) {
+    console.error('💥 Erro de conexão ao buscar perfil:', error);
     return { profile: null, error: 'Erro de conexão' };
   }
 };
