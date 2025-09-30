@@ -18,6 +18,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LogoMarcaAi from '../../components/LogoMarcaAi';
 import OptimizedImage from '../../components/OptimizedImage';
+import UpgradeModal from '../../components/UpgradeModal';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { cacheService } from '../../services/cacheService';
@@ -55,6 +56,7 @@ export default function ConfiguracoesScreen() {
   });
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [realtimeSubscriptions, setRealtimeSubscriptions] = useState<RealtimeSubscription[]>([]);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   useEffect(() => {
     loadUserProfile();
@@ -261,20 +263,7 @@ export default function ConfiguracoesScreen() {
   const handleCreateNewArtist = () => {
     // Verificar se o usuário é premium antes de permitir criar novo artista
     if (!isPremium) {
-      Alert.alert(
-        'Recurso Premium',
-        'Criar múltiplos artistas é um recurso exclusivo para usuários Premium. Faça upgrade para desbloquear!',
-        [
-          {
-            text: 'Cancelar',
-            style: 'cancel'
-          },
-          {
-            text: 'Ver Planos',
-            onPress: () => router.push('/planos-pagamentos')
-          }
-        ]
-      );
+      setShowUpgradeModal(true);
       return;
     }
     
@@ -1236,6 +1225,13 @@ export default function ConfiguracoesScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      {/* Modal de Upgrade Premium */}
+      <UpgradeModal 
+        visible={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        feature="criar múltiplos artistas"
+      />
     </View>
   );
 }
