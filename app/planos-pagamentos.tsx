@@ -108,7 +108,7 @@ export default function PlanosPagamentosScreen() {
         userId: userId,
         email: userEmail,
         name: userName,
-        priceId: "price_1SCmCuCeuRyMxVXeVf7A02Ad",
+        priceId: plan.id,
         forceProduction: true,
       };
       console.log('🔍 [create-payment-intent] Request Body:', requestBody);
@@ -150,6 +150,7 @@ export default function PlanosPagamentosScreen() {
         setupIntent: parsedData.setupIntent,
         ephemeralKey: parsedData.ephemeralKey,
         customer: parsedData.customer,
+        chaveStripe: parsedData.chaveStripe,
       };
 
       // Validação específica para a estrutura esperada
@@ -166,8 +167,7 @@ export default function PlanosPagamentosScreen() {
   };
 
 
-  // Exemplo de chamada no seu app (TypeScript)
-
+  // Chamada para ativar a assinatura no Stripe
 const activateSubscription = async () => {
   try {
     console.log('🔍 [activate-subscription] Enviando requisição...');
@@ -214,36 +214,6 @@ const activateSubscription = async () => {
         customer,
       } = await fetchPaymentSheetParams(plan);
 
-      // Validar Setup Intent antes de usar
-      if (!setupIntent || !setupIntent.includes('_secret_')) {
-        console.error('❌ [initializePaymentSheet] Setup Intent inválido:', {
-          setupIntent,
-          hasSecret: setupIntent?.includes('_secret_'),
-          length: setupIntent?.length
-        });
-        throw new Error('Setup Intent inválido recebido do servidor');
-      }
-
-      // Verificar se o Setup Intent tem o formato correto
-      const setupIntentParts = setupIntent;
-
-      // Aguardar um pouco para garantir que o Setup Intent esteja ativo no Stripe
-      console.log('⏳ [create-payment-intent] Aguardando Setup Intent ficar ativo...');
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // Verificar se estamos em produção
-      const isLiveKey = ephemeralKey.includes('ek_live_');
-      const isTestSetupIntent = setupIntentParts[0].includes('seti_1') && !setupIntentParts[0].includes('seti_live_');
-      
-      console.log('🔍 [create-payment-intent] Verificando ambiente:', {
-        setupIntentId: setupIntentParts[0],
-        isLiveKey: isLiveKey,
-        isTestMode: isTestSetupIntent,
-        environmentMismatch: isLiveKey && isTestSetupIntent
-      });
-
-      
-
       const paymentSheetConfig = {
         merchantDisplayName: "App Organizei",
         customerId: customer,
@@ -284,7 +254,6 @@ const activateSubscription = async () => {
 
       const { error } = await initPaymentSheet(paymentSheetConfig);
   
-      console.log('📥 [create-payment-intent] Resposta:', { error });
 
       if (!error) {
         console.log('✅ [create-payment-intent] PaymentSheet inicializado com sucesso');
@@ -334,7 +303,7 @@ const activateSubscription = async () => {
 
 
 
-
+/** Abre o sheet de pagamento */
   const openPaymentSheet = async () => {
     try {
       console.log('🔍 [presentPaymentSheet] Enviando requisição...');
@@ -450,7 +419,7 @@ const activateSubscription = async () => {
       
       if (success) {
         await new Promise(resolve => setTimeout(resolve, 500));
-        await openPaymentSheet();
+        await openPaymentSheet(); // Abre o sheet de pagamento
       } else {
         Alert.alert('Erro', 'Não foi possível inicializar o pagamento. Tente novamente.');
       }
