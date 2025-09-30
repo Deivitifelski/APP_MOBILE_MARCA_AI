@@ -23,6 +23,7 @@ interface StripeProduct {
   description: string;
   value: number;
   currency: string;
+  default_price: string;
 }
 
 
@@ -43,7 +44,6 @@ export default function PlanosPagamentosScreen() {
   const fetchPlans = async () => {
     try {
       setIsLoading(true);
-      console.log('🔍 [list-stripe-products] Enviando requisição...');
       
       const { data, error } = await supabase.functions.invoke('list-stripe-products');
       
@@ -108,7 +108,7 @@ export default function PlanosPagamentosScreen() {
         userId: userId,
         email: userEmail,
         name: userName,
-        priceId: plan.id,
+        priceId: plan.default_price,
         forceProduction: true,
       };
       console.log('🔍 [create-payment-intent] Request Body:', requestBody);
