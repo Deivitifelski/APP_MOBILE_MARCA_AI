@@ -192,6 +192,12 @@ export default function ArtistProfileScreen() {
           <View style={styles.content}>
             {/* Header */}
             <View style={styles.header}>
+              <TouchableOpacity 
+                style={styles.backButton}
+                onPress={() => router.back()}
+              >
+                <Ionicons name="arrow-back" size={24} color="#667eea" />
+              </TouchableOpacity>
               <View style={styles.logoContainer}>
                 <Ionicons name="musical-notes" size={50} color="#667eea" />
               </View>
@@ -344,6 +350,14 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: 30,
+    position: 'relative',
+  },
+  backButton: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    padding: 8,
+    zIndex: 10,
   },
   logoContainer: {
     width: 80,
