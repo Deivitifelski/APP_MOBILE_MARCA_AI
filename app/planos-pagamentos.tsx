@@ -94,7 +94,7 @@ export default function PlanosPagamentosScreen() {
     }
   };
 
-  const fetchPaymentSheetParams = async (plan: StripeProduct, forceNew = false) => {
+  const fetchPaymentSheetParams = async (plan: StripeProduct) => {
     try {
       console.log('🔍 [create-payment-intent] Enviando requisição...');
 
@@ -116,38 +116,7 @@ export default function PlanosPagamentosScreen() {
       const { data, error } = await supabase.functions.invoke('create-payment-intent', {
         body: requestBody
       });
-      
-    
-      // Log detalhado dos dados recebidos
-      if (data) {
-        let parsedData = data;
-        if (typeof data === 'string') {
-          parsedData = JSON.parse(data);
-        }
-        // Verificar se a função Supabase está usando chaves de produção
-        const isSetupIntentLive = parsedData.setupIntent?.includes('seti_live_');
-        const isSetupIntentTest = parsedData.setupIntent?.includes('seti_1') && !parsedData.setupIntent?.includes('seti_live_');
-        const isEphemeralKeyLive = parsedData.ephemeralKey?.includes('ek_live_');
-        
-        
-        if (isSetupIntentTest && isEphemeralKeyLive) {
-          console.warn('⚠️ [create-payment-intent] PROBLEMA: Função Supabase está criando Setup Intent de TESTE com chave LIVE!');
-          console.warn('⚠️ [create-payment-intent] A função Supabase precisa ser configurada para usar chaves de PRODUÇÃO');
-          console.warn('⚠️ [create-payment-intent] Setup Intent deve começar com: seti_live_ (não seti_1)');
-          console.warn('⚠️ [create-payment-intent] Verificar configuração das chaves no Supabase');
-          
-          // Forçar criação de novo Setup Intent de produção
-          console.log('🔄 [create-payment-intent] Forçando criação de novo Setup Intent de PRODUÇÃO...');
-          return await fetchPaymentSheetParams(plan, true);
-        }
-        
-        if (isSetupIntentLive && isEphemeralKeyLive) {
-          console.log('✅ [create-payment-intent] Setup Intent de PRODUÇÃO criado com sucesso!');
-          console.log('✅ [create-payment-intent] Ambiente consistente: Live + Live');
-          console.log('✅ [create-payment-intent] Chaves de produção configuradas corretamente no Supabase');
-        }
-      }
-      
+         
       if (error) {
         console.error('❌ [create-payment-intent] Erro:', error);
         if (error.message.includes('non-2xx status code')) {
@@ -243,7 +212,7 @@ const activateSubscription = async () => {
         setupIntent,
         ephemeralKey,
         customer,
-      } = await fetchPaymentSheetParams(plan, true);
+      } = await fetchPaymentSheetParams(plan);
 
       // Validar Setup Intent antes de usar
       if (!setupIntent || !setupIntent.includes('_secret_')) {
@@ -256,20 +225,7 @@ const activateSubscription = async () => {
       }
 
       // Verificar se o Setup Intent tem o formato correto
-      const setupIntentParts = setupIntent.split('_secret_');
-      if (setupIntentParts.length !== 2) {
-        console.error('❌ [initializePaymentSheet] Setup Intent malformado:', {
-          setupIntent,
-          parts: setupIntentParts.length
-        });
-        throw new Error('Setup Intent malformado');
-      }
-
-      console.log('✅ [create-payment-intent] Setup Intent validado:', {
-        id: setupIntentParts[0],
-        secret: setupIntentParts[1]?.substring(0, 10) + '...',
-        totalLength: setupIntent.length
-      });
+      const setupIntentParts = setupIntent;
 
       // Aguardar um pouco para garantir que o Setup Intent esteja ativo no Stripe
       console.log('⏳ [create-payment-intent] Aguardando Setup Intent ficar ativo...');
@@ -285,34 +241,8 @@ const activateSubscription = async () => {
         isTestMode: isTestSetupIntent,
         environmentMismatch: isLiveKey && isTestSetupIntent
       });
+
       
-      // Verificar inconsistência de ambiente
-      if (isLiveKey && isTestSetupIntent) {
-        console.warn('⚠️ [create-payment-intent] INCONSISTÊNCIA: Chave live com Setup Intent de teste!');
-        console.warn('⚠️ [create-payment-intent] Isso pode causar o erro "resource_missing"');
-        console.warn('⚠️ [create-payment-intent] SOLUÇÃO: Verificar se a função Supabase está usando chaves de PRODUÇÃO');
-        console.warn('⚠️ [create-payment-intent] Chave secreta deve ser: sk_live_... (não sk_test_...)');
-        
-        // Forçar retry imediato para tentar novamente
-        console.log('🔄 [create-payment-intent] Forçando retry devido à inconsistência...');
-        if (retryCount < 2) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return await initializePaymentSheet(plan, userName, retryCount + 1);
-        }
-      }
-      
-      // Verificar se as chaves estão corretas para produção
-      const expectedLiveKey = 'ek_live_';
-      const expectedSetupIntent = 'seti_';
-      
-      console.log('🔍 [create-payment-intent] Verificação de chaves:', {
-        ephemeralKeyPrefix: ephemeralKey.substring(0, 7),
-        setupIntentPrefix: setupIntentParts[0].substring(0, 5),
-        expectedLiveKey: expectedLiveKey,
-        expectedSetupIntent: expectedSetupIntent,
-        isCorrectEphemeralKey: ephemeralKey.startsWith(expectedLiveKey),
-        isCorrectSetupIntent: setupIntentParts[0].startsWith(expectedSetupIntent)
-      });
 
       const paymentSheetConfig = {
         merchantDisplayName: "App Organizei",
