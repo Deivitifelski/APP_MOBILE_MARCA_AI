@@ -259,6 +259,25 @@ export default function ConfiguracoesScreen() {
   };
 
   const handleCreateNewArtist = () => {
+    // Verificar se o usuário é premium antes de permitir criar novo artista
+    if (!isPremium) {
+      Alert.alert(
+        'Recurso Premium',
+        'Criar múltiplos artistas é um recurso exclusivo para usuários Premium. Faça upgrade para desbloquear!',
+        [
+          {
+            text: 'Cancelar',
+            style: 'cancel'
+          },
+          {
+            text: 'Ver Planos',
+            onPress: () => router.push('/planos-pagamentos')
+          }
+        ]
+      );
+      return;
+    }
+    
     // Navegar diretamente para a tela de cadastro do artista
     router.push('/cadastro-artista');
   };
@@ -639,8 +658,13 @@ export default function ConfiguracoesScreen() {
               {renderSettingItem(
                 'add-circle',
                 'Criar Novo Artista',
-                'Criar um novo perfil de artista',
-                handleCreateNewArtist
+                isPremium ? 'Criar um novo perfil de artista' : 'Recurso Premium - Criar múltiplos artistas',
+                handleCreateNewArtist,
+                !isPremium ? (
+                  <View style={[dynamicStyles.premiumBadge, { backgroundColor: '#F59E0B' }]}>
+                    <Ionicons name="lock-closed" size={12} color="#fff" />
+                  </View>
+                ) : undefined
               )}
 
               {renderSettingItem(
@@ -1481,6 +1505,14 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
     color: '#fff',
     fontSize: 12,
     fontWeight: 'bold',
+  },
+  premiumBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   // Estilos do modal de ajuda
   modalContainer: {
