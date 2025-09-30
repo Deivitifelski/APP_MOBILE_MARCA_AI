@@ -276,7 +276,7 @@ const activateSubscription = async () => {
       console.log('🔍 [create-payment-intent] Configuração enviada para Stripe:', {
         setupIntentClientSecret: setupIntent,
         setupIntentLength: setupIntent?.length,
-        hasSecret: setupIntent?.includes('_secret_'),
+        hasSecret: setupIntent,
         customerId: customer,
         customerEphemeralKeySecret: ephemeralKey,
         ephemeralKeyLength: ephemeralKey?.length
@@ -328,6 +328,13 @@ const activateSubscription = async () => {
     }
   };
 
+
+
+
+
+
+
+
   const openPaymentSheet = async () => {
     try {
       console.log('🔍 [presentPaymentSheet] Enviando requisição...');
@@ -335,7 +342,9 @@ const activateSubscription = async () => {
 
       if (error) {
         // Verificar se é erro de Setup Intent expirado
+        console.log('🔍 [presentPaymentSheet] Erro:', error);
         if (error.message && error.message.includes('setupintent')) {
+          console.log('🔄 [presentPaymentSheet] Setup Intent expirado, criando nova sessão...');
           Alert.alert(
             'Sessão Expirada', 
             'A sessão de pagamento expirou. Vamos criar uma nova sessão.',
