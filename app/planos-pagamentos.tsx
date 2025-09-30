@@ -233,35 +233,8 @@ const activateSubscription = async () => {
         },
         defaultBillingDetails: {
           name: userName,
-        },
-        // Personalização visual com cores da marca
-        appearance: {
-          colors: {
-            primary: '#667eea', // Cor azul roxo da marca
-            background: '#ffffff',
-            componentBackground: '#f8f9fa',
-            componentBorder: '#e9ecef',
-            componentDivider: '#e9ecef',
-            primaryText: '#333333',
-            secondaryText: '#666666',
-            componentText: '#333333',
-            placeholderText: '#999999',
-            icon: '#667eea',
-            error: '#F44336',
-          },
-          shapes: {
-            borderRadius: 12,
-            borderWidth: 1,
-          },
-          primaryButton: {
-            colors: {
-              background: '#667eea',
-              text: '#ffffff',
-              border: '#667eea',
-            },
-            shapes: {
-              borderRadius: 8,
-            },
+          address: {
+            country: 'BR',
           },
         },
         // Configuração de localização para português brasileiro
@@ -270,6 +243,7 @@ const activateSubscription = async () => {
         primaryButtonLabel: "Assinar Premium",
         // Adicionar returnURL para iOS
         returnURL: "marcaai://stripe-redirect",
+        
       };
 
       // Log detalhado da configuração antes de enviar para o Stripe
