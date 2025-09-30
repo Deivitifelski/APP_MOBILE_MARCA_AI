@@ -47,10 +47,7 @@ export default function PlanosPagamentosScreen() {
       
       const { data, error } = await supabase.functions.invoke('list-stripe-products');
       
-      console.log('📥 [list-stripe-products] Resposta:', { data, error });
-      
       if (error) {
-        console.error('❌ [list-stripe-products] Erro:', error);
         Alert.alert('Erro', 'Não foi possível carregar os planos. Tente novamente.');
         setPlans([]);
         return;
@@ -127,28 +124,11 @@ export default function PlanosPagamentosScreen() {
         if (typeof data === 'string') {
           parsedData = JSON.parse(data);
         }
-        console.log('🔍 [create-payment-intent] Dados recebidos:', {
-          setupIntent: parsedData.setupIntent,
-          setupIntentLength: parsedData.setupIntent?.length,
-          hasSecret: parsedData.setupIntent?.includes('_secret_'),
-          ephemeralKey: parsedData.ephemeralKey,
-          ephemeralKeyLength: parsedData.ephemeralKey?.length,
-          customer: parsedData.customer,
-          customerLength: parsedData.customer?.length
-        });
-        
         // Verificar se a função Supabase está usando chaves de produção
         const isSetupIntentLive = parsedData.setupIntent?.includes('seti_live_');
         const isSetupIntentTest = parsedData.setupIntent?.includes('seti_1') && !parsedData.setupIntent?.includes('seti_live_');
         const isEphemeralKeyLive = parsedData.ephemeralKey?.includes('ek_live_');
         
-        console.log('🔍 [create-payment-intent] Verificação de ambiente:', {
-          isSetupIntentLive: isSetupIntentLive,
-          isSetupIntentTest: isSetupIntentTest,
-          isEphemeralKeyLive: isEphemeralKeyLive,
-          environmentMatch: isSetupIntentLive && isEphemeralKeyLive,
-          environmentMismatch: isSetupIntentTest && isEphemeralKeyLive
-        });
         
         if (isSetupIntentTest && isEphemeralKeyLive) {
           console.warn('⚠️ [create-payment-intent] PROBLEMA: Função Supabase está criando Setup Intent de TESTE com chave LIVE!');
