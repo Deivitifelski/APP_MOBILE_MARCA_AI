@@ -7,9 +7,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { StripeProvider } from '@stripe/stripe-react-native';
 import AuthDeepLinkHandler from '../components/AuthDeepLinkHandler';
+import { STRIPE_KEYS } from '../config/stripe-keys';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { useColorScheme } from '../hooks/use-color-scheme';
-import { STRIPE_KEYS } from '../config/stripe-keys';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -20,8 +20,8 @@ export default function RootLayout() {
   const [publishableKey, setPublishableKey] = useState('');
 
   const fetchPublishableKey = async () => {
-    // Chave pública do Stripe para testes
-    const key = 'pk_test_51S93wnFP5oK5C2EuLludByTWfS2jX0SUX6HKDPx2qri8xGWrlngGQU1sCHY2uOPPBTBEWngWsMQKnfSzddEpOr7K00OSSDk4Ie';
+    // Chave pública do Stripe para PRODUÇÃO
+    const key = STRIPE_KEYS.PUBLISHABLE_KEY;
     setPublishableKey(key);
   };
 
