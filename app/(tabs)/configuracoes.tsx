@@ -16,7 +16,6 @@ import {
   View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import LogoMarcaAi from '../../components/LogoMarcaAi';
 import OptimizedImage from '../../components/OptimizedImage';
 import UpgradeModal from '../../components/UpgradeModal';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -552,7 +551,6 @@ export default function ConfiguracoesScreen() {
   return (
     <View style={dynamicStyles.container}>
       <View style={[dynamicStyles.header, { paddingTop: insets.top + 20 }]}>
-        <LogoMarcaAi size="small" showTagline={false} />
         <Text style={dynamicStyles.title}>Configurações</Text>
       </View>
 
