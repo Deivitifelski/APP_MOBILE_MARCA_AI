@@ -268,21 +268,25 @@ export default function AdicionarEventoScreen() {
 
   const handleSave = async () => {
 
-    // Validações básicas - apenas Nome, Valor e Data são obrigatórios
+    // Validações básicas - apenas Nome é sempre obrigatório
     if (!form.nome.trim()) {
       Alert.alert('Erro', 'Nome do evento é obrigatório');
       return;
     }
-    if (!form.valor.trim()) {
-      Alert.alert('Erro', 'Valor é obrigatório');
-      return;
-    }
+    
+    // Valor é obrigatório apenas para shows (tag 'evento')
+    if (form.tag === 'evento') {
+      if (!form.valor.trim()) {
+        Alert.alert('Erro', 'Valor é obrigatório para shows');
+        return;
+      }
 
-    // Extrair valor numérico do texto formatado
-    const numericValue = extractNumericValue(form.valor);
-    if (!numericValue || isNaN(parseFloat(numericValue))) {
-      Alert.alert('Erro', 'Valor deve ser um número válido');
-      return;
+      // Extrair valor numérico do texto formatado
+      const numericValue = extractNumericValue(form.valor);
+      if (!numericValue || isNaN(parseFloat(numericValue))) {
+        Alert.alert('Erro', 'Valor deve ser um número válido');
+        return;
+      }
     }
 
     setIsLoading(true);
@@ -313,6 +317,13 @@ export default function AdicionarEventoScreen() {
           value: parseFloat(despesa.valor) / 100, // Converter centavos para reais
         }));
 
+      // Processar valor baseado no tipo de evento
+      let eventValue = undefined;
+      if (form.tag === 'evento' && form.valor.trim()) {
+        const numericValue = extractNumericValue(form.valor);
+        eventValue = numericValue ? parseFloat(numericValue) : undefined;
+      }
+
       const eventData = {
         artist_id: artistId,
         user_id: user.id,
@@ -321,7 +332,7 @@ export default function AdicionarEventoScreen() {
         event_date: `${form.data.getFullYear()}-${String(form.data.getMonth() + 1).padStart(2, '0')}-${String(form.data.getDate()).padStart(2, '0')}`, // YYYY-MM-DD
         start_time: form.horarioInicio.toTimeString().split(' ')[0].substring(0, 5), // HH:MM
         end_time: form.horarioFim.toTimeString().split(' ')[0].substring(0, 5), // HH:MM
-        value: numericValue ? parseFloat(numericValue) : undefined,
+        value: eventValue,
         city: form.cidade.trim() || undefined,
         contractor_phone: form.telefoneContratante.trim() || undefined,
         confirmed: form.status === 'confirmado',

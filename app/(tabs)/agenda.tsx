@@ -17,6 +17,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { artistImageUpdateService } from '../../services/artistImageUpdateService';
 import { cacheService } from '../../services/cacheService';
+import { RealtimeSubscription, subscribeToArtists } from '../../services/realtimeService';
 import { getEventsByMonth } from '../../services/supabase/eventService';
 import { getUserPermissions } from '../../services/supabase/permissionsService';
 import { useActiveArtist } from '../../services/useActiveArtist';
@@ -80,6 +81,7 @@ export default function AgendaScreen() {
   const { activeArtist, loadActiveArtist, isLoading } = useActiveArtist();
   const [artistImageUpdated, setArtistImageUpdated] = useState<boolean>(false);
   const { unreadCount, loadUnreadCount } = useNotifications();
+  const [realtimeSubscriptions, setRealtimeSubscriptions] = useState<RealtimeSubscription[]>([]);
 
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
@@ -87,6 +89,11 @@ export default function AgendaScreen() {
   useEffect(() => {
     loadActiveArtist();
     loadUnreadCount();
+    
+    // Cleanup subscriptions ao desmontar
+    return () => {
+      realtimeSubscriptions.forEach(sub => sub.unsubscribe());
+    };
   }, []);
 
   // Escutar notificações de atualização da imagem do artista
@@ -110,8 +117,27 @@ export default function AgendaScreen() {
       loadEvents(true);
       loadUserPermissions();
       setImageLoadError(false); // Reset image error state when artist changes
+      setupArtistRealtime();
     }
   }, [activeArtist, currentMonth, currentYear]);
+
+  // Configurar realtime para o artista ativo
+  const setupArtistRealtime = () => {
+    if (!activeArtist?.id) return;
+
+    // Limpar subscriptions antigas
+    realtimeSubscriptions.forEach(sub => sub.unsubscribe());
+
+    // Criar nova subscription para o artista
+    const artistSubscription = subscribeToArtists(activeArtist.id, (payload) => {
+      console.log('🎨 Mudança detectada no artista na agenda:', payload);
+      
+      // Recarregar dados do artista
+      loadActiveArtist();
+    });
+
+    setRealtimeSubscriptions([artistSubscription]);
+  };
 
   // Reset image error when artist profile_url changes
   useEffect(() => {
@@ -387,11 +413,12 @@ export default function AgendaScreen() {
               <OptimizedImage
                 imageUrl={activeArtist.profile_url || ''}
                 style={[styles.artistAvatar, { borderColor: colors.border }]}
-                cacheKey={`artist_${activeArtist.id}`}
+                cacheKey={`artist_${activeArtist.id}_${activeArtist.profile_url}`}
                 fallbackIcon="musical-notes"
                 fallbackIconSize={24}
                 fallbackIconColor={colors.primary}
                 showLoadingIndicator={false}
+                forceReload={artistImageUpdated}
                 onLoadSuccess={() => {
                   console.log('✅ Imagem do artista carregada na agenda:', activeArtist.profile_url);
                   setImageLoadError(false);

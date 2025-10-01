@@ -3,17 +3,17 @@ import { setStringAsync } from 'expo-clipboard';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Modal,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Modal,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import OptimizedImage from '../../components/OptimizedImage';
@@ -21,7 +21,7 @@ import UpgradeModal from '../../components/UpgradeModal';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { cacheService } from '../../services/cacheService';
-import { RealtimeSubscription, subscribeToUsers } from '../../services/realtimeService';
+import { RealtimeSubscription, subscribeToArtists, subscribeToUsers } from '../../services/realtimeService';
 import { getArtists } from '../../services/supabase/artistService';
 import { getCurrentUser, updatePassword } from '../../services/supabase/authService';
 import { createFeedback } from '../../services/supabase/feedbackService';
@@ -80,6 +80,15 @@ export default function ConfiguracoesScreen() {
     }
   }, [userProfile?.profile_url]);
 
+  // Reconfigurar realtime quando o artista mudar
+  useEffect(() => {
+    if (currentArtist?.id) {
+      console.log('🎨 Artista mudou, reconfigurando realtime...');
+      cleanupRealtimeSubscriptions();
+      setupRealtimeSubscriptions();
+    }
+  }, [currentArtist?.id]);
+
   // Configurar subscriptions de realtime
   const setupRealtimeSubscriptions = async () => {
     try {
@@ -87,6 +96,8 @@ export default function ConfiguracoesScreen() {
       if (!user) return;
 
       console.log('🔔 Configurando realtime para usuário:', user.id);
+
+      const subscriptions: RealtimeSubscription[] = [];
 
       // Subscription para mudanças na tabela users
       const userSubscription = subscribeToUsers(user.id, (payload) => {
@@ -96,8 +107,20 @@ export default function ConfiguracoesScreen() {
         loadUserProfile();
         checkUserPlan();
       });
+      subscriptions.push(userSubscription);
 
-      setRealtimeSubscriptions([userSubscription]);
+      // Subscription para mudanças no artista ativo
+      if (currentArtist?.id) {
+        const artistSubscription = subscribeToArtists(currentArtist.id, (payload) => {
+          console.log('🎨 Mudança detectada no artista:', payload);
+          
+          // Recarregar dados do artista quando houver mudanças
+          loadArtistData(true);
+        });
+        subscriptions.push(artistSubscription);
+      }
+
+      setRealtimeSubscriptions(subscriptions);
       console.log('✅ Realtime configurado com sucesso');
     } catch (error) {
       console.error('❌ Erro ao configurar realtime:', error);

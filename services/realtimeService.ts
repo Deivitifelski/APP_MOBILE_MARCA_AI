@@ -1,5 +1,5 @@
-import { supabase } from '../lib/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
 
 export interface RealtimeSubscription {
   channel: RealtimeChannel;
@@ -235,6 +235,44 @@ export const subscribeToUsers = (
     channel,
     unsubscribe: () => {
       console.log('realtimeService: Removendo subscription de users');
+      supabase.removeChannel(channel);
+    }
+  };
+};
+
+// Escutar mudanças na tabela artists
+export const subscribeToArtists = (
+  artistId: string,
+  onArtistChange: (payload: any) => void
+): RealtimeSubscription => {
+  console.log('realtimeService: Criando subscription para artists:', artistId);
+
+  const channel = supabase
+    .channel(`artists:${artistId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*', // INSERT, UPDATE, DELETE
+        schema: 'public',
+        table: 'artists',
+        filter: `id=eq.${artistId}`,
+      },
+      (payload) => {
+        console.log('🎨 Mudança detectada no artista:', payload);
+        
+        if (payload.eventType === 'UPDATE') {
+          onArtistChange(payload);
+        }
+      }
+    )
+    .subscribe((status) => {
+      console.log('realtimeService: Status da subscription de artists:', status);
+    });
+
+  return {
+    channel,
+    unsubscribe: () => {
+      console.log('realtimeService: Removendo subscription de artists');
       supabase.removeChannel(channel);
     }
   };
