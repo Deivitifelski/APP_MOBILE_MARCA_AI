@@ -272,12 +272,7 @@ export default function AdicionarEventoScreen() {
 
   // ✅ VERIFICAR PERMISSÃO AO ABRIR A TELA
   useEffect(() => {
-    console.log('🔍 [AdicionarEvento] Verificando permissão ao abrir tela');
-    console.log('👤 [AdicionarEvento] isViewer:', isViewer);
-    console.log('✏️ [AdicionarEvento] canCreateEvents:', canCreateEvents);
-    
     if (isViewer || !canCreateEvents) {
-      console.log('❌ [AdicionarEvento] BLOQUEADO: Sem permissão para criar eventos');
       Alert.alert(
         'Acesso Negado',
         'Você não tem permissão para criar eventos. Apenas usuários com role Editor, Admin ou Owner podem criar eventos.',
@@ -288,8 +283,6 @@ export default function AdicionarEventoScreen() {
           }
         ]
       );
-    } else {
-      console.log('✅ [AdicionarEvento] PERMITIDO: Pode criar eventos');
     }
   }, [isViewer, canCreateEvents]);
 
