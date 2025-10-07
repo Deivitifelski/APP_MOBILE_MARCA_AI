@@ -48,26 +48,6 @@ export default function FinanceiroScreen() {
   const currentMonth = selectedDate.getMonth();
   const currentYear = selectedDate.getFullYear();
   
-  // 🔍 LOG DE DEBUG ao renderizar
-  console.log('💰 [FinanceiroScreen] Renderizando tela:', {
-    permissionsLoaded,
-    isViewer,
-    canViewFinancials,
-    hasActiveArtist: !!activeArtist
-  });
-  
-  // ✅ VERIFICAÇÃO CRÍTICA: Se for viewer, NÃO permitir acesso
-  useEffect(() => {
-    console.log('🔒 [FinanceiroScreen] Verificando permissões ao entrar na tela');
-    console.log('👤 [FinanceiroScreen] isViewer:', isViewer);
-    console.log('💰 [FinanceiroScreen] canViewFinancials:', canViewFinancials);
-    
-    if (permissionsLoaded && isViewer) {
-      console.log('❌ [FinanceiroScreen] BLOQUEADO: Usuário é VIEWER - não pode ver finanças');
-    } else if (permissionsLoaded && canViewFinancials) {
-      console.log('✅ [FinanceiroScreen] PERMITIDO: Pode ver finanças');
-    }
-  }, [permissionsLoaded, isViewer, canViewFinancials]);
 
   // Obter usuário atual
   useEffect(() => {
@@ -92,7 +72,6 @@ export default function FinanceiroScreen() {
   // ✅ Carregar dados financeiros quando permissões estiverem prontas
   useEffect(() => {
     if (activeArtist && permissionsLoaded) {
-      console.log('💰 Carregando dados financeiros, isViewer:', isViewer);
       loadFinancialData();
     }
   }, [activeArtist, permissionsLoaded, currentMonth, currentYear]);
@@ -101,21 +80,11 @@ export default function FinanceiroScreen() {
     if (!activeArtist) return;
     
     // ✅ VERIFICAR PERMISSÃO GLOBAL - Se for viewer, não carregar dados financeiros
-    if (isViewer) {
-      console.log('❌ [Financeiro] Bloqueado: usuário é VIEWER');
+    if (isViewer || !canViewFinancials) {
       setEvents([]);
       setIsLoading(false);
       return;
     }
-    
-    if (!canViewFinancials) {
-      console.log('❌ [Financeiro] Sem permissão para ver finanças');
-      setEvents([]);
-      setIsLoading(false);
-      return;
-    }
-    
-    console.log('✅ [Financeiro] Permissão concedida, carregando dados...');
     
     try {
       setIsLoading(true);
@@ -148,9 +117,8 @@ export default function FinanceiroScreen() {
       );
 
       setEvents(eventsWithExpenses);
-      console.log('💰 Dados financeiros carregados:', eventsWithExpenses.length, 'eventos');
     } catch (error) {
-      console.error('❌ Erro ao carregar dados financeiros:', error);
+      console.error('Erro ao carregar dados financeiros:', error);
       Alert.alert('Erro', 'Erro ao carregar dados financeiros');
     } finally {
       setIsLoading(false);
@@ -165,7 +133,6 @@ export default function FinanceiroScreen() {
       newDate.setMonth(currentMonth + 1);
     }
     setSelectedDate(newDate);
-    console.log('📅 Navegando para mês:', newDate.getMonth() + 1, '/', newDate.getFullYear());
   };
 
   const formatCurrency = (value: number) => {
@@ -269,14 +236,6 @@ export default function FinanceiroScreen() {
     ? events.reduce((sum, event) => sum + event.totalExpenses, 0) 
     : 0;
   const netProfit = totalRevenue - totalExpenses;
-  
-  console.log('📊 [FinanceiroScreen] Calculando totais:', {
-    isViewer,
-    canViewFinancials,
-    totalRevenue,
-    totalExpenses,
-    netProfit
-  });
 
 
   const renderExpense = ({ item }: { item: any }) => (
@@ -514,18 +473,6 @@ export default function FinanceiroScreen() {
             <Ionicons name="chevron-forward" size={24} color={colors.primary} />
           </TouchableOpacity>
         </View>
-        
-        {/* 🔍 DEBUG: Mostrar permissões */}
-        {permissionsLoaded && (
-          <View style={styles.debugPermissions}>
-            <Text style={styles.debugText}>
-              🔐 Role: {isViewer ? '👁️ VIEWER' : isEditor ? '✏️ EDITOR' : isAdmin ? '👑 ADMIN' : isOwner ? '🎖️ OWNER' : '❓ SEM REGISTRO'}
-            </Text>
-            <Text style={styles.debugText}>
-              {canViewFinancials ? '✅ Pode ver finanças' : '❌ Não pode ver finanças (BLOQUEADO)'}
-            </Text>
-          </View>
-        )}
       </View>
 
       <ScrollView style={styles.content}>
@@ -1010,20 +957,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 20,
-  },
-  debugPermissions: {
-    backgroundColor: '#FEF3C7',
-    padding: 10,
-    marginTop: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#F59E0B',
-  },
-  debugText: {
-    fontSize: 12,
-    color: '#92400E',
-    fontWeight: '500',
-    marginBottom: 4,
   },
 });
 

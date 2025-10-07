@@ -40,27 +40,19 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        console.log('❌ [PermissionsContext] Nenhum usuário autenticado');
         setUserPermissions(null);
         setPermissionsLoaded(true);
         return;
       }
-
-      console.log('🔐 [PermissionsContext] Carregando permissões:', { userId: user.id, artistId: activeArtist.id });
 
       // Limpar cache para garantir dados frescos
       clearPermissionsCache(user.id, activeArtist.id);
       
       const permissions = await getUserPermissions(user.id, activeArtist.id);
 
-      console.log('✅ [PermissionsContext] Permissões carregadas:', permissions);
-      console.log('👤 [PermissionsContext] Role do usuário:', permissions?.role || 'NÃO ENCONTRADO');
-      console.log('🔍 [PermissionsContext] Detalhes completos:', JSON.stringify(permissions, null, 2));
-
       setUserPermissions(permissions);
       setPermissionsLoaded(true);
     } catch (error) {
-      console.error('❌ [PermissionsContext] Erro ao carregar permissões:', error);
       setUserPermissions(null);
       setPermissionsLoaded(true);
     }
@@ -79,8 +71,6 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      console.log('🔊 [PermissionsContext] Configurando listener Realtime');
-
       const channel = supabase
         .channel(`global-permissions:${user.id}:${activeArtist.id}`)
         .on(
@@ -92,30 +82,23 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
             filter: `user_id=eq.${user.id}`,
           },
           (payload) => {
-            console.log('🔔 [PermissionsContext] Mudança detectada:', payload);
-
             // Recarregar permissões quando houver mudança
             if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
               const newData = payload.new as any;
               if (newData.artist_id === activeArtist.id) {
-                console.log('♻️ [PermissionsContext] Atualizando permissões, nova role:', newData.role);
                 loadPermissions();
               }
             } else if (payload.eventType === 'DELETE') {
               const oldData = payload.old as any;
               if (oldData.artist_id === activeArtist.id) {
-                console.log('🗑️ [PermissionsContext] Permissões removidas');
                 setUserPermissions(null);
               }
             }
           }
         )
-        .subscribe((status) => {
-          console.log('🔊 [PermissionsContext] Status do listener:', status);
-        });
+        .subscribe();
 
       return () => {
-        console.log('🔇 [PermissionsContext] Removendo listener');
         supabase.removeChannel(channel);
       };
     };
@@ -142,16 +125,6 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const isEditor = userPermissions?.role === 'editor';
   const isAdmin = userPermissions?.role === 'admin';
   const isOwner = userPermissions?.role === 'owner';
-  
-  // Log para debug
-  console.log('🎯 [PermissionsContext] Estado atual:', {
-    permissionsLoaded,
-    hasPermissions: !!userPermissions,
-    role: userPermissions?.role || 'sem registro',
-    isViewer,
-    canCreateEvents,
-    canViewFinancials
-  });
 
   return (
     <PermissionsContext.Provider

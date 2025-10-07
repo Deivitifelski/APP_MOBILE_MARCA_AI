@@ -214,9 +214,6 @@ export default function AgendaScreen() {
   };
 
   const handleAddShow = () => {
-    console.log('🎯 Clicou para adicionar evento');
-    console.log('👤 isViewer (via Contexto Global):', isViewer);
-    
     // Verificar se as permissões foram carregadas
     if (!permissionsLoaded) {
       Alert.alert('Aguarde', 'Carregando permissões...');
@@ -225,12 +222,9 @@ export default function AgendaScreen() {
     
     // Verificar se o usuário tem permissão para criar eventos
     if (isViewer) {
-      console.log('❌ BLOQUEADO: Usuário é VIEWER');
       setShowPermissionModal(true);
       return;
     }
-    
-    console.log('✅ PERMITIDO: Pode criar eventos');
     
     // Navegar para tela de adicionar evento
     const currentMonth = currentDate.getMonth();
