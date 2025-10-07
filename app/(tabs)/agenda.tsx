@@ -79,7 +79,7 @@ export default function AgendaScreen() {
   const { unreadCount, loadUnreadCount } = useNotifications();
   
   // ✅ USAR PERMISSÕES GLOBAIS
-  const { isViewer, isEditor, isAdmin, isOwner, canViewFinancials, permissionsLoaded } = usePermissions();
+  const { isViewer, canViewFinancials, permissionsLoaded } = usePermissions();
 
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
@@ -409,18 +409,6 @@ export default function AgendaScreen() {
                 </View>
               )}
             </TouchableOpacity>
-          </View>
-        )}
-        
-        {/* 🔍 DEBUG: Mostrar role atual */}
-        {activeArtist && permissionsLoaded && (
-          <View style={styles.debugPermissions}>
-            <Text style={styles.debugText}>
-              🔐 Role: {isViewer ? '👁️ VIEWER' : isEditor ? '✏️ EDITOR' : isAdmin ? '👑 ADMIN' : isOwner ? '🎖️ OWNER' : '❓ SEM REGISTRO'}
-            </Text>
-            <Text style={styles.debugText}>
-              {canViewFinancials ? '✅ Pode ver finanças' : '❌ Não pode ver finanças'}
-            </Text>
           </View>
         )}
         
@@ -831,19 +819,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     textAlign: 'center',
-  },
-  debugPermissions: {
-    backgroundColor: '#FEF3C7',
-    padding: 10,
-    marginTop: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#F59E0B',
-  },
-  debugText: {
-    fontSize: 12,
-    color: '#92400E',
-    fontWeight: '500',
-    marginBottom: 4,
   },
 });
