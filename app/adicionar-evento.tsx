@@ -1,20 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    Modal,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  Modal,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { getArtists } from '../services/supabase/artistService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { createEvent, CreateExpenseData } from '../services/supabase/eventService';
+import { hasPermission } from '../services/supabase/permissionsService';
 import { useActiveArtist } from '../services/useActiveArtist';
 
 interface EventoForm {
@@ -266,6 +267,35 @@ export default function AdicionarEventoScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const { activeArtist } = useActiveArtist();
 
+  // ✅ VERIFICAR PERMISSÃO AO ABRIR A TELA
+  useEffect(() => {
+    const checkPermission = async () => {
+      try {
+        const { user } = await getCurrentUser();
+        if (!user || !activeArtist?.id) return;
+
+        const canCreate = await hasPermission(user.id, activeArtist.id, 'canCreateEvents');
+        
+        if (!canCreate) {
+          Alert.alert(
+            'Acesso Negado',
+            'Você não tem permissão para criar eventos. Apenas usuários com role Editor, Admin ou Owner podem criar eventos.',
+            [
+              {
+                text: 'Voltar',
+                onPress: () => router.back()
+              }
+            ]
+          );
+        }
+      } catch (error) {
+        console.error('Erro ao verificar permissão:', error);
+      }
+    };
+
+    checkPermission();
+  }, [activeArtist]);
+
   const handleSave = async () => {
 
     // Validações básicas - apenas Nome, Valor e Data são obrigatórios
@@ -303,7 +333,19 @@ export default function AdicionarEventoScreen() {
         return;
       }
 
-      const artistId = artists[0].id;
+      const artistId = activeArtist?.id || artists[0].id;
+
+      // ✅ VERIFICAR PERMISSÃO ANTES DE CRIAR EVENTO
+      const canCreate = await hasPermission(user.id, artistId, 'canCreateEvents');
+      
+      if (!canCreate) {
+        Alert.alert(
+          'Sem Permissão', 
+          'Você não tem permissão para criar eventos. Apenas usuários com role Editor, Admin ou Owner podem criar eventos.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
 
       // Preparar despesas
       const expensesData: CreateExpenseData[] = despesas
@@ -345,7 +387,7 @@ export default function AdicionarEventoScreen() {
       } else {
         Alert.alert('Erro', result.error || 'Erro ao salvar evento');
       }
-    } catch (error) {
+    } catch {
       Alert.alert('Erro', 'Erro ao salvar evento');
     } finally {
       setIsLoading(false);
@@ -732,7 +774,7 @@ export default function AdicionarEventoScreen() {
                 Nenhuma despesa adicionada
               </Text>
               <Text style={styles.emptyDespesasSubtext}>
-                Toque em "Adicionar" para incluir despesas do evento
+                Toque em &quot;Adicionar&quot; para incluir despesas do evento
               </Text>
             </View>
           )}

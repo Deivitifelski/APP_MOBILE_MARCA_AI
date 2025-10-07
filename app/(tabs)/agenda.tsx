@@ -2,13 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    FlatList,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Alert,
+  FlatList,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import OptimizedImage from '../../components/OptimizedImage';
@@ -18,7 +18,7 @@ import { supabase } from '../../lib/supabase';
 import { artistImageUpdateService } from '../../services/artistImageUpdateService';
 import { cacheService } from '../../services/cacheService';
 import { getEventsByMonth } from '../../services/supabase/eventService';
-import { getUserPermissions } from '../../services/supabase/permissionsService';
+import { clearPermissionsCache, getUserPermissions } from '../../services/supabase/permissionsService';
 import { useActiveArtist } from '../../services/useActiveArtist';
 import { useNotifications } from '../../services/useNotifications';
 
@@ -152,31 +152,35 @@ export default function AgendaScreen() {
       
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
+        console.log('❌ Nenhum usuário autenticado');
         setPermissionsLoaded(true);
         return;
       }
       
-      // Verificar cache primeiro
-      const cachedPermissions = await cacheService.getPermissionsData(user.id, activeArtist.id);
+      console.log('🔐 Carregando permissões para:', { userId: user.id, artistId: activeArtist.id });
       
-      if (cachedPermissions) {
-        setUserPermissions(cachedPermissions);
-        setPermissionsLoaded(true);
-        console.log('🔐 Permissões carregadas do cache');
-        return;
-      }
+      // Limpar cache para garantir dados atualizados
+      clearPermissionsCache(user.id, activeArtist.id);
       
       // Carregar do servidor
       const permissions = await getUserPermissions(user.id, activeArtist.id);
       
-      // Salvar no cache
-      await cacheService.setPermissionsData(user.id, activeArtist.id, permissions);
+      console.log('🔐 Permissões retornadas:', permissions);
       
-      setUserPermissions(permissions);
+      if (permissions) {
+        // Salvar no cache
+        await cacheService.setPermissionsData(user.id, activeArtist.id, permissions);
+        setUserPermissions(permissions);
+        console.log('✅ Role do usuário:', permissions.role);
+      } else {
+        console.log('⚠️ Nenhuma permissão encontrada para este usuário/artista');
+        setUserPermissions(null);
+      }
+      
       setPermissionsLoaded(true);
-      console.log('🔐 Permissões carregadas do servidor');
     } catch (error) {
       console.error('❌ Erro ao carregar permissões:', error);
+      setUserPermissions(null);
       setPermissionsLoaded(true);
     }
   };
@@ -252,17 +256,44 @@ export default function AgendaScreen() {
   };
 
   const handleAddShow = () => {
+    console.log('🎯 Tentando adicionar evento...', { 
+      permissionsLoaded, 
+      userPermissions,
+      role: userPermissions?.role 
+    });
+    
     // Verificar se as permissões foram carregadas
     if (!permissionsLoaded) {
       Alert.alert('Aguarde', 'Verificando permissões...');
       return;
     }
     
+    // Se não há permissões (null ou undefined), permitir (assume que é owner/creator)
+    if (!userPermissions) {
+      console.log('⚠️ Sem permissões definidas, permitindo acesso');
+      const currentMonth = currentDate.getMonth();
+      const currentYear = currentDate.getFullYear();
+      const selectedDate = new Date(currentYear, currentMonth, 1);
+      
+      router.push({
+        pathname: '/adicionar-evento',
+        params: { 
+          selectedMonth: currentMonth,
+          selectedYear: currentYear,
+          selectedDate: selectedDate.toISOString()
+        }
+      });
+      return;
+    }
+    
     // Verificar se o usuário tem permissão para criar eventos
     if (userPermissions?.role === 'viewer') {
+      console.log('❌ Acesso bloqueado: usuário é viewer');
       setShowPermissionModal(true);
       return;
     }
+    
+    console.log('✅ Permissão concedida, role:', userPermissions.role);
     
     // Se tem permissão, navegar para a tela de adicionar evento
     const currentMonth = currentDate.getMonth();
