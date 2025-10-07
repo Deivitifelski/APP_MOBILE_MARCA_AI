@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useState } from 'react';
 import {
   Alert,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -73,11 +73,41 @@ export default function PlanosPagamentosScreen() {
         [{ text: 'OK' }]
       );
     } else {
-      Alert.alert(
-        'Planos Premium',
-        'Os planos premium estarão disponíveis em breve através das lojas de aplicativos (App Store e Google Play).\n\nVocê poderá assinar diretamente pela loja do seu dispositivo.',
-        [{ text: 'OK' }]
-      );
+      // Detectar plataforma e mostrar instruções específicas
+      const isIOS = Platform.OS === 'ios';
+      const isAndroid = Platform.OS === 'android';
+      
+      let title = 'Como Assinar o Plano Premium';
+      let message = '';
+      
+      if (isIOS) {
+        message = `📱 Para assinar no iPhone/iPad:\n\n` +
+          `1. Abra a App Store\n` +
+          `2. Toque no seu perfil (canto superior direito)\n` +
+          `3. Toque em "Assinaturas"\n` +
+          `4. Procure por "MarcaAi"\n` +
+          `5. Selecione o plano Premium\n` +
+          `6. Confirme com Face ID/Touch ID\n\n` +
+          `💳 Será cobrado R$ 9,99/mês na sua conta da Apple.`;
+      } else if (isAndroid) {
+        message = `📱 Para assinar no Android:\n\n` +
+          `1. Abra o Google Play Store\n` +
+          `2. Toque no ícone de perfil\n` +
+          `3. Toque em "Pagamentos e assinaturas"\n` +
+          `4. Toque em "Assinaturas"\n` +
+          `5. Procure por "MarcaAi"\n` +
+          `6. Selecione o plano Premium\n` +
+          `7. Confirme o pagamento\n\n` +
+          `💳 Será cobrado R$ 9,99/mês na sua conta do Google.`;
+      } else {
+        // Web ou outra plataforma
+        message = `As assinaturas premium estarão disponíveis em breve através das lojas de aplicativos (App Store e Google Play).\n\n` +
+          `Por favor, acesse o aplicativo no seu dispositivo móvel para assinar.`;
+      }
+      
+      Alert.alert(title, message, [
+        { text: 'Entendi', style: 'default' }
+      ]);
     }
   };
 
@@ -165,7 +195,7 @@ export default function PlanosPagamentosScreen() {
         onPress={() => handlePlanInfo(plan)}
       >
         <Text style={styles.buttonText}>
-          {plan.id === 'premium' ? 'Em Breve' : 'Plano Atual'}
+          {plan.id === 'premium' ? 'Assinar' : 'Plano Atual'}
         </Text>
       </TouchableOpacity>
     </View>
@@ -209,7 +239,7 @@ export default function PlanosPagamentosScreen() {
           <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Ionicons name="information-circle" size={24} color={colors.primary} />
             <Text style={[styles.infoText, { color: colors.text }]}>
-              Os planos premium estarão disponíveis em breve através das assinaturas da App Store e Google Play Store.
+              Toque em Assinar para ver as instruções de como assinar através da {Platform.OS === 'ios' ? 'App Store' : Platform.OS === 'android' ? 'Google Play Store' : 'loja do seu dispositivo'}.
             </Text>
           </View>
 
