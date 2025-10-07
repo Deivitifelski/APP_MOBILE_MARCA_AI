@@ -1,8 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React from 'react';
 import {
-    ActivityIndicator,
     Alert,
     SafeAreaView,
     ScrollView,
@@ -13,99 +12,23 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
-import { supabase } from '../lib/supabase';
-import { getCurrentUser } from '../services/supabase/authService';
 
 export default function CancelarPlanoScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const [isLoading, setIsLoading] = useState(false);
 
-  const handleConfirmCancel = async () => {
+  const handleCancelPlan = () => {
     Alert.alert(
-      'Confirmar Cancelamento',
-      'Tem certeza absoluta que deseja cancelar seu plano premium? Esta ação não pode ser desfeita.',
-      [
-        {
-          text: 'Voltar',
-          style: 'cancel'
-        },
-        {
-          text: 'Sim, Cancelar Plano',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setIsLoading(true);
-              
-              // Obter o usuário atual
-              const { user, error: userError } = await getCurrentUser();
-              
-              if (userError || !user) {
-                Alert.alert('Erro', 'Usuário não autenticado. Faça login novamente.');
-                return;
-              }
-
-              console.log('🔄 [cancelPlan] Iniciando cancelamento do plano para usuário:', user.id);
-              
-              // Chamar a função do Supabase para cancelar o plano
-              const { data, error } = await supabase.functions.invoke('cancel-plan-stripe', {
-                body: { userId: user.id }
-              });
-
-              console.log('📥 [cancelPlan] Resposta recebida:', { data, error });
-
-              if (error) {
-                console.error('❌ [cancelPlan] Erro na função Supabase:', error);
-                Alert.alert(
-                  'Erro no Cancelamento', 
-                  `Erro ao cancelar plano: ${error.message}. Tente novamente ou entre em contato com o suporte.`
-                );
-                return;
-              }
-
-              // Processar o resultado
-              const parsedData = (typeof data === 'string') ? JSON.parse(data) : data;
-              console.log('🔍 [cancelPlan] Dados parseados:', parsedData);
-
-              if (parsedData.status === 'success') {
-                Alert.alert(
-                  'Cancelamento Processado',
-                  'Seu plano premium foi cancelado com sucesso. Você ainda terá acesso aos recursos premium até o final do período de cobrança atual.',
-                  [
-                    {
-                      text: 'OK',
-                      onPress: () => {
-                        router.back();
-                      }
-                    }
-                  ]
-                );
-              } else {
-                Alert.alert(
-                  'Erro no Cancelamento',
-                  parsedData.message || 'Não foi possível cancelar o plano. Tente novamente ou entre em contato com o suporte.'
-                );
-              }
-              
-            } catch (error) {
-              console.error('💥 [cancelPlan] Erro geral:', error);
-              Alert.alert(
-                'Erro de Conexão', 
-                'Ocorreu um erro inesperado. Verifique sua conexão com a internet e tente novamente.'
-              );
-            } finally {
-              setIsLoading(false);
-            }
-          }
-        }
-      ]
+      'Cancelamento de Plano',
+      'Para cancelar sua assinatura, você deve fazer isso através da loja onde realizou a compra:\n\n• App Store: Ajustes > [seu nome] > Assinaturas\n• Google Play: Play Store > Menu > Assinaturas',
+      [{ text: 'Entendi' }]
     );
   };
 
   const handleContactSupport = () => {
     Alert.alert(
       'Contatar Suporte',
-      'Para cancelar seu plano ou esclarecer dúvidas, entre em contato conosco:',
+      'Para esclarecer dúvidas sobre seu plano, entre em contato conosco:',
       [
         {
           text: 'Cancelar',
@@ -114,7 +37,6 @@ export default function CancelarPlanoScreen() {
         {
           text: 'Enviar Email',
           onPress: () => {
-            // Aqui você pode implementar envio de email
             Alert.alert('Email', 'contato@marcaai.com');
           }
         }
@@ -149,8 +71,40 @@ export default function CancelarPlanoScreen() {
               </Text>
             </View>
             <Text style={[dynamicStyles.warningText, { color: '#92400E' }]}>
-              Ao cancelar seu plano premium, você perderá acesso a recursos exclusivos e voltará ao plano gratuito com limitações.
+              As assinaturas são gerenciadas diretamente pela App Store ou Google Play Store. Para cancelar, você deve acessar as configurações da loja.
             </Text>
+          </View>
+
+          {/* Como Cancelar */}
+          <View style={[dynamicStyles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[dynamicStyles.sectionTitle, { color: colors.text }]}>
+              📱 Como Cancelar:
+            </Text>
+            
+            <View style={dynamicStyles.featureList}>
+              <Text style={[dynamicStyles.platformTitle, { color: colors.text }]}>App Store (iOS):</Text>
+              <View style={dynamicStyles.featureItem}>
+                <Text style={[dynamicStyles.featureText, { color: colors.text }]}>
+                  1. Abra Ajustes no iPhone{'\n'}
+                  2. Toque no seu nome{'\n'}
+                  3. Toque em Assinaturas{'\n'}
+                  4. Selecione MarcaAi{'\n'}
+                  5. Toque em Cancelar Assinatura
+                </Text>
+              </View>
+              
+              <Text style={[dynamicStyles.platformTitle, { color: colors.text, marginTop: 16 }]}>Google Play (Android):</Text>
+              <View style={dynamicStyles.featureItem}>
+                <Text style={[dynamicStyles.featureText, { color: colors.text }]}>
+                  1. Abra o Google Play Store{'\n'}
+                  2. Toque no ícone de perfil{'\n'}
+                  3. Toque em Pagamentos e assinaturas{'\n'}
+                  4. Selecione Assinaturas{'\n'}
+                  5. Selecione MarcaAi{'\n'}
+                  6. Toque em Cancelar assinatura
+                </Text>
+              </View>
+            </View>
           </View>
 
           {/* O que você perderá */}
@@ -204,67 +158,7 @@ export default function CancelarPlanoScreen() {
             </View>
           </View>
 
-          {/* Limitações do plano gratuito */}
-          <View style={[dynamicStyles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[dynamicStyles.sectionTitle, { color: colors.text }]}>
-              📊 Limitações do Plano Gratuito:
-            </Text>
-            
-            <View style={dynamicStyles.limitationList}>
-              <View style={dynamicStyles.limitationItem}>
-                <Ionicons name="people" size={20} color="#6B7280" />
-                <Text style={[dynamicStyles.limitationText, { color: colors.text }]}>
-                  Máximo 3 usuários por artista
-                </Text>
-              </View>
-              
-              <View style={dynamicStyles.limitationItem}>
-                <Ionicons name="document-text" size={20} color="#6B7280" />
-                <Text style={[dynamicStyles.limitationText, { color: colors.text }]}>
-                  Relatórios básicos apenas
-                </Text>
-              </View>
-              
-              <View style={dynamicStyles.limitationItem}>
-                <Ionicons name="time" size={20} color="#6B7280" />
-                <Text style={[dynamicStyles.limitationText, { color: colors.text }]}>
-                  Suporte por email (até 48h)
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Alternativas */}
-          <View style={[dynamicStyles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[dynamicStyles.sectionTitle, { color: colors.text }]}>
-              💡 Alternativas:
-            </Text>
-            
-            <View style={dynamicStyles.alternativeList}>
-              <View style={dynamicStyles.alternativeItem}>
-                <Ionicons name="pause-circle" size={20} color="#3B82F6" />
-                <Text style={[dynamicStyles.alternativeText, { color: colors.text }]}>
-                  Pausar assinatura temporariamente
-                </Text>
-              </View>
-              
-              <View style={dynamicStyles.alternativeItem}>
-                <Ionicons name="card" size={20} color="#3B82F6" />
-                <Text style={[dynamicStyles.alternativeText, { color: colors.text }]}>
-                  Alterar método de pagamento
-                </Text>
-              </View>
-              
-              <View style={dynamicStyles.alternativeItem}>
-                <Ionicons name="chatbubble" size={20} color="#3B82F6" />
-                <Text style={[dynamicStyles.alternativeText, { color: colors.text }]}>
-                  Falar com nosso suporte
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Informações sobre reembolso */}
+          {/* Informações importantes */}
           <View style={[dynamicStyles.infoCard, { backgroundColor: '#F3F4F6', borderColor: '#D1D5DB' }]}>
             <View style={dynamicStyles.infoHeader}>
               <Ionicons name="information-circle" size={20} color="#6B7280" />
@@ -292,18 +186,11 @@ export default function CancelarPlanoScreen() {
           </TouchableOpacity>
           
           <TouchableOpacity
-            style={[dynamicStyles.cancelButton, { backgroundColor: '#EF4444' }]}
-            onPress={handleConfirmCancel}
-            disabled={isLoading}
+            style={[dynamicStyles.cancelButton, { backgroundColor: '#3B82F6' }]}
+            onPress={handleCancelPlan}
           >
-            {isLoading ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="close-circle" size={20} color="#fff" />
-                <Text style={dynamicStyles.cancelButtonText}>Cancelar Plano</Text>
-              </>
-            )}
+            <Ionicons name="information-circle" size={20} color="#fff" />
+            <Text style={dynamicStyles.cancelButtonText}>Como Cancelar</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -378,6 +265,11 @@ const createDynamicStyles = (colors: any) => StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 12,
   },
+  platformTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
   featureList: {
     gap: 8,
   },
@@ -389,30 +281,7 @@ const createDynamicStyles = (colors: any) => StyleSheet.create({
   featureText: {
     fontSize: 14,
     flex: 1,
-  },
-  limitationList: {
-    gap: 8,
-  },
-  limitationItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  limitationText: {
-    fontSize: 14,
-    flex: 1,
-  },
-  alternativeList: {
-    gap: 8,
-  },
-  alternativeItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  alternativeText: {
-    fontSize: 14,
-    flex: 1,
+    lineHeight: 22,
   },
   infoCard: {
     borderRadius: 12,

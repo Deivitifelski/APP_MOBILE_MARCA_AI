@@ -20,8 +20,15 @@
             "CFBundleURLSchemes": [
               "marcaai"
             ]
+          },
+          {
+            "CFBundleURLName": "marcaai",
+            "CFBundleURLSchemes": [
+              "marcaai"
+            ]
           }
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -36,7 +43,8 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ],
       "intentFilters": [
         {
@@ -84,6 +92,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "23d54c76-03c0-4faa-ae6b-41a42ab5c73b"
+      }
     }
   }
 }

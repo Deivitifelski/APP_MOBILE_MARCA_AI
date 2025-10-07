@@ -4,11 +4,11 @@
 
 ### 1. Tela de Planos e Pagamentos (`app/planos-pagamentos.tsx`)
 - **Design moderno estilo SaaS**: Interface clean e profissional
-- **3 planos disponíveis**: Free, Pro e Pro+
+- **2 planos disponíveis**: Free e Premium
 - **Cards visuais**: Cada plano em um card com design diferenciado
-- **Badges de destaque**: "Mais Popular" para Pro e "Premium" para Pro+
+- **Badge de destaque**: "Recomendado" para o plano Premium
 - **Comparação de funcionalidades**: Tabela detalhada
-- **FAQ integrado**: Perguntas frequentes sobre os planos
+- **Informação sobre assinaturas**: Aviso sobre disponibilidade via lojas de apps
 
 ### 2. Planos Disponíveis
 
@@ -16,8 +16,7 @@
 - **Preço**: R$ 0/mês
 - **Usuários**: 1
 - **Funcionalidades**:
-  - Criação de eventos básicos
-  - Tags: ensaio, reunião, show
+  - Eventos básicos
   - Agenda simples
   - Notificações básicas
 - **Limitações**:
@@ -25,49 +24,51 @@
   - Sem relatórios avançados
   - Sem suporte prioritário
 
-#### ⭐ **Pro** (Azul) - Mais Popular
-- **Preço**: R$ 29/mês
-- **Usuários**: Até 4
-- **Funcionalidades**:
-  - Gerenciamento completo de eventos
-  - Acesso parcial a finanças
-  - Relatórios simples
-  - Suporte por e-mail
-  - Exportação básica
-- **Limitações**:
-  - Limitado a 4 usuários
-  - Relatórios básicos
-
-#### 💎 **Pro+** (Dourado) - Premium
-- **Preço**: R$ 59/mês
+#### 💎 **Premium** (Dourado)
+- **Preço**: R$ 9,99/mês
 - **Usuários**: Ilimitados
 - **Funcionalidades**:
-  - Agenda compartilhada completa
-  - Acesso total às finanças
+  - Eventos completos
+  - Finanças completas
   - Relatórios avançados
-  - Exportação CSV/Excel
-  - Suporte prioritário + chat
-  - Divisão de custos entre membros
+  - Exportação PDF
+  - Suporte prioritário
+  - Colaboradores ilimitados
+  - Agenda compartilhada
 
-### 3. Design e UX
+### 3. Sistema de Pagamento
+
+#### **In-App Purchases (IAP)**:
+As assinaturas serão gerenciadas através dos sistemas nativos das lojas:
+
+- **App Store (iOS)**: Apple In-App Purchases
+- **Google Play (Android)**: Google Play Billing
+
+#### **Benefícios do IAP**:
+- ✅ Pagamento seguro através da loja
+- ✅ Gerenciamento de assinatura pelo usuário
+- ✅ Cancelamento fácil nas configurações do dispositivo
+- ✅ Conformidade com as políticas das lojas
+- ✅ Suporte a diferentes métodos de pagamento locais
+
+### 4. Design e UX
 
 #### **Características Visuais**:
 - **Cards responsivos**: Layout adaptável para diferentes tamanhos de tela
 - **Cores diferenciadas**: Cada plano tem sua cor característica
-- **Badges de destaque**: Visual chamativo para planos populares
-- **Ícones intuitivos**: Gift (Free), Star (Pro), Diamond (Pro+)
+- **Badge de destaque**: Visual chamativo para plano recomendado
+- **Ícones intuitivos**: Gift (Free), Diamond (Premium)
 - **Sombras e elevação**: Efeitos visuais modernos
 
 #### **Interatividade**:
-- **Botões de seleção**: Cada card tem botão "Assinar"
-- **Estados de loading**: Feedback visual durante seleção
-- **Alertas informativos**: Confirmação de seleção de plano
+- **Botões informativos**: Cada card tem botão com status
+- **Alertas informativos**: Informação sobre disponibilidade
 - **Navegação fluida**: Botão de voltar e navegação intuitiva
 
-### 4. Seções da Tela
+### 5. Seções da Tela
 
 #### **Hero Section**:
-- Título principal: "Escolha o plano ideal para sua banda"
+- Título principal: "Seja Premium"
 - Subtítulo explicativo sobre funcionalidades
 
 #### **Cards de Planos**:
@@ -77,18 +78,43 @@
 - Lista de limitações (quando aplicável)
 - Botão de ação para cada plano
 
+#### **Card Informativo**:
+- Aviso sobre disponibilidade via lojas de apps
+- Ícone e texto explicativo
+
 #### **Tabela de Comparação**:
 - Comparação lado a lado de funcionalidades
 - Headers organizados por plano
 - Linhas para cada funcionalidade
 - Visual limpo e fácil de comparar
 
-#### **FAQ Section**:
-- Perguntas frequentes sobre planos
-- Respostas claras e objetivas
-- Design em cards para melhor legibilidade
+### 6. Cancelamento de Plano
 
-### 5. Integração
+A tela `app/cancelar-plano.tsx` fornece:
+
+- **Instruções detalhadas**: Como cancelar via App Store ou Google Play
+- **Avisos importantes**: O que o usuário perderá ao cancelar
+- **Informações sobre reembolso**: Política de reembolso
+- **Suporte**: Opção de contatar o suporte antes de cancelar
+
+#### **Como Cancelar**:
+
+**App Store (iOS)**:
+1. Abra Ajustes no iPhone
+2. Toque no seu nome
+3. Toque em Assinaturas
+4. Selecione MarcaAi
+5. Toque em Cancelar Assinatura
+
+**Google Play (Android)**:
+1. Abra o Google Play Store
+2. Toque no ícone de perfil
+3. Toque em Pagamentos e assinaturas
+4. Selecione Assinaturas
+5. Selecione MarcaAi
+6. Toque em Cancelar assinatura
+
+### 7. Integração
 
 #### **Navegação**:
 - **Configurações** → "Planos e Pagamentos"
@@ -96,11 +122,10 @@
 - **Header customizado**: Com botão de voltar
 
 #### **Estados e Feedback**:
-- **Loading state**: Durante seleção de plano
-- **Alertas**: Confirmação de seleção
-- **Navegação**: Retorno automático após seleção
+- **Alertas**: Informação sobre disponibilidade
+- **Navegação**: Navegação fluida entre telas
 
-### 6. Tecnologias Utilizadas
+### 8. Tecnologias Utilizadas
 
 - **React Native**: Componentes nativos
 - **TypeScript**: Tipagem forte
@@ -109,18 +134,26 @@
 - **Theme Context**: Suporte a modo escuro/claro
 - **Ionicons**: Ícones consistentes
 
-### 7. Próximas Implementações (Sugestões)
+### 9. Próximas Implementações
 
-#### **Sistema de Pagamento**:
-- Integração com Stripe/PagSeguro
-- Processamento real de pagamentos
+#### **Sistema de Pagamento IAP**:
+- Integração com Apple In-App Purchases
+- Integração com Google Play Billing
 - Gerenciamento de assinaturas
-- Histórico de pagamentos
+- Histórico de compras
+- Webhooks para sincronização com backend
+
+#### **Revenue Cat (Recomendado)**:
+- Gerenciamento unificado de IAP
+- Sincronização com Supabase
+- Analytics de assinaturas
+- Testes gratuitos e ofertas
+- Suporte a múltiplas plataformas
 
 #### **Funcionalidades Avançadas**:
 - Teste gratuito de 7 dias
 - Upgrade/downgrade de planos
-- Cancelamento de assinatura
+- Ofertas especiais
 - Faturamento e recibos
 
 #### **Analytics**:
@@ -128,23 +161,21 @@
 - Métricas de uso por plano
 - Relatórios de receita
 
-### 8. Como Usar
+### 10. Como Usar
 
 1. **Acessar**: Configurações → "Planos e Pagamentos"
-2. **Visualizar**: Comparar os 3 planos disponíveis
-3. **Selecionar**: Clicar no botão "Assinar" do plano desejado
-4. **Confirmar**: Aguardar processamento e confirmação
-5. **Navegar**: Retornar automaticamente às configurações
+2. **Visualizar**: Comparar os planos disponíveis
+3. **Informar-se**: Ler sobre disponibilidade via lojas
+4. **Aguardar**: Implementação de IAP em versão futura
 
-### 9. Customização
+### 11. Customização
 
 #### **Cores dos Planos**:
 - **Free**: `#6B7280` (Cinza)
-- **Pro**: `#3B82F6` (Azul)
-- **Pro+**: `#F59E0B` (Dourado)
+- **Premium**: `#F59E0B` (Dourado)
 
 #### **Preços**:
-- Facilmente alteráveis no array `plans`
+- Facilmente alteráveis no array `PLANS`
 - Suporte a diferentes moedas
 - Períodos personalizáveis
 
@@ -153,5 +184,10 @@
 - Limitações configuráveis
 - Badges personalizáveis
 
-A tela está pronta para uso e pode ser facilmente integrada com sistemas de pagamento reais no futuro!
+### 12. Observações Importantes
 
+⚠️ **Sistema de pagamento removido**: O Stripe foi completamente removido do projeto, pois não é compatível com as políticas das lojas de aplicativos (App Store e Google Play).
+
+✅ **Próximos passos**: Implementar In-App Purchases nativos ou usar serviço como Revenue Cat para gerenciar assinaturas de forma compatível com as lojas.
+
+A tela está pronta para uso e pode ser facilmente integrada com sistemas de IAP no futuro!
