@@ -2,17 +2,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import OptimizedImage from '../components/OptimizedImage';
 import UpgradeModal from '../components/UpgradeModal';
@@ -41,6 +41,10 @@ export default function ColaboradoresArtistaScreen() {
   const [isInviting, setIsInviting] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [showRoleModal, setShowRoleModal] = useState(false);
+  const [selectedCollaborator, setSelectedCollaborator] = useState<Collaborator | null>(null);
+  const [selectedRole, setSelectedRole] = useState<'owner' | 'admin' | 'editor' | 'viewer'>('viewer');
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
 
   useEffect(() => {
     loadActiveArtist();
@@ -290,37 +294,40 @@ export default function ColaboradoresArtistaScreen() {
 
   const handleUpdateRole = (userId: string, currentRole: string, userName: string) => {
     if (!activeArtist) return;
-
-    const roles = [
-      { label: 'Proprietário', value: 'owner' },
-      { label: 'Admin', value: 'admin' },
-      { label: 'Editor', value: 'editor' },
-      { label: 'Visualizador', value: 'viewer' }
-    ];
-
-    const currentRoleLabel = roles.find(r => r.value === currentRole)?.label || currentRole;
-
-    Alert.alert(
-      'Alterar Permissão',
-      `Alterar permissão de ${userName} (atual: ${currentRoleLabel})`,
-      roles.map(role => ({
-        text: role.label,
-        onPress: async () => {
-          try {
-            const { success, error } = await updateCollaboratorRole(userId, activeArtist.id, role.value as any);
-            
-            if (success) {
-              Alert.alert('Sucesso', 'Permissão alterada com sucesso!');
-              loadData(); // Recarregar dados
-            } else {
-              Alert.alert('Erro', error || 'Erro ao alterar permissão');
-            }
-          } catch (error) {
-            Alert.alert('Erro', 'Erro ao alterar permissão');
-          }
-        }
-      })).concat([{ text: 'Cancelar', onPress: async () => {} }])
-    );
+    
+    const collaborator = collaborators.find(c => c.user_id === userId);
+    if (!collaborator) return;
+    
+    setSelectedCollaborator(collaborator);
+    setSelectedRole(currentRole as any);
+    setShowRoleModal(true);
+  };
+  
+  const handleConfirmRoleUpdate = async () => {
+    if (!selectedCollaborator || !activeArtist) return;
+    
+    try {
+      setIsUpdatingRole(true);
+      
+      const { success, error } = await updateCollaboratorRole(
+        selectedCollaborator.user_id, 
+        activeArtist.id, 
+        selectedRole
+      );
+      
+      if (success) {
+        Alert.alert('Sucesso', 'Permissão alterada com sucesso!');
+        setShowRoleModal(false);
+        setSelectedCollaborator(null);
+        loadData(); // Recarregar dados
+      } else {
+        Alert.alert('Erro', error || 'Erro ao alterar permissão');
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Erro ao alterar permissão');
+    } finally {
+      setIsUpdatingRole(false);
+    }
   };
 
   const getRoleIcon = (role: string) => {
@@ -731,6 +738,175 @@ export default function ColaboradoresArtistaScreen() {
 • Gestão em tempo real"
         feature="collaborators"
       />
+
+      {/* Modal de Alteração de Permissão */}
+      <Modal
+        visible={showRoleModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowRoleModal(false)}
+      >
+        <SafeAreaView style={styles.roleModalContainer}>
+          <View style={styles.roleModalHeader}>
+            <TouchableOpacity 
+              onPress={() => setShowRoleModal(false)}
+              style={styles.modalCloseButton}
+            >
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+            <Text style={styles.roleModalTitle}>Alterar Permissão</Text>
+            <TouchableOpacity 
+              onPress={handleConfirmRoleUpdate}
+              style={styles.modalSaveButton}
+              disabled={isUpdatingRole}
+            >
+              {isUpdatingRole ? (
+                <ActivityIndicator size="small" color="#667eea" />
+              ) : (
+                <Ionicons name="checkmark" size={24} color="#667eea" />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.roleModalContent}>
+            {/* Card do Colaborador */}
+            {selectedCollaborator && (
+              <View style={styles.selectedCollaboratorCard}>
+                <View style={styles.selectedCollaboratorHeader}>
+                  <View style={styles.selectedCollaboratorAvatar}>
+                    <Text style={styles.selectedCollaboratorAvatarText}>
+                      {selectedCollaborator.user.name.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={styles.selectedCollaboratorInfo}>
+                    <Text style={styles.selectedCollaboratorName}>
+                      {selectedCollaborator.user.name}
+                    </Text>
+                    <Text style={styles.selectedCollaboratorEmail}>
+                      {selectedCollaborator.user.email}
+                    </Text>
+                  </View>
+                </View>
+                
+                <View style={styles.currentRoleBadge}>
+                  <Ionicons 
+                    name={getRoleIcon(selectedCollaborator.role) as any} 
+                    size={16} 
+                    color={getRoleColor(selectedCollaborator.role)} 
+                  />
+                  <Text style={[styles.currentRoleText, { color: getRoleColor(selectedCollaborator.role) }]}>
+                    Atual: {getRoleLabel(selectedCollaborator.role)}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Título de Seleção */}
+            <View style={styles.roleSelectionHeader}>
+              <Ionicons name="shield-checkmark" size={24} color="#667eea" />
+              <Text style={styles.roleSelectionTitle}>Selecione a nova permissão</Text>
+            </View>
+
+            {/* Opções de Role */}
+            <View style={styles.roleOptionsContainer}>
+              {[
+                { 
+                  label: 'Proprietário', 
+                  value: 'owner', 
+                  icon: 'star',
+                  color: '#FFD700',
+                  description: 'Controle total do artista',
+                  features: ['Gerenciar tudo', 'Transferir propriedade', 'Deletar artista']
+                },
+                { 
+                  label: 'Administrador', 
+                  value: 'admin', 
+                  icon: 'shield-checkmark',
+                  color: '#FF6B35',
+                  description: 'Gerenciamento avançado',
+                  features: ['Gerenciar membros', 'Editar eventos', 'Ver finanças']
+                },
+                { 
+                  label: 'Editor', 
+                  value: 'editor', 
+                  icon: 'create',
+                  color: '#4ECDC4',
+                  description: 'Edição de conteúdo',
+                  features: ['Criar eventos', 'Editar eventos', 'Ver finanças']
+                },
+                { 
+                  label: 'Visualizador', 
+                  value: 'viewer', 
+                  icon: 'eye',
+                  color: '#95A5A6',
+                  description: 'Apenas visualização',
+                  features: ['Ver eventos', 'Ver colaboradores', 'Sem edição']
+                }
+              ].map((role) => (
+                <TouchableOpacity
+                  key={role.value}
+                  style={[
+                    styles.roleOptionCard,
+                    selectedRole === role.value && styles.roleOptionCardSelected
+                  ]}
+                  onPress={() => setSelectedRole(role.value as any)}
+                >
+                  <View style={styles.roleOptionHeader}>
+                    <View style={[styles.roleIconCircle, { backgroundColor: role.color + '20' }]}>
+                      <Ionicons name={role.icon as any} size={24} color={role.color} />
+                    </View>
+                    <View style={styles.roleLabelContainer}>
+                      <Text style={[
+                        styles.roleOptionLabel,
+                        selectedRole === role.value && styles.roleOptionLabelSelected
+                      ]}>
+                        {role.label}
+                      </Text>
+                      <Text style={[
+                        styles.roleOptionDescription,
+                        selectedRole === role.value && styles.roleOptionDescriptionSelected
+                      ]}>
+                        {role.description}
+                      </Text>
+                    </View>
+                    <View style={[
+                      styles.roleRadio,
+                      selectedRole === role.value && styles.roleRadioSelected
+                    ]}>
+                      {selectedRole === role.value && (
+                        <View style={[styles.roleRadioInner, { backgroundColor: role.color }]} />
+                      )}
+                    </View>
+                  </View>
+                  
+                  {/* Features List */}
+                  <View style={styles.roleFeaturesList}>
+                    {role.features.map((feature, index) => (
+                      <View key={index} style={styles.roleFeatureItem}>
+                        <Ionicons name="checkmark-circle" size={16} color={role.color} />
+                        <Text style={[
+                          styles.roleFeatureText,
+                          selectedRole === role.value && { color: role.color }
+                        ]}>
+                          {feature}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Warning */}
+            <View style={styles.roleWarning}>
+              <Ionicons name="warning" size={20} color="#F59E0B" />
+              <Text style={styles.roleWarningText}>
+                A alteração de permissão será aplicada imediatamente e o usuário será notificado.
+              </Text>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1339,5 +1515,186 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     flex: 1,
     lineHeight: 18,
+  },
+  roleModalContainer: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+  },
+  roleModalHeader: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  roleModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    flex: 1,
+    textAlign: 'center',
+  },
+  roleModalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  selectedCollaboratorCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  selectedCollaboratorHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  selectedCollaboratorAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#667eea',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  selectedCollaboratorAvatarText: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  selectedCollaboratorInfo: {
+    flex: 1,
+  },
+  selectedCollaboratorName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 4,
+  },
+  selectedCollaboratorEmail: {
+    fontSize: 14,
+    color: '#666',
+  },
+  currentRoleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+  },
+  currentRoleText: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  roleSelectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: '#e9ecef',
+  },
+  roleSelectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginLeft: 12,
+  },
+  roleOptionsContainer: {
+    gap: 16,
+    marginBottom: 24,
+  },
+  roleOptionCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 2,
+    borderColor: '#e9ecef',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  roleOptionCardSelected: {
+    borderColor: '#667eea',
+    backgroundColor: '#f8f9ff',
+    shadowColor: '#667eea',
+    shadowOpacity: 0.2,
+  },
+  roleOptionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  roleIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  roleLabelContainer: {
+    flex: 1,
+  },
+  roleOptionLabel: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  roleOptionLabelSelected: {
+    color: '#667eea',
+  },
+  roleOptionDescription: {
+    fontSize: 14,
+    color: '#666',
+  },
+  roleOptionDescriptionSelected: {
+    color: '#667eea',
+  },
+  roleFeaturesList: {
+    gap: 10,
+    paddingLeft: 8,
+  },
+  roleFeatureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  roleFeatureText: {
+    fontSize: 14,
+    color: '#666',
+    flex: 1,
+  },
+  roleWarning: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+  },
+  roleWarningText: {
+    fontSize: 14,
+    color: '#92400E',
+    marginLeft: 12,
+    flex: 1,
+    lineHeight: 20,
   },
 });
