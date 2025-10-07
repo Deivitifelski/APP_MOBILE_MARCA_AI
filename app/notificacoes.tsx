@@ -2,34 +2,34 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    RefreshControl,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import PermissionModal from '../components/PermissionModal';
 import { useTheme } from '../contexts/ThemeContext';
 import {
-    acceptArtistInvite,
-    ArtistInvite,
-    declineArtistInvite,
-    getArtistInvitesReceived,
-    markInviteAsRead
+  acceptArtistInvite,
+  ArtistInvite,
+  declineArtistInvite,
+  getArtistInvitesReceived,
+  markInviteAsRead
 } from '../services/supabase/artistInviteService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { getEventById } from '../services/supabase/eventService';
 import {
-    deleteNotification,
-    getUserNotifications,
-    markAllNotificationsAsRead,
-    markNotificationAsRead,
-    Notification
+  deleteNotification,
+  getUserNotifications,
+  markAllNotificationsAsRead,
+  markNotificationAsRead,
+  Notification
 } from '../services/supabase/notificationService';
 import { hasPermission } from '../services/supabase/permissionsService';
 
@@ -183,32 +183,52 @@ export default function NotificacoesScreen() {
 
   const handleMarkAllAsRead = async () => {
     try {
+      console.log('🔔 Marcando todas notificações como lidas...');
+      
       const { user } = await getCurrentUser();
-      if (!user) return;
+      if (!user) {
+        console.log('❌ Usuário não encontrado');
+        return;
+      }
+
+      console.log('👤 User ID:', user.id);
+      console.log('📊 Total de notificações:', notifications.length);
+      console.log('📊 Notificações não lidas:', notifications.filter(n => !n.read).length);
 
       // Marcar todas as notificações como lidas
       const { success, error } = await markAllNotificationsAsRead(user.id);
       
+      console.log('📝 Resultado:', { success, error });
+      
       if (success) {
+        console.log('✅ Sucesso no banco, atualizando estado local...');
+        
+        // Atualizar estado local APENAS se teve sucesso no banco
         setNotifications(prev => 
           prev.map(n => ({ ...n, read: true }))
         );
+        
+        // Marcar todos os convites não lidos como lidos
+        const unreadInvites = artistInvites.filter(invite => !invite.read);
+        console.log('📧 Convites não lidos:', unreadInvites.length);
+        
+        for (const invite of unreadInvites) {
+          await markInviteAsRead(invite.id, user.id);
+        }
+        
+        setArtistInvites(prev => 
+          prev.map(invite => ({ ...invite, read: true }))
+        );
+        
+        setUnreadCount(0);
+        console.log('✅ Todas notificações marcadas como lidas!');
       } else {
-        Alert.alert('Erro', 'Erro ao marcar notificações como lidas');
+        console.error('❌ Erro ao marcar como lidas:', error);
+        Alert.alert('Erro', error || 'Erro ao marcar notificações como lidas');
       }
-
-      // Marcar todos os convites não lidos como lidos
-      const unreadInvites = artistInvites.filter(invite => !invite.read);
-      for (const invite of unreadInvites) {
-        await markInviteAsRead(invite.id, user.id);
-      }
-      
-      setArtistInvites(prev => 
-        prev.map(invite => ({ ...invite, read: true }))
-      );
-      setUnreadCount(0);
     } catch (error) {
-      console.error('Erro ao marcar todas como lidas:', error);
+      console.error('❌ Exceção ao marcar todas como lidas:', error);
+      Alert.alert('Erro', 'Erro inesperado ao marcar notificações');
     }
   };
 
