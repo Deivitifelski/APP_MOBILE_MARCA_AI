@@ -113,6 +113,62 @@ export default function AgendaScreen() {
     }
   }, [activeArtist, currentMonth, currentYear]);
 
+  // 🔥 ESCUTAR MUDANÇAS NA TABELA artist_members EM TEMPO REAL
+  useEffect(() => {
+    if (!activeArtist) return;
+
+    const setupRealtimeListener = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      console.log('🔊 Configurando listener de permissões em tempo real');
+
+      const channel = supabase
+        .channel(`permissions:${user.id}:${activeArtist.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*', // INSERT, UPDATE, DELETE
+            schema: 'public',
+            table: 'artist_members',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            console.log('🔔 Mudança detectada em artist_members:', payload);
+            
+            // Recarregar permissões quando houver mudança
+            if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
+              const newData = payload.new as any;
+              if (newData.artist_id === activeArtist.id) {
+                console.log('♻️ Atualizando permissões automaticamente, nova role:', newData.role);
+                loadUserPermissions();
+              }
+            } else if (payload.eventType === 'DELETE') {
+              const oldData = payload.old as any;
+              if (oldData.artist_id === activeArtist.id) {
+                console.log('🗑️ Permissões removidas, usuário foi removido do artista');
+                setUserPermissions(null);
+              }
+            }
+          }
+        )
+        .subscribe((status) => {
+          console.log('🔊 Status do listener de permissões:', status);
+        });
+
+      return () => {
+        console.log('🔇 Removendo listener de permissões');
+        supabase.removeChannel(channel);
+      };
+    };
+
+    const cleanup = setupRealtimeListener();
+
+    return () => {
+      cleanup.then(cleanupFn => cleanupFn && cleanupFn());
+    };
+  }, [activeArtist]);
+
   // Reset image error when artist profile_url changes
   useEffect(() => {
     setImageLoadError(false);
@@ -256,46 +312,25 @@ export default function AgendaScreen() {
   };
 
   const handleAddShow = () => {
-    console.log('🎯 Tentando adicionar evento...', { 
-      permissionsLoaded, 
-      userPermissions,
-      role: userPermissions?.role 
-    });
+    console.log('🎯 Clicou para adicionar evento');
+    console.log('👤 Permissões atuais (via Realtime):', userPermissions);
     
     // Verificar se as permissões foram carregadas
     if (!permissionsLoaded) {
-      Alert.alert('Aguarde', 'Verificando permissões...');
-      return;
-    }
-    
-    // Se não há permissões (null ou undefined), permitir (assume que é owner/creator)
-    if (!userPermissions) {
-      console.log('⚠️ Sem permissões definidas, permitindo acesso');
-      const currentMonth = currentDate.getMonth();
-      const currentYear = currentDate.getFullYear();
-      const selectedDate = new Date(currentYear, currentMonth, 1);
-      
-      router.push({
-        pathname: '/adicionar-evento',
-        params: { 
-          selectedMonth: currentMonth,
-          selectedYear: currentYear,
-          selectedDate: selectedDate.toISOString()
-        }
-      });
+      Alert.alert('Aguarde', 'Carregando permissões...');
       return;
     }
     
     // Verificar se o usuário tem permissão para criar eventos
     if (userPermissions?.role === 'viewer') {
-      console.log('❌ Acesso bloqueado: usuário é viewer');
+      console.log('❌ BLOQUEADO: Usuário é VIEWER');
       setShowPermissionModal(true);
       return;
     }
     
-    console.log('✅ Permissão concedida, role:', userPermissions.role);
+    console.log('✅ PERMITIDO: Role =', userPermissions?.role || 'owner/creator');
     
-    // Se tem permissão, navegar para a tela de adicionar evento
+    // Navegar para tela de adicionar evento
     const currentMonth = currentDate.getMonth();
     const currentYear = currentDate.getFullYear();
     const selectedDate = new Date(currentYear, currentMonth, 1);
