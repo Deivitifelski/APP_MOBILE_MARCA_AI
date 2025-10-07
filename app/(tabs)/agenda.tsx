@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
   FlatList,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -74,6 +75,7 @@ export default function AgendaScreen() {
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [imageLoadError, setImageLoadError] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const { activeArtist, loadActiveArtist, isLoading } = useActiveArtist();
   const [artistImageUpdated, setArtistImageUpdated] = useState<boolean>(false);
   const { unreadCount, loadUnreadCount } = useNotifications();
@@ -117,31 +119,13 @@ export default function AgendaScreen() {
     setImageLoadError(false);
   }, [activeArtist?.profile_url]);
 
-  // Recarregar eventos quando a tela ganhar foco
-  useFocusEffect(
-    React.useCallback(() => {
-      if (activeArtist) {
-        loadEvents(false); // Recarregamento silencioso
-        
-        // Recarregar artista ativo apenas se a imagem foi atualizada via notificação
-        if (artistImageUpdated) {
-          setArtistImageUpdated(false);
-          loadActiveArtist(); // Recarregar dados do artista ativo para atualizar imagem
-        }
-      }
-    }, [activeArtist, currentMonth, currentYear, artistImageUpdated])
-  );
-
-  // Polling para atualizações em tempo real
+  // Recarregar artista ativo apenas se a imagem foi atualizada via notificação
   useEffect(() => {
-    if (!activeArtist) return;
-
-    const interval = setInterval(() => {
-      loadEvents(false); // Atualização silenciosa a cada 30 segundos
-    }, 30000); // 30 segundos
-
-    return () => clearInterval(interval);
-  }, [activeArtist, currentMonth, currentYear]);
+    if (artistImageUpdated && activeArtist) {
+      setArtistImageUpdated(false);
+      loadActiveArtist();
+    }
+  }, [artistImageUpdated]);
 
   const handleEventPress = (eventId: string) => {
     // Verificar se o usuário tem permissão para ver detalhes
@@ -152,6 +136,12 @@ export default function AgendaScreen() {
     
     // Se não for viewer, permitir acesso aos detalhes
     router.push(`/detalhes-evento?eventId=${eventId}`);
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadEvents(true);
+    setRefreshing(false);
   };
 
   const loadEvents = async (isInitialLoad = true) => {
@@ -428,7 +418,17 @@ export default function AgendaScreen() {
         </View>
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView 
+        style={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#667eea"
+            colors={['#667eea']}
+          />
+        }
+      >
         {isLoading ? (
           <View style={styles.loadingContainer}>
             <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Carregando...</Text>
