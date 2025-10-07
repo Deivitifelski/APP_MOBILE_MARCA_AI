@@ -11,12 +11,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import UpgradeModal from '../../components/UpgradeModal';
+import { usePermissions } from '../../contexts/PermissionsContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { generateFinancialReport } from '../../services/financialReportService';
 import { getEventsByMonth } from '../../services/supabase/eventService';
 import { getExpensesByEvent } from '../../services/supabase/expenseService';
-import { getUserPermissions } from '../../services/supabase/permissionsService';
 import { canExportData } from '../../services/supabase/userService';
 import { useActiveArtist } from '../../services/useActiveArtist';
 // import * as FileSystem from 'expo-file-system';
@@ -37,12 +37,13 @@ export default function FinanceiroScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [events, setEvents] = useState<EventWithExpenses[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
-  const [userPermissions, setUserPermissions] = useState<any>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { activeArtist, loadActiveArtist } = useActiveArtist();
+  
+  // ✅ USAR PERMISSÕES GLOBAIS
+  const { isViewer, canViewFinancials, permissionsLoaded } = usePermissions();
 
   const currentMonth = selectedDate.getMonth();
   const currentYear = selectedDate.getFullYear();
@@ -67,54 +68,33 @@ export default function FinanceiroScreen() {
     loadActiveArtist();
   }, []);
 
+  // ✅ Carregar dados financeiros quando permissões estiverem prontas
   useEffect(() => {
-    if (activeArtist) {
-      loadUserPermissions();
-    }
-  }, [activeArtist]); // Só carrega permissões quando muda o artista
-
-  useEffect(() => {
-    if (activeArtist && userPermissions !== null) {
+    if (activeArtist && permissionsLoaded) {
+      console.log('💰 Carregando dados financeiros, isViewer:', isViewer);
       loadFinancialData();
     }
-  }, [activeArtist, userPermissions, currentMonth, currentYear]); // Só carrega dados financeiros
-
-  const loadUserPermissions = async () => {
-    if (!activeArtist) {
-      setIsInitialLoading(false);
-      return;
-    }
-    
-    try {
-      // Obter usuário atual
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setUserPermissions(null);
-        setIsInitialLoading(false);
-        return;
-      }
-      
-      // Carregar permissões diretamente do servidor
-      const permissions = await getUserPermissions(user.id, activeArtist.id);
-      setUserPermissions(permissions);
-      setIsInitialLoading(false);
-      console.log('🔐 Permissões carregadas');
-    } catch (error) {
-      console.error('❌ Erro ao carregar permissões:', error);
-      setUserPermissions(null);
-      setIsInitialLoading(false);
-    }
-  };
+  }, [activeArtist, permissionsLoaded, currentMonth, currentYear]);
 
   const loadFinancialData = async () => {
-    if (!activeArtist || userPermissions === null) return;
+    if (!activeArtist) return;
     
-    // Se for viewer, não carregar dados financeiros
-    if (userPermissions?.role === 'viewer') {
+    // ✅ VERIFICAR PERMISSÃO GLOBAL - Se for viewer, não carregar dados financeiros
+    if (isViewer) {
+      console.log('❌ [Financeiro] Bloqueado: usuário é VIEWER');
       setEvents([]);
       setIsLoading(false);
       return;
     }
+    
+    if (!canViewFinancials) {
+      console.log('❌ [Financeiro] Sem permissão para ver finanças');
+      setEvents([]);
+      setIsLoading(false);
+      return;
+    }
+    
+    console.log('✅ [Financeiro] Permissão concedida, carregando dados...');
     
     try {
       setIsLoading(true);
@@ -321,8 +301,8 @@ export default function FinanceiroScreen() {
     </View>
   );
 
-  // Se ainda está carregando inicialmente, mostrar loading
-  if (isInitialLoading) {
+  // Se ainda está carregando permissões, mostrar loading
+  if (!permissionsLoaded) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { 
@@ -398,8 +378,8 @@ export default function FinanceiroScreen() {
   }
 
 
-  // Se o usuário é viewer, mostrar mensagem de acesso restrito
-  if (userPermissions?.role === 'viewer') {
+  // ✅ SE FOR VIEWER, BLOQUEAR ACESSO TOTAL À TELA
+  if (isViewer) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { 

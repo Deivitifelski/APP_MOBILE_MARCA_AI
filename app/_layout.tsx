@@ -6,6 +6,7 @@ import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import AuthDeepLinkHandler from '../components/AuthDeepLinkHandler';
+import { PermissionsProvider } from '../contexts/PermissionsContext';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { useColorScheme } from '../hooks/use-color-scheme';
 
@@ -19,9 +20,10 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <AuthDeepLinkHandler />
-          <Stack>
+        <PermissionsProvider>
+          <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+            <AuthDeepLinkHandler />
+            <Stack>
             <Stack.Screen name="login" options={{ headerShown: false }} />
             <Stack.Screen name="register" options={{ headerShown: false }} />
             <Stack.Screen name="email-confirmation" options={{ headerShown: false }} />
@@ -45,9 +47,10 @@ export default function RootLayout() {
             <Stack.Screen name="planos-pagamentos" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-          </Stack>
-          <StatusBar style="auto" />
-        </NavigationThemeProvider>
+            </Stack>
+            <StatusBar style="auto" />
+          </NavigationThemeProvider>
+        </PermissionsProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

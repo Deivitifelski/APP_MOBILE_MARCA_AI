@@ -12,10 +12,10 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { usePermissions } from '../contexts/PermissionsContext';
 import { getArtists } from '../services/supabase/artistService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { createEvent, CreateExpenseData } from '../services/supabase/eventService';
-import { hasPermission } from '../services/supabase/permissionsService';
 import { useActiveArtist } from '../services/useActiveArtist';
 
 interface EventoForm {
@@ -266,35 +266,32 @@ export default function AdicionarEventoScreen() {
   const [showTimeFimModal, setShowTimeFimModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { activeArtist } = useActiveArtist();
+  
+  // ✅ USAR PERMISSÕES GLOBAIS
+  const { isViewer, canCreateEvents } = usePermissions();
 
   // ✅ VERIFICAR PERMISSÃO AO ABRIR A TELA
   useEffect(() => {
-    const checkPermission = async () => {
-      try {
-        const { user } = await getCurrentUser();
-        if (!user || !activeArtist?.id) return;
-
-        const canCreate = await hasPermission(user.id, activeArtist.id, 'canCreateEvents');
-        
-        if (!canCreate) {
-          Alert.alert(
-            'Acesso Negado',
-            'Você não tem permissão para criar eventos. Apenas usuários com role Editor, Admin ou Owner podem criar eventos.',
-            [
-              {
-                text: 'Voltar',
-                onPress: () => router.back()
-              }
-            ]
-          );
-        }
-      } catch (error) {
-        console.error('Erro ao verificar permissão:', error);
-      }
-    };
-
-    checkPermission();
-  }, [activeArtist]);
+    console.log('🔍 [AdicionarEvento] Verificando permissão ao abrir tela');
+    console.log('👤 [AdicionarEvento] isViewer:', isViewer);
+    console.log('✏️ [AdicionarEvento] canCreateEvents:', canCreateEvents);
+    
+    if (isViewer || !canCreateEvents) {
+      console.log('❌ [AdicionarEvento] BLOQUEADO: Sem permissão para criar eventos');
+      Alert.alert(
+        'Acesso Negado',
+        'Você não tem permissão para criar eventos. Apenas usuários com role Editor, Admin ou Owner podem criar eventos.',
+        [
+          {
+            text: 'Voltar',
+            onPress: () => router.back()
+          }
+        ]
+      );
+    } else {
+      console.log('✅ [AdicionarEvento] PERMITIDO: Pode criar eventos');
+    }
+  }, [isViewer, canCreateEvents]);
 
   const handleSave = async () => {
 
@@ -334,18 +331,6 @@ export default function AdicionarEventoScreen() {
       }
 
       const artistId = activeArtist?.id || artists[0].id;
-
-      // ✅ VERIFICAR PERMISSÃO ANTES DE CRIAR EVENTO
-      const canCreate = await hasPermission(user.id, artistId, 'canCreateEvents');
-      
-      if (!canCreate) {
-        Alert.alert(
-          'Sem Permissão', 
-          'Você não tem permissão para criar eventos. Apenas usuários com role Editor, Admin ou Owner podem criar eventos.',
-          [{ text: 'OK' }]
-        );
-        return;
-      }
 
       // Preparar despesas
       const expensesData: CreateExpenseData[] = despesas

@@ -13,12 +13,11 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import OptimizedImage from '../../components/OptimizedImage';
 import PermissionModal from '../../components/PermissionModal';
+import { usePermissions } from '../../contexts/PermissionsContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { supabase } from '../../lib/supabase';
 import { artistImageUpdateService } from '../../services/artistImageUpdateService';
 import { cacheService } from '../../services/cacheService';
 import { getEventsByMonth } from '../../services/supabase/eventService';
-import { clearPermissionsCache, getUserPermissions } from '../../services/supabase/permissionsService';
 import { useActiveArtist } from '../../services/useActiveArtist';
 import { useNotifications } from '../../services/useNotifications';
 
@@ -73,13 +72,14 @@ export default function AgendaScreen() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<any[]>([]);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
-  const [userPermissions, setUserPermissions] = useState<any>(null);
-  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [imageLoadError, setImageLoadError] = useState(false);
   const { activeArtist, loadActiveArtist, isLoading } = useActiveArtist();
   const [artistImageUpdated, setArtistImageUpdated] = useState<boolean>(false);
   const { unreadCount, loadUnreadCount } = useNotifications();
+  
+  // ✅ USAR PERMISSÕES GLOBAIS
+  const { isViewer, isEditor, isAdmin, isOwner, canViewFinancials, permissionsLoaded } = usePermissions();
 
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
@@ -108,66 +108,9 @@ export default function AgendaScreen() {
   useEffect(() => {
     if (activeArtist) {
       loadEvents(true);
-      loadUserPermissions();
       setImageLoadError(false); // Reset image error state when artist changes
     }
   }, [activeArtist, currentMonth, currentYear]);
-
-  // 🔥 ESCUTAR MUDANÇAS NA TABELA artist_members EM TEMPO REAL
-  useEffect(() => {
-    if (!activeArtist) return;
-
-    const setupRealtimeListener = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      console.log('🔊 Configurando listener de permissões em tempo real');
-
-      const channel = supabase
-        .channel(`permissions:${user.id}:${activeArtist.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*', // INSERT, UPDATE, DELETE
-            schema: 'public',
-            table: 'artist_members',
-            filter: `user_id=eq.${user.id}`,
-          },
-          (payload) => {
-            console.log('🔔 Mudança detectada em artist_members:', payload);
-            
-            // Recarregar permissões quando houver mudança
-            if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
-              const newData = payload.new as any;
-              if (newData.artist_id === activeArtist.id) {
-                console.log('♻️ Atualizando permissões automaticamente, nova role:', newData.role);
-                loadUserPermissions();
-              }
-            } else if (payload.eventType === 'DELETE') {
-              const oldData = payload.old as any;
-              if (oldData.artist_id === activeArtist.id) {
-                console.log('🗑️ Permissões removidas, usuário foi removido do artista');
-                setUserPermissions(null);
-              }
-            }
-          }
-        )
-        .subscribe((status) => {
-          console.log('🔊 Status do listener de permissões:', status);
-        });
-
-      return () => {
-        console.log('🔇 Removendo listener de permissões');
-        supabase.removeChannel(channel);
-      };
-    };
-
-    const cleanup = setupRealtimeListener();
-
-    return () => {
-      cleanup.then(cleanupFn => cleanupFn && cleanupFn());
-    };
-  }, [activeArtist]);
 
   // Reset image error when artist profile_url changes
   useEffect(() => {
@@ -200,50 +143,9 @@ export default function AgendaScreen() {
     return () => clearInterval(interval);
   }, [activeArtist, currentMonth, currentYear]);
 
-  const loadUserPermissions = async () => {
-    if (!activeArtist) return;
-    
-    try {
-      setPermissionsLoaded(false);
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.log('❌ Nenhum usuário autenticado');
-        setPermissionsLoaded(true);
-        return;
-      }
-      
-      console.log('🔐 Carregando permissões para:', { userId: user.id, artistId: activeArtist.id });
-      
-      // Limpar cache para garantir dados atualizados
-      clearPermissionsCache(user.id, activeArtist.id);
-      
-      // Carregar do servidor
-      const permissions = await getUserPermissions(user.id, activeArtist.id);
-      
-      console.log('🔐 Permissões retornadas:', permissions);
-      
-      if (permissions) {
-        // Salvar no cache
-        await cacheService.setPermissionsData(user.id, activeArtist.id, permissions);
-        setUserPermissions(permissions);
-        console.log('✅ Role do usuário:', permissions.role);
-      } else {
-        console.log('⚠️ Nenhuma permissão encontrada para este usuário/artista');
-        setUserPermissions(null);
-      }
-      
-      setPermissionsLoaded(true);
-    } catch (error) {
-      console.error('❌ Erro ao carregar permissões:', error);
-      setUserPermissions(null);
-      setPermissionsLoaded(true);
-    }
-  };
-
   const handleEventPress = (eventId: string) => {
     // Verificar se o usuário tem permissão para ver detalhes
-    if (userPermissions?.role === 'viewer') {
+    if (isViewer) {
       setShowPermissionModal(true);
       return;
     }
@@ -313,7 +215,7 @@ export default function AgendaScreen() {
 
   const handleAddShow = () => {
     console.log('🎯 Clicou para adicionar evento');
-    console.log('👤 Permissões atuais (via Realtime):', userPermissions);
+    console.log('👤 isViewer (via Contexto Global):', isViewer);
     
     // Verificar se as permissões foram carregadas
     if (!permissionsLoaded) {
@@ -322,13 +224,13 @@ export default function AgendaScreen() {
     }
     
     // Verificar se o usuário tem permissão para criar eventos
-    if (userPermissions?.role === 'viewer') {
+    if (isViewer) {
       console.log('❌ BLOQUEADO: Usuário é VIEWER');
       setShowPermissionModal(true);
       return;
     }
     
-    console.log('✅ PERMITIDO: Role =', userPermissions?.role || 'owner/creator');
+    console.log('✅ PERMITIDO: Pode criar eventos');
     
     // Navegar para tela de adicionar evento
     const currentMonth = currentDate.getMonth();
@@ -424,7 +326,7 @@ export default function AgendaScreen() {
               </View>
             )}
             
-            {item.value && permissionsLoaded && userPermissions?.role !== 'viewer' && (
+            {item.value && permissionsLoaded && canViewFinancials && (
               <Text style={[styles.showValue, { color: colors.primary }]}>
                 R$ {item.value.toLocaleString('pt-BR')}
               </Text>
@@ -507,6 +409,18 @@ export default function AgendaScreen() {
                 </View>
               )}
             </TouchableOpacity>
+          </View>
+        )}
+        
+        {/* 🔍 DEBUG: Mostrar role atual */}
+        {activeArtist && permissionsLoaded && (
+          <View style={styles.debugPermissions}>
+            <Text style={styles.debugText}>
+              🔐 Role: {isViewer ? '👁️ VIEWER' : isEditor ? '✏️ EDITOR' : isAdmin ? '👑 ADMIN' : isOwner ? '🎖️ OWNER' : '❓ SEM REGISTRO'}
+            </Text>
+            <Text style={styles.debugText}>
+              {canViewFinancials ? '✅ Pode ver finanças' : '❌ Não pode ver finanças'}
+            </Text>
           </View>
         )}
         
@@ -917,5 +831,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  debugPermissions: {
+    backgroundColor: '#FEF3C7',
+    padding: 10,
+    marginTop: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+  },
+  debugText: {
+    fontSize: 12,
+    color: '#92400E',
+    fontWeight: '500',
+    marginBottom: 4,
   },
 });
