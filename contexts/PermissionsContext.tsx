@@ -111,15 +111,15 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [activeArtist]);
 
   // Helpers para verificar permissões facilmente
-  // ⚠️ IMPORTANTE: Se userPermissions for null, assumir permissões COMPLETAS (owner/creator)
-  // Só restringe se explicitamente tiver role definida
-  const canCreateEvents = userPermissions ? userPermissions.permissions.canCreateEvents : true;
-  const canEditEvents = userPermissions ? userPermissions.permissions.canEditEvents : true;
-  const canDeleteEvents = userPermissions ? userPermissions.permissions.canDeleteEvents : true;
-  const canViewFinancials = userPermissions ? userPermissions.permissions.canViewFinancials : true;
-  const canManageMembers = userPermissions ? userPermissions.permissions.canManageMembers : true;
-  const canManageArtist = userPermissions ? userPermissions.permissions.canManageArtist : true;
-  const canDeleteArtist = userPermissions ? userPermissions.permissions.canDeleteArtist : true;
+  // ⚠️ IMPORTANTE: Se userPermissions for null, NEGAR acesso (sem permissões)
+  // Só libera se explicitamente tiver permissão
+  const canCreateEvents = userPermissions?.permissions.canCreateEvents ?? false;
+  const canEditEvents = userPermissions?.permissions.canEditEvents ?? false;
+  const canDeleteEvents = userPermissions?.permissions.canDeleteEvents ?? false;
+  const canViewFinancials = userPermissions?.permissions.canViewFinancials ?? false;
+  const canManageMembers = userPermissions?.permissions.canManageMembers ?? false;
+  const canManageArtist = userPermissions?.permissions.canManageArtist ?? false;
+  const canDeleteArtist = userPermissions?.permissions.canDeleteArtist ?? false;
   
   const isViewer = userPermissions?.role === 'viewer';
   const isEditor = userPermissions?.role === 'editor';
