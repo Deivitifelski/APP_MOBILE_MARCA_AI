@@ -22,6 +22,7 @@ import {
   getArtistInvitesReceived,
   markInviteAsRead
 } from '../services/supabase/artistInviteService';
+import { getArtists } from '../services/supabase/artistService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { getEventById } from '../services/supabase/eventService';
 import {
@@ -44,6 +45,12 @@ export default function NotificacoesScreen() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [showPermissionModal, setShowPermissionModal] = useState(false);
+  const [showAcceptedModal, setShowAcceptedModal] = useState(false);
+  const [acceptedInviteData, setAcceptedInviteData] = useState<{
+    artistName: string;
+    role: string;
+    isFirstArtist: boolean;
+  } | null>(null);
 
   useEffect(() => {
     loadNotifications();
@@ -283,48 +290,43 @@ export default function NotificacoesScreen() {
               const { success, error } = await acceptArtistInvite(inviteId, currentUserId);
               
               if (success) {
-                // Perguntar se quer trocar para este artista
-                Alert.alert(
-                  'Trocar Artista Ativo?',
-                  `Convite aceito com sucesso! Deseja trocar para o artista "${artistName}" como seu artista ativo?`,
-                  [
-                    {
-                      text: 'Manter Atual',
-                      style: 'cancel',
-                      onPress: () => {
-                        setSuccessMessage(`Convite aceito! Você foi adicionado como colaborador do artista "${artistName}" com permissões de visualização. Você pode trocar de artista a qualquer momento nas configurações.`);
-                        setShowSuccessModal(true);
-                        loadNotifications();
-                      }
-                    },
-                    {
-                      text: 'Trocar para Este',
-                      style: 'default',
-                      onPress: async () => {
-                        try {
-                          // Importar e usar o serviço de artista ativo
-                          const { setActiveArtist } = await import('../services/artistContext');
-                          
-                          // Definir o novo artista ativo
-                          await setActiveArtist({
-                            id: artistId,
-                            name: artistName,
-                            role: 'viewer' // Role padrão para convites
-                          });
-                          
-                          setSuccessMessage(`Artista alterado! Agora você está trabalhando com o artista "${artistName}". Você foi adicionado como colaborador com permissões de visualização.`);
-                          setShowSuccessModal(true);
-                          loadNotifications();
-                        } catch (error) {
-                          console.error('Erro ao trocar artista:', error);
-                          setSuccessMessage(`Convite aceito! Erro ao trocar artista, mas você foi adicionado como colaborador do artista "${artistName}". Você pode trocar manualmente nas configurações.`);
-                          setShowSuccessModal(true);
-                          loadNotifications();
-                        }
-                      }
-                    }
-                  ]
-                );
+                // Verificar se o usuário já tem artistas
+                const { artists } = await getArtists(currentUserId);
+                const isFirstArtist = !artists || artists.length === 0;
+
+                if (isFirstArtist) {
+                  // Se é o primeiro artista, setar automaticamente como ativo
+                  try {
+                    const { setActiveArtist } = await import('../services/artistContext');
+                    
+                    await setActiveArtist({
+                      id: artistId,
+                      name: artistName,
+                      role: 'viewer' // Role padrão para convites
+                    });
+
+                    // Mostrar modal de sucesso
+                    setAcceptedInviteData({
+                      artistName,
+                      role: 'Visualizador',
+                      isFirstArtist: true
+                    });
+                    setShowAcceptedModal(true);
+                    loadNotifications();
+                  } catch (error) {
+                    console.error('Erro ao setar artista:', error);
+                    Alert.alert('Erro', 'Erro ao configurar artista ativo');
+                  }
+                } else {
+                  // Se já tem artistas, apenas mostrar modal informativo
+                  setAcceptedInviteData({
+                    artistName,
+                    role: 'Visualizador',
+                    isFirstArtist: false
+                  });
+                  setShowAcceptedModal(true);
+                  loadNotifications();
+                }
               } else {
                 Alert.alert('Erro', error || 'Erro ao aceitar convite');
               }
@@ -680,7 +682,7 @@ export default function NotificacoesScreen() {
                           style={styles.declineButton}
                           onPress={() => handleDeclineInvite(invite.id, invite.artist?.name || 'Artista')}
                         >
-                          <Ionicons name="close" size={16} color="#FFFFFF" />
+                          <Ionicons name="close-outline" size={18} color="#6B7280" />
                           <Text style={styles.declineButtonText}>Recusar</Text>
                         </TouchableOpacity>
                       </View>
@@ -736,6 +738,93 @@ export default function NotificacoesScreen() {
               onPress={() => setShowSuccessModal(false)}
             >
               <Text style={styles.modalButtonText}>Entendi</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Modal de Convite Aceito */}
+      {showAcceptedModal && acceptedInviteData && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.acceptedModalContainer}>
+            {/* Header */}
+            <View style={styles.acceptedModalHeader}>
+              <View style={styles.successIconCircle}>
+                <Ionicons name="checkmark-circle" size={64} color="#10B981" />
+              </View>
+              <Text style={styles.acceptedModalTitle}>
+                {acceptedInviteData.isFirstArtist ? 'Bem-vindo!' : 'Convite Aceito!'}
+              </Text>
+              <Text style={styles.acceptedModalSubtitle}>
+                {acceptedInviteData.isFirstArtist 
+                  ? 'Você agora faz parte do time'
+                  : 'Você foi adicionado como colaborador'
+                }
+              </Text>
+            </View>
+
+            {/* Info Card */}
+            <View style={styles.acceptedInfoCard}>
+              <View style={styles.acceptedInfoRow}>
+                <Ionicons name="musical-notes" size={20} color="#667eea" />
+                <Text style={styles.acceptedInfoLabel}>Artista:</Text>
+              </View>
+              <Text style={styles.acceptedInfoValue}>{acceptedInviteData.artistName}</Text>
+
+              <View style={[styles.acceptedInfoRow, { marginTop: 16 }]}>
+                <Ionicons name="shield-checkmark" size={20} color="#667eea" />
+                <Text style={styles.acceptedInfoLabel}>Cargo:</Text>
+              </View>
+              <View style={styles.acceptedRoleBadge}>
+                <Ionicons name="eye" size={16} color="#6B7280" />
+                <Text style={styles.acceptedRoleText}>{acceptedInviteData.role}</Text>
+              </View>
+            </View>
+
+            {/* Permissions */}
+            <View style={styles.acceptedPermissionsBox}>
+              <Text style={styles.acceptedPermissionsTitle}>📋 Suas Permissões:</Text>
+              <View style={styles.acceptedPermissionsList}>
+                <View style={styles.acceptedPermissionItem}>
+                  <Ionicons name="checkmark-circle" size={18} color="#10B981" />
+                  <Text style={styles.acceptedPermissionText}>Visualizar eventos e agenda</Text>
+                </View>
+                <View style={styles.acceptedPermissionItem}>
+                  <Ionicons name="checkmark-circle" size={18} color="#10B981" />
+                  <Text style={styles.acceptedPermissionText}>Ver dados do artista</Text>
+                </View>
+                <View style={styles.acceptedPermissionItem}>
+                  <Ionicons name="checkmark-circle" size={18} color="#10B981" />
+                  <Text style={styles.acceptedPermissionText}>Acessar lista de colaboradores</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Status */}
+            {acceptedInviteData.isFirstArtist && (
+              <View style={styles.acceptedStatusBox}>
+                <Ionicons name="information-circle" size={20} color="#3B82F6" />
+                <Text style={styles.acceptedStatusText}>
+                  Este artista foi definido como seu artista ativo. Você pode acessar a agenda, eventos e configurações agora mesmo!
+                </Text>
+              </View>
+            )}
+
+            {!acceptedInviteData.isFirstArtist && (
+              <View style={styles.acceptedStatusBox}>
+                <Ionicons name="information-circle" size={20} color="#3B82F6" />
+                <Text style={styles.acceptedStatusText}>
+                  Para trabalhar com este artista, troque para ele nas Configurações → Selecionar Artista.
+                </Text>
+              </View>
+            )}
+
+            {/* Button */}
+            <TouchableOpacity
+              style={styles.acceptedModalButton}
+              onPress={() => setShowAcceptedModal(false)}
+            >
+              <Text style={styles.acceptedModalButtonText}>Entendi</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1095,29 +1184,19 @@ const styles = StyleSheet.create({
   },
   notificationCard: {
     backgroundColor: '#fff',
-    borderRadius: 16,
-    marginBottom: 16,
-    marginHorizontal: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    borderRadius: 12,
+    marginBottom: 12,
+    marginHorizontal: 16,
     borderWidth: 1,
-    borderColor: '#F3F4F6',
+    borderColor: '#E5E7EB',
   },
   unreadNotification: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#667eea',
-    backgroundColor: '#FAFBFC',
+    backgroundColor: '#F9FAFB',
   },
   notificationContent: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    padding: 20,
+    padding: 16,
   },
   notificationLeft: {
     flexDirection: 'row',
@@ -1136,58 +1215,34 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   userAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   userAvatarPlaceholder: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F8FAFC',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     position: 'relative',
   },
   notificationIconBadge: {
     position: 'absolute',
     bottom: -2,
     right: -2,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
     borderColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 3,
   },
   notificationDetails: {
     flex: 1,
@@ -1196,10 +1251,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   notificationTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#1F2937',
-    lineHeight: 22,
+    color: '#374151',
+    lineHeight: 20,
   },
   unreadTitle: {
     fontWeight: '700',
@@ -1208,9 +1263,9 @@ const styles = StyleSheet.create({
   notificationMessage: {
     fontSize: 14,
     color: '#6B7280',
-    lineHeight: 20,
-    marginBottom: 10,
-    marginTop: 2,
+    lineHeight: 19,
+    marginBottom: 8,
+    marginTop: 4,
   },
   notificationFooter: {
     flexDirection: 'row',
@@ -1242,40 +1297,30 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   deleteButton: {
-    padding: 10,
-    borderRadius: 10,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: 'transparent',
   },
   unreadDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: '#667eea',
     marginBottom: 8,
-    shadowColor: '#667eea',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
-    elevation: 2,
   },
   sectionDivider: {
     height: 1,
     backgroundColor: '#E5E7EB',
-    marginVertical: 24,
-    marginHorizontal: 12,
+    marginVertical: 20,
+    marginHorizontal: 16,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 16,
-    marginTop: 8,
-    marginHorizontal: 12,
+    color: '#374151',
+    marginBottom: 12,
+    marginTop: 4,
+    marginHorizontal: 16,
   },
   statusBadge: {
     paddingHorizontal: 8,
@@ -1289,9 +1334,12 @@ const styles = StyleSheet.create({
   },
   inviteActions: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    gap: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: 12,
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
   },
   acceptButton: {
     flex: 1,
@@ -1299,7 +1347,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#10B981',
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,
     gap: 6,
@@ -1314,37 +1362,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EF4444',
-    paddingVertical: 12,
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,
     gap: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   declineButtonText: {
-    color: '#FFFFFF',
+    color: '#6B7280',
     fontSize: 14,
     fontWeight: '600',
   },
   inviteCard: {
     backgroundColor: '#fff',
-    borderRadius: 16,
-    marginBottom: 16,
-    marginHorizontal: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    borderRadius: 12,
+    marginBottom: 12,
+    marginHorizontal: 16,
     borderWidth: 1,
-    borderColor: '#F3F4F6',
+    borderColor: '#E5E7EB',
   },
   inviteContent: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    padding: 20,
+    padding: 16,
   },
   inviteLeft: {
     flexDirection: 'row',
@@ -1352,12 +1394,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   inviteIconContainer: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
+    marginRight: 12,
   },
   inviteRight: {
     alignItems: 'center',
@@ -1368,15 +1410,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   inviteTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#374151',
     marginBottom: 4,
+    lineHeight: 20,
   },
   inviteMessage: {
     fontSize: 14,
     color: '#6B7280',
-    lineHeight: 20,
+    lineHeight: 19,
     marginBottom: 4,
   },
   inviteTime: {
@@ -1459,6 +1502,137 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  // Estilos do Modal de Convite Aceito
+  acceptedModalContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 24,
+    margin: 20,
+    maxWidth: 420,
+    width: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  acceptedModalHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  successIconCircle: {
+    marginBottom: 16,
+  },
+  acceptedModalTitle: {
+    fontSize: 26,
+    fontWeight: 'bold',
+    color: '#10B981',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  acceptedModalSubtitle: {
+    fontSize: 15,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  acceptedInfoCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  acceptedInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  acceptedInfoLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  acceptedInfoValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginLeft: 28,
+  },
+  acceptedRoleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    gap: 6,
+    marginLeft: 28,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  acceptedRoleText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  acceptedPermissionsBox: {
+    backgroundColor: '#ECFDF5',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  acceptedPermissionsTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#065F46',
+    marginBottom: 12,
+  },
+  acceptedPermissionsList: {
+    gap: 10,
+  },
+  acceptedPermissionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  acceptedPermissionText: {
+    fontSize: 14,
+    color: '#065F46',
+    flex: 1,
+  },
+  acceptedStatusBox: {
+    backgroundColor: '#EFF6FF',
+    borderRadius: 12,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  acceptedStatusText: {
+    fontSize: 13,
+    color: '#1E40AF',
+    flex: 1,
+    lineHeight: 18,
+  },
+  acceptedModalButton: {
+    backgroundColor: '#667eea',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  acceptedModalButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
