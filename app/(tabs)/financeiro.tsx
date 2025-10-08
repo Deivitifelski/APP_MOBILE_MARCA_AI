@@ -483,7 +483,7 @@ export default function FinanceiroScreen() {
         </View>
         
         {/* Navegação de mês */}
-        <View style={styles.monthNavigation}>
+        <View style={[styles.monthNavigation, { backgroundColor: colors.background }]}>
           <TouchableOpacity onPress={() => navigateMonth('prev')} style={styles.navButton}>
             <Ionicons name="chevron-back" size={24} color={colors.primary} />
           </TouchableOpacity>
@@ -570,14 +570,11 @@ export default function FinanceiroScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
   },
   header: {
-    backgroundColor: '#fff',
     paddingHorizontal: 20,
     paddingBottom: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
   },
   headerTop: {
     flexDirection: 'row',
@@ -588,7 +585,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
   },
   exportButton: {
     flexDirection: 'row',
@@ -607,7 +603,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#f8f9fa',
     borderRadius: 8,
     padding: 8,
   },
@@ -617,7 +612,6 @@ const styles = StyleSheet.create({
   monthText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
   },
   loadingContainer: {
     flex: 1,
@@ -626,7 +620,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: '#666',
   },
   content: {
     flex: 1,
@@ -635,7 +628,6 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   summaryCard: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 20,
     alignItems: 'center',
@@ -651,7 +643,6 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 16,
-    color: '#666',
     marginBottom: 8,
   },
   summaryValue: {
@@ -664,7 +655,6 @@ const styles = StyleSheet.create({
   },
   summaryItem: {
     flex: 1,
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
@@ -679,7 +669,6 @@ const styles = StyleSheet.create({
   },
   summaryItemLabel: {
     fontSize: 14,
-    color: '#666',
     marginBottom: 4,
   },
   summaryItemValue: {
@@ -692,7 +681,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
     marginBottom: 15,
   },
   transactionCard: {
@@ -750,7 +738,6 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   eventCard: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -775,12 +762,10 @@ const styles = StyleSheet.create({
   eventName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 4,
   },
   eventDate: {
     fontSize: 14,
-    color: '#666',
   },
   eventValues: {
     alignItems: 'flex-end',
@@ -794,18 +779,15 @@ const styles = StyleSheet.create({
   },
   eventValueLabel: {
     fontSize: 12,
-    color: '#666',
     marginRight: 8,
   },
   eventRevenue: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#4CAF50',
   },
   eventExpenses: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#F44336',
   },
   eventNetRow: {
     borderTopWidth: 1,
@@ -817,7 +799,6 @@ const styles = StyleSheet.create({
   eventNetLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
     marginRight: 8,
   },
   eventNet: {
@@ -833,7 +814,6 @@ const styles = StyleSheet.create({
   expensesTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 8,
   },
   expenseItem: {
@@ -842,7 +822,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: '#f8f9fa',
     borderRadius: 8,
     marginBottom: 6,
   },
@@ -851,12 +830,10 @@ const styles = StyleSheet.create({
   },
   expenseName: {
     fontSize: 14,
-    color: '#333',
     marginBottom: 2,
   },
   expenseValue: {
     fontSize: 12,
-    color: '#666',
   },
   emptyContainer: {
     alignItems: 'center',
@@ -875,7 +852,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   noArtistCard: {
-    backgroundColor: '#fff',
     borderRadius: 16,
     padding: 30,
     alignItems: 'center',
@@ -894,7 +870,6 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#f8f9fa',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
@@ -939,7 +914,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   noAccessCard: {
-    backgroundColor: '#fff',
     borderRadius: 16,
     padding: 30,
     alignItems: 'center',
@@ -958,7 +932,6 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#ffebee',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
