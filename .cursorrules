@@ -1,0 +1,54 @@
+# Regras do Cursor para o Projeto Marca AI
+
+## Idioma
+- Sempre responda em Português (Brasil)
+- Gere mensagens de commit em Português
+
+## Mensagens de Commit
+Ao gerar mensagens de commit, siga este formato em português:
+
+### Tipos de Commit:
+- `feat`: Nova funcionalidade
+- `fix`: Correção de bug
+- `docs`: Apenas mudanças na documentação
+- `style`: Mudanças que não afetam o significado do código (formatação, etc)
+- `refactor`: Mudança de código que não corrige bug nem adiciona funcionalidade
+- `perf`: Mudança que melhora a performance
+- `test`: Adição ou correção de testes
+- `chore`: Mudanças no processo de build ou ferramentas auxiliares
+
+### Formato:
+```
+<tipo>: <descrição curta em português>
+
+<descrição detalhada opcional em português>
+```
+
+### Exemplos:
+```
+feat: adiciona modal sobre o app com informações relevantes
+
+Criado modal moderno com logo M, versão 1.0.0 e email de contato
+marcaaiapp@gmail.com. Inclui recursos principais em cards elegantes.
+```
+
+```
+fix: corrige carregamento de imagem no perfil do usuário
+
+Ajusta o cache service para invalidar corretamente as imagens
+quando o usuário atualiza o perfil.
+```
+
+```
+refactor: melhora estrutura de estilos do modal sobre
+
+Remove estilos não utilizados e organiza melhor a hierarquia
+dos componentes visuais.
+```
+
+## Padrões de Código
+- Use TypeScript em todo o projeto
+- Sempre use React Hooks funcionais
+- Mantenha consistência com o tema (dark/light mode)
+- Siga as convenções de nomenclatura existentes no projeto
+

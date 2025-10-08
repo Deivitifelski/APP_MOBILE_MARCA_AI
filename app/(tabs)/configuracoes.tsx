@@ -3,17 +3,17 @@ import { setStringAsync } from 'expo-clipboard';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Modal,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Modal,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import OptimizedImage from '../../components/OptimizedImage';
@@ -56,6 +56,7 @@ export default function ConfiguracoesScreen() {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [realtimeSubscriptions, setRealtimeSubscriptions] = useState<RealtimeSubscription[]>([]);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
 
   useEffect(() => {
     loadUserProfile();
@@ -836,9 +837,8 @@ export default function ConfiguracoesScreen() {
             {renderSettingItem(
               'information-circle',
               'Sobre o App',
-              'Versão 1.0.0',
-              undefined,
-              null
+              'Informações da aplicação',
+              () => setShowAboutModal(true)
             )}
             
             {renderSettingItem(
@@ -1222,6 +1222,140 @@ export default function ConfiguracoesScreen() {
             </View>
           </ScrollView>
         </SafeAreaView>
+      </Modal>
+
+      {/* Modal Sobre o App */}
+      <Modal
+        visible={showAboutModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowAboutModal(false)}
+      >
+        <View style={dynamicStyles.aboutModalOverlay}>
+          <View style={[dynamicStyles.aboutModalContent, { backgroundColor: colors.surface }]}>
+            {/* Header com Logo */}
+            <View style={dynamicStyles.aboutModalHeader}>
+              <View style={dynamicStyles.aboutLogoSquare}>
+                <Text style={dynamicStyles.aboutLogoM}>M</Text>
+              </View>
+              <Text style={[dynamicStyles.aboutAppName, { color: colors.text }]}>
+                Marca AI
+              </Text>
+              <Text style={[dynamicStyles.aboutTagline, { color: colors.textSecondary }]}>
+                Gestão Musical Inteligente
+              </Text>
+            </View>
+
+            {/* Informações */}
+            <View style={dynamicStyles.aboutInfoSection}>
+              {/* Versão */}
+              <View style={[dynamicStyles.aboutInfoCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <View style={[dynamicStyles.aboutInfoIcon, { backgroundColor: colors.primary + '15' }]}>
+                  <Ionicons name="code-slash" size={24} color={colors.primary} />
+                </View>
+                <View style={dynamicStyles.aboutInfoText}>
+                  <Text style={[dynamicStyles.aboutInfoLabel, { color: colors.textSecondary }]}>
+                    Versão
+                  </Text>
+                  <Text style={[dynamicStyles.aboutInfoValue, { color: colors.text }]}>
+                    1.0.0
+                  </Text>
+                </View>
+              </View>
+
+              {/* Email */}
+              <View style={[dynamicStyles.aboutInfoCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <View style={[dynamicStyles.aboutInfoIcon, { backgroundColor: colors.primary + '15' }]}>
+                  <Ionicons name="mail" size={24} color={colors.primary} />
+                </View>
+                <View style={dynamicStyles.aboutInfoText}>
+                  <Text style={[dynamicStyles.aboutInfoLabel, { color: colors.textSecondary }]}>
+                    Email de Contato
+                  </Text>
+                  <Text style={[dynamicStyles.aboutInfoValue, { color: colors.text }]}>
+                    marcaaiapp@gmail.com
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={[dynamicStyles.aboutCopyButton, { backgroundColor: colors.primary }]}
+                  onPress={async () => {
+                    try {
+                      await setStringAsync('marcaaiapp@gmail.com');
+                      Alert.alert('✅ Sucesso', 'Email copiado para a área de transferência!');
+                    } catch {
+                      Alert.alert('❌ Erro', 'Não foi possível copiar o email.');
+                    }
+                  }}
+                >
+                  <Ionicons name="copy" size={16} color="#fff" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Descrição */}
+              <View style={[dynamicStyles.aboutDescriptionCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <Text style={[dynamicStyles.aboutDescription, { color: colors.textSecondary }]}>
+                  Plataforma completa de gestão musical para artistas e bandas. 
+                  Gerencie eventos, agenda, finanças e colaboradores em um só lugar.
+                </Text>
+              </View>
+            </View>
+
+            {/* Features */}
+            <View style={dynamicStyles.aboutFeaturesSection}>
+              <View style={dynamicStyles.aboutFeatureRow}>
+                <View style={dynamicStyles.aboutFeatureItem}>
+                  <Ionicons name="calendar" size={20} color={colors.primary} />
+                  <Text style={[dynamicStyles.aboutFeatureText, { color: colors.textSecondary }]}>
+                    Agenda de Shows
+                  </Text>
+                </View>
+                <View style={dynamicStyles.aboutFeatureItem}>
+                  <Ionicons name="cash" size={20} color={colors.primary} />
+                  <Text style={[dynamicStyles.aboutFeatureText, { color: colors.textSecondary }]}>
+                    Gestão Financeira
+                  </Text>
+                </View>
+              </View>
+              <View style={dynamicStyles.aboutFeatureRow}>
+                <View style={dynamicStyles.aboutFeatureItem}>
+                  <Ionicons name="people" size={20} color={colors.primary} />
+                  <Text style={[dynamicStyles.aboutFeatureText, { color: colors.textSecondary }]}>
+                    Colaboradores
+                  </Text>
+                </View>
+                <View style={dynamicStyles.aboutFeatureItem}>
+                  <Ionicons name="bar-chart" size={20} color={colors.primary} />
+                  <Text style={[dynamicStyles.aboutFeatureText, { color: colors.textSecondary }]}>
+                    Relatórios
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Footer */}
+            <View style={dynamicStyles.aboutModalFooter}>
+              <Text style={[dynamicStyles.aboutCopyright, { color: colors.textSecondary }]}>
+                © 2025 Marca AI. Todos os direitos reservados.
+              </Text>
+            </View>
+
+            {/* Botão Fechar */}
+            <TouchableOpacity
+              style={[dynamicStyles.aboutCloseButton, { backgroundColor: colors.primary }]}
+              onPress={() => setShowAboutModal(false)}
+            >
+              <Text style={dynamicStyles.aboutCloseButtonText}>Fechar</Text>
+            </TouchableOpacity>
+
+            {/* Botão X no canto */}
+            <TouchableOpacity
+              style={dynamicStyles.aboutCloseIconButton}
+              onPress={() => setShowAboutModal(false)}
+            >
+              <Ionicons name="close" size={24} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
       {/* Modal de Upgrade Premium */}
@@ -1699,6 +1833,158 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
          securityTipsItem: {
            fontSize: 12,
            lineHeight: 16,
+         },
+         // Estilos do modal "Sobre"
+         aboutModalOverlay: {
+           flex: 1,
+           backgroundColor: 'rgba(0, 0, 0, 0.6)',
+           justifyContent: 'center',
+           alignItems: 'center',
+           padding: 20,
+         },
+         aboutModalContent: {
+           width: '100%',
+           maxWidth: 400,
+           borderRadius: 24,
+           padding: 24,
+           shadowColor: '#000',
+           shadowOffset: { width: 0, height: 8 },
+           shadowOpacity: 0.3,
+           shadowRadius: 16,
+           elevation: 16,
+         },
+         aboutModalHeader: {
+           alignItems: 'center',
+           marginBottom: 24,
+         },
+         aboutLogoSquare: {
+           width: 80,
+           height: 80,
+           borderRadius: 16,
+           backgroundColor: '#667eea',
+           justifyContent: 'center',
+           alignItems: 'center',
+           marginBottom: 16,
+           shadowColor: '#667eea',
+           shadowOffset: { width: 0, height: 4 },
+           shadowOpacity: 0.3,
+           shadowRadius: 8,
+           elevation: 8,
+         },
+         aboutLogoM: {
+           fontSize: 48,
+           fontWeight: 'bold',
+           color: '#ffffff',
+         },
+         aboutAppName: {
+           fontSize: 28,
+           fontWeight: 'bold',
+           marginBottom: 4,
+         },
+         aboutTagline: {
+           fontSize: 14,
+           fontStyle: 'italic',
+         },
+         aboutInfoSection: {
+           gap: 12,
+           marginBottom: 20,
+         },
+         aboutInfoCard: {
+           flexDirection: 'row',
+           alignItems: 'center',
+           padding: 16,
+           borderRadius: 12,
+           borderWidth: 1,
+         },
+         aboutInfoIcon: {
+           width: 48,
+           height: 48,
+           borderRadius: 24,
+           justifyContent: 'center',
+           alignItems: 'center',
+           marginRight: 12,
+         },
+         aboutInfoText: {
+           flex: 1,
+         },
+         aboutInfoLabel: {
+           fontSize: 12,
+           marginBottom: 4,
+         },
+         aboutInfoValue: {
+           fontSize: 16,
+           fontWeight: '600',
+         },
+         aboutCopyButton: {
+           width: 32,
+           height: 32,
+           borderRadius: 16,
+           justifyContent: 'center',
+           alignItems: 'center',
+           marginLeft: 8,
+         },
+         aboutDescriptionCard: {
+           padding: 16,
+           borderRadius: 12,
+           borderWidth: 1,
+         },
+         aboutDescription: {
+           fontSize: 14,
+           lineHeight: 20,
+           textAlign: 'center',
+         },
+         aboutFeaturesSection: {
+           gap: 8,
+           marginBottom: 20,
+         },
+         aboutFeatureRow: {
+           flexDirection: 'row',
+           gap: 8,
+         },
+         aboutFeatureItem: {
+           flex: 1,
+           flexDirection: 'row',
+           alignItems: 'center',
+           gap: 8,
+           padding: 12,
+           backgroundColor: colors.background,
+           borderRadius: 8,
+         },
+         aboutFeatureText: {
+           fontSize: 12,
+           fontWeight: '500',
+         },
+         aboutModalFooter: {
+           marginBottom: 16,
+           paddingTop: 16,
+           borderTopWidth: 1,
+           borderTopColor: colors.border,
+         },
+         aboutCopyright: {
+           fontSize: 11,
+           textAlign: 'center',
+         },
+         aboutCloseButton: {
+           paddingVertical: 14,
+           paddingHorizontal: 24,
+           borderRadius: 12,
+           alignItems: 'center',
+         },
+         aboutCloseButtonText: {
+           color: '#fff',
+           fontSize: 16,
+           fontWeight: '600',
+         },
+         aboutCloseIconButton: {
+           position: 'absolute',
+           top: 12,
+           right: 12,
+           width: 36,
+           height: 36,
+           borderRadius: 18,
+           justifyContent: 'center',
+           alignItems: 'center',
+           backgroundColor: colors.background,
          },
 });
 
