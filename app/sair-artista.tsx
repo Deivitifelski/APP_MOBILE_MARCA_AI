@@ -1,21 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { getCollaborators } from '../services/supabase/collaboratorService';
-import { getCurrentUser } from '../services/supabase/authService';
-import { deleteArtist } from '../services/supabase/artistService';
-import { useActiveArtist } from '../services/useActiveArtist';
+import React, { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    Modal,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 import { clearActiveArtist } from '../services/artistContext';
+import { deleteArtist } from '../services/supabase/artistService';
+import { getCurrentUser } from '../services/supabase/authService';
+import { getCollaborators, removeCollaborator } from '../services/supabase/collaboratorService';
+import { clearPermissionsCache } from '../services/supabase/permissionsService';
+import { useActiveArtist } from '../services/useActiveArtist';
 
 interface Collaborator {
   user_id: string;
@@ -36,6 +38,9 @@ export default function SairArtistaScreen() {
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showOwnerOptionsModal, setShowOwnerOptionsModal] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [showLeaveConfirmModal, setShowLeaveConfirmModal] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -79,61 +84,14 @@ export default function SairArtistaScreen() {
     const eligibleCollaborators = collaborators.filter(c => c.role !== 'owner');
 
     if (isOwner && ownerCount === 1 && eligibleCollaborators.length > 0) {
-      // Único owner com outros colaboradores - precisa transferir propriedade
-      Alert.alert(
-        'Transferir Propriedade',
-        'Você é o único proprietário deste artista. Para sair, você precisa transferir a propriedade para outro colaborador.',
-        [
-          {
-            text: 'Cancelar',
-            style: 'cancel',
-          },
-          {
-            text: 'Transferir Propriedade',
-            onPress: () => {
-              router.push('/transferir-propriedade');
-            },
-          },
-        ]
-      );
+      // Único owner com outros colaboradores - mostrar modal de opções
+      setShowOwnerOptionsModal(true);
     } else if (isOwner && ownerCount === 1 && eligibleCollaborators.length === 0) {
-      // Único owner sem outros colaboradores - pode deletar o artista
-      Alert.alert(
-        'Deletar Artista',
-        `Você é o único colaborador do artista "${activeArtist.name}". Ao sair, o artista será deletado permanentemente.\n\nEsta ação não pode ser desfeita.`,
-        [
-          {
-            text: 'Cancelar',
-            style: 'cancel',
-          },
-          {
-            text: 'Deletar Artista',
-            style: 'destructive',
-            onPress: () => {
-              handleDeleteArtist();
-            },
-          },
-        ]
-      );
+      // Único owner sem outros colaboradores - modal de deletar
+      setShowDeleteConfirmModal(true);
     } else {
-      // Não é owner ou há outros owners - pode sair normalmente
-      Alert.alert(
-        'Sair do Artista',
-        `Tem certeza que deseja sair do artista "${activeArtist.name}"?`,
-        [
-          {
-            text: 'Cancelar',
-            style: 'cancel',
-          },
-          {
-            text: 'Sair',
-            style: 'destructive',
-            onPress: () => {
-              handleLeaveNormally();
-            },
-          },
-        ]
-      );
+      // Não é owner ou há outros owners - modal de sair normalmente
+      setShowLeaveConfirmModal(true);
     }
   };
 
@@ -174,15 +132,29 @@ export default function SairArtistaScreen() {
   const handleLeaveNormally = async () => {
     if (!activeArtist) return;
 
+    const { user } = await getCurrentUser();
+    if (!user) {
+      Alert.alert('Erro', 'Usuário não encontrado');
+      return;
+    }
+
     try {
       setIsProcessing(true);
 
-      // Implementar remoção do usuário do artista
-      // Esta função será implementada no collaboratorService
+      // ✅ Remover usuário da tabela artist_members
+      const { success, error } = await removeCollaborator(user.id, activeArtist.id);
       
+      if (!success) {
+        Alert.alert('Erro', error || 'Erro ao sair do artista');
+        return;
+      }
+
+      // Limpar cache de permissões
+      clearPermissionsCache(user.id, activeArtist.id);
+
       Alert.alert(
         'Saiu do Artista',
-        'Você saiu do artista com sucesso.',
+        `Você saiu do artista "${activeArtist.name}" com sucesso.`,
         [
           {
             text: 'OK',
@@ -194,7 +166,6 @@ export default function SairArtistaScreen() {
         ]
       );
     } catch (error) {
-      console.error('Erro ao sair do artista:', error);
       Alert.alert('Erro', 'Erro ao sair do artista');
     } finally {
       setIsProcessing(false);
@@ -323,6 +294,249 @@ export default function SairArtistaScreen() {
           )}
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Modal: Opções para Owner Único com Colaboradores */}
+      <Modal
+        visible={showOwnerOptionsModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowOwnerOptionsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <View style={[styles.modalIcon, { backgroundColor: '#FEF3C7' }]}>
+                <Ionicons name="shield-checkmark" size={32} color="#F59E0B" />
+              </View>
+              <Text style={styles.modalTitle}>Você é o Único Proprietário</Text>
+              <Text style={styles.modalSubtitle}>
+                Escolha uma das opções abaixo para continuar
+              </Text>
+            </View>
+
+            <View style={styles.optionsContainer}>
+              {/* Opção 1: Transferir Propriedade */}
+              <TouchableOpacity
+                style={styles.optionCard}
+                onPress={() => {
+                  setShowOwnerOptionsModal(false);
+                  router.push('/transferir-propriedade');
+                }}
+              >
+                <View style={[styles.optionIconCircle, { backgroundColor: '#DBEAFE' }]}>
+                  <Ionicons name="swap-horizontal" size={24} color="#3B82F6" />
+                </View>
+                <View style={styles.optionContent}>
+                  <Text style={styles.optionTitle}>Transferir Propriedade</Text>
+                  <Text style={styles.optionDescription}>
+                    Escolha outro colaborador para ser o novo proprietário e depois você sai do artista.
+                  </Text>
+                  <View style={styles.optionSteps}>
+                    <View style={styles.stepItem}>
+                      <Ionicons name="checkmark-circle" size={16} color="#3B82F6" />
+                      <Text style={styles.stepText}>Você mantém seus dados seguros</Text>
+                    </View>
+                    <View style={styles.stepItem}>
+                      <Ionicons name="checkmark-circle" size={16} color="#3B82F6" />
+                      <Text style={styles.stepText}>Outro colaborador assume o controle</Text>
+                    </View>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#6B7280" />
+              </TouchableOpacity>
+
+              {/* Opção 2: Deletar Artista */}
+              <TouchableOpacity
+                style={[styles.optionCard, styles.dangerOption]}
+                onPress={() => {
+                  setShowOwnerOptionsModal(false);
+                  setShowDeleteConfirmModal(true);
+                }}
+              >
+                <View style={[styles.optionIconCircle, { backgroundColor: '#FEE2E2' }]}>
+                  <Ionicons name="trash" size={24} color="#EF4444" />
+                </View>
+                <View style={styles.optionContent}>
+                  <Text style={[styles.optionTitle, { color: '#EF4444' }]}>Deletar Artista</Text>
+                  <Text style={styles.optionDescription}>
+                    Deleta permanentemente o artista e TODOS os dados associados.
+                  </Text>
+                  <View style={styles.optionSteps}>
+                    <View style={styles.stepItem}>
+                      <Ionicons name="warning" size={16} color="#EF4444" />
+                      <Text style={[styles.stepText, { color: '#EF4444' }]}>Remove todos os {collaborators.length} colaboradores</Text>
+                    </View>
+                    <View style={styles.stepItem}>
+                      <Ionicons name="warning" size={16} color="#EF4444" />
+                      <Text style={[styles.stepText, { color: '#EF4444' }]}>Deleta eventos e dados financeiros</Text>
+                    </View>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#EF4444" />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.modalCancelButton}
+              onPress={() => setShowOwnerOptionsModal(false)}
+            >
+              <Text style={styles.modalCancelText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal: Confirmar Deleção Total */}
+      <Modal
+        visible={showDeleteConfirmModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeleteConfirmModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <View style={[styles.modalIcon, { backgroundColor: '#FEE2E2' }]}>
+                <Ionicons name="warning" size={40} color="#EF4444" />
+              </View>
+              <Text style={[styles.modalTitle, { color: '#EF4444' }]}>Deletar Artista</Text>
+              <Text style={styles.modalSubtitle}>
+                Essa ação é permanente e não pode ser desfeita!
+              </Text>
+            </View>
+
+            <View style={styles.warningBox}>
+              <Text style={styles.warningBoxTitle}>⚠️ O que será deletado:</Text>
+              <View style={styles.warningList}>
+                <View style={styles.warningItem}>
+                  <Ionicons name="close-circle" size={20} color="#EF4444" />
+                  <Text style={styles.warningItemText}>
+                    Artista "{activeArtist?.name}"
+                  </Text>
+                </View>
+                <View style={styles.warningItem}>
+                  <Ionicons name="close-circle" size={20} color="#EF4444" />
+                  <Text style={styles.warningItemText}>
+                    Todos os {collaborators.length} colaboradores serão removidos
+                  </Text>
+                </View>
+                <View style={styles.warningItem}>
+                  <Ionicons name="close-circle" size={20} color="#EF4444" />
+                  <Text style={styles.warningItemText}>
+                    Todos os eventos e agenda
+                  </Text>
+                </View>
+                <View style={styles.warningItem}>
+                  <Ionicons name="close-circle" size={20} color="#EF4444" />
+                  <Text style={styles.warningItemText}>
+                    Todos os dados financeiros
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelButtonAlt}
+                onPress={() => setShowDeleteConfirmModal(false)}
+              >
+                <Text style={styles.modalCancelTextAlt}>Cancelar</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.modalDeleteButton}
+                onPress={() => {
+                  setShowDeleteConfirmModal(false);
+                  handleDeleteArtist();
+                }}
+                disabled={isProcessing}
+              >
+                {isProcessing ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="trash" size={20} color="#fff" />
+                    <Text style={styles.modalDeleteText}>Deletar Artista</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal: Confirmar Saída Normal */}
+      <Modal
+        visible={showLeaveConfirmModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLeaveConfirmModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <View style={[styles.modalIcon, { backgroundColor: '#E0E7FF' }]}>
+                <Ionicons name="log-out" size={32} color="#6366F1" />
+              </View>
+              <Text style={styles.modalTitle}>Sair do Artista</Text>
+              <Text style={styles.modalSubtitle}>
+                Tem certeza que deseja sair de "{activeArtist?.name}"?
+              </Text>
+            </View>
+
+            <View style={styles.infoBox}>
+              <Text style={styles.infoBoxTitle}>📋 O que acontecerá:</Text>
+              <View style={styles.infoList}>
+                <View style={styles.infoItem}>
+                  <Ionicons name="checkmark-circle" size={20} color="#6366F1" />
+                  <Text style={styles.infoItemText}>
+                    Você será removido da lista de colaboradores
+                  </Text>
+                </View>
+                <View style={styles.infoItem}>
+                  <Ionicons name="checkmark-circle" size={20} color="#6366F1" />
+                  <Text style={styles.infoItemText}>
+                    Perderá acesso a eventos e dados do artista
+                  </Text>
+                </View>
+                <View style={styles.infoItem}>
+                  <Ionicons name="checkmark-circle" size={20} color="#6366F1" />
+                  <Text style={styles.infoItemText}>
+                    O artista continuará existindo para os outros colaboradores
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelButtonAlt}
+                onPress={() => setShowLeaveConfirmModal(false)}
+              >
+                <Text style={styles.modalCancelTextAlt}>Cancelar</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.modalLeaveButton}
+                onPress={() => {
+                  setShowLeaveConfirmModal(false);
+                  handleLeaveNormally();
+                }}
+                disabled={isProcessing}
+              >
+                {isProcessing ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="log-out" size={20} color="#fff" />
+                    <Text style={styles.modalLeaveText}>Sair do Artista</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -466,5 +680,214 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 15,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  optionsContainer: {
+    gap: 12,
+    marginBottom: 20,
+  },
+  optionCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+  },
+  dangerOption: {
+    borderColor: '#FEE2E2',
+    backgroundColor: '#FEF2F2',
+  },
+  optionIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  optionContent: {
+    flex: 1,
+  },
+  optionTitle: {
+    fontSize: 17,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  optionDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  optionSteps: {
+    gap: 6,
+  },
+  stepItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  stepText: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  warningBox: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+  },
+  warningBoxTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#991B1B',
+    marginBottom: 12,
+  },
+  warningList: {
+    gap: 10,
+  },
+  warningItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  warningItemText: {
+    fontSize: 14,
+    color: '#991B1B',
+    flex: 1,
+    lineHeight: 20,
+  },
+  infoBox: {
+    backgroundColor: '#EFF6FF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  infoBoxTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1E40AF',
+    marginBottom: 12,
+  },
+  infoList: {
+    gap: 10,
+  },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  infoItemText: {
+    fontSize: 14,
+    color: '#1E40AF',
+    flex: 1,
+    lineHeight: 20,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalCancelButton: {
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    color: '#6B7280',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalCancelButtonAlt: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalCancelTextAlt: {
+    color: '#6B7280',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalDeleteButton: {
+    flex: 1,
+    backgroundColor: '#EF4444',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  modalDeleteText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalLeaveButton: {
+    flex: 1,
+    backgroundColor: '#6B7280',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  modalLeaveText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
