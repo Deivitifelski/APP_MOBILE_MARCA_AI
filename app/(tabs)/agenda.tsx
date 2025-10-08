@@ -81,7 +81,7 @@ export default function AgendaScreen() {
   const { unreadCount, loadUnreadCount } = useNotifications();
   
   // ✅ USAR PERMISSÕES GLOBAIS
-  const { isViewer, canViewFinancials, permissionsLoaded } = usePermissions();
+  const { isViewer, canViewFinancials, permissionsLoaded, reloadPermissions, userPermissions } = usePermissions();
 
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
@@ -140,7 +140,10 @@ export default function AgendaScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadEvents(true);
+    await Promise.all([
+      loadEvents(true),
+      reloadPermissions()
+    ]);
     setRefreshing(false);
   };
 

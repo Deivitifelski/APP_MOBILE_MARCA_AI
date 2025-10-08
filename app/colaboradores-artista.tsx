@@ -64,10 +64,6 @@ export default function ColaboradoresArtistaScreen() {
     }
   }, [activeArtist]);
 
-  // Debug: Monitorar mudanças no showInviteModal
-  useEffect(() => {
-    console.log('showInviteModal mudou para:', showInviteModal);
-  }, [showInviteModal]);
 
   const loadData = async () => {
     if (!activeArtist) return;
@@ -99,51 +95,35 @@ export default function ColaboradoresArtistaScreen() {
   };
 
   const handleSearchUsers = async (term: string) => {
-    console.log('🔎 handleSearchUsers chamado com termo:', term);
-    
     if (term.length < 2) {
-      console.log('⚠️ Termo muito curto, limpando resultados');
       setSearchResults([]);
       return;
     }
 
     try {
       setIsSearching(true);
-      console.log('📡 Chamando searchUsers...');
       const { users, error } = await searchUsers(term);
       
-      console.log('📥 Resposta recebida:', { users, error });
-      
       if (error) {
-        console.error('❌ Erro ao buscar usuários:', error);
         return;
       }
 
       // Filtrar usuários que já são colaboradores
       const existingCollaboratorIds = collaborators.map(c => c.user_id);
-      console.log('👥 IDs de colaboradores existentes:', existingCollaboratorIds);
-      
       const filteredUsers = users?.filter(user => !existingCollaboratorIds.includes(user.id)) || [];
-      console.log('✅ Usuários filtrados:', filteredUsers);
       
       setSearchResults(filteredUsers);
-    } catch (error) {
-      console.error('💥 Erro ao buscar usuários:', error);
     } finally {
       setIsSearching(false);
     }
   };
 
   const handleSelectUser = (user: any) => {
-    console.log('handleSelectUser chamado com:', user);
     setSelectedUser(user);
     setSearchResults([]);
     setSearchTerm(user.name);
-    // Fechar modal de busca primeiro
     setShowAddModal(false);
-    // Aguardar um pouco e depois abrir modal de convite
     setTimeout(() => {
-      console.log('Abrindo modal de convite');
       setShowInviteModal(true);
     }, 100);
   };
@@ -439,10 +419,7 @@ export default function ColaboradoresArtistaScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => {
-          console.log('Botão voltar pressionado');
-          router.back();
-        }} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.title}>Colaboradores</Text>
@@ -467,8 +444,6 @@ export default function ColaboradoresArtistaScreen() {
             <TouchableOpacity 
               style={styles.addButton}
               onPress={async () => {
-                console.log('Botão adicionar pressionado');
-                
                 // Verificar se o usuário pode adicionar colaboradores (plano premium)
                 if (!currentUserId) {
                   Alert.alert('Erro', 'Usuário não encontrado. Faça login novamente.');
@@ -621,10 +596,7 @@ export default function ColaboradoresArtistaScreen() {
         visible={showInviteModal}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => {
-          console.log('Modal de convite fechado');
-          setShowInviteModal(false);
-        }}
+        onRequestClose={() => setShowInviteModal(false)}
       >
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>

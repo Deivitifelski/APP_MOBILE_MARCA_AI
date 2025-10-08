@@ -116,8 +116,6 @@ export const markNotificationAsRead = async (notificationId: string): Promise<{ 
 // Marcar todas as notificações como lidas
 export const markAllNotificationsAsRead = async (userId: string): Promise<{ success: boolean; error: string | null }> => {
   try {
-    console.log('📝 Marcando todas notificações como lidas para usuário:', userId);
-    
     const { data, error } = await supabase
       .from('notifications')
       .update({ read: true })
@@ -125,17 +123,12 @@ export const markAllNotificationsAsRead = async (userId: string): Promise<{ succ
       .eq('read', false)
       .select();
 
-    console.log('📊 Resultado do update:', { data, error, rowsUpdated: data?.length });
-
     if (error) {
-      console.error('❌ Erro ao marcar como lidas:', error);
       return { success: false, error: error.message };
     }
 
-    console.log('✅ Notificações marcadas como lidas com sucesso');
     return { success: true, error: null };
   } catch (error) {
-    console.error('❌ Erro de conexão:', error);
     return { success: false, error: 'Erro de conexão' };
   }
 };

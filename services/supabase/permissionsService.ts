@@ -153,7 +153,7 @@ export const clearPermissionsCache = (userId?: string, artistId?: string) => {
 };
 
 // Função para obter todos os artistas que o usuário tem acesso
-export const getUserArtists = async (userId: string): Promise<Array<{artistId: string, role: UserRole}> | null> => {
+export const getUserArtists = async (userId: string): Promise<{artistId: string, role: UserRole}[] | null> => {
   try {
     const { data, error } = await supabase
       .from('artist_members')

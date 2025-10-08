@@ -183,26 +183,13 @@ export default function NotificacoesScreen() {
 
   const handleMarkAllAsRead = async () => {
     try {
-      console.log('🔔 Marcando todas notificações como lidas...');
-      
       const { user } = await getCurrentUser();
-      if (!user) {
-        console.log('❌ Usuário não encontrado');
-        return;
-      }
-
-      console.log('👤 User ID:', user.id);
-      console.log('📊 Total de notificações:', notifications.length);
-      console.log('📊 Notificações não lidas:', notifications.filter(n => !n.read).length);
+      if (!user) return;
 
       // Marcar todas as notificações como lidas
       const { success, error } = await markAllNotificationsAsRead(user.id);
       
-      console.log('📝 Resultado:', { success, error });
-      
       if (success) {
-        console.log('✅ Sucesso no banco, atualizando estado local...');
-        
         // Atualizar estado local APENAS se teve sucesso no banco
         setNotifications(prev => 
           prev.map(n => ({ ...n, read: true }))
@@ -210,7 +197,6 @@ export default function NotificacoesScreen() {
         
         // Marcar todos os convites não lidos como lidos
         const unreadInvites = artistInvites.filter(invite => !invite.read);
-        console.log('📧 Convites não lidos:', unreadInvites.length);
         
         for (const invite of unreadInvites) {
           await markInviteAsRead(invite.id, user.id);
@@ -221,13 +207,10 @@ export default function NotificacoesScreen() {
         );
         
         setUnreadCount(0);
-        console.log('✅ Todas notificações marcadas como lidas!');
       } else {
-        console.error('❌ Erro ao marcar como lidas:', error);
         Alert.alert('Erro', error || 'Erro ao marcar notificações como lidas');
       }
     } catch (error) {
-      console.error('❌ Exceção ao marcar todas como lidas:', error);
       Alert.alert('Erro', 'Erro inesperado ao marcar notificações');
     }
   };
