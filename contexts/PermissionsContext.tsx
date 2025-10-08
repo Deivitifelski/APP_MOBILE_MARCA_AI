@@ -30,6 +30,7 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   // Carregar permissões
   const loadPermissions = async () => {
     if (!activeArtist) {
+      console.log('🔒 Permissões: Nenhum artista ativo');
       setUserPermissions(null);
       setPermissionsLoaded(true);
       return;
@@ -40,19 +41,32 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
+        console.log('🔒 Permissões: Nenhum usuário logado');
         setUserPermissions(null);
         setPermissionsLoaded(true);
         return;
       }
+
+      console.log('🔒 Permissões: Carregando para usuário:', user.id, 'artista:', activeArtist.id);
 
       // Limpar cache para garantir dados frescos
       clearPermissionsCache(user.id, activeArtist.id);
       
       const permissions = await getUserPermissions(user.id, activeArtist.id);
 
+      if (permissions) {
+        console.log('✅ Permissões carregadas:', {
+          role: permissions.role,
+          canViewFinancials: permissions.permissions.canViewFinancials
+        });
+      } else {
+        console.log('⚠️ Permissões: Nenhuma permissão encontrada na tabela artist_members');
+      }
+
       setUserPermissions(permissions);
       setPermissionsLoaded(true);
     } catch (error) {
+      console.error('❌ Permissões: Erro ao carregar:', error);
       setUserPermissions(null);
       setPermissionsLoaded(true);
     }

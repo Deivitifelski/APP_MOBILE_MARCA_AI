@@ -11,6 +11,7 @@ import {
     View,
 } from 'react-native';
 import UpgradeModal from '../components/UpgradeModal';
+import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { generateEventPDF } from '../services/pdfService';
 import { getEventCreatorName } from '../services/supabase/eventCreatorService';
@@ -21,6 +22,7 @@ import { useActiveArtist } from '../services/useActiveArtist';
 
 
 export default function DetalhesEventoScreen() {
+  const { colors } = useTheme();
   const params = useLocalSearchParams();
   const eventId = params.eventId as string;
 
@@ -288,16 +290,16 @@ export default function DetalhesEventoScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#333" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.title}>Detalhes do Evento</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Detalhes do Evento</Text>
           <View style={styles.placeholder} />
         </View>
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Carregando evento...</Text>
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Carregando evento...</Text>
         </View>
       </SafeAreaView>
     );
@@ -305,18 +307,18 @@ export default function DetalhesEventoScreen() {
 
   if (!event) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#333" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.title}>Detalhes do Evento</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Detalhes do Evento</Text>
           <View style={styles.placeholder} />
         </View>
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={64} color="#ff4444" />
-          <Text style={styles.errorTitle}>Evento não encontrado</Text>
-          <Text style={styles.errorSubtitle}>
+          <Ionicons name="alert-circle" size={64} color={colors.error} />
+          <Text style={[styles.errorTitle, { color: colors.text }]}>Evento não encontrado</Text>
+          <Text style={[styles.errorSubtitle, { color: colors.textSecondary }]}>
             O evento solicitado não foi encontrado ou foi removido.
           </Text>
         </View>
@@ -327,21 +329,21 @@ export default function DetalhesEventoScreen() {
   const profit = (event.value || 0) - totalExpenses;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Detalhes do Evento</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Detalhes do Evento</Text>
         <View style={styles.placeholder} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Informações do Evento */}
-        <View style={styles.eventCard}>
+        <View style={[styles.eventCard, { backgroundColor: colors.surface }]}>
           <View style={styles.eventHeader}>
-            <Text style={styles.eventName}>{event.name}</Text>
-            <View style={[styles.statusBadge, { backgroundColor: event.confirmed ? '#4CAF50' : '#FF9800' }]}>
+            <Text style={[styles.eventName, { color: colors.text }]}>{event.name}</Text>
+            <View style={[styles.statusBadge, { backgroundColor: event.confirmed ? colors.success : colors.warning }]}>
               <Ionicons 
                 name={event.confirmed ? 'checkmark-circle' : 'time'} 
                 size={16} 
@@ -353,25 +355,25 @@ export default function DetalhesEventoScreen() {
 
           <View style={styles.eventDetails}>
             <View style={styles.detailRow}>
-              <Ionicons name="calendar" size={20} color="#667eea" />
-              <Text style={styles.detailText}>{formatDate(event.event_date)}</Text>
+              <Ionicons name="calendar" size={20} color={colors.primary} />
+              <Text style={[styles.detailText, { color: colors.text }]}>{formatDate(event.event_date)}</Text>
             </View>
 
             <View style={styles.detailRow}>
-              <Ionicons name="time" size={20} color="#667eea" />
-              <Text style={styles.detailText}>
+              <Ionicons name="time" size={20} color={colors.primary} />
+              <Text style={[styles.detailText, { color: colors.text }]}>
                 {formatTime(event.start_time)} - {formatTime(event.end_time)}
               </Text>
             </View>
 
             <View style={styles.detailRow}>
-              <Ionicons name="location" size={20} color="#667eea" />
-              <Text style={styles.detailText}>{event.city || 'Não informado'}</Text>
+              <Ionicons name="location" size={20} color={colors.primary} />
+              <Text style={[styles.detailText, { color: colors.text }]}>{event.city || 'Não informado'}</Text>
             </View>
 
             <View style={styles.detailRow}>
-              <Ionicons name="call" size={20} color="#667eea" />
-              <Text style={styles.detailText}>{event.contractor_phone || 'Não informado'}</Text>
+              <Ionicons name="call" size={20} color={colors.primary} />
+              <Text style={[styles.detailText, { color: colors.text }]}>{event.contractor_phone || 'Não informado'}</Text>
             </View>
 
             {event.tag && (
@@ -387,44 +389,44 @@ export default function DetalhesEventoScreen() {
 
             {creatorName && (
               <View style={styles.detailRow}>
-                <Ionicons name="person" size={20} color="#667eea" />
-                <Text style={styles.detailText}>Criado por: {creatorName}</Text>
+                <Ionicons name="person" size={20} color={colors.primary} />
+                <Text style={[styles.detailText, { color: colors.text }]}>Criado por: {creatorName}</Text>
               </View>
             )}
 
             {event.description && (
               <View style={styles.descriptionContainer}>
                 <View style={styles.detailRow}>
-                  <Ionicons name="document-text" size={20} color="#667eea" />
-                  <Text style={styles.detailLabel}>Descrição:</Text>
+                  <Ionicons name="document-text" size={20} color={colors.primary} />
+                  <Text style={[styles.detailLabel, { color: colors.text }]}>Descrição:</Text>
                 </View>
-                <Text style={styles.descriptionText}>{event.description}</Text>
+                <Text style={[styles.descriptionText, { color: colors.textSecondary }]}>{event.description}</Text>
               </View>
             )}
           </View>
         </View>
 
         {/* Resumo Financeiro */}
-        <View style={styles.financialCard}>
-          <Text style={styles.financialTitle}>Resumo Financeiro</Text>
+        <View style={[styles.financialCard, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.financialTitle, { color: colors.text }]}>Resumo Financeiro</Text>
           
           <View style={styles.financialRow}>
-            <Text style={styles.financialLabel}>Valor do Evento:</Text>
-            <Text style={styles.financialValue}>{formatCurrency(event.value || 0)}</Text>
+            <Text style={[styles.financialLabel, { color: colors.textSecondary }]}>Valor do Evento:</Text>
+            <Text style={[styles.financialValue, { color: colors.success }]}>{formatCurrency(event.value || 0)}</Text>
           </View>
 
           <View style={styles.financialRow}>
-            <Text style={styles.financialLabel}>Total de Despesas:</Text>
-            <Text style={[styles.financialValue, { color: '#ff4444' }]}>
+            <Text style={[styles.financialLabel, { color: colors.textSecondary }]}>Total de Despesas:</Text>
+            <Text style={[styles.financialValue, { color: colors.error }]}>
               -{formatCurrency(totalExpenses)}
             </Text>
           </View>
 
-          <View style={[styles.financialRow, styles.financialTotal]}>
-            <Text style={styles.financialTotalLabel}>Lucro Líquido:</Text>
+          <View style={[styles.financialRow, styles.financialTotal, { borderTopColor: colors.border }]}>
+            <Text style={[styles.financialTotalLabel, { color: colors.text }]}>Lucro Líquido:</Text>
             <Text style={[
               styles.financialTotalValue,
-              { color: profit >= 0 ? '#4CAF50' : '#ff4444' }
+              { color: profit >= 0 ? colors.success : colors.error }
             ]}>
               {formatCurrency(profit)}
             </Text>
@@ -436,31 +438,31 @@ export default function DetalhesEventoScreen() {
         {/* Ações */}
         <View style={styles.actionsContainer}>
           <TouchableOpacity
-            style={styles.actionButton}
+            style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={handleExportPDF}
             disabled={isGeneratingPDF}
           >
             <Ionicons name="document-text" size={24} color="#9C27B0" />
-            <Text style={styles.actionButtonText}>
+            <Text style={[styles.actionButtonText, { color: colors.text }]}>
               {isGeneratingPDF ? 'Gerando Relatório...' : 'Exportar Relatório'}
             </Text>
             <Ionicons name="chevron-forward" size={20} color="#9C27B0" />
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.actionButton}
+            style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => router.push({
               pathname: '/editar-evento',
               params: { eventId: event.id }
             })}
           >
-            <Ionicons name="create" size={24} color="#FF9800" />
-            <Text style={styles.actionButtonText}>Editar Evento</Text>
-            <Ionicons name="chevron-forward" size={20} color="#FF9800" />
+            <Ionicons name="create" size={24} color={colors.warning} />
+            <Text style={[styles.actionButtonText, { color: colors.text }]}>Editar Evento</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.warning} />
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.actionButton}
+            style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => router.push({
               pathname: '/despesas-evento',
               params: { 
@@ -469,13 +471,13 @@ export default function DetalhesEventoScreen() {
               }
             })}
           >
-            <Ionicons name="receipt" size={24} color="#667eea" />
-            <Text style={styles.actionButtonText}>Gerenciar Despesas</Text>
-            <Ionicons name="chevron-forward" size={20} color="#667eea" />
+            <Ionicons name="receipt" size={24} color={colors.primary} />
+            <Text style={[styles.actionButtonText, { color: colors.text }]}>Gerenciar Despesas</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.primary} />
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.actionButton}
+            style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => router.push({
               pathname: '/adicionar-despesa',
               params: { 
@@ -484,21 +486,21 @@ export default function DetalhesEventoScreen() {
               }
             })}
           >
-            <Ionicons name="add-circle" size={24} color="#4CAF50" />
-            <Text style={styles.actionButtonText}>Adicionar Despesa</Text>
-            <Ionicons name="chevron-forward" size={20} color="#4CAF50" />
+            <Ionicons name="add-circle" size={24} color={colors.success} />
+            <Text style={[styles.actionButtonText, { color: colors.text }]}>Adicionar Despesa</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.success} />
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.actionButton, styles.deleteButton]}
+            style={[styles.actionButton, styles.deleteButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={handleDeleteEvent}
             disabled={isDeleting}
           >
-            <Ionicons name="trash" size={24} color="#ff4444" />
-            <Text style={[styles.actionButtonText, styles.deleteButtonText]}>
+            <Ionicons name="trash" size={24} color={colors.error} />
+            <Text style={[styles.actionButtonText, styles.deleteButtonText, { color: colors.error }]}>
               {isDeleting ? 'Deletando...' : 'Deletar Evento'}
             </Text>
-            <Ionicons name="chevron-forward" size={20} color="#ff4444" />
+            <Ionicons name="chevron-forward" size={20} color={colors.error} />
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -517,15 +519,12 @@ export default function DetalhesEventoScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
   },
   header: {
-    backgroundColor: '#fff',
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -536,7 +535,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
   },
   placeholder: {
     width: 40,
@@ -552,7 +550,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: '#666',
   },
   errorContainer: {
     flex: 1,
@@ -590,7 +587,6 @@ const styles = StyleSheet.create({
   eventName: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
     flex: 1,
     marginRight: 12,
   },
@@ -616,21 +612,17 @@ const styles = StyleSheet.create({
   },
   detailText: {
     fontSize: 16,
-    color: '#333',
     marginLeft: 12,
   },
   financialCard: {
-    backgroundColor: '#fff',
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#e9ecef',
   },
   financialTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
     marginBottom: 16,
   },
   financialRow: {
@@ -641,23 +633,19 @@ const styles = StyleSheet.create({
   },
   financialLabel: {
     fontSize: 16,
-    color: '#666',
   },
   financialValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
   },
   financialTotal: {
     borderTopWidth: 1,
-    borderTopColor: '#e9ecef',
     paddingTop: 12,
     marginTop: 8,
   },
   financialTotalLabel: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
   },
   financialTotalValue: {
     fontSize: 18,
@@ -668,18 +656,15 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   actionButton: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e9ecef',
     flexDirection: 'row',
     alignItems: 'center',
   },
   actionButtonText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#333',
     flex: 1,
     marginLeft: 12,
   },

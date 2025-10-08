@@ -14,11 +14,13 @@ import {
     View,
 } from 'react-native';
 import LogoMarcaAi from '../../../components/LogoMarcaAi';
+import { useTheme } from '../../../contexts/ThemeContext';
 import { supabase } from '../../../lib/supabase';
 import { loginUser } from '../../../services/supabase/authService';
 import { checkUserExists } from '../../../services/supabase/userService';
 
 export default function LoginScreen() {
+  const { colors, isDarkMode } = useTheme();
   const [email, setEmail] = useState('deivitifelskiefisio@outlook.com');
   const [password, setPassword] = useState('campobom209');
   const [showPassword, setShowPassword] = useState(false);
@@ -163,8 +165,11 @@ export default function LoginScreen() {
     }
   };
 
+  // Estilos dinâmicos baseados no tema
+  const dynamicStyles = createDynamicStyles(isDarkMode, colors);
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoidingView}
@@ -177,17 +182,17 @@ export default function LoginScreen() {
             </View>
 
             {/* Formulário de Login */}
-            <View style={styles.form}>
+            <View style={[styles.form, { backgroundColor: colors.surface }]}>
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Email</Text>
-                <View style={styles.inputContainer}>
-                  <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Text style={[styles.label, { color: colors.text }]}>Email</Text>
+                <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <Ionicons name="mail-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, { color: colors.text }]}
                     value={email}
                     onChangeText={setEmail}
                     placeholder="Digite seu email"
-                    placeholderTextColor="#999"
+                    placeholderTextColor={colors.textSecondary}
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -196,15 +201,15 @@ export default function LoginScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Senha</Text>
-                <View style={styles.inputContainer}>
-                  <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Text style={[styles.label, { color: colors.text }]}>Senha</Text>
+                <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <Ionicons name="lock-closed-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, { color: colors.text }]}
                     value={password}
                     onChangeText={setPassword}
                     placeholder="Digite sua senha"
-                    placeholderTextColor="#999"
+                    placeholderTextColor={colors.textSecondary}
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -216,18 +221,18 @@ export default function LoginScreen() {
                     <Ionicons
                       name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                       size={20}
-                      color="#666"
+                      color={colors.textSecondary}
                     />
                   </TouchableOpacity>
                 </View>
               </View>
 
               <TouchableOpacity style={styles.forgotPassword}>
-                <Text style={styles.forgotPasswordText}>Esqueceu sua senha?</Text>
+                <Text style={[styles.forgotPasswordText, { color: colors.primary }]}>Esqueceu sua senha?</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.loginButton, loading && styles.loginButtonDisabled]}
+                style={[styles.loginButton, { backgroundColor: colors.primary }, loading && styles.loginButtonDisabled]}
                 onPress={handleLogin}
                 disabled={loading}
               >
@@ -237,9 +242,9 @@ export default function LoginScreen() {
               </TouchableOpacity>
 
               <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>ou</Text>
-                <View style={styles.dividerLine} />
+                <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+                <Text style={[styles.dividerText, { color: colors.textSecondary }]}>ou</Text>
+                <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
               </View>
 
               <TouchableOpacity 
@@ -254,9 +259,9 @@ export default function LoginScreen() {
               </TouchableOpacity>
 
               <View style={styles.signupContainer}>
-                <Text style={styles.signupText}>Não tem uma conta? </Text>
+                <Text style={[styles.signupText, { color: colors.textSecondary }]}>Não tem uma conta? </Text>
                 <TouchableOpacity onPress={() => router.push('/register')}>
-                  <Text style={styles.signupLink}>Cadastre-se</Text>
+                  <Text style={[styles.signupLink, { color: colors.primary }]}>Cadastre-se</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -267,13 +272,13 @@ export default function LoginScreen() {
       {/* Modal para completar cadastro */}
       {showCompleteProfileModal && (
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
+          <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
             <View style={styles.modalHeader}>
-              <View style={styles.modalIcon}>
-                <Ionicons name="person-add" size={32} color="#667eea" />
+              <View style={[styles.modalIcon, { backgroundColor: colors.background }]}>
+                <Ionicons name="person-add" size={32} color={colors.primary} />
               </View>
-              <Text style={styles.modalTitle}>Complete seu Cadastro</Text>
-              <Text style={styles.modalSubtitle}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Complete seu Cadastro</Text>
+              <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
                 Você precisa finalizar seu perfil pessoal para continuar
               </Text>
             </View>
@@ -281,29 +286,29 @@ export default function LoginScreen() {
             {/* Fluxo de cadastro visual */}
             <View style={styles.modalFlowContainer}>
               <View style={styles.modalFlowStep}>
-                <View style={[styles.modalFlowIcon, { backgroundColor: '#667eea' }]}>
+                <View style={[styles.modalFlowIcon, { backgroundColor: colors.primary }]}>
                   <Ionicons name="person" size={20} color="#fff" />
                 </View>
-                <Text style={[styles.modalFlowText, { color: '#667eea', fontWeight: 'bold' }]}>
+                <Text style={[styles.modalFlowText, { color: colors.primary, fontWeight: 'bold' }]}>
                   Perfil Pessoal
                 </Text>
-                <Text style={styles.modalFlowDescription}>
+                <Text style={[styles.modalFlowDescription, { color: colors.textSecondary }]}>
                   Nome, telefone, cidade
                 </Text>
               </View>
 
               <View style={styles.modalFlowArrow}>
-                <Ionicons name="arrow-forward" size={20} color="#999" />
+                <Ionicons name="arrow-forward" size={20} color={colors.textSecondary} />
               </View>
 
               <View style={styles.modalFlowStep}>
-                <View style={[styles.modalFlowIcon, { backgroundColor: '#e9ecef' }]}>
-                  <Ionicons name="musical-notes" size={20} color="#999" />
+                <View style={[styles.modalFlowIcon, { backgroundColor: colors.border }]}>
+                  <Ionicons name="musical-notes" size={20} color={colors.textSecondary} />
                 </View>
-                <Text style={[styles.modalFlowText, { color: '#999' }]}>
+                <Text style={[styles.modalFlowText, { color: colors.textSecondary }]}>
                   Perfil Artista
                 </Text>
-                <Text style={[styles.modalFlowDescription, { color: '#999' }]}>
+                <Text style={[styles.modalFlowDescription, { color: colors.textSecondary }]}>
                   Nome artístico, foto
                 </Text>
               </View>
@@ -311,14 +316,14 @@ export default function LoginScreen() {
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={styles.modalCancelButton}
+                style={[styles.modalCancelButton, { backgroundColor: colors.background, borderColor: colors.border }]}
                 onPress={() => setShowCompleteProfileModal(false)}
               >
-                <Text style={styles.modalCancelText}>Cancelar</Text>
+                <Text style={[styles.modalCancelText, { color: colors.textSecondary }]}>Cancelar</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
-                style={styles.modalContinueButton}
+                style={[styles.modalContinueButton, { backgroundColor: colors.primary }]}
                 onPress={() => {
                   setShowCompleteProfileModal(false);
                   router.replace('/cadastro-usuario');
@@ -334,10 +339,14 @@ export default function LoginScreen() {
   );
 }
 
+// Função auxiliar para criar estilos dinâmicos (não usada atualmente, mas mantida para consistência)
+const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create({
+  // Estilos dinâmicos podem ser adicionados aqui no futuro
+});
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -355,7 +364,6 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   form: {
-    backgroundColor: '#fff',
     borderRadius: 16,
     padding: 24,
     shadowColor: '#000',
@@ -373,16 +381,13 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 8,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e9ecef',
   },
   inputIcon: {
     marginLeft: 16,
@@ -392,7 +397,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 12,
     fontSize: 16,
-    color: '#333',
   },
   eyeIcon: {
     padding: 16,
@@ -403,11 +407,9 @@ const styles = StyleSheet.create({
   },
   forgotPasswordText: {
     fontSize: 14,
-    color: '#667eea',
     fontWeight: '500',
   },
   loginButton: {
-    backgroundColor: '#667eea',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -429,12 +431,10 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#e9ecef',
   },
   dividerText: {
     marginHorizontal: 16,
     fontSize: 14,
-    color: '#666',
   },
   googleButton: {
     backgroundColor: '#db4437',
@@ -458,11 +458,9 @@ const styles = StyleSheet.create({
   },
   signupText: {
     fontSize: 14,
-    color: '#666',
   },
   signupLink: {
     fontSize: 14,
-    color: '#667eea',
     fontWeight: '600',
   },
   // Estilos do modal
@@ -478,7 +476,6 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   modalContainer: {
-    backgroundColor: '#fff',
     borderRadius: 20,
     padding: 24,
     marginHorizontal: 20,
@@ -501,7 +498,6 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#f8f9fa',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -509,13 +505,11 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
     marginBottom: 8,
     textAlign: 'center',
   },
   modalSubtitle: {
     fontSize: 14,
-    color: '#666',
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -547,7 +541,6 @@ const styles = StyleSheet.create({
   },
   modalFlowDescription: {
     fontSize: 11,
-    color: '#666',
     textAlign: 'center',
     lineHeight: 14,
   },
@@ -562,21 +555,17 @@ const styles = StyleSheet.create({
   },
   modalCancelButton: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#e9ecef',
   },
   modalCancelText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666',
   },
   modalContinueButton: {
     flex: 1,
-    backgroundColor: '#667eea',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',

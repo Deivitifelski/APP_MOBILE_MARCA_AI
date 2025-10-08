@@ -77,10 +77,24 @@ export default function FinanceiroScreen() {
   }, [activeArtist, permissionsLoaded, currentMonth, currentYear]);
 
   const loadFinancialData = async () => {
-    if (!activeArtist) return;
+    if (!activeArtist) {
+      console.log('⚠️ Financeiro: Nenhum artista ativo');
+      return;
+    }
+    
+    console.log('💰 Financeiro: Carregando dados...', {
+      artistId: activeArtist.id,
+      isViewer,
+      isEditor,
+      isAdmin,
+      isOwner,
+      canViewFinancials,
+      permissionsLoaded
+    });
     
     // ✅ VERIFICAR PERMISSÃO GLOBAL - Se for viewer, não carregar dados financeiros
     if (isViewer || !canViewFinancials) {
+      console.log('🚫 Financeiro: Sem permissão para visualizar finanças');
       setEvents([]);
       setIsLoading(false);
       return;
@@ -89,13 +103,18 @@ export default function FinanceiroScreen() {
     try {
       setIsLoading(true);
 
+      console.log('📅 Financeiro: Buscando eventos do mês:', { year: currentYear, month: currentMonth });
+      
       // Buscar eventos do mês usando o artista ativo
       const { events: monthEvents, error: eventsError } = await getEventsByMonth(activeArtist.id, currentYear, currentMonth);
       
       if (eventsError) {
-        Alert.alert('Erro', 'Erro ao carregar eventos');
+        console.error('❌ Financeiro: Erro ao carregar eventos:', eventsError);
+        Alert.alert('Erro ao Carregar Eventos', eventsError.message || 'Não foi possível carregar os eventos do mês.');
         return;
       }
+
+      console.log(`✅ Financeiro: ${monthEvents?.length || 0} eventos encontrados`);
 
       // Para cada evento, buscar suas despesas
       const eventsWithExpenses = await Promise.all(
@@ -103,7 +122,7 @@ export default function FinanceiroScreen() {
           const { success, expenses, error: expensesError } = await getExpensesByEvent(event.id);
           
           if (!success || expensesError) {
-            console.error('Erro ao carregar despesas do evento:', expensesError);
+            console.error('❌ Financeiro: Erro ao carregar despesas do evento:', event.name, expensesError);
           }
           
           const totalExpenses = expenses?.reduce((sum, expense) => sum + expense.value, 0) || 0;
@@ -116,10 +135,14 @@ export default function FinanceiroScreen() {
         })
       );
 
+      console.log('✅ Financeiro: Dados carregados com sucesso');
       setEvents(eventsWithExpenses);
-    } catch (error) {
-      console.error('Erro ao carregar dados financeiros:', error);
-      Alert.alert('Erro', 'Erro ao carregar dados financeiros');
+    } catch (error: any) {
+      console.error('💥 Financeiro: Erro inesperado:', error);
+      Alert.alert(
+        'Erro ao Carregar Finanças', 
+        error?.message || 'Ocorreu um erro inesperado ao carregar os dados financeiros. Tente novamente.'
+      );
     } finally {
       setIsLoading(false);
     }

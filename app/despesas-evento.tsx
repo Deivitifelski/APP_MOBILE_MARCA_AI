@@ -12,9 +12,11 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useTheme } from '../contexts/ThemeContext';
 import { getExpensesByEvent, getTotalExpensesByEvent, deleteExpense, Expense } from '../services/supabase/expenseService';
 
 export default function DespesasEventoScreen() {
+  const { colors } = useTheme();
   const params = useLocalSearchParams();
   const eventId = params.eventId as string;
   const eventName = params.eventName as string;
@@ -92,50 +94,50 @@ export default function DespesasEventoScreen() {
   };
 
   const renderExpenseItem = (expense: Expense) => (
-    <View key={expense.id} style={styles.expenseItem}>
+    <View key={expense.id} style={[styles.expenseItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <View style={styles.expenseHeader}>
         <View style={styles.expenseInfo}>
-          <Text style={styles.expenseName}>{expense.name}</Text>
-          <Text style={styles.expenseValue}>{formatCurrency(expense.value)}</Text>
+          <Text style={[styles.expenseName, { color: colors.text }]}>{expense.name}</Text>
+          <Text style={[styles.expenseValue, { color: colors.error }]}>{formatCurrency(expense.value)}</Text>
         </View>
         <TouchableOpacity
           onPress={() => handleDeleteExpense(expense.id, expense.name)}
           style={styles.deleteButton}
         >
-          <Ionicons name="trash" size={20} color="#ff4444" />
+          <Ionicons name="trash" size={20} color={colors.error} />
         </TouchableOpacity>
       </View>
       
       
       
-      <Text style={styles.expenseDate}>{formatDate(expense.created_at)}</Text>
+      <Text style={[styles.expenseDate, { color: colors.textSecondary }]}>{formatDate(expense.created_at)}</Text>
     </View>
   );
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#333" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.title}>Despesas do Evento</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Despesas do Evento</Text>
           <View style={styles.placeholder} />
         </View>
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Carregando despesas...</Text>
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Carregando despesas...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Despesas do Evento</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Despesas do Evento</Text>
         <TouchableOpacity
           onPress={() => router.push({
             pathname: '/adicionar-despesa',
@@ -143,24 +145,24 @@ export default function DespesasEventoScreen() {
           })}
           style={styles.addButton}
         >
-          <Ionicons name="add" size={24} color="#667eea" />
+          <Ionicons name="add" size={24} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
       <ScrollView
         style={styles.content}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
         }
       >
         {/* Resumo */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>Resumo das Despesas</Text>
-          <Text style={styles.summaryEvent}>{eventName}</Text>
-          <Text style={styles.summaryTotal}>
+        <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.summaryTitle, { color: colors.text }]}>Resumo das Despesas</Text>
+          <Text style={[styles.summaryEvent, { color: colors.textSecondary }]}>{eventName}</Text>
+          <Text style={[styles.summaryTotal, { color: colors.error }]}>
             Total: {formatCurrency(totalExpenses)}
           </Text>
-          <Text style={styles.summaryCount}>
+          <Text style={[styles.summaryCount, { color: colors.textSecondary }]}>
             {expenses.length} {expenses.length === 1 ? 'despesa' : 'despesas'}
           </Text>
         </View>
@@ -172,13 +174,13 @@ export default function DespesasEventoScreen() {
           </View>
         ) : (
           <View style={styles.emptyContainer}>
-            <Ionicons name="receipt-outline" size={64} color="#ccc" />
-            <Text style={styles.emptyTitle}>Nenhuma despesa cadastrada</Text>
-            <Text style={styles.emptySubtitle}>
+            <Ionicons name="receipt-outline" size={64} color={colors.border} />
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>Nenhuma despesa cadastrada</Text>
+            <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
               Adicione despesas para acompanhar os gastos do evento
             </Text>
             <TouchableOpacity
-              style={styles.emptyButton}
+              style={[styles.emptyButton, { backgroundColor: colors.primary }]}
               onPress={() => router.push({
                 pathname: '/adicionar-despesa',
                 params: { eventId, eventName }
@@ -197,15 +199,12 @@ export default function DespesasEventoScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
   },
   header: {
-    backgroundColor: '#fff',
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -216,7 +215,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
   },
   addButton: {
     padding: 8,
@@ -235,46 +233,37 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: '#666',
   },
   summaryCard: {
-    backgroundColor: '#fff',
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#e9ecef',
   },
   summaryTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
     marginBottom: 8,
   },
   summaryEvent: {
     fontSize: 16,
-    color: '#666',
     marginBottom: 12,
   },
   summaryTotal: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#667eea',
     marginBottom: 4,
   },
   summaryCount: {
     fontSize: 14,
-    color: '#999',
   },
   expensesList: {
     gap: 12,
   },
   expenseItem: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e9ecef',
   },
   expenseHeader: {
     flexDirection: 'row',
@@ -288,20 +277,17 @@ const styles = StyleSheet.create({
   expenseName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 4,
   },
   expenseValue: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#667eea',
   },
   deleteButton: {
     padding: 4,
   },
   expenseDate: {
     fontSize: 12,
-    color: '#999',
   },
   emptyContainer: {
     flex: 1,
@@ -312,19 +298,16 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
     marginTop: 16,
     marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: '#666',
     textAlign: 'center',
     marginBottom: 24,
     lineHeight: 20,
   },
   emptyButton: {
-    backgroundColor: '#667eea',
     borderRadius: 12,
     paddingHorizontal: 24,
     paddingVertical: 12,

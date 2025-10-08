@@ -1,16 +1,17 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import React, { useState } from 'react';
+import {
+    Alert,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import { useTheme } from '../contexts/ThemeContext';
 import { createExpense } from '../services/supabase/expenseService';
 
 interface DespesaForm {
@@ -19,6 +20,7 @@ interface DespesaForm {
 }
 
 export default function AdicionarDespesaScreen() {
+  const { colors } = useTheme();
   const params = useLocalSearchParams();
   const eventId = params.eventId as string;
 
@@ -100,37 +102,37 @@ export default function AdicionarDespesaScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Adicionar Despesa</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Adicionar Despesa</Text>
         <View style={styles.placeholder} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Nome da Despesa */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Nome da Despesa *</Text>
+          <Text style={[styles.label, { color: colors.text }]}>Nome da Despesa *</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
             value={form.nome}
             onChangeText={(text) => updateForm('nome', text)}
             placeholder="Ex: Combustível, Alimentação, Hospedagem"
-            placeholderTextColor="#999"
+            placeholderTextColor={colors.textSecondary}
           />
         </View>
 
         {/* Valor */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Valor (R$) *</Text>
+          <Text style={[styles.label, { color: colors.text }]}>Valor (R$) *</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
             value={form.valor ? formatCurrency(form.valor) : ''}
             onChangeText={handleValueChange}
             placeholder="R$ 0,00"
-            placeholderTextColor="#999"
+            placeholderTextColor={colors.textSecondary}
             keyboardType="numeric"
           />
         </View>
@@ -140,15 +142,15 @@ export default function AdicionarDespesaScreen() {
         {/* Botões */}
         <View style={styles.buttonContainer}>
           <TouchableOpacity
-            style={styles.cancelButton}
+            style={[styles.cancelButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => router.back()}
             disabled={isLoading}
           >
-            <Text style={styles.cancelButtonText}>Cancelar</Text>
+            <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancelar</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.saveButton, isLoading && styles.saveButtonDisabled]}
+            style={[styles.saveButton, { backgroundColor: colors.primary }, isLoading && styles.saveButtonDisabled]}
             onPress={handleSave}
             disabled={isLoading}
           >
@@ -170,15 +172,12 @@ export default function AdicionarDespesaScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
   },
   header: {
-    backgroundColor: '#fff',
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -189,7 +188,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
   },
   placeholder: {
     width: 40,
@@ -204,17 +202,13 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#e9ecef',
-    color: '#333',
   },
   buttonContainer: {
     flexDirection: 'row',
@@ -224,21 +218,17 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e9ecef',
     alignItems: 'center',
   },
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666',
   },
   saveButton: {
     flex: 2,
-    backgroundColor: '#667eea',
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',

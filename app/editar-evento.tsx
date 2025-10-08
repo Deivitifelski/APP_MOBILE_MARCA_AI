@@ -12,6 +12,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { useTheme } from '../contexts/ThemeContext';
 import { getEventById, updateEvent, UpdateEventData } from '../services/supabase/eventService';
 
 interface EventoForm {
@@ -32,12 +33,14 @@ const DatePickerComponent = ({
   selectedDate, 
   onDateChange, 
   initialMonth, 
-  initialYear 
+  initialYear,
+  colors
 }: { 
   selectedDate: Date; 
   onDateChange: (date: Date) => void;
   initialMonth?: number;
   initialYear?: number;
+  colors: any;
 }) => {
   const [selectedDay, setSelectedDay] = useState(selectedDate.getDate());
 
@@ -85,13 +88,13 @@ const DatePickerComponent = ({
 
   return (
     <View style={styles.datePickerContainer}>
-      <Text style={styles.monthYearLabel}>
+      <Text style={[styles.monthYearLabel, { color: colors.text }]}>
         {monthNames[month]} / {year}
       </Text>
       
       <View style={styles.weekdayHeader}>
         {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((weekday) => (
-          <Text key={weekday} style={styles.weekdayHeaderText}>
+          <Text key={weekday} style={[styles.weekdayHeaderText, { color: colors.textSecondary }]}>
             {weekday}
           </Text>
         ))}
@@ -103,7 +106,8 @@ const DatePickerComponent = ({
             key={index}
             style={[
               styles.dayItem,
-              dayInfo.day && selectedDay === dayInfo.day ? styles.dayItemSelected : null,
+              { backgroundColor: colors.background },
+              dayInfo.day && selectedDay === dayInfo.day ? [styles.dayItemSelected, { backgroundColor: colors.primary }] : null,
               !dayInfo.day ? styles.dayItemEmpty : null
             ]}
             onPress={() => {
@@ -117,6 +121,7 @@ const DatePickerComponent = ({
             {dayInfo.day && (
               <Text style={[
                 styles.dayNumberText,
+                { color: colors.text },
                 selectedDay === dayInfo.day && styles.dayNumberTextSelected
               ]}>
                 {dayInfo.day}
@@ -130,7 +135,7 @@ const DatePickerComponent = ({
 };
 
 // Componente para seleção de horário
-const TimePickerComponent = ({ selectedTime, onTimeChange }: { selectedTime: Date; onTimeChange: (time: Date) => void }) => {
+const TimePickerComponent = ({ selectedTime, onTimeChange, colors }: { selectedTime: Date; onTimeChange: (time: Date) => void; colors: any }) => {
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const minutes = Array.from({ length: 60 }, (_, i) => i);
 
@@ -151,14 +156,15 @@ const TimePickerComponent = ({ selectedTime, onTimeChange }: { selectedTime: Dat
   return (
     <View style={styles.pickerContainer}>
       <View style={styles.pickerColumn}>
-        <Text style={styles.pickerLabel}>Hora</Text>
+        <Text style={[styles.pickerLabel, { color: colors.text }]}>Hora</Text>
         <ScrollView style={styles.pickerScroll} showsVerticalScrollIndicator={false}>
           {hours.map((hour) => (
             <TouchableOpacity
               key={hour}
               style={[
                 styles.pickerItem,
-                selectedHour === hour && styles.pickerItemSelected
+                { backgroundColor: colors.background },
+                selectedHour === hour && [styles.pickerItemSelected, { backgroundColor: colors.primary }]
               ]}
               onPress={() => {
                 setSelectedHour(hour);
@@ -167,6 +173,7 @@ const TimePickerComponent = ({ selectedTime, onTimeChange }: { selectedTime: Dat
             >
               <Text style={[
                 styles.pickerItemText,
+                { color: colors.text },
                 selectedHour === hour && styles.pickerItemTextSelected
               ]}>
                 {hour.toString().padStart(2, '0')}
@@ -177,14 +184,15 @@ const TimePickerComponent = ({ selectedTime, onTimeChange }: { selectedTime: Dat
       </View>
 
       <View style={styles.pickerColumn}>
-        <Text style={styles.pickerLabel}>Minuto</Text>
+        <Text style={[styles.pickerLabel, { color: colors.text }]}>Minuto</Text>
         <ScrollView style={styles.pickerScroll} showsVerticalScrollIndicator={false}>
           {minutes.map((minute) => (
             <TouchableOpacity
               key={minute}
               style={[
                 styles.pickerItem,
-                selectedMinute === minute && styles.pickerItemSelected
+                { backgroundColor: colors.background },
+                selectedMinute === minute && [styles.pickerItemSelected, { backgroundColor: colors.primary }]
               ]}
               onPress={() => {
                 setSelectedMinute(minute);
@@ -193,6 +201,7 @@ const TimePickerComponent = ({ selectedTime, onTimeChange }: { selectedTime: Dat
             >
               <Text style={[
                 styles.pickerItemText,
+                { color: colors.text },
                 selectedMinute === minute && styles.pickerItemTextSelected
               ]}>
                 {minute.toString().padStart(2, '0')}
@@ -206,6 +215,7 @@ const TimePickerComponent = ({ selectedTime, onTimeChange }: { selectedTime: Dat
 };
 
 export default function EditarEventoScreen() {
+  const { colors } = useTheme();
   const params = useLocalSearchParams();
   const eventId = params.eventId as string;
 
@@ -368,41 +378,41 @@ export default function EditarEventoScreen() {
 
   if (isLoadingEvent) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#333" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.title}>Editar Evento</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Editar Evento</Text>
           <View style={styles.placeholder} />
         </View>
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Carregando evento...</Text>
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Carregando evento...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Editar Evento</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Editar Evento</Text>
         <View style={styles.placeholder} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Nome do Evento */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Nome do Evento *</Text>
+          <Text style={[styles.label, { color: colors.text }]}>Nome do Evento *</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
             value={form.nome}
             onChangeText={(text) => updateForm('nome', text)}
             placeholder="Ex: Rock in Rio 2025"
-            placeholderTextColor="#999"
+            placeholderTextColor={colors.textSecondary}
             autoCorrect={false}
             autoCapitalize="words"
             returnKeyType="next"
@@ -411,16 +421,16 @@ export default function EditarEventoScreen() {
 
         {/* Valor */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Valor (R$) *</Text>
+          <Text style={[styles.label, { color: colors.text }]}>Valor (R$) *</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
             value={form.valor}
             onChangeText={(text) => {
               const formatted = formatCurrency(text);
               updateForm('valor', formatted);
             }}
             placeholder="R$ 0,00"
-            placeholderTextColor="#999"
+            placeholderTextColor={colors.textSecondary}
             keyboardType="default"
             autoCorrect={false}
             autoCapitalize="none"
@@ -431,13 +441,13 @@ export default function EditarEventoScreen() {
 
         {/* Cidade */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Cidade</Text>
+          <Text style={[styles.label, { color: colors.text }]}>Cidade</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
             value={form.cidade}
             onChangeText={(text) => updateForm('cidade', text)}
             placeholder="Ex: Rio de Janeiro"
-            placeholderTextColor="#999"
+            placeholderTextColor={colors.textSecondary}
             autoCorrect={false}
             autoCapitalize="words"
             returnKeyType="next"
@@ -446,13 +456,13 @@ export default function EditarEventoScreen() {
 
         {/* Telefone do Contratante */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Telefone do Contratante</Text>
+          <Text style={[styles.label, { color: colors.text }]}>Telefone do Contratante</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
             value={form.telefoneContratante}
             onChangeText={(text) => updateForm('telefoneContratante', text)}
             placeholder="Ex: (21) 99999-9999"
-            placeholderTextColor="#999"
+            placeholderTextColor={colors.textSecondary}
             keyboardType="default"
             autoCorrect={false}
             autoCapitalize="none"
@@ -462,13 +472,13 @@ export default function EditarEventoScreen() {
 
         {/* Descrição */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Descrição (Opcional)</Text>
+          <Text style={[styles.label, { color: colors.text }]}>Descrição (Opcional)</Text>
           <TextInput
-            style={[styles.input, styles.textArea]}
+            style={[styles.input, styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
             value={form.descricao}
             onChangeText={(text) => updateForm('descricao', text)}
             placeholder="Detalhes sobre o evento..."
-            placeholderTextColor="#999"
+            placeholderTextColor={colors.textSecondary}
             multiline
             numberOfLines={4}
             textAlignVertical="top"
@@ -480,61 +490,63 @@ export default function EditarEventoScreen() {
 
         {/* Data */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Data do Evento *</Text>
+          <Text style={[styles.label, { color: colors.text }]}>Data do Evento *</Text>
           <TouchableOpacity
-            style={styles.dateButton}
+            style={[styles.dateButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => setShowDateModal(true)}
           >
-            <Ionicons name="calendar" size={20} color="#667eea" />
-            <Text style={styles.dateButtonText}>{formatDate(form.data)}</Text>
-            <Ionicons name="chevron-down" size={16} color="#667eea" style={styles.chevronIcon} />
+            <Ionicons name="calendar" size={20} color={colors.primary} />
+            <Text style={[styles.dateButtonText, { color: colors.text }]}>{formatDate(form.data)}</Text>
+            <Ionicons name="chevron-down" size={16} color={colors.primary} style={styles.chevronIcon} />
           </TouchableOpacity>
         </View>
 
         {/* Horário de Início */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Horário de Início</Text>
+          <Text style={[styles.label, { color: colors.text }]}>Horário de Início</Text>
           <TouchableOpacity
-            style={styles.dateButton}
+            style={[styles.dateButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => setShowTimeInicioModal(true)}
           >
-            <Ionicons name="time" size={20} color="#667eea" />
-            <Text style={styles.dateButtonText}>{formatTime(form.horarioInicio)}</Text>
-            <Ionicons name="chevron-down" size={16} color="#667eea" style={styles.chevronIcon} />
+            <Ionicons name="time" size={20} color={colors.primary} />
+            <Text style={[styles.dateButtonText, { color: colors.text }]}>{formatTime(form.horarioInicio)}</Text>
+            <Ionicons name="chevron-down" size={16} color={colors.primary} style={styles.chevronIcon} />
           </TouchableOpacity>
         </View>
 
         {/* Horário de Fim */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Horário de Fim</Text>
+          <Text style={[styles.label, { color: colors.text }]}>Horário de Fim</Text>
           <TouchableOpacity
-            style={styles.dateButton}
+            style={[styles.dateButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => setShowTimeFimModal(true)}
           >
-            <Ionicons name="time" size={20} color="#667eea" />
-            <Text style={styles.dateButtonText}>{formatTime(form.horarioFim)}</Text>
-            <Ionicons name="chevron-down" size={16} color="#667eea" style={styles.chevronIcon} />
+            <Ionicons name="time" size={20} color={colors.primary} />
+            <Text style={[styles.dateButtonText, { color: colors.text }]}>{formatTime(form.horarioFim)}</Text>
+            <Ionicons name="chevron-down" size={16} color={colors.primary} style={styles.chevronIcon} />
           </TouchableOpacity>
         </View>
 
         {/* Status */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Status</Text>
+          <Text style={[styles.label, { color: colors.text }]}>Status</Text>
           <View style={styles.statusContainer}>
             <TouchableOpacity
               style={[
                 styles.statusButton,
-                form.status === 'a_confirmar' && styles.statusButtonActive
+                { backgroundColor: colors.surface, borderColor: colors.border },
+                form.status === 'a_confirmar' && [styles.statusButtonActive, { backgroundColor: colors.warning, borderColor: colors.warning }]
               ]}
               onPress={() => updateForm('status', 'a_confirmar')}
             >
               <Ionicons 
                 name="time" 
                 size={20} 
-                color={form.status === 'a_confirmar' ? '#fff' : '#FF9800'} 
+                color={form.status === 'a_confirmar' ? '#fff' : colors.warning} 
               />
               <Text style={[
                 styles.statusButtonText,
+                { color: form.status === 'a_confirmar' ? '#fff' : colors.text },
                 form.status === 'a_confirmar' && styles.statusButtonTextActive
               ]}>
                 A Confirmar
@@ -544,17 +556,19 @@ export default function EditarEventoScreen() {
             <TouchableOpacity
               style={[
                 styles.statusButton,
-                form.status === 'confirmado' && styles.statusButtonActive
+                { backgroundColor: colors.surface, borderColor: colors.border },
+                form.status === 'confirmado' && [styles.statusButtonActive, { backgroundColor: colors.success, borderColor: colors.success }]
               ]}
               onPress={() => updateForm('status', 'confirmado')}
             >
               <Ionicons 
                 name="checkmark-circle" 
                 size={20} 
-                color={form.status === 'confirmado' ? '#fff' : '#4CAF50'} 
+                color={form.status === 'confirmado' ? '#fff' : colors.success} 
               />
               <Text style={[
                 styles.statusButtonText,
+                { color: form.status === 'confirmado' ? '#fff' : colors.text },
                 form.status === 'confirmado' && styles.statusButtonTextActive
               ]}>
                 Confirmado
@@ -565,15 +579,13 @@ export default function EditarEventoScreen() {
 
         {/* Tipo de Evento (Tag) */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Tipo de Evento</Text>
+          <Text style={[styles.label, { color: colors.text }]}>Tipo de Evento</Text>
           <View style={styles.tagContainer}>
             <TouchableOpacity
               style={[
                 styles.tagButton,
-                {
-                  backgroundColor: form.tag === 'ensaio' ? '#10B981' : '#fff',
-                  borderColor: form.tag === 'ensaio' ? '#10B981' : '#e9ecef'
-                }
+                { backgroundColor: colors.surface, borderColor: colors.border },
+                form.tag === 'ensaio' && { backgroundColor: '#10B981', borderColor: '#10B981' }
               ]}
               onPress={() => updateForm('tag', 'ensaio')}
             >
@@ -584,7 +596,7 @@ export default function EditarEventoScreen() {
               />
               <Text style={[
                 styles.tagButtonText,
-                { color: form.tag === 'ensaio' ? '#fff' : '#333' }
+                { color: form.tag === 'ensaio' ? '#fff' : colors.text }
               ]}>
                 Ensaio
               </Text>
@@ -593,21 +605,19 @@ export default function EditarEventoScreen() {
             <TouchableOpacity
               style={[
                 styles.tagButton,
-                {
-                  backgroundColor: form.tag === 'evento' ? '#667eea' : '#fff',
-                  borderColor: form.tag === 'evento' ? '#667eea' : '#e9ecef'
-                }
+                { backgroundColor: colors.surface, borderColor: colors.border },
+                form.tag === 'evento' && { backgroundColor: colors.primary, borderColor: colors.primary }
               ]}
               onPress={() => updateForm('tag', 'evento')}
             >
               <Ionicons 
                 name="mic" 
                 size={20} 
-                color={form.tag === 'evento' ? '#fff' : '#667eea'} 
+                color={form.tag === 'evento' ? '#fff' : colors.primary} 
               />
               <Text style={[
                 styles.tagButtonText,
-                { color: form.tag === 'evento' ? '#fff' : '#333' }
+                { color: form.tag === 'evento' ? '#fff' : colors.text }
               ]}>
                 Evento
               </Text>
@@ -616,10 +626,8 @@ export default function EditarEventoScreen() {
             <TouchableOpacity
               style={[
                 styles.tagButton,
-                {
-                  backgroundColor: form.tag === 'reunião' ? '#F59E0B' : '#fff',
-                  borderColor: form.tag === 'reunião' ? '#F59E0B' : '#e9ecef'
-                }
+                { backgroundColor: colors.surface, borderColor: colors.border },
+                form.tag === 'reunião' && { backgroundColor: '#F59E0B', borderColor: '#F59E0B' }
               ]}
               onPress={() => updateForm('tag', 'reunião')}
             >
@@ -630,7 +638,7 @@ export default function EditarEventoScreen() {
               />
               <Text style={[
                 styles.tagButtonText,
-                { color: form.tag === 'reunião' ? '#fff' : '#333' }
+                { color: form.tag === 'reunião' ? '#fff' : colors.text }
               ]}>
                 Reunião
               </Text>
@@ -641,15 +649,15 @@ export default function EditarEventoScreen() {
         {/* Botões */}
         <View style={styles.buttonContainer}>
           <TouchableOpacity
-            style={styles.cancelButton}
+            style={[styles.cancelButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => router.back()}
             disabled={isLoading}
           >
-            <Text style={styles.cancelButtonText}>Cancelar</Text>
+            <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancelar</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.saveButton, isLoading && styles.saveButtonDisabled]}
+            style={[styles.saveButton, { backgroundColor: colors.primary }, isLoading && styles.saveButtonDisabled]}
             onPress={handleSave}
             disabled={isLoading}
           >
@@ -673,16 +681,16 @@ export default function EditarEventoScreen() {
         onRequestClose={() => setShowDateModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHandle} />
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Selecionar Data</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Selecionar Data</Text>
               <TouchableOpacity
                 onPress={() => setShowDateModal(false)}
                 style={styles.modalCloseButton}
               >
-                <Ionicons name="close" size={24} color="#666" />
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             
@@ -692,12 +700,13 @@ export default function EditarEventoScreen() {
                 onDateChange={(date) => updateForm('data', date)}
                 initialMonth={form.data.getMonth()}
                 initialYear={form.data.getFullYear()}
+                colors={colors}
               />
             </View>
             
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={styles.modalConfirmButton}
+                style={[styles.modalConfirmButton, { backgroundColor: colors.primary }]}
                 onPress={() => setShowDateModal(false)}
               >
                 <Text style={styles.modalConfirmText}>Confirmar</Text>
@@ -715,25 +724,26 @@ export default function EditarEventoScreen() {
         onRequestClose={() => setShowTimeInicioModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Horário de Início</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Horário de Início</Text>
               <TouchableOpacity
                 onPress={() => setShowTimeInicioModal(false)}
                 style={styles.modalCloseButton}
               >
-                <Ionicons name="close" size={24} color="#333" />
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             
             <TimePickerComponent
               selectedTime={form.horarioInicio}
               onTimeChange={(time) => updateForm('horarioInicio', time)}
+              colors={colors}
             />
             
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={styles.modalConfirmButton}
+                style={[styles.modalConfirmButton, { backgroundColor: colors.primary }]}
                 onPress={() => setShowTimeInicioModal(false)}
               >
                 <Text style={styles.modalConfirmText}>Confirmar</Text>
@@ -751,25 +761,26 @@ export default function EditarEventoScreen() {
         onRequestClose={() => setShowTimeFimModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Horário de Fim</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Horário de Fim</Text>
               <TouchableOpacity
                 onPress={() => setShowTimeFimModal(false)}
                 style={styles.modalCloseButton}
               >
-                <Ionicons name="close" size={24} color="#333" />
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             
             <TimePickerComponent
               selectedTime={form.horarioFim}
               onTimeChange={(time) => updateForm('horarioFim', time)}
+              colors={colors}
             />
             
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={styles.modalConfirmButton}
+                style={[styles.modalConfirmButton, { backgroundColor: colors.primary }]}
                 onPress={() => setShowTimeFimModal(false)}
               >
                 <Text style={styles.modalConfirmText}>Confirmar</Text>
@@ -786,15 +797,12 @@ export default function EditarEventoScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
   },
   header: {
-    backgroundColor: '#fff',
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -805,7 +813,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
   },
   placeholder: {
     width: 40,
@@ -821,7 +828,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: '#666',
   },
   inputGroup: {
     marginBottom: 20,
@@ -829,30 +835,23 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#e9ecef',
-    color: '#333',
   },
   dateButton: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e9ecef',
     flexDirection: 'row',
     alignItems: 'center',
   },
   dateButtonText: {
     fontSize: 16,
-    color: '#333',
     marginLeft: 12,
     flex: 1,
   },
@@ -865,24 +864,20 @@ const styles = StyleSheet.create({
   },
   statusButton: {
     flex: 1,
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e9ecef',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   statusButtonActive: {
-    backgroundColor: '#667eea',
-    borderColor: '#667eea',
+    // Cores aplicadas dinamicamente
   },
   statusButtonText: {
     fontSize: 16,
     fontWeight: '500',
     marginLeft: 8,
-    color: '#333',
   },
   statusButtonTextActive: {
     color: '#fff',
@@ -893,7 +888,6 @@ const styles = StyleSheet.create({
   },
   tagButton: {
     flex: 1,
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     borderWidth: 2,
@@ -905,7 +899,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     marginLeft: 8,
-    color: '#333',
   },
   buttonContainer: {
     flexDirection: 'row',
@@ -915,21 +908,17 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e9ecef',
     alignItems: 'center',
   },
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666',
   },
   saveButton: {
     flex: 2,
-    backgroundColor: '#667eea',
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
@@ -954,7 +943,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#fff',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '80%',
@@ -970,7 +958,6 @@ const styles = StyleSheet.create({
   modalHandle: {
     width: 40,
     height: 4,
-    backgroundColor: '#ddd',
     borderRadius: 2,
     alignSelf: 'center',
     marginTop: 12,
@@ -983,12 +970,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: 'transparent',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
   },
   modalCloseButton: {
     padding: 8,
@@ -1003,7 +989,6 @@ const styles = StyleSheet.create({
   monthYearLabel: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
     textAlign: 'center',
     marginBottom: 20,
   },
@@ -1016,7 +1001,6 @@ const styles = StyleSheet.create({
   weekdayHeaderText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#666',
     textAlign: 'center',
     width: '14.28%',
   },
@@ -1035,7 +1019,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   dayItemSelected: {
-    backgroundColor: '#667eea',
     borderRadius: 8,
   },
   dayItemEmpty: {
@@ -1043,7 +1026,6 @@ const styles = StyleSheet.create({
   },
   dayNumberText: {
     fontSize: 16,
-    color: '#333',
     fontWeight: '500',
   },
   dayNumberTextSelected: {
@@ -1062,7 +1044,6 @@ const styles = StyleSheet.create({
   pickerLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
     textAlign: 'center',
     marginBottom: 10,
   },
@@ -1077,11 +1058,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pickerItemSelected: {
-    backgroundColor: '#667eea',
+    // Cores aplicadas dinamicamente
   },
   pickerItemText: {
     fontSize: 16,
-    color: '#666',
   },
   pickerItemTextSelected: {
     color: '#fff',
@@ -1093,12 +1073,11 @@ const styles = StyleSheet.create({
     paddingBottom: 34,
   },
   modalConfirmButton: {
-    backgroundColor: '#667eea',
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#667eea',
+    shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 4,

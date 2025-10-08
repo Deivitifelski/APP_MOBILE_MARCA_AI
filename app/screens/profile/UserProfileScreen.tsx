@@ -16,6 +16,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { useTheme } from '../../../contexts/ThemeContext';
 import { getCurrentUser } from '../../../services/supabase/authService';
 import { uploadUserImage } from '../../../services/supabase/imageUploadService';
 import { createUserProfile } from '../../../services/supabase/userService';
@@ -30,6 +31,7 @@ const estadosBrasil = [
 ];
 
 export default function UserProfileScreen() {
+  const { colors } = useTheme();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [city, setCity] = useState('');
@@ -164,7 +166,7 @@ export default function UserProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoidingView}
@@ -173,20 +175,20 @@ export default function UserProfileScreen() {
           <View style={styles.content}>
             {/* Header */}
             <View style={styles.header}>
-              <View style={styles.logoContainer}>
-                <Ionicons name="person-add" size={50} color="#667eea" />
+              <View style={[styles.logoContainer, { backgroundColor: colors.surface }]}>
+                <Ionicons name="person-add" size={50} color={colors.primary} />
               </View>
-              <Text style={styles.title}>Perfil Pessoal</Text>
-              <Text style={styles.subtitle}>
+              <Text style={[styles.title, { color: colors.text }]}>Perfil Pessoal</Text>
+              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                 Complete suas informações pessoais. Em seguida, criaremos seu perfil de artista.
               </Text>
             </View>
 
             {/* Formulário */}
-            <View style={styles.form}>
+            <View style={[styles.form, { backgroundColor: colors.surface }]}>
               {/* Foto de Perfil */}
               <View style={styles.photoSection}>
-                <Text style={styles.label}>Foto de Perfil</Text>
+                <Text style={[styles.label, { color: colors.text }]}>Foto de Perfil</Text>
               <TouchableOpacity 
                 style={styles.photoContainer} 
                 onPress={pickImage}
@@ -201,9 +203,9 @@ export default function UserProfileScreen() {
                     style={styles.photo} 
                   />
                 ) : (
-                  <View style={styles.photoPlaceholder}>
-                    <Ionicons name="camera" size={40} color="#667eea" />
-                    <Text style={styles.photoText}>Adicionar Foto</Text>
+                  <View style={[styles.photoPlaceholder, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                    <Ionicons name="camera" size={40} color={colors.primary} />
+                    <Text style={[styles.photoText, { color: colors.primary }]}>Adicionar Foto</Text>
                   </View>
                 )}
                 {(isUploadingImage || loading) && (
@@ -216,15 +218,15 @@ export default function UserProfileScreen() {
 
               {/* Nome Completo */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Nome Completo *</Text>
-                <View style={styles.inputContainer}>
-                  <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Text style={[styles.label, { color: colors.text }]}>Nome Completo *</Text>
+                <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <Ionicons name="person-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, { color: colors.text }]}
                     value={name}
                     onChangeText={setName}
                     placeholder="Digite seu nome completo"
-                    placeholderTextColor="#999"
+                    placeholderTextColor={colors.textSecondary}
                     autoCapitalize="words"
                   />
                 </View>
@@ -232,15 +234,15 @@ export default function UserProfileScreen() {
 
               {/* Telefone */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Telefone *</Text>
-                <View style={styles.inputContainer}>
-                  <Ionicons name="call-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Text style={[styles.label, { color: colors.text }]}>Telefone *</Text>
+                <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <Ionicons name="call-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, { color: colors.text }]}
                     value={phone}
                     onChangeText={setPhone}
                     placeholder="(11) 99999-9999"
-                    placeholderTextColor="#999"
+                    placeholderTextColor={colors.textSecondary}
                     keyboardType="phone-pad"
                     maxLength={15}
                   />
@@ -249,15 +251,15 @@ export default function UserProfileScreen() {
 
               {/* Cidade */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Cidade *</Text>
-                <View style={styles.inputContainer}>
-                  <Ionicons name="location-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Text style={[styles.label, { color: colors.text }]}>Cidade *</Text>
+                <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <Ionicons name="location-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, { color: colors.text }]}
                     value={city}
                     onChangeText={setCity}
                     placeholder="Digite sua cidade"
-                    placeholderTextColor="#999"
+                    placeholderTextColor={colors.textSecondary}
                     autoCapitalize="words"
                   />
                 </View>
@@ -265,36 +267,36 @@ export default function UserProfileScreen() {
 
               {/* Estado */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Estado *</Text>
+                <Text style={[styles.label, { color: colors.text }]}>Estado *</Text>
                 <TouchableOpacity
-                  style={styles.inputContainer}
+                  style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}
                   onPress={() => setShowEstados(!showEstados)}
                 >
-                  <Ionicons name="map-outline" size={20} color="#666" style={styles.inputIcon} />
-                  <Text style={[styles.input, !state && styles.placeholderText]}>
+                  <Ionicons name="map-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                  <Text style={[styles.input, { color: state ? colors.text : colors.textSecondary }]}>
                     {state || 'Selecione seu estado'}
                   </Text>
                   <Ionicons
                     name={showEstados ? 'chevron-up' : 'chevron-down'}
                     size={20}
-                    color="#666"
+                    color={colors.textSecondary}
                     style={styles.chevronIcon}
                   />
                 </TouchableOpacity>
 
                 {showEstados && (
-                  <View style={styles.estadosList}>
+                  <View style={[styles.estadosList, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                     <ScrollView style={styles.estadosScroll} nestedScrollEnabled>
                       {estadosBrasil.map((estadoItem) => (
                         <TouchableOpacity
                           key={estadoItem}
-                          style={styles.estadoItem}
+                          style={[styles.estadoItem, { borderBottomColor: colors.border }]}
                           onPress={() => {
                             setState(estadoItem);
                             setShowEstados(false);
                           }}
                         >
-                          <Text style={styles.estadoText}>{estadoItem}</Text>
+                          <Text style={[styles.estadoText, { color: colors.text }]}>{estadoItem}</Text>
                         </TouchableOpacity>
                       ))}
                     </ScrollView>
@@ -303,7 +305,7 @@ export default function UserProfileScreen() {
               </View>
 
               <TouchableOpacity
-                style={[styles.finalizarButton, loading && styles.finalizarButtonDisabled]}
+                style={[styles.finalizarButton, { backgroundColor: colors.primary }, loading && styles.finalizarButtonDisabled]}
                 onPress={handleFinalizarCadastro}
                 disabled={loading}
               >
@@ -322,7 +324,6 @@ export default function UserProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -344,7 +345,6 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#fff',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 15,
@@ -360,16 +360,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
     textAlign: 'center',
   },
   form: {
-    backgroundColor: '#fff',
     borderRadius: 16,
     padding: 24,
     shadowColor: '#000',
@@ -397,9 +394,7 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#f8f9fa',
     borderWidth: 2,
-    borderColor: '#e9ecef',
     borderStyle: 'dashed',
     justifyContent: 'center',
     alignItems: 'center',
@@ -407,7 +402,6 @@ const styles = StyleSheet.create({
   photoText: {
     marginTop: 8,
     fontSize: 12,
-    color: '#667eea',
     fontWeight: '500',
   },
   uploadOverlay: {
@@ -427,16 +421,13 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 8,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e9ecef',
     paddingHorizontal: 16,
     height: 56,
   },
@@ -446,19 +437,16 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    color: '#333',
   },
   placeholderText: {
-    color: '#999',
+    // Removido - agora aplicado dinamicamente
   },
   chevronIcon: {
     marginLeft: 8,
   },
   estadosList: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e9ecef',
     marginTop: 8,
     maxHeight: 200,
     shadowColor: '#000',
@@ -477,14 +465,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f8f9fa',
   },
   estadoText: {
     fontSize: 16,
-    color: '#333',
   },
   finalizarButton: {
-    backgroundColor: '#667eea',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
