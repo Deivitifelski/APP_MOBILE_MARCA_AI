@@ -88,9 +88,9 @@ export default function NotificacoesScreen() {
         console.error('Erro ao carregar convites:', invitesError);
       }
       
-      // Contar notificações não lidas + convites pendentes
-      const unreadNotifications = (notifications || []).filter(n => !n.read).length;
-      const pendingInvites = (invites || []).filter(invite => invite.status === 'pending').length;
+      // Contar APENAS notificações não lidas do usuário (read === false)
+      const unreadNotifications = (notifications || []).filter(n => !n.read && n.user_id === user.id).length;
+      const pendingInvites = (invites || []).filter(invite => invite.status === 'pending' && !invite.read).length;
       setUnreadCount(unreadNotifications + pendingInvites);
     } catch (error) {
       console.error('Erro ao carregar notificações:', error);
@@ -258,10 +258,16 @@ export default function NotificacoesScreen() {
               const { success, error } = await deleteNotification(notificationId);
               
               if (success) {
+                // Verificar se a notificação deletada era não lida
+                const deletedNotification = notifications.find(n => n.id === notificationId);
+                const wasUnread = deletedNotification && !deletedNotification.read;
+                
                 setNotifications(prev => prev.filter(n => n.id !== notificationId));
-                // Recalcular contador de não lidas
-                const newUnreadCount = notifications.filter(n => n.id !== notificationId && !n.read).length;
-                setUnreadCount(newUnreadCount);
+                
+                // Decrementar contador apenas se a notificação era não lida
+                if (wasUnread) {
+                  setUnreadCount(prev => Math.max(0, prev - 1));
+                }
               } else {
                 Alert.alert('Erro', 'Erro ao deletar notificação');
               }

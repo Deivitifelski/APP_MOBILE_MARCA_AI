@@ -76,7 +76,7 @@ export const getUserNotifications = async (userId: string, limit: number = 50): 
         from_user:users!from_user_id(id, name, email, profile_url),
         artist:artists(id, name)
       `)
-      .or(`user_id.eq.${userId},from_user_id.eq.${userId}`)
+      .eq('user_id', userId) // Apenas notificações que o usuário RECEBEU
       .order('created_at', { ascending: false })
       .limit(limit);
 
@@ -84,12 +84,7 @@ export const getUserNotifications = async (userId: string, limit: number = 50): 
       return { notifications: null, error: error.message };
     }
 
-    // Filtrar notificações onde o usuário é o remetente (não mostrar notificações que o próprio usuário enviou)
-    const filteredNotifications = (data || []).filter(notification => 
-      notification.from_user_id !== userId
-    );
-
-    return { notifications: filteredNotifications, error: null };
+    return { notifications: data || [], error: null };
   } catch (error) {
     return { notifications: null, error: 'Erro de conexão' };
   }
