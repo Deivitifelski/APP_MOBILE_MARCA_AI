@@ -13,6 +13,7 @@ import {
     View,
 } from 'react-native';
 import { clearActiveArtist } from '../services/artistContext';
+import { cacheService } from '../services/cacheService';
 import { deleteArtist } from '../services/supabase/artistService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { getCollaborators, removeCollaborator } from '../services/supabase/collaboratorService';
@@ -108,6 +109,13 @@ export default function SairArtistaScreen() {
         return;
       }
 
+      // Limpar cache de dados do artista
+      const { user } = await getCurrentUser();
+      if (user) {
+        await cacheService.invalidateArtistData(user.id);
+        await cacheService.invalidateUserData(user.id);
+      }
+
       Alert.alert(
         'Artista Deletado',
         'O artista foi deletado com sucesso.',
@@ -116,7 +124,7 @@ export default function SairArtistaScreen() {
             text: 'OK',
             onPress: () => {
               clearActiveArtist();
-              router.replace('/(tabs)/configuracoes');
+              router.replace('/(tabs)/agenda');
             },
           },
         ]
@@ -149,8 +157,10 @@ export default function SairArtistaScreen() {
         return;
       }
 
-      // Limpar cache de permissões
+      // Limpar cache de permissões e dados do artista
       clearPermissionsCache(user.id, activeArtist.id);
+      await cacheService.invalidateArtistData(user.id);
+      await cacheService.invalidateUserData(user.id);
 
       Alert.alert(
         'Saiu do Artista',
@@ -160,7 +170,7 @@ export default function SairArtistaScreen() {
             text: 'OK',
             onPress: () => {
               clearActiveArtist();
-              router.replace('/(tabs)/configuracoes');
+              router.replace('/(tabs)/agenda');
             },
           },
         ]
