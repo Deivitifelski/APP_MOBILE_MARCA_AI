@@ -26,7 +26,7 @@ import { getArtists } from '../../services/supabase/artistService';
 import { getCurrentUser, updatePassword } from '../../services/supabase/authService';
 import { createFeedback } from '../../services/supabase/feedbackService';
 import { getUserPermissions } from '../../services/supabase/permissionsService';
-import { canExportData, getUserPlan, getUserProfile, isPremiumUser, UserProfile } from '../../services/supabase/userService';
+import { getUserProfile, isPremiumUser, UserProfile } from '../../services/supabase/userService';
 
 export default function ConfiguracoesScreen() {
   const { isDarkMode, toggleDarkMode, colors } = useTheme();
@@ -57,6 +57,7 @@ export default function ConfiguracoesScreen() {
   const [realtimeSubscriptions, setRealtimeSubscriptions] = useState<RealtimeSubscription[]>([]);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   useEffect(() => {
     loadUserProfile();
@@ -272,24 +273,29 @@ export default function ConfiguracoesScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Sair da Conta',
-      'Tem certeza que deseja sair?',
-      [
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-        },
-        {
-          text: 'Sair',
-          style: 'destructive',
-          onPress: () => {
-            // TODO: Implementar logout do Supabase
-            router.replace('/login');
-          },
-        },
-      ]
-    );
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = async () => {
+    try {
+      // Limpar subscriptions
+      cleanupRealtimeSubscriptions();
+      
+      // Limpar cache
+      await cacheService.clearAll();
+      
+      // Fazer logout no Supabase
+      await supabase.auth.signOut();
+      
+      // Fechar modal
+      setShowLogoutModal(false);
+      
+      // Redirecionar para login
+      router.replace('/login');
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+      Alert.alert('Erro', 'Não foi possível sair. Tente novamente.');
+    }
   };
 
   const handleHelpSupport = () => {
@@ -462,61 +468,6 @@ export default function ConfiguracoesScreen() {
   const handleCancelPlan = () => {
     // Navegar para a página de cancelamento do plano
     router.push('/cancelar-plano');
-  };
-
-  const handleDebugPlan = async () => {
-    try {
-      const { user } = await getCurrentUser();
-      if (!user) {
-        Alert.alert('Erro', 'Usuário não encontrado');
-        return;
-      }
-
-      console.log('🔍 DEBUG: Verificando plano para usuário:', user.id);
-      
-      // Verificar diretamente no banco primeiro
-      const { data: userData, error: dbError } = await supabase
-        .from('users')
-        .select('id, plan, created_at')
-        .eq('id', user.id)
-        .single();
-      
-      console.log('🗄️ Dados diretos do banco:', { userData, error: dbError });
-      
-      // Testar getUserPlan
-      const { plan, error: planError } = await getUserPlan(user.id);
-      console.log('📋 getUserPlan resultado:', { plan, error: planError });
-      
-      // Testar isPremiumUser
-      const { isPremium, error: premiumError } = await isPremiumUser(user.id);
-      console.log('👑 isPremiumUser resultado:', { isPremium, error: premiumError });
-      
-      // Testar canExportData
-      const { canExport, error: exportError } = await canExportData(user.id);
-      console.log('📤 canExportData resultado:', { canExport, error: exportError });
-      
-      // Verificar comparações
-      const planFromDB = userData?.plan;
-      const isPlanPremium = planFromDB === 'premium';
-      const isPlanStringPremium = String(planFromDB) === 'premium';
-      
-      console.log('🔍 Comparações detalhadas:');
-      console.log('- planFromDB:', planFromDB, typeof planFromDB);
-      console.log('- isPlanPremium:', isPlanPremium);
-      console.log('- isPlanStringPremium:', isPlanStringPremium);
-      console.log('- plan === "premium":', plan === 'premium');
-      console.log('- String(plan) === "premium":', String(plan) === 'premium');
-      
-      Alert.alert(
-        'Debug do Plano',
-        `Banco: ${planFromDB} (${typeof planFromDB})\nFunção: ${plan}\nÉ Premium: ${isPremium}\nPode Exportar: ${canExport}\n\nComparações:\n- DB === 'premium': ${isPlanPremium}\n- Função === 'premium': ${plan === 'premium'}\n\nVerifique o console para logs detalhados.`,
-        [{ text: 'OK' }]
-      );
-      
-    } catch (error) {
-      console.log('💥 Erro no debug:', error);
-      Alert.alert('Erro', 'Erro ao debugar: ' + error);
-    }
   };
 
   const renderSettingItem = (
@@ -840,18 +791,11 @@ export default function ConfiguracoesScreen() {
               'Informações da aplicação',
               () => setShowAboutModal(true)
             )}
-            
-            {renderSettingItem(
-              'bug',
-              'Debug Plano',
-              'Verificar status do plano',
-              handleDebugPlan
-            )}
           </View>
         </View>
 
         {/* Logout */}
-        <View style={dynamicStyles.section}>
+        <View style={[dynamicStyles.section, { marginBottom: 40 }]}>
           <TouchableOpacity style={dynamicStyles.logoutButton} onPress={handleLogout}>
             <Ionicons name="log-out" size={20} color="#F44336" />
             <Text style={dynamicStyles.logoutText}>Sair da Conta</Text>
@@ -1354,6 +1298,55 @@ export default function ConfiguracoesScreen() {
             >
               <Ionicons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Logout */}
+      <Modal
+        visible={showLogoutModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowLogoutModal(false)}
+      >
+        <View style={dynamicStyles.logoutModalOverlay}>
+          <View style={[dynamicStyles.logoutModalContent, { backgroundColor: colors.surface }]}>
+            {/* Ícone de Aviso */}
+            <View style={dynamicStyles.logoutIconContainer}>
+              <View style={dynamicStyles.logoutIconCircle}>
+                <Ionicons name="log-out" size={48} color="#F44336" />
+              </View>
+            </View>
+
+            {/* Título e Mensagem */}
+            <Text style={[dynamicStyles.logoutModalTitle, { color: colors.text }]}>
+              Sair da Conta?
+            </Text>
+            <Text style={[dynamicStyles.logoutModalMessage, { color: colors.textSecondary }]}>
+              Tem certeza que deseja sair da sua conta? Você precisará fazer login novamente para acessar o aplicativo.
+            </Text>
+
+            {/* Botões */}
+            <View style={dynamicStyles.logoutButtonsContainer}>
+              <TouchableOpacity
+                style={[dynamicStyles.logoutCancelButton, { backgroundColor: colors.background, borderColor: colors.border }]}
+                onPress={() => setShowLogoutModal(false)}
+              >
+                <Text style={[dynamicStyles.logoutCancelButtonText, { color: colors.text }]}>
+                  Cancelar
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={dynamicStyles.logoutConfirmButton}
+                onPress={confirmLogout}
+              >
+                <Ionicons name="log-out" size={20} color="#fff" style={{ marginRight: 8 }} />
+                <Text style={dynamicStyles.logoutConfirmButtonText}>
+                  Sair
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1985,6 +1978,81 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
            justifyContent: 'center',
            alignItems: 'center',
            backgroundColor: colors.background,
+         },
+         // Estilos do modal de Logout
+         logoutModalOverlay: {
+           flex: 1,
+           backgroundColor: 'rgba(0, 0, 0, 0.6)',
+           justifyContent: 'center',
+           alignItems: 'center',
+           padding: 20,
+         },
+         logoutModalContent: {
+           width: '100%',
+           maxWidth: 380,
+           borderRadius: 20,
+           padding: 28,
+           shadowColor: '#000',
+           shadowOffset: { width: 0, height: 8 },
+           shadowOpacity: 0.3,
+           shadowRadius: 16,
+           elevation: 16,
+         },
+         logoutIconContainer: {
+           alignItems: 'center',
+           marginBottom: 20,
+         },
+         logoutIconCircle: {
+           width: 80,
+           height: 80,
+           borderRadius: 40,
+           backgroundColor: '#FEE2E2',
+           justifyContent: 'center',
+           alignItems: 'center',
+         },
+         logoutModalTitle: {
+           fontSize: 24,
+           fontWeight: 'bold',
+           textAlign: 'center',
+           marginBottom: 12,
+         },
+         logoutModalMessage: {
+           fontSize: 15,
+           lineHeight: 22,
+           textAlign: 'center',
+           marginBottom: 28,
+         },
+         logoutButtonsContainer: {
+           flexDirection: 'row',
+           gap: 12,
+         },
+         logoutCancelButton: {
+           flex: 1,
+           paddingVertical: 14,
+           paddingHorizontal: 20,
+           borderRadius: 12,
+           alignItems: 'center',
+           justifyContent: 'center',
+           borderWidth: 1,
+         },
+         logoutCancelButtonText: {
+           fontSize: 16,
+           fontWeight: '600',
+         },
+         logoutConfirmButton: {
+           flex: 1,
+           paddingVertical: 14,
+           paddingHorizontal: 20,
+           borderRadius: 12,
+           backgroundColor: '#F44336',
+           alignItems: 'center',
+           justifyContent: 'center',
+           flexDirection: 'row',
+         },
+         logoutConfirmButtonText: {
+           color: '#fff',
+           fontSize: 16,
+           fontWeight: '600',
          },
 });
 
