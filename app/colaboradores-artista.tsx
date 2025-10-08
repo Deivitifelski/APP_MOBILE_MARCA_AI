@@ -2,17 +2,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Modal,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import OptimizedImage from '../components/OptimizedImage';
 import UpgradeModal from '../components/UpgradeModal';
@@ -976,7 +976,7 @@ export default function ColaboradoresArtistaScreen() {
               <View style={styles.infoItem}>
                 <Ionicons name="mail-outline" size={20} color="#667eea" />
                 <Text style={styles.infoText}>
-                  Notificação enviada por e-mail
+                  Notificação enviada
                 </Text>
               </View>
               <View style={styles.infoItem}>
