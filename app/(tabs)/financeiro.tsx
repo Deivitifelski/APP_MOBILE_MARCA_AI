@@ -293,7 +293,7 @@ export default function FinanceiroScreen() {
               </Text>
             </View>
           )}
-          <View style={[styles.eventValueRow, styles.eventNetRow]}>
+          <View style={[styles.eventValueRow, styles.eventNetRow, { borderTopColor: colors.border }]}>
             <Text style={[styles.eventNetLabel, { color: colors.text }]}>Líquido:</Text>
             <Text style={[styles.eventNet, { color: ((item.value || 0) - item.totalExpenses) >= 0 ? colors.success : colors.error }]}>
               {formatCurrency((item.value || 0) - item.totalExpenses)}
@@ -303,7 +303,7 @@ export default function FinanceiroScreen() {
       </View>
       
       {item.expenses.length > 0 && (
-        <View style={styles.expensesSection}>
+        <View style={[styles.expensesSection, { borderTopColor: colors.border }]}>
           <Text style={[styles.expensesTitle, { color: colors.text }]}>Despesas:</Text>
           <FlatList
             data={item.expenses}
@@ -347,7 +347,7 @@ export default function FinanceiroScreen() {
         </View>
         <View style={styles.noArtistContainer}>
           <View style={[styles.noArtistCard, { backgroundColor: colors.surface }]}>
-            <View style={styles.noArtistIcon}>
+            <View style={[styles.noArtistIcon, { backgroundColor: colors.background }]}>
               <Ionicons name="musical-notes" size={60} color={colors.primary} />
             </View>
             <Text style={[styles.noArtistTitle, { color: colors.text }]}>
@@ -406,7 +406,7 @@ export default function FinanceiroScreen() {
         </View>
         <View style={styles.noAccessContainer}>
           <View style={[styles.noAccessCard, { backgroundColor: colors.surface }]}>
-            <View style={styles.noAccessIcon}>
+            <View style={[styles.noAccessIcon, { backgroundColor: colors.error + '20' }]}>
               <Ionicons name="lock-closed" size={60} color={colors.error} />
             </View>
             <Text style={[styles.noAccessTitle, { color: colors.text }]}>
@@ -791,7 +791,6 @@ const styles = StyleSheet.create({
   },
   eventNetRow: {
     borderTopWidth: 1,
-    borderTopColor: '#e9ecef',
     paddingTop: 6,
     marginTop: 4,
     marginBottom: 0,
@@ -809,7 +808,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#e9ecef',
   },
   expensesTitle: {
     fontSize: 14,
