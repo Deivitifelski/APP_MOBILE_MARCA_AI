@@ -982,7 +982,7 @@ export default function ColaboradoresArtistaScreen() {
               <View style={styles.infoItem}>
                 <Ionicons name="shield-checkmark-outline" size={20} color="#667eea" />
                 <Text style={styles.infoText}>
-                  Convite válido por 7 dias
+                  Convite válido
                 </Text>
               </View>
             </View>
@@ -1740,22 +1740,6 @@ const styles = StyleSheet.create({
   },
   roleLabelContainer: {
     flex: 1,
-  },
-  roleOptionLabel: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  roleOptionLabelSelected: {
-    color: '#667eea',
-  },
-  roleOptionDescription: {
-    fontSize: 14,
-    color: '#666',
-  },
-  roleOptionDescriptionSelected: {
-    color: '#667eea',
   },
   roleFeaturesList: {
     gap: 10,
