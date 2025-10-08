@@ -45,6 +45,13 @@ export default function ColaboradoresArtistaScreen() {
   const [selectedCollaborator, setSelectedCollaborator] = useState<Collaborator | null>(null);
   const [selectedRole, setSelectedRole] = useState<'owner' | 'admin' | 'editor' | 'viewer'>('viewer');
   const [isUpdatingRole, setIsUpdatingRole] = useState(false);
+  const [showInviteSentModal, setShowInviteSentModal] = useState(false);
+  const [inviteSentData, setInviteSentData] = useState<{
+    userName: string;
+    userEmail: string;
+    userImage: string;
+    role: 'owner' | 'admin' | 'editor' | 'viewer';
+  } | null>(null);
 
   useEffect(() => {
     loadActiveArtist();
@@ -187,13 +194,17 @@ export default function ColaboradoresArtistaScreen() {
       });
 
       if (success) {
-        Alert.alert(
-          'Convite Enviado!', 
-          `O convite foi enviado para ${selectedUser.name}. Eles receberão uma notificação e poderão aceitar ou recusar o convite.`,
-          [{ text: 'OK', style: 'default' }]
-        );
+        // Salvar dados do convite para mostrar no modal
+        setInviteSentData({
+          userName: selectedUser.name,
+          userEmail: selectedUser.email,
+          userImage: selectedUser.profile_url || '',
+          role: newCollaboratorRole
+        });
+        
         setShowInviteModal(false);
         setShowAddModal(false);
+        setShowInviteSentModal(true);
         setSearchTerm('');
         setSearchResults([]);
         setSelectedUser(null);
@@ -878,6 +889,113 @@ export default function ColaboradoresArtistaScreen() {
             </View>
           </ScrollView>
         </SafeAreaView>
+      </Modal>
+
+      {/* Modal de Convite Enviado */}
+      <Modal
+        visible={showInviteSentModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowInviteSentModal(false)}
+      >
+        <View style={styles.inviteSentOverlay}>
+          <View style={styles.inviteSentContainer}>
+            {/* Header com ícone de sucesso */}
+            <View style={styles.inviteSentHeader}>
+              <View style={styles.successIconCircle}>
+                <Ionicons name="checkmark-circle" size={64} color="#10B981" />
+              </View>
+              <Text style={styles.inviteSentTitle}>Convite Enviado!</Text>
+              <Text style={styles.inviteSentSubtitle}>
+                O colaborador receberá uma notificação
+              </Text>
+            </View>
+
+            {/* Card do usuário convidado */}
+            {inviteSentData && (
+              <View style={styles.invitedUserCard}>
+                <View style={styles.invitedUserHeader}>
+                  <OptimizedImage
+                    imageUrl={inviteSentData.userImage}
+                    style={styles.invitedUserAvatar}
+                    cacheKey={`invited_${inviteSentData.userEmail}`}
+                    fallbackIcon="person"
+                    fallbackIconSize={32}
+                    fallbackIconColor="#667eea"
+                  />
+                  <View style={styles.invitedUserInfo}>
+                    <Text style={styles.invitedUserName}>
+                      {inviteSentData.userName}
+                    </Text>
+                    <Text style={styles.invitedUserEmail}>
+                      {inviteSentData.userEmail}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Badge do cargo */}
+                <View style={styles.invitedRoleSection}>
+                  <Text style={styles.invitedRoleLabel}>Cargo atribuído:</Text>
+                  <View style={[
+                    styles.invitedRoleBadge,
+                    { backgroundColor: getRoleColor(inviteSentData.role) + '15' }
+                  ]}>
+                    <Ionicons 
+                      name={getRoleIcon(inviteSentData.role) as any}
+                      size={20}
+                      color={getRoleColor(inviteSentData.role)}
+                    />
+                    <Text style={[
+                      styles.invitedRoleText,
+                      { color: getRoleColor(inviteSentData.role) }
+                    ]}>
+                      {getRoleLabel(inviteSentData.role)}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Status pendente */}
+                <View style={styles.pendingStatusSection}>
+                  <View style={styles.pendingIcon}>
+                    <Ionicons name="time-outline" size={20} color="#F59E0B" />
+                  </View>
+                  <View style={styles.pendingTextContainer}>
+                    <Text style={styles.pendingStatusTitle}>
+                      Aguardando aceitação
+                    </Text>
+                    <Text style={styles.pendingStatusDescription}>
+                      {inviteSentData.userName} receberá uma notificação e poderá aceitar ou recusar o convite.
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* Informações adicionais */}
+            <View style={styles.inviteSentInfo}>
+              <View style={styles.infoItem}>
+                <Ionicons name="mail-outline" size={20} color="#667eea" />
+                <Text style={styles.infoText}>
+                  Notificação enviada por e-mail
+                </Text>
+              </View>
+              <View style={styles.infoItem}>
+                <Ionicons name="shield-checkmark-outline" size={20} color="#667eea" />
+                <Text style={styles.infoText}>
+                  Convite válido por 7 dias
+                </Text>
+              </View>
+            </View>
+
+            {/* Botão de fechar */}
+            <TouchableOpacity
+              style={styles.inviteSentButton}
+              onPress={() => setShowInviteSentModal(false)}
+            >
+              <Text style={styles.inviteSentButtonText}>Entendi</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -1668,5 +1786,159 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     flex: 1,
     lineHeight: 20,
+  },
+  // Estilos do Modal de Convite Enviado
+  inviteSentOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  inviteSentContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  inviteSentHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  successIconCircle: {
+    marginBottom: 16,
+  },
+  inviteSentTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#10B981',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  inviteSentSubtitle: {
+    fontSize: 15,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  invitedUserCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  invitedUserHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  invitedUserAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginRight: 12,
+    borderWidth: 2,
+    borderColor: '#667eea',
+  },
+  invitedUserInfo: {
+    flex: 1,
+  },
+  invitedUserName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  invitedUserEmail: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  invitedRoleSection: {
+    marginBottom: 16,
+  },
+  invitedRoleLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  invitedRoleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    gap: 6,
+  },
+  invitedRoleText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  pendingStatusSection: {
+    flexDirection: 'row',
+    backgroundColor: '#FEF3C7',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    gap: 12,
+  },
+  pendingIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pendingTextContainer: {
+    flex: 1,
+  },
+  pendingStatusTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#92400E',
+    marginBottom: 4,
+  },
+  pendingStatusDescription: {
+    fontSize: 13,
+    color: '#92400E',
+    lineHeight: 18,
+  },
+  inviteSentInfo: {
+    backgroundColor: '#EFF6FF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    gap: 12,
+  },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#1E40AF',
+    flex: 1,
+  },
+  inviteSentButton: {
+    backgroundColor: '#667eea',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  inviteSentButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
