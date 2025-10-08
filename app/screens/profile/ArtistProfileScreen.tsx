@@ -273,44 +273,14 @@ export default function ArtistProfileScreen() {
 
               <TouchableOpacity
                 style={styles.skipButton}
-                onPress={() => {
-                  Alert.alert(
-                    'Pular Cadastro',
-                    'Você pode criar o perfil do artista mais tarde ou aguardar um convite para gerenciar um artista existente.',
-                    [
-                      {
-                        text: 'Criar Mais Tarde',
-                        onPress: () => router.replace('/(tabs)/agenda')
-                      },
-                      {
-                        text: 'Aguardar Convite',
-                        onPress: () => router.replace('/(tabs)/agenda')
-                      },
-                      {
-                        text: 'Cancelar',
-                        style: 'cancel'
-                      }
-                    ]
-                  );
-                }}
+                onPress={() => router.replace('/(tabs)/agenda')}
               >
                 <Text style={styles.skipButtonText}>Criar Mais Tarde</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.inviteButton}
-                onPress={() => {
-                  Alert.alert(
-                    'Aguardar Convite',
-                    'Você será notificado quando receber um convite para gerenciar um artista.',
-                    [
-                      {
-                        text: 'OK',
-                        onPress: () => router.replace('/(tabs)/agenda')
-                      }
-                    ]
-                  );
-                }}
+                onPress={() => router.replace('/(tabs)/agenda')}
               >
                 <Text style={styles.inviteButtonText}>Aguardar Convite</Text>
               </TouchableOpacity>
