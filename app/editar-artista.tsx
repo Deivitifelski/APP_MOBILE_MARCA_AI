@@ -3,16 +3,16 @@ import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import PermissionModal from '../components/PermissionModal';
 import { useTheme } from '../contexts/ThemeContext';
@@ -84,10 +84,10 @@ export default function EditarArtistaScreen() {
       if (!permissions.permissions.canManageArtist) {
         Alert.alert(
           'Acesso Negado', 
-          'Você não tem permissão para editar as informações deste artista.',
+          'Você não possui permissão para editar as informações deste artista. Entre em contato com um administrador para solicitar acesso.',
           [
             {
-              text: 'OK',
+              text: 'Entendi',
               onPress: () => router.back(),
             },
           ]
@@ -356,8 +356,8 @@ export default function EditarArtistaScreen() {
       <PermissionModal
         visible={showPermissionModal}
         onClose={() => setShowPermissionModal(false)}
-        title="Permissão Insuficiente"
-        message="Você não tem permissão para editar as informações deste artista."
+        title="Acesso Restrito"
+        message="Você não possui permissão para editar as informações deste artista. Entre em contato com um administrador para solicitar acesso."
         icon="lock-closed"
       />
     </SafeAreaView>
