@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { clearPermissionsCache, getUserPermissions, UserPermission } from '../services/supabase/permissionsService';
+import { clearPermissionsCache, getUserPermissions, getUserPermissionsByRole, UserPermission, UserRole } from '../services/supabase/permissionsService';
 import { useActiveArtist } from '../services/useActiveArtist';
 
 interface PermissionsContextData {
@@ -48,14 +48,38 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       }
 
       console.log('🔒 Permissões: Carregando para usuário:', user.id, 'artista:', activeArtist.id);
+      console.log('🔒 Permissões: Role do activeArtist:', activeArtist.role);
 
+      // Se o activeArtist já tem o role, usar ele diretamente
+      if (activeArtist.role) {
+        const permissions = getUserPermissionsByRole(activeArtist.role as UserRole);
+        const userPermission: UserPermission = {
+          userId: user.id,
+          artistId: activeArtist.id,
+          role: activeArtist.role as UserRole,
+          permissions
+        };
+        
+        console.log('✅ Permissões carregadas do activeArtist:', {
+          role: userPermission.role,
+          canViewFinancials: userPermission.permissions.canViewFinancials
+        });
+        
+        setUserPermissions(userPermission);
+        setPermissionsLoaded(true);
+        return;
+      }
+
+      // Caso contrário, buscar da tabela artist_members
+      console.log('⚠️ Permissões: activeArtist sem role, buscando da tabela artist_members');
+      
       // Limpar cache para garantir dados frescos
       clearPermissionsCache(user.id, activeArtist.id);
       
       const permissions = await getUserPermissions(user.id, activeArtist.id);
 
       if (permissions) {
-        console.log('✅ Permissões carregadas:', {
+        console.log('✅ Permissões carregadas da tabela:', {
           role: permissions.role,
           canViewFinancials: permissions.permissions.canViewFinancials
         });

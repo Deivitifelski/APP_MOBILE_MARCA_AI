@@ -12,6 +12,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { useTheme } from '../contexts/ThemeContext';
 import { clearActiveArtist } from '../services/artistContext';
 import { cacheService } from '../services/cacheService';
 import { deleteArtist } from '../services/supabase/artistService';
@@ -35,6 +36,7 @@ interface Collaborator {
 }
 
 export default function SairArtistaScreen() {
+  const { colors } = useTheme();
   const { activeArtist, loadActiveArtist } = useActiveArtist();
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -184,21 +186,21 @@ export default function SairArtistaScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
           >
-            <Ionicons name="arrow-back" size={24} color="#1F2937" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Sair do Artista</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Sair do Artista</Text>
           <View style={styles.placeholder} />
         </View>
         
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#6366F1" />
-          <Text style={styles.loadingText}>Carregando informações...</Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Carregando informações...</Text>
         </View>
       </SafeAreaView>
     );
@@ -208,57 +210,57 @@ export default function SairArtistaScreen() {
   const eligibleCollaborators = collaborators.filter(c => c.role !== 'owner');
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color="#1F2937" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Sair do Artista</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Sair do Artista</Text>
         <View style={styles.placeholder} />
       </View>
 
       <ScrollView style={styles.content}>
-        <View style={styles.artistInfo}>
-          <Ionicons name="musical-notes" size={48} color="#6366F1" />
-          <Text style={styles.artistName}>{activeArtist?.name}</Text>
-          <Text style={styles.artistDescription}>
+        <View style={[styles.artistInfo, { backgroundColor: colors.surface }]}>
+          <Ionicons name="musical-notes" size={48} color={colors.primary} />
+          <Text style={[styles.artistName, { color: colors.text }]}>{activeArtist?.name}</Text>
+          <Text style={[styles.artistDescription, { color: colors.textSecondary }]}>
             Você está prestes a sair deste artista
           </Text>
         </View>
 
-        <View style={styles.infoCard}>
-          <Ionicons name="information-circle" size={24} color="#3B82F6" />
+        <View style={[styles.infoCard, { backgroundColor: colors.primary + '20' }]}>
+          <Ionicons name="information-circle" size={24} color={colors.primary} />
           <View style={styles.infoContent}>
-            <Text style={styles.infoTitle}>Informações do Artista</Text>
-            <Text style={styles.infoText}>
+            <Text style={[styles.infoTitle, { color: colors.primary }]}>Informações do Artista</Text>
+            <Text style={[styles.infoText, { color: colors.primary }]}>
               • Total de colaboradores: {collaborators.length}
             </Text>
-            <Text style={styles.infoText}>
+            <Text style={[styles.infoText, { color: colors.primary }]}>
               • Proprietários: {ownerCount}
             </Text>
-            <Text style={styles.infoText}>
+            <Text style={[styles.infoText, { color: colors.primary }]}>
               • Outros colaboradores: {eligibleCollaborators.length}
             </Text>
           </View>
         </View>
 
-        <View style={styles.warningCard}>
-          <Ionicons name="warning" size={24} color="#F59E0B" />
+        <View style={[styles.warningCard, { backgroundColor: colors.warning + '20' }]}>
+          <Ionicons name="warning" size={24} color={colors.warning} />
           <View style={styles.warningContent}>
-            <Text style={styles.warningTitle}>Atenção</Text>
+            <Text style={[styles.warningTitle, { color: colors.warning }]}>Atenção</Text>
             {ownerCount === 1 && eligibleCollaborators.length > 0 ? (
-              <Text style={styles.warningText}>
+              <Text style={[styles.warningText, { color: colors.warning }]}>
                 Você é o único proprietário. Para sair, você deve transferir a propriedade para outro colaborador.
               </Text>
             ) : ownerCount === 1 && eligibleCollaborators.length === 0 ? (
-              <Text style={styles.warningText}>
+              <Text style={[styles.warningText, { color: colors.warning }]}>
                 Você é o único colaborador. Ao sair, o artista será deletado permanentemente.
               </Text>
             ) : (
-              <Text style={styles.warningText}>
+              <Text style={[styles.warningText, { color: colors.warning }]}>
                 Ao sair, você perderá acesso a todos os dados e funcionalidades deste artista.
               </Text>
             )}
@@ -269,10 +271,10 @@ export default function SairArtistaScreen() {
           style={[
             styles.actionButton,
             ownerCount === 1 && eligibleCollaborators.length > 0 
-              ? styles.transferButton 
+              ? { backgroundColor: colors.primary }
               : ownerCount === 1 && eligibleCollaborators.length === 0
-              ? styles.deleteButton
-              : styles.leaveButton
+              ? { backgroundColor: colors.error }
+              : { backgroundColor: colors.textSecondary }
           ]}
           onPress={handleLeaveArtist}
           disabled={isProcessing}
@@ -313,13 +315,13 @@ export default function SairArtistaScreen() {
         onRequestClose={() => setShowOwnerOptionsModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
+          <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
             <View style={styles.modalHeader}>
-              <View style={[styles.modalIcon, { backgroundColor: '#FEF3C7' }]}>
-                <Ionicons name="shield-checkmark" size={32} color="#F59E0B" />
+              <View style={[styles.modalIcon, { backgroundColor: colors.warning + '30' }]}>
+                <Ionicons name="shield-checkmark" size={32} color={colors.warning} />
               </View>
-              <Text style={styles.modalTitle}>Você é o Único Proprietário</Text>
-              <Text style={styles.modalSubtitle}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Você é o Único Proprietário</Text>
+              <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
                 Escolha uma das opções abaixo para continuar
               </Text>
             </View>
@@ -327,70 +329,70 @@ export default function SairArtistaScreen() {
             <View style={styles.optionsContainer}>
               {/* Opção 1: Transferir Propriedade */}
               <TouchableOpacity
-                style={styles.optionCard}
+                style={[styles.optionCard, { backgroundColor: colors.background, borderColor: colors.border }]}
                 onPress={() => {
                   setShowOwnerOptionsModal(false);
                   router.push('/transferir-propriedade');
                 }}
               >
-                <View style={[styles.optionIconCircle, { backgroundColor: '#DBEAFE' }]}>
-                  <Ionicons name="swap-horizontal" size={24} color="#3B82F6" />
+                <View style={[styles.optionIconCircle, { backgroundColor: colors.primary + '30' }]}>
+                  <Ionicons name="swap-horizontal" size={24} color={colors.primary} />
                 </View>
                 <View style={styles.optionContent}>
-                  <Text style={styles.optionTitle}>Transferir Propriedade</Text>
-                  <Text style={styles.optionDescription}>
+                  <Text style={[styles.optionTitle, { color: colors.text }]}>Transferir Propriedade</Text>
+                  <Text style={[styles.optionDescription, { color: colors.textSecondary }]}>
                     Escolha outro colaborador para ser o novo proprietário e depois você sai do artista.
                   </Text>
                   <View style={styles.optionSteps}>
                     <View style={styles.stepItem}>
-                      <Ionicons name="checkmark-circle" size={16} color="#3B82F6" />
-                      <Text style={styles.stepText}>Você mantém seus dados seguros</Text>
+                      <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
+                      <Text style={[styles.stepText, { color: colors.textSecondary }]}>Você mantém seus dados seguros</Text>
                     </View>
                     <View style={styles.stepItem}>
-                      <Ionicons name="checkmark-circle" size={16} color="#3B82F6" />
-                      <Text style={styles.stepText}>Outro colaborador assume o controle</Text>
+                      <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
+                      <Text style={[styles.stepText, { color: colors.textSecondary }]}>Outro colaborador assume o controle</Text>
                     </View>
                   </View>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="#6B7280" />
+                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
 
               {/* Opção 2: Deletar Artista */}
               <TouchableOpacity
-                style={[styles.optionCard, styles.dangerOption]}
+                style={[styles.optionCard, { backgroundColor: colors.error + '15', borderColor: colors.error + '40' }]}
                 onPress={() => {
                   setShowOwnerOptionsModal(false);
                   setShowDeleteConfirmModal(true);
                 }}
               >
-                <View style={[styles.optionIconCircle, { backgroundColor: '#FEE2E2' }]}>
-                  <Ionicons name="trash" size={24} color="#EF4444" />
+                <View style={[styles.optionIconCircle, { backgroundColor: colors.error + '30' }]}>
+                  <Ionicons name="trash" size={24} color={colors.error} />
                 </View>
                 <View style={styles.optionContent}>
-                  <Text style={[styles.optionTitle, { color: '#EF4444' }]}>Deletar Artista</Text>
-                  <Text style={styles.optionDescription}>
+                  <Text style={[styles.optionTitle, { color: colors.error }]}>Deletar Artista</Text>
+                  <Text style={[styles.optionDescription, { color: colors.textSecondary }]}>
                     Deleta permanentemente o artista e TODOS os dados associados.
                   </Text>
                   <View style={styles.optionSteps}>
                     <View style={styles.stepItem}>
-                      <Ionicons name="warning" size={16} color="#EF4444" />
-                      <Text style={[styles.stepText, { color: '#EF4444' }]}>Remove todos os {collaborators.length} colaboradores</Text>
+                      <Ionicons name="warning" size={16} color={colors.error} />
+                      <Text style={[styles.stepText, { color: colors.error }]}>Remove todos os {collaborators.length} colaboradores</Text>
                     </View>
                     <View style={styles.stepItem}>
-                      <Ionicons name="warning" size={16} color="#EF4444" />
-                      <Text style={[styles.stepText, { color: '#EF4444' }]}>Deleta eventos e dados financeiros</Text>
+                      <Ionicons name="warning" size={16} color={colors.error} />
+                      <Text style={[styles.stepText, { color: colors.error }]}>Deleta eventos e dados financeiros</Text>
                     </View>
                   </View>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="#EF4444" />
+                <Ionicons name="chevron-forward" size={20} color={colors.error} />
               </TouchableOpacity>
             </View>
 
             <TouchableOpacity
-              style={styles.modalCancelButton}
+              style={[styles.modalCancelButton, { backgroundColor: colors.background }]}
               onPress={() => setShowOwnerOptionsModal(false)}
             >
-              <Text style={styles.modalCancelText}>Cancelar</Text>
+              <Text style={[styles.modalCancelText, { color: colors.textSecondary }]}>Cancelar</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -404,41 +406,41 @@ export default function SairArtistaScreen() {
         onRequestClose={() => setShowDeleteConfirmModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
+          <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
             <View style={styles.modalHeader}>
-              <View style={[styles.modalIcon, { backgroundColor: '#FEE2E2' }]}>
-                <Ionicons name="warning" size={40} color="#EF4444" />
+              <View style={[styles.modalIcon, { backgroundColor: colors.error + '30' }]}>
+                <Ionicons name="warning" size={40} color={colors.error} />
               </View>
-              <Text style={[styles.modalTitle, { color: '#EF4444' }]}>Deletar Artista</Text>
-              <Text style={styles.modalSubtitle}>
+              <Text style={[styles.modalTitle, { color: colors.error }]}>Deletar Artista</Text>
+              <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
                 Essa ação é permanente e não pode ser desfeita!
               </Text>
             </View>
 
-            <View style={styles.warningBox}>
-              <Text style={styles.warningBoxTitle}>⚠️ O que será deletado:</Text>
+            <View style={[styles.warningBox, { backgroundColor: colors.error + '15', borderColor: colors.error + '40' }]}>
+              <Text style={[styles.warningBoxTitle, { color: colors.error }]}>⚠️ O que será deletado:</Text>
               <View style={styles.warningList}>
                 <View style={styles.warningItem}>
-                  <Ionicons name="close-circle" size={20} color="#EF4444" />
-                  <Text style={styles.warningItemText}>
+                  <Ionicons name="close-circle" size={20} color={colors.error} />
+                  <Text style={[styles.warningItemText, { color: colors.error }]}>
                     Artista "{activeArtist?.name}"
                   </Text>
                 </View>
                 <View style={styles.warningItem}>
-                  <Ionicons name="close-circle" size={20} color="#EF4444" />
-                  <Text style={styles.warningItemText}>
+                  <Ionicons name="close-circle" size={20} color={colors.error} />
+                  <Text style={[styles.warningItemText, { color: colors.error }]}>
                     Todos os {collaborators.length} colaboradores serão removidos
                   </Text>
                 </View>
                 <View style={styles.warningItem}>
-                  <Ionicons name="close-circle" size={20} color="#EF4444" />
-                  <Text style={styles.warningItemText}>
+                  <Ionicons name="close-circle" size={20} color={colors.error} />
+                  <Text style={[styles.warningItemText, { color: colors.error }]}>
                     Todos os eventos e agenda
                   </Text>
                 </View>
                 <View style={styles.warningItem}>
-                  <Ionicons name="close-circle" size={20} color="#EF4444" />
-                  <Text style={styles.warningItemText}>
+                  <Ionicons name="close-circle" size={20} color={colors.error} />
+                  <Text style={[styles.warningItemText, { color: colors.error }]}>
                     Todos os dados financeiros
                   </Text>
                 </View>
@@ -447,14 +449,14 @@ export default function SairArtistaScreen() {
 
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={styles.modalCancelButtonAlt}
+                style={[styles.modalCancelButtonAlt, { backgroundColor: colors.background }]}
                 onPress={() => setShowDeleteConfirmModal(false)}
               >
-                <Text style={styles.modalCancelTextAlt}>Cancelar</Text>
+                <Text style={[styles.modalCancelTextAlt, { color: colors.textSecondary }]}>Cancelar</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
-                style={styles.modalDeleteButton}
+                style={[styles.modalDeleteButton, { backgroundColor: colors.error }]}
                 onPress={() => {
                   setShowDeleteConfirmModal(false);
                   handleDeleteArtist();
@@ -483,35 +485,35 @@ export default function SairArtistaScreen() {
         onRequestClose={() => setShowLeaveConfirmModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
+          <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
             <View style={styles.modalHeader}>
-              <View style={[styles.modalIcon, { backgroundColor: '#E0E7FF' }]}>
-                <Ionicons name="log-out" size={32} color="#6366F1" />
+              <View style={[styles.modalIcon, { backgroundColor: colors.primary + '30' }]}>
+                <Ionicons name="log-out" size={32} color={colors.primary} />
               </View>
-              <Text style={styles.modalTitle}>Sair do Artista</Text>
-              <Text style={styles.modalSubtitle}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Sair do Artista</Text>
+              <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
                 Tem certeza que deseja sair de "{activeArtist?.name}"?
               </Text>
             </View>
 
-            <View style={styles.infoBox}>
-              <Text style={styles.infoBoxTitle}>📋 O que acontecerá:</Text>
+            <View style={[styles.infoBox, { backgroundColor: colors.primary + '20', borderColor: colors.primary + '40' }]}>
+              <Text style={[styles.infoBoxTitle, { color: colors.primary }]}>📋 O que acontecerá:</Text>
               <View style={styles.infoList}>
                 <View style={styles.infoItem}>
-                  <Ionicons name="checkmark-circle" size={20} color="#6366F1" />
-                  <Text style={styles.infoItemText}>
+                  <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                  <Text style={[styles.infoItemText, { color: colors.primary }]}>
                     Você será removido da lista de colaboradores
                   </Text>
                 </View>
                 <View style={styles.infoItem}>
-                  <Ionicons name="checkmark-circle" size={20} color="#6366F1" />
-                  <Text style={styles.infoItemText}>
+                  <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                  <Text style={[styles.infoItemText, { color: colors.primary }]}>
                     Perderá acesso a eventos e dados do artista
                   </Text>
                 </View>
                 <View style={styles.infoItem}>
-                  <Ionicons name="checkmark-circle" size={20} color="#6366F1" />
-                  <Text style={styles.infoItemText}>
+                  <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                  <Text style={[styles.infoItemText, { color: colors.primary }]}>
                     O artista continuará existindo para os outros colaboradores
                   </Text>
                 </View>
@@ -520,14 +522,14 @@ export default function SairArtistaScreen() {
 
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={styles.modalCancelButtonAlt}
+                style={[styles.modalCancelButtonAlt, { backgroundColor: colors.background }]}
                 onPress={() => setShowLeaveConfirmModal(false)}
               >
-                <Text style={styles.modalCancelTextAlt}>Cancelar</Text>
+                <Text style={[styles.modalCancelTextAlt, { color: colors.textSecondary }]}>Cancelar</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
-                style={styles.modalLeaveButton}
+                style={[styles.modalLeaveButton, { backgroundColor: colors.textSecondary }]}
                 onPress={() => {
                   setShowLeaveConfirmModal(false);
                   handleLeaveNormally();
@@ -554,7 +556,6 @@ export default function SairArtistaScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
   },
   header: {
     flexDirection: 'row',
@@ -562,9 +563,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
   },
   backButton: {
     padding: 8,
@@ -572,7 +571,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1F2937',
   },
   placeholder: {
     width: 40,
@@ -586,7 +584,6 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#6B7280',
     textAlign: 'center',
   },
   content: {
@@ -594,7 +591,6 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   artistInfo: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
@@ -611,19 +607,16 @@ const styles = StyleSheet.create({
   artistName: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#1F2937',
     marginTop: 16,
     textAlign: 'center',
   },
   artistDescription: {
     fontSize: 16,
-    color: '#6B7280',
     marginTop: 8,
     textAlign: 'center',
   },
   infoCard: {
     flexDirection: 'row',
-    backgroundColor: '#EFF6FF',
     padding: 16,
     borderRadius: 12,
     marginBottom: 16,
@@ -636,18 +629,15 @@ const styles = StyleSheet.create({
   infoTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1E40AF',
     marginBottom: 8,
   },
   infoText: {
     fontSize: 14,
-    color: '#1E40AF',
     marginBottom: 4,
     lineHeight: 20,
   },
   warningCard: {
     flexDirection: 'row',
-    backgroundColor: '#FEF3C7',
     padding: 16,
     borderRadius: 12,
     marginBottom: 32,
@@ -660,12 +650,10 @@ const styles = StyleSheet.create({
   warningTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#92400E',
     marginBottom: 8,
   },
   warningText: {
     fontSize: 14,
-    color: '#92400E',
     lineHeight: 20,
   },
   actionButton: {
@@ -676,14 +664,129 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 16,
   },
-  transferButton: {
-    backgroundColor: '#3B82F6',
+  actionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
   },
-  deleteButton: {
-    backgroundColor: '#EF4444',
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
-  leaveButton: {
-    backgroundColor: '#6B7280',
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  backButton: {
+    padding: 8,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  placeholder: {
+    width: 40,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  content: {
+    flex: 1,
+    padding: 16,
+  },
+  artistInfo: {
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  artistName: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  artistDescription: {
+    fontSize: 16,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  infoCard: {
+    flexDirection: 'row',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    alignItems: 'flex-start',
+  },
+  infoContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  infoText: {
+    fontSize: 14,
+    marginBottom: 4,
+    lineHeight: 20,
+  },
+  warningCard: {
+    flexDirection: 'row',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 32,
+    alignItems: 'flex-start',
+  },
+  warningContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  warningTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  warningText: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 12,
+    marginBottom: 16,
   },
   actionButtonText: {
     color: '#FFFFFF',
@@ -699,7 +802,6 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalContainer: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 24,
     width: '100%',
@@ -725,13 +827,11 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#1F2937',
     textAlign: 'center',
     marginBottom: 8,
   },
   modalSubtitle: {
     fontSize: 15,
-    color: '#6B7280',
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -740,17 +840,11 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   optionCard: {
-    backgroundColor: '#F9FAFB',
     borderRadius: 16,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#E5E7EB',
-  },
-  dangerOption: {
-    borderColor: '#FEE2E2',
-    backgroundColor: '#FEF2F2',
   },
   optionIconCircle: {
     width: 48,
@@ -766,12 +860,10 @@ const styles = StyleSheet.create({
   optionTitle: {
     fontSize: 17,
     fontWeight: 'bold',
-    color: '#1F2937',
     marginBottom: 4,
   },
   optionDescription: {
     fontSize: 14,
-    color: '#6B7280',
     lineHeight: 20,
     marginBottom: 8,
   },
@@ -785,20 +877,16 @@ const styles = StyleSheet.create({
   },
   stepText: {
     fontSize: 13,
-    color: '#6B7280',
   },
   warningBox: {
-    backgroundColor: '#FEF2F2',
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#FEE2E2',
   },
   warningBoxTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#991B1B',
     marginBottom: 12,
   },
   warningList: {
@@ -811,22 +899,18 @@ const styles = StyleSheet.create({
   },
   warningItemText: {
     fontSize: 14,
-    color: '#991B1B',
     flex: 1,
     lineHeight: 20,
   },
   infoBox: {
-    backgroundColor: '#EFF6FF',
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#DBEAFE',
   },
   infoBoxTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1E40AF',
     marginBottom: 12,
   },
   infoList: {
@@ -839,7 +923,6 @@ const styles = StyleSheet.create({
   },
   infoItemText: {
     fontSize: 14,
-    color: '#1E40AF',
     flex: 1,
     lineHeight: 20,
   },
@@ -848,31 +931,26 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   modalCancelButton: {
-    backgroundColor: '#F3F4F6',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
   },
   modalCancelText: {
-    color: '#6B7280',
     fontSize: 16,
     fontWeight: '600',
   },
   modalCancelButtonAlt: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
   },
   modalCancelTextAlt: {
-    color: '#6B7280',
     fontSize: 16,
     fontWeight: '600',
   },
   modalDeleteButton: {
     flex: 1,
-    backgroundColor: '#EF4444',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
@@ -887,7 +965,6 @@ const styles = StyleSheet.create({
   },
   modalLeaveButton: {
     flex: 1,
-    backgroundColor: '#6B7280',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',

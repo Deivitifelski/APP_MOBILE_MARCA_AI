@@ -31,6 +31,8 @@ export const getUserPermissions = async (userId: string, artistId: string): Prom
   }
 
   try {
+    console.log('🔍 permissionsService: Buscando permissões', { userId, artistId });
+    
     const { data, error } = await supabase
       .from('artist_members')
       .select('role')
@@ -38,15 +40,20 @@ export const getUserPermissions = async (userId: string, artistId: string): Prom
       .eq('artist_id', artistId)
       .single();
 
+    console.log('🔍 permissionsService: Resultado da query', { data, error });
+
     if (error) {
+      console.error('❌ permissionsService: Erro na query:', error);
       return null;
     }
     
     if (!data) {
+      console.log('⚠️ permissionsService: Nenhum dado encontrado');
       return null;
     }
 
     const role = data.role as UserRole;
+    console.log('✅ permissionsService: Role encontrado:', role);
     
     const permissions = getUserPermissionsByRole(role);
 

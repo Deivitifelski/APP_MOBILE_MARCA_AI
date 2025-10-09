@@ -2,20 +2,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import OptimizedImage from '../components/OptimizedImage';
 import UpgradeModal from '../components/UpgradeModal';
+import { useTheme } from '../contexts/ThemeContext';
 import { checkPendingInvite, createArtistInvite } from '../services/supabase/artistInviteService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { addCollaborator, Collaborator, getCollaborators, removeCollaborator, searchUsers, updateCollaboratorRole } from '../services/supabase/collaboratorService';
@@ -23,6 +24,7 @@ import { canExportData } from '../services/supabase/userService';
 import { useActiveArtist } from '../services/useActiveArtist';
 
 export default function ColaboradoresArtistaScreen() {
+  const { colors } = useTheme();
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
@@ -339,15 +341,15 @@ export default function ColaboradoresArtistaScreen() {
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'owner':
-        return '#FFD700'; // Dourado
+        return '#FFD700'; // Dourado - mantém fixo
       case 'admin':
-        return '#FF6B35'; // Laranja
+        return '#FF6B35'; // Laranja - mantém fixo
       case 'editor':
-        return '#4ECDC4'; // Verde água
+        return colors.success; // Verde
       case 'viewer':
-        return '#95A5A6'; // Cinza
+        return colors.textSecondary; // Cinza
       default:
-        return '#667eea';
+        return colors.primary;
     }
   };
 
@@ -367,16 +369,16 @@ export default function ColaboradoresArtistaScreen() {
   };
 
   const renderCollaborator = ({ item }: { item: Collaborator }) => (
-    <View style={styles.collaboratorCard}>
+    <View style={[styles.collaboratorCard, { backgroundColor: colors.surface }]}>
       <View style={styles.collaboratorInfo}>
-        <View style={styles.collaboratorAvatar}>
+        <View style={[styles.collaboratorAvatar, { backgroundColor: colors.primary }]}>
           <Text style={styles.avatarText}>
             {item.user.name.charAt(0).toUpperCase()}
           </Text>
         </View>
         <View style={styles.collaboratorDetails}>
-          <Text style={styles.collaboratorName}>{item.user.name}</Text>
-          <Text style={styles.collaboratorEmail}>{item.user.email}</Text>
+          <Text style={[styles.collaboratorName, { color: colors.text }]}>{item.user.name}</Text>
+          <Text style={[styles.collaboratorEmail, { color: colors.textSecondary }]}>{item.user.email}</Text>
           <View style={styles.roleContainer}>
             <Ionicons 
               name={getRoleIcon(item.role) as any} 
@@ -396,13 +398,13 @@ export default function ColaboradoresArtistaScreen() {
             style={styles.actionButton}
             onPress={() => handleUpdateRole(item.user_id, item.role, item.user.name)}
           >
-            <Ionicons name="swap-horizontal" size={20} color="#667eea" />
+            <Ionicons name="swap-horizontal" size={20} color={colors.primary} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionButton}
             onPress={() => handleRemoveCollaborator(item.user_id, item.user.name)}
           >
-            <Ionicons name="trash" size={20} color="#F44336" />
+            <Ionicons name="trash" size={20} color={colors.error} />
           </TouchableOpacity>
         </View>
       )}
@@ -411,29 +413,29 @@ export default function ColaboradoresArtistaScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#333" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.title}>Colaboradores</Text>
           <View style={styles.placeholder} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#667eea" />
-          <Text style={styles.loadingText}>Carregando colaboradores...</Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Carregando colaboradores...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Colaboradores</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Colaboradores</Text>
         <View style={styles.headerActions}>
           {canManage && (
             <>
@@ -441,13 +443,13 @@ export default function ColaboradoresArtistaScreen() {
                 style={styles.headerButton}
                 onPress={() => router.push('/convites-enviados')}
               >
-                <Ionicons name="mail" size={24} color="#667eea" />
+                <Ionicons name="mail" size={24} color={colors.primary} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.headerButton}
                 onPress={() => router.push('/selecionar-artista')}
               >
-                <Ionicons name="swap-horizontal" size={24} color="#667eea" />
+                <Ionicons name="swap-horizontal" size={24} color={colors.primary} />
               </TouchableOpacity>
             </>
           )}
@@ -476,7 +478,7 @@ export default function ColaboradoresArtistaScreen() {
                 setShowAddModal(true);
               }}
             >
-              <Ionicons name="add" size={24} color="#667eea" />
+              <Ionicons name="add" size={24} color={colors.primary} />
             </TouchableOpacity>
           )}
         </View>
@@ -485,9 +487,9 @@ export default function ColaboradoresArtistaScreen() {
       <ScrollView style={styles.content}>
         {/* Informações do artista */}
         {activeArtist && (
-          <View style={styles.artistInfo}>
-            <Text style={styles.artistName}>{activeArtist.name}</Text>
-            <Text style={styles.collaboratorCount}>
+          <View style={[styles.artistInfo, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.artistName, { color: colors.text }]}>{activeArtist.name}</Text>
+            <Text style={[styles.collaboratorCount, { color: colors.textSecondary }]}>
               {collaborators.length} colaborador{collaborators.length !== 1 ? 'es' : ''}
             </Text>
           </View>

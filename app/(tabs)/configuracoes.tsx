@@ -3,17 +3,17 @@ import { setStringAsync } from 'expo-clipboard';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Modal,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Modal,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import OptimizedImage from '../../components/OptimizedImage';
@@ -282,7 +282,7 @@ export default function ConfiguracoesScreen() {
       cleanupRealtimeSubscriptions();
       
       // Limpar cache
-      await cacheService.clearAll();
+      await cacheService.clear();
       
       // Fazer logout no Supabase
       await supabase.auth.signOut();
@@ -618,13 +618,6 @@ export default function ConfiguracoesScreen() {
                 'Sair do Artista',
                 'Remover-se do artista atual',
                 () => router.push('/sair-artista')
-              )}
-              
-              {renderSettingItem(
-                'musical-notes',
-                'Configurações do Artista',
-                'Editar informações do artista',
-                handleArtistSettings
               )}
 
               {renderSettingItem(

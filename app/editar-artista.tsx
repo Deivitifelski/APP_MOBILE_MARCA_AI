@@ -1,28 +1,30 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  Image,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { getCurrentUser } from '../services/supabase/authService';
-import { getArtists, updateArtist } from '../services/supabase/artistService';
-import { getUserPermissions } from '../services/supabase/permissionsService';
-import { uploadImageToSupabase, deleteImageFromSupabase, extractFileNameFromUrl } from '../services/supabase/imageUploadService';
-import { useActiveArtist } from '../services/useActiveArtist';
+import { router } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    Image,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 import PermissionModal from '../components/PermissionModal';
+import { useTheme } from '../contexts/ThemeContext';
 import { artistImageUpdateService } from '../services/artistImageUpdateService';
+import { getArtists, updateArtist } from '../services/supabase/artistService';
+import { getCurrentUser } from '../services/supabase/authService';
+import { deleteImageFromSupabase, extractFileNameFromUrl, uploadImageToSupabase } from '../services/supabase/imageUploadService';
+import { getUserPermissions } from '../services/supabase/permissionsService';
+import { useActiveArtist } from '../services/useActiveArtist';
 
 export default function EditarArtistaScreen() {
+  const { colors } = useTheme();
   const { loadActiveArtist } = useActiveArtist();
   const [artist, setArtist] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -229,14 +231,19 @@ export default function EditarArtistaScreen() {
     required: boolean = false
   ) => (
     <View style={styles.inputContainer}>
-      <Text style={styles.inputLabel}>
+      <Text style={[styles.inputLabel, { color: colors.text }]}>
         {label} {required && <Text style={styles.required}>*</Text>}
       </Text>
       <TextInput
-        style={styles.input}
+        style={[styles.input, { 
+          borderColor: colors.border, 
+          backgroundColor: colors.surface,
+          color: colors.text 
+        }]}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
+        placeholderTextColor={colors.textSecondary}
         keyboardType={keyboardType}
         autoCapitalize="none"
       />
@@ -245,36 +252,36 @@ export default function EditarArtistaScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#333" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.title}>Editar Artista</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Editar Artista</Text>
           <View style={styles.placeholder} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#667eea" />
-          <Text style={styles.loadingText}>Carregando dados do artista...</Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Carregando dados do artista...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Editar Artista</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Editar Artista</Text>
         <TouchableOpacity 
           onPress={handleSave} 
-          style={styles.saveButton}
+          style={[styles.saveButton, { backgroundColor: colors.primary }]}
           disabled={isSaving || isUploadingImage}
         >
           {isSaving || isUploadingImage ? (
-            <ActivityIndicator size="small" color="#667eea" />
+            <ActivityIndicator size="small" color="#fff" />
           ) : (
             <Text style={styles.saveButtonText}>Salvar</Text>
           )}
@@ -284,7 +291,7 @@ export default function EditarArtistaScreen() {
       <ScrollView style={styles.content}>
         {/* Informações do artista */}
         {artist && (
-          <View style={styles.artistInfoCard}>
+          <View style={[styles.artistInfoCard, { backgroundColor: colors.surface }]}>
             <TouchableOpacity 
               style={styles.avatarContainer}
               onPress={handleSelectImage}
@@ -296,7 +303,7 @@ export default function EditarArtistaScreen() {
                     uri: `${profileUrl}${profileUrl.includes('?') ? '&' : '?'}t=${Date.now()}`,
                     cache: 'reload'
                   }}
-                  style={styles.artistAvatarImage}
+                  style={[styles.artistAvatarImage, { borderColor: colors.primary }]}
                   resizeMode="cover"
                   onError={() => {
                     setImageLoadError(true);
@@ -306,26 +313,26 @@ export default function EditarArtistaScreen() {
                   }}
                 />
               ) : (
-                <View style={styles.artistAvatarPlaceholder}>
-                  <Ionicons name="musical-notes" size={40} color="#667eea" />
+                <View style={[styles.artistAvatarPlaceholder, { backgroundColor: colors.background, borderColor: colors.primary }]}>
+                  <Ionicons name="musical-notes" size={40} color={colors.primary} />
                 </View>
               )}
-              <View style={styles.editImageOverlay}>
+              <View style={[styles.editImageOverlay, { backgroundColor: colors.primary }]}>
                 <Ionicons name="camera" size={20} color="#fff" />
               </View>
             </TouchableOpacity>
             <View style={styles.artistInfo}>
-              <Text style={styles.artistName}>{artist.name}</Text>
-              <Text style={styles.artistRole}>
+              <Text style={[styles.artistName, { color: colors.text }]}>{artist.name}</Text>
+              <Text style={[styles.artistRole, { color: colors.primary }]}>
                 {userPermissions?.role === 'owner' ? 'Proprietário' : 'Colaborador'}
               </Text>
-              <Text style={styles.editImageText}>Toque na imagem para alterar</Text>
+              <Text style={[styles.editImageText, { color: colors.textSecondary }]}>Toque na imagem para alterar</Text>
             </View>
           </View>
         )}
 
         {/* Formulário */}
-        <View style={styles.formContainer}>
+        <View style={[styles.formContainer, { backgroundColor: colors.surface }]}>
           {renderInput(
             'Nome do Artista',
             name,
@@ -337,9 +344,9 @@ export default function EditarArtistaScreen() {
         </View>
 
         {/* Informações adicionais */}
-        <View style={styles.infoCard}>
-          <Ionicons name="information-circle" size={20} color="#667eea" />
-          <Text style={styles.infoText}>
+        <View style={[styles.infoCard, { backgroundColor: colors.primary + '20' }]}>
+          <Ionicons name="information-circle" size={20} color={colors.primary} />
+          <Text style={[styles.infoText, { color: colors.primary }]}>
             Campos marcados com * são obrigatórios. As alterações serão salvas automaticamente.
           </Text>
         </View>
@@ -360,15 +367,12 @@ export default function EditarArtistaScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
   },
   header: {
-    backgroundColor: '#fff',
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -379,13 +383,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
   },
   saveButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: '#667eea',
     minWidth: 80,
     alignItems: 'center',
   },
@@ -404,13 +406,11 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#666',
   },
   content: {
     flex: 1,
   },
   artistInfoCard: {
-    backgroundColor: '#fff',
     margin: 20,
     borderRadius: 12,
     padding: 20,
@@ -434,23 +434,19 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 40,
     borderWidth: 3,
-    borderColor: '#667eea',
   },
   artistAvatarPlaceholder: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#f0f0f0',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
-    borderColor: '#667eea',
   },
   editImageOverlay: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: '#667eea',
     borderRadius: 15,
     width: 30,
     height: 30,
@@ -461,7 +457,6 @@ const styles = StyleSheet.create({
   },
   editImageText: {
     fontSize: 12,
-    color: '#666',
     marginTop: 4,
     fontStyle: 'italic',
   },
@@ -471,16 +466,13 @@ const styles = StyleSheet.create({
   artistName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
     marginBottom: 4,
   },
   artistRole: {
     fontSize: 14,
-    color: '#667eea',
     fontWeight: '600',
   },
   formContainer: {
-    backgroundColor: '#fff',
     marginHorizontal: 20,
     marginBottom: 20,
     borderRadius: 12,
@@ -500,7 +492,6 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 8,
   },
   required: {
@@ -508,15 +499,12 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    backgroundColor: '#fff',
   },
   infoCard: {
-    backgroundColor: '#e3f2fd',
     marginHorizontal: 20,
     marginBottom: 20,
     borderRadius: 8,
@@ -528,7 +516,6 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 12,
     fontSize: 14,
-    color: '#1976d2',
     lineHeight: 20,
   },
 });

@@ -1,22 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  FlatList,
-  RefreshControl,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    RefreshControl,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import { useTheme } from '../contexts/ThemeContext';
+import { ArtistInvite, cancelArtistInvite, getArtistInvitesSent } from '../services/supabase/artistInviteService';
 import { getCurrentUser } from '../services/supabase/authService';
-import { getArtistInvitesSent, cancelArtistInvite, ArtistInvite } from '../services/supabase/artistInviteService';
 
 export default function ConvitesEnviadosScreen() {
+  const { colors } = useTheme();
   const [invites, setInvites] = useState<ArtistInvite[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -107,13 +109,13 @@ export default function ConvitesEnviadosScreen() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
-        return '#FFA500'; // Laranja
+        return colors.warning;
       case 'accepted':
-        return '#4CAF50'; // Verde
+        return colors.success;
       case 'declined':
-        return '#F44336'; // Vermelho
+        return colors.error;
       default:
-        return '#666';
+        return colors.textSecondary;
     }
   };
 
@@ -151,17 +153,17 @@ export default function ConvitesEnviadosScreen() {
   };
 
   const renderInvite = ({ item }: { item: ArtistInvite }) => (
-    <View style={styles.inviteCard}>
+    <View style={[styles.inviteCard, { backgroundColor: colors.surface }]}>
       <View style={styles.inviteHeader}>
         <View style={styles.userInfo}>
-          <View style={styles.userAvatar}>
+          <View style={[styles.userAvatar, { backgroundColor: colors.primary }]}>
             <Text style={styles.userAvatarText}>
               {item.to_user?.name?.charAt(0).toUpperCase() || 'U'}
             </Text>
           </View>
           <View style={styles.userDetails}>
-            <Text style={styles.userName}>{item.to_user?.name || 'Usuário'}</Text>
-            <Text style={styles.userEmail}>{item.to_user?.email || 'Email não disponível'}</Text>
+            <Text style={[styles.userName, { color: colors.text }]}>{item.to_user?.name || 'Usuário'}</Text>
+            <Text style={[styles.userEmail, { color: colors.textSecondary }]}>{item.to_user?.email || 'Email não disponível'}</Text>
           </View>
         </View>
         <View style={styles.statusContainer}>
@@ -177,15 +179,15 @@ export default function ConvitesEnviadosScreen() {
       </View>
 
       <View style={styles.inviteDetails}>
-        <Text style={styles.artistName}>
-          <Text style={styles.label}>Artista:</Text> {item.artist?.name || 'Artista não encontrado'}
+        <Text style={[styles.artistName, { color: colors.text }]}>
+          <Text style={[styles.label, { color: colors.primary }]}>Artista:</Text> {item.artist?.name || 'Artista não encontrado'}
         </Text>
-        <Text style={styles.inviteDate}>
-          <Text style={styles.label}>Enviado em:</Text> {formatDate(item.created_at)}
+        <Text style={[styles.inviteDate, { color: colors.text }]}>
+          <Text style={[styles.label, { color: colors.primary }]}>Enviado em:</Text> {formatDate(item.created_at)}
         </Text>
         {item.responded_at && (
-          <Text style={styles.responseDate}>
-            <Text style={styles.label}>Respondido em:</Text> {formatDate(item.responded_at)}
+          <Text style={[styles.responseDate, { color: colors.text }]}>
+            <Text style={[styles.label, { color: colors.primary }]}>Respondido em:</Text> {formatDate(item.responded_at)}
           </Text>
         )}
       </View>
@@ -193,11 +195,11 @@ export default function ConvitesEnviadosScreen() {
       {item.status === 'pending' && (
         <View style={styles.inviteActions}>
           <TouchableOpacity
-            style={styles.cancelButton}
+            style={[styles.cancelButton, { backgroundColor: colors.error + '20', borderColor: colors.error + '40' }]}
             onPress={() => handleCancelInvite(item.id, item.to_user?.name || 'Usuário')}
           >
-            <Ionicons name="trash" size={16} color="#F44336" />
-            <Text style={styles.cancelButtonText}>Cancelar Convite</Text>
+            <Ionicons name="trash" size={16} color={colors.error} />
+            <Text style={[styles.cancelButtonText, { color: colors.error }]}>Cancelar Convite</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -209,43 +211,43 @@ export default function ConvitesEnviadosScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#333" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.title}>Convites Enviados</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Convites Enviados</Text>
           <View style={styles.placeholder} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#667eea" />
-          <Text style={styles.loadingText}>Carregando convites...</Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Carregando convites...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Convites Enviados</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Convites Enviados</Text>
         <View style={styles.placeholder} />
       </View>
 
       <ScrollView 
         style={styles.content}
         refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
+          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} colors={[colors.primary]} />
         }
       >
 
         {/* Convites Pendentes */}
         {pendingInvites.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Convites Pendentes</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Convites Pendentes</Text>
             <FlatList
               data={pendingInvites}
               renderItem={renderInvite}
@@ -259,7 +261,7 @@ export default function ConvitesEnviadosScreen() {
         {/* Convites Processados */}
         {processedInvites.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Histórico</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Histórico</Text>
             <FlatList
               data={processedInvites}
               renderItem={renderInvite}
@@ -273,11 +275,11 @@ export default function ConvitesEnviadosScreen() {
         {/* Estado vazio */}
         {invites.length === 0 && (
           <View style={styles.emptyContainer}>
-            <Ionicons name="mail-outline" size={48} color="#ccc" />
-            <Text style={styles.emptyText}>
+            <Ionicons name="mail-outline" size={48} color={colors.border} />
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
               Nenhum convite enviado ainda
             </Text>
-            <Text style={styles.emptySubtext}>
+            <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>
               Os convites que você enviar aparecerão aqui
             </Text>
           </View>
@@ -290,15 +292,12 @@ export default function ConvitesEnviadosScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
   },
   header: {
-    backgroundColor: '#fff',
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -309,7 +308,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
   },
   placeholder: {
     width: 40,
@@ -322,7 +320,6 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#666',
   },
   content: {
     flex: 1,
@@ -335,14 +332,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
     marginBottom: 12,
   },
   invitesList: {
     gap: 12,
   },
   inviteCard: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     shadowColor: '#000',
@@ -350,6 +345,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
+    marginBottom: 12,
   },
   inviteHeader: {
     flexDirection: 'row',
@@ -366,7 +362,6 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#667eea',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -382,12 +377,10 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 2,
   },
   userEmail: {
     fontSize: 14,
-    color: '#666',
   },
   statusContainer: {
     flexDirection: 'row',
@@ -403,21 +396,17 @@ const styles = StyleSheet.create({
   },
   artistName: {
     fontSize: 14,
-    color: '#333',
     marginBottom: 4,
   },
   inviteDate: {
     fontSize: 14,
-    color: '#333',
     marginBottom: 4,
   },
   responseDate: {
     fontSize: 14,
-    color: '#333',
   },
   label: {
     fontWeight: '600',
-    color: '#667eea',
   },
   inviteActions: {
     flexDirection: 'row',
@@ -428,14 +417,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: '#fff5f5',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#fed7d7',
   },
   cancelButtonText: {
     fontSize: 14,
-    color: '#F44336',
     marginLeft: 4,
     fontWeight: '500',
   },
@@ -446,13 +432,11 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: '#666',
     marginTop: 12,
     textAlign: 'center',
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#999',
     marginTop: 8,
     textAlign: 'center',
   },

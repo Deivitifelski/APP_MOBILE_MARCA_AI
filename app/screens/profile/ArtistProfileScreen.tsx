@@ -17,6 +17,7 @@ import {
     View,
 } from 'react-native';
 import UpgradeModal from '../../../components/UpgradeModal';
+import { useTheme } from '../../../contexts/ThemeContext';
 import { setActiveArtist } from '../../../services/artistContext';
 import { createArtist } from '../../../services/supabase/artistService';
 import { getCurrentUser } from '../../../services/supabase/authService';
@@ -24,6 +25,7 @@ import { uploadImageToSupabase } from '../../../services/supabase/imageUploadSer
 import { canCreateArtist } from '../../../services/supabase/userService';
 
 export default function ArtistProfileScreen() {
+  const { colors } = useTheme();
   const [name, setName] = useState('');
   const [profileUrl, setProfileUrl] = useState<string | null>(null);
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
@@ -183,7 +185,7 @@ export default function ArtistProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoidingView}
@@ -196,22 +198,22 @@ export default function ArtistProfileScreen() {
                 style={styles.backButton}
                 onPress={() => router.back()}
               >
-                <Ionicons name="arrow-back" size={24} color="#667eea" />
+                <Ionicons name="arrow-back" size={24} color={colors.primary} />
               </TouchableOpacity>
-              <View style={styles.logoContainer}>
-                <Ionicons name="musical-notes" size={50} color="#667eea" />
+              <View style={[styles.logoContainer, { backgroundColor: colors.surface }]}>
+                <Ionicons name="musical-notes" size={50} color={colors.primary} />
               </View>
-              <Text style={styles.title}>Criar Perfil do Artista</Text>
-              <Text style={styles.subtitle}>
+              <Text style={[styles.title, { color: colors.text }]}>Criar Perfil do Artista</Text>
+              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                 Configure o perfil do artista que você irá gerenciar
               </Text>
             </View>
 
             {/* Formulário */}
-            <View style={styles.form}>
+            <View style={[styles.form, { backgroundColor: colors.surface }]}>
               {/* Foto de Perfil */}
               <View style={styles.photoSection}>
-                <Text style={styles.label}>Foto do Artista</Text>
+                <Text style={[styles.label, { color: colors.text }]}>Foto do Artista</Text>
                 <TouchableOpacity 
                   style={styles.photoContainer} 
                   onPress={pickImage}
@@ -226,9 +228,9 @@ export default function ArtistProfileScreen() {
                       style={styles.photo} 
                     />
                   ) : (
-                    <View style={styles.photoPlaceholder}>
-                      <Ionicons name="camera" size={40} color="#667eea" />
-                      <Text style={styles.photoText}>Adicionar Foto</Text>
+                    <View style={[styles.photoPlaceholder, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                      <Ionicons name="camera" size={40} color={colors.primary} />
+                      <Text style={[styles.photoText, { color: colors.primary }]}>Adicionar Foto</Text>
                     </View>
                   )}
                   {isUploadingImage && (
@@ -241,22 +243,26 @@ export default function ArtistProfileScreen() {
 
               {/* Nome do Artista */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Nome do Artista *</Text>
-                <View style={styles.inputContainer}>
-                  <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Text style={[styles.label, { color: colors.text }]}>Nome do Artista *</Text>
+                <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <Ionicons name="person-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, { color: colors.text }]}
                     value={name}
                     onChangeText={setName}
                     placeholder="Digite o nome do artista"
-                    placeholderTextColor="#999"
+                    placeholderTextColor={colors.textSecondary}
                     autoCapitalize="words"
                   />
                 </View>
               </View>
 
               <TouchableOpacity
-                style={[styles.finalizarButton, loading && styles.finalizarButtonDisabled]}
+                style={[
+                  styles.finalizarButton, 
+                  { backgroundColor: colors.primary },
+                  loading && styles.finalizarButtonDisabled
+                ]}
                 onPress={handleFinalizarCadastro}
                 disabled={loading}
               >
@@ -266,20 +272,20 @@ export default function ArtistProfileScreen() {
               </TouchableOpacity>
 
               <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>ou</Text>
-                <View style={styles.dividerLine} />
+                <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+                <Text style={[styles.dividerText, { color: colors.textSecondary }]}>ou</Text>
+                <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
               </View>
 
               <TouchableOpacity
-                style={styles.skipButton}
+                style={[styles.skipButton, { backgroundColor: colors.background, borderColor: colors.border }]}
                 onPress={() => router.replace('/(tabs)/agenda')}
               >
-                <Text style={styles.skipButtonText}>Criar Mais Tarde</Text>
+                <Text style={[styles.skipButtonText, { color: colors.primary }]}>Criar Mais Tarde</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.inviteButton}
+                style={[styles.inviteButton, { backgroundColor: colors.success }]}
                 onPress={() => router.replace('/(tabs)/agenda')}
               >
                 <Text style={styles.inviteButtonText}>Aguardar Convite</Text>
@@ -303,7 +309,6 @@ export default function ArtistProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -333,7 +338,6 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#fff',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 15,
@@ -349,16 +353,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
     textAlign: 'center',
   },
   form: {
-    backgroundColor: '#fff',
     borderRadius: 16,
     padding: 24,
     shadowColor: '#000',
@@ -386,9 +387,7 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#f8f9fa',
     borderWidth: 2,
-    borderColor: '#e9ecef',
     borderStyle: 'dashed',
     justifyContent: 'center',
     alignItems: 'center',
@@ -396,7 +395,6 @@ const styles = StyleSheet.create({
   photoText: {
     marginTop: 8,
     fontSize: 12,
-    color: '#667eea',
     fontWeight: '500',
   },
   uploadOverlay: {
@@ -416,16 +414,13 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 8,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e9ecef',
     paddingHorizontal: 16,
     height: 56,
   },
@@ -435,10 +430,8 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    color: '#333',
   },
   finalizarButton: {
-    backgroundColor: '#667eea',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -460,29 +453,23 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#e9ecef',
   },
   dividerText: {
     marginHorizontal: 16,
     fontSize: 14,
-    color: '#666',
   },
   skipButton: {
-    backgroundColor: '#f8f9fa',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#e9ecef',
   },
   skipButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#667eea',
   },
   inviteButton: {
-    backgroundColor: '#28a745',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
