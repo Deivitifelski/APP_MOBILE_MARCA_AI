@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react';
-import { getActiveArtist, setActiveArtist as saveActiveArtist, clearActiveArtist, ActiveArtist } from './artistContext';
-import { getCurrentUser } from './supabase/authService';
+import { useEffect, useRef, useState } from 'react';
+import { supabase } from '../lib/supabase';
+import { ActiveArtist, clearActiveArtist, getActiveArtist, setActiveArtist as saveActiveArtist } from './artistContext';
 import { getArtists } from './supabase/artistService';
+import { getCurrentUser } from './supabase/authService';
 
 export const useActiveArtist = () => {
   const [activeArtist, setActiveArtistState] = useState<ActiveArtist | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const channelRef = useRef<any>(null);
 
   const loadActiveArtist = async () => {
     try {
@@ -104,6 +106,79 @@ export const useActiveArtist = () => {
   useEffect(() => {
     loadActiveArtist();
   }, []);
+
+  // 🔥 ESCUTAR MUDANÇAS NO ROLE DO ARTISTA EM TEMPO REAL
+  useEffect(() => {
+    // Limpar canal anterior
+    if (channelRef.current) {
+      console.log('🧹 useActiveArtist: Removendo canal anterior');
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
+    if (!activeArtist) {
+      console.log('🔇 useActiveArtist: Nenhum artista ativo, não criando subscription');
+      return;
+    }
+
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('🔇 useActiveArtist: Sem usuário logado');
+        return;
+      }
+
+      const channelName = `active-artist:${user.id}:${activeArtist.id}`;
+      console.log('🔔 useActiveArtist: Criando subscription para:', channelName);
+
+      channelRef.current = supabase
+        .channel(channelName)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'artist_members',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            console.log('🔔 useActiveArtist: Mudança detectada:', payload.eventType);
+            
+            if (payload.eventType === 'UPDATE') {
+              const newData = payload.new as any;
+              console.log('📝 useActiveArtist: Dados atualizados:', newData);
+              
+              // Se é uma atualização do artista atual
+              if (newData.artist_id === activeArtist.id) {
+                console.log('✅ useActiveArtist: Role mudou! Recarregando artista');
+                loadActiveArtist();
+              }
+            } else if (payload.eventType === 'DELETE') {
+              const oldData = payload.old as any;
+              console.log('🗑️ useActiveArtist: Membro deletado:', oldData);
+              
+              // Se o usuário foi removido do artista atual
+              if (oldData.artist_id === activeArtist.id) {
+                console.log('⚠️ useActiveArtist: Usuário removido do artista, recarregando');
+                loadActiveArtist();
+              }
+            }
+          }
+        )
+        .subscribe((status) => {
+          console.log('🔔 useActiveArtist: Status da subscription:', status);
+        });
+    })();
+
+    return () => {
+      console.log('🧹 useActiveArtist: Executando cleanup');
+      if (channelRef.current) {
+        console.log('🗑️ useActiveArtist: Removendo canal');
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+  }, [activeArtist?.id]);
 
   return {
     activeArtist,

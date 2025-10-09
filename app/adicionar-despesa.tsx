@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     Alert,
     SafeAreaView,
@@ -11,6 +11,8 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import PermissionModal from '../components/PermissionModal';
+import { usePermissions } from '../contexts/PermissionsContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { createExpense } from '../services/supabase/expenseService';
 
@@ -23,6 +25,8 @@ export default function AdicionarDespesaScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
   const eventId = params.eventId as string;
+  const { isViewer, canEditEvents, permissionsLoaded } = usePermissions();
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
 
   const [form, setForm] = useState<DespesaForm>({
     nome: '',
@@ -30,6 +34,17 @@ export default function AdicionarDespesaScreen() {
   });
 
   const [isLoading, setIsLoading] = useState(false);
+
+  // Verificar permissões ao carregar a tela
+  useEffect(() => {
+    if (permissionsLoaded && (isViewer || !canEditEvents)) {
+      console.log('🚫 Adicionar Despesa: Sem permissão');
+      setShowPermissionModal(true);
+      setTimeout(() => {
+        router.back();
+      }, 2000);
+    }
+  }, [permissionsLoaded, isViewer, canEditEvents]);
 
   const updateForm = (field: keyof DespesaForm, value: any) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -165,6 +180,18 @@ export default function AdicionarDespesaScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Modal de Permissão */}
+      <PermissionModal
+        visible={showPermissionModal}
+        onClose={() => {
+          setShowPermissionModal(false);
+          router.back();
+        }}
+        title="Acesso Restrito"
+        message="Você não possui permissão para adicionar despesas. Solicite ao administrador permissões de Editor, Administrador ou Proprietário para gerenciar despesas."
+        icon="lock-closed"
+      />
     </SafeAreaView>
   );
 }
