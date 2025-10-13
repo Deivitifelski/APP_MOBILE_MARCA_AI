@@ -2,42 +2,38 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  RefreshControl,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    RefreshControl,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import PermissionModal from '../components/PermissionModal';
 import { useTheme } from '../contexts/ThemeContext';
 import {
   acceptArtistInvite,
-  ArtistInvite,
   declineArtistInvite,
-  getArtistInvitesReceived,
-  markInviteAsRead
 } from '../services/supabase/artistInviteService';
 import { getArtists } from '../services/supabase/artistService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { getEventById } from '../services/supabase/eventService';
 import {
-  deleteNotification,
-  getUserNotifications,
-  markAllNotificationsAsRead,
-  markNotificationAsRead,
-  Notification
+    deleteNotification,
+    getUserNotifications,
+    markAllNotificationsAsRead,
+    markNotificationAsRead,
+    Notification
 } from '../services/supabase/notificationService';
 import { hasPermission } from '../services/supabase/permissionsService';
 
 export default function NotificacoesScreen() {
   const { colors, isDarkMode } = useTheme();
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [artistInvites, setArtistInvites] = useState<ArtistInvite[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -78,20 +74,10 @@ export default function NotificacoesScreen() {
       }
 
       setNotifications(notifications || []);
-
-      // Carregar convites de artista recebidos
-      const { success, invites, error: invitesError } = await getArtistInvitesReceived(user.id);
-      
-      if (success && invites) {
-        setArtistInvites(invites);
-      } else if (invitesError) {
-        console.error('Erro ao carregar convites:', invitesError);
-      }
       
       // Contar APENAS notificações não lidas do usuário (read === false)
       const unreadNotifications = (notifications || []).filter(n => !n.read && n.user_id === user.id).length;
-      const pendingInvites = (invites || []).filter(invite => invite.status === 'pending' && !invite.read).length;
-      setUnreadCount(unreadNotifications + pendingInvites);
+      setUnreadCount(unreadNotifications);
     } catch (error) {
       console.error('Erro ao carregar notificações:', error);
       Alert.alert('Erro', 'Erro ao carregar notificações');
@@ -202,17 +188,6 @@ export default function NotificacoesScreen() {
           prev.map(n => ({ ...n, read: true }))
         );
         
-        // Marcar todos os convites não lidos como lidos
-        const unreadInvites = artistInvites.filter(invite => !invite.read);
-        
-        for (const invite of unreadInvites) {
-          await markInviteAsRead(invite.id, user.id);
-        }
-        
-        setArtistInvites(prev => 
-          prev.map(invite => ({ ...invite, read: true }))
-        );
-        
         setUnreadCount(0);
       } else {
         Alert.alert('Erro', error || 'Erro ao marcar notificações como lidas');
@@ -222,27 +197,6 @@ export default function NotificacoesScreen() {
     }
   };
 
-  const handleMarkInviteAsRead = async (inviteId: string) => {
-    try {
-      const { user } = await getCurrentUser();
-      if (!user) return;
-
-      const { success, error } = await markInviteAsRead(inviteId, user.id);
-      
-      if (success) {
-        setArtistInvites(prev => 
-          prev.map(invite => 
-            invite.id === inviteId ? { ...invite, read: true } : invite
-          )
-        );
-        setUnreadCount(prev => Math.max(0, prev - 1));
-      } else {
-        console.error('Erro ao marcar convite como lido:', error);
-      }
-    } catch (error) {
-      console.error('Erro ao marcar convite como lido:', error);
-    }
-  };
 
   const handleDeleteNotification = async (notificationId: string) => {
     Alert.alert(
@@ -283,97 +237,74 @@ export default function NotificacoesScreen() {
   const handleAcceptInvite = async (inviteId: string, artistName: string, artistId: string) => {
     if (!currentUserId) return;
 
-    Alert.alert(
-      'Aceitar Convite',
-      `Deseja aceitar o convite para colaborar com o artista "${artistName}"?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Aceitar',
-          style: 'default',
-          onPress: async () => {
-            try {
-              const { success, error } = await acceptArtistInvite(inviteId, currentUserId);
-              
-              if (success) {
-                // Verificar se o usuário já tem artistas
-                const { artists } = await getArtists(currentUserId);
-                const isFirstArtist = !artists || artists.length === 0;
+    try {
+      const { success, error } = await acceptArtistInvite(inviteId, currentUserId);
+      
+      if (success) {
+        // Verificar se o usuário já tem artistas
+        const { artists } = await getArtists(currentUserId);
+        const isFirstArtist = !artists || artists.length === 0;
 
-                if (isFirstArtist) {
-                  // Se é o primeiro artista, setar automaticamente como ativo
-                  try {
-                    const { setActiveArtist } = await import('../services/artistContext');
-                    
-                    await setActiveArtist({
-                      id: artistId,
-                      name: artistName,
-                      role: 'viewer' // Role padrão para convites
-                    });
+        if (isFirstArtist) {
+          // Se é o primeiro artista, setar automaticamente como ativo
+          try {
+            const { setActiveArtist } = await import('../services/artistContext');
+            
+            await setActiveArtist({
+              id: artistId,
+              name: artistName,
+              role: 'viewer' // Role padrão para convites
+            });
 
-                    // Mostrar modal de sucesso
-                    setAcceptedInviteData({
-                      artistName,
-                      role: 'Visualizador',
-                      isFirstArtist: true
-                    });
-                    setShowAcceptedModal(true);
-                    loadNotifications();
-                  } catch (error) {
-                    console.error('Erro ao setar artista:', error);
-                    Alert.alert('Erro', 'Erro ao configurar artista ativo');
-                  }
-                } else {
-                  // Se já tem artistas, apenas mostrar modal informativo
-                  setAcceptedInviteData({
-                    artistName,
-                    role: 'Visualizador',
-                    isFirstArtist: false
-                  });
-                  setShowAcceptedModal(true);
-                  loadNotifications();
-                }
-              } else {
-                Alert.alert('Erro', error || 'Erro ao aceitar convite');
-              }
-            } catch (error) {
-              Alert.alert('Erro', 'Erro ao aceitar convite');
-            }
+            // Mostrar modal de sucesso
+            setAcceptedInviteData({
+              artistName,
+              role: 'Visualizador',
+              isFirstArtist: true
+            });
+            setShowAcceptedModal(true);
+            
+            // Recarregar notificações (o convite será removido automaticamente)
+            await loadNotifications();
+          } catch (error) {
+            console.error('Erro ao setar artista:', error);
+            Alert.alert('Erro', 'Erro ao configurar artista ativo');
           }
+        } else {
+          // Se já tem artistas, apenas mostrar modal informativo
+          setAcceptedInviteData({
+            artistName,
+            role: 'Visualizador',
+            isFirstArtist: false
+          });
+          setShowAcceptedModal(true);
+          
+          // Recarregar notificações (o convite será removido automaticamente)
+          await loadNotifications();
         }
-      ]
-    );
+      } else {
+        Alert.alert('Erro', error || 'Erro ao aceitar convite');
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Erro ao aceitar convite');
+    }
   };
 
-  const handleDeclineInvite = async (inviteId: string, artistName: string) => {
+  const handleDeclineInvite = async (inviteId: string) => {
     if (!currentUserId) return;
 
-    Alert.alert(
-      'Recusar Convite',
-      `Deseja recusar o convite para colaborar com o artista "${artistName}"?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Recusar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const { success, error } = await declineArtistInvite(inviteId, currentUserId);
-              
-              if (success) {
-                Alert.alert('Convite Recusado', 'O convite foi recusado.');
-                // Recarregar dados
-                await loadNotifications();
-              } else {
-                Alert.alert('Erro', error || 'Erro ao recusar convite');
-              }
-            } catch (error) {
-              Alert.alert('Erro', 'Erro ao recusar convite');
-            }
-          }
-        }
-      ]
-    );
+    try {
+      const { success, error } = await declineArtistInvite(inviteId, currentUserId);
+      
+      if (success) {
+        // Recarregar notificações (o convite será removido automaticamente)
+        await loadNotifications();
+      } else {
+        Alert.alert('Erro', error || 'Erro ao recusar convite');
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Erro ao recusar convite');
+    }
   };
 
   const getNotificationIcon = (type: string) => {
@@ -513,7 +444,7 @@ export default function NotificacoesScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {notifications.length === 0 && artistInvites.length === 0 ? (
+        {notifications.length === 0 ? (
           <View style={dynamicStyles.emptyState}>
             <Ionicons name="notifications-outline" size={64} color={colors.textSecondary} />
             <Text style={dynamicStyles.emptyTitle}>Nenhuma notificação</Text>
@@ -527,7 +458,7 @@ export default function NotificacoesScreen() {
               <View
                 key={notification.id}
                 style={[
-                  styles.notificationCard,
+                  dynamicStyles.notificationCard,
                   !notification.read && styles.unreadNotification
                 ]}
               >
@@ -585,20 +516,20 @@ export default function NotificacoesScreen() {
                     <View style={styles.notificationDetails}>
                       <View style={styles.notificationHeader}>
                         <Text style={[
-                          styles.notificationTitle,
+                          dynamicStyles.notificationTitle,
                           !notification.read && styles.unreadTitle
                         ]}>
                           {formatNotificationTitle(notification.title, notification.type)}
                         </Text>
                       </View>
                       
-                      <Text style={styles.notificationMessage}>
+                      <Text style={dynamicStyles.notificationMessage}>
                         {notification.message}
                       </Text>
                       
                       <View style={styles.notificationFooter}>
                         <View style={styles.footerLeft}>
-                          <Text style={styles.notificationTime}>
+                          <Text style={dynamicStyles.notificationTime}>
                             {formatTimeAgo(notification.created_at)}
                           </Text>
                         </View>
@@ -616,87 +547,17 @@ export default function NotificacoesScreen() {
                   </View>
                   
                   <View style={styles.notificationRight}>
-                    {!notification.read && <View style={styles.unreadDot} />}
+                    {!notification.read && <View style={dynamicStyles.unreadDot} />}
                     <TouchableOpacity
                       style={styles.deleteButton}
                       onPress={() => handleDeleteNotification(notification.id)}
                     >
-                      <Ionicons name="trash-outline" size={16} color="#9CA3AF" />
+                      <Ionicons name="trash-outline" size={16} color={colors.textSecondary} />
                     </TouchableOpacity>
                   </View>
                 </TouchableOpacity>
               </View>
             ))}
-
-            {/* Convites de Artista Recebidos */}
-            {artistInvites.length > 0 && (
-              <>
-                <View style={styles.sectionDivider} />
-                <Text style={styles.sectionTitle}>Convites de Artista</Text>
-                {artistInvites.map((invite) => (
-                  <View
-                    key={invite.id}
-                    style={[
-                      styles.inviteCard,
-                      !invite.read && styles.unreadNotification
-                    ]}
-                  >
-                    <TouchableOpacity
-                      style={styles.inviteContent}
-                      onPress={() => !invite.read && handleMarkInviteAsRead(invite.id)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.inviteLeft}>
-                        <View style={[styles.inviteIconContainer, { backgroundColor: '#3B82F615' }]}>
-                          <Ionicons
-                            name="people"
-                            size={18}
-                            color="#3B82F6"
-                          />
-                        </View>
-                        
-                        <View style={styles.inviteDetails}>
-                          <Text style={styles.inviteTitle}>
-                            {invite.artist?.name || 'Artista'}
-                          </Text>
-                          <Text style={styles.inviteMessage}>
-                            {invite.from_user?.name || 'Alguém'} te convidou para colaborar
-                          </Text>
-                          <Text style={styles.inviteTime}>
-                            {formatTimeAgo(invite.created_at)}
-                          </Text>
-                        </View>
-                      </View>
-                      
-                      <View style={styles.inviteRight}>
-                        {!invite.read && <View style={styles.unreadDot} />}
-                      </View>
-                    </TouchableOpacity>
-
-                    {/* Ações para convites pendentes */}
-                    {invite.status === 'pending' && (
-                      <View style={styles.inviteActions}>
-                        <TouchableOpacity
-                          style={styles.acceptButton}
-                          onPress={() => handleAcceptInvite(invite.id, invite.artist?.name || 'Artista', invite.artist_id)}
-                        >
-                          <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-                          <Text style={styles.acceptButtonText}>Aceitar</Text>
-                        </TouchableOpacity>
-                        
-                        <TouchableOpacity
-                          style={styles.declineButton}
-                          onPress={() => handleDeclineInvite(invite.id, invite.artist?.name || 'Artista')}
-                        >
-                          <Ionicons name="close-outline" size={18} color="#6B7280" />
-                          <Text style={styles.declineButtonText}>Recusar</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
-                ))}
-              </>
-            )}
           </View>
         )}
       </ScrollView>
@@ -712,38 +573,38 @@ export default function NotificacoesScreen() {
 
       {/* Modal de Sucesso */}
       {showSuccessModal && (
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
+        <View style={dynamicStyles.modalOverlay}>
+          <View style={dynamicStyles.modalContainer}>
+            <View style={dynamicStyles.modalHeader}>
               <Ionicons name="checkmark-circle" size={48} color="#10B981" />
-              <Text style={styles.modalTitle}>Convite Aceito!</Text>
+              <Text style={dynamicStyles.modalTitle}>Convite Aceito!</Text>
             </View>
             
-            <Text style={styles.modalMessage}>
+            <Text style={dynamicStyles.modalMessage}>
               {successMessage}
             </Text>
             
-            <View style={styles.modalPermissions}>
-              <Text style={styles.permissionsTitle}>Suas permissões:</Text>
-              <View style={styles.permissionItem}>
-                <Ionicons name="eye" size={16} color="#6B7280" />
-                <Text style={styles.permissionText}>Visualizar informações do artista</Text>
+            <View style={dynamicStyles.modalPermissions}>
+              <Text style={dynamicStyles.permissionsTitle}>Suas permissões:</Text>
+              <View style={dynamicStyles.permissionItem}>
+                <Ionicons name="eye" size={16} color={colors.textSecondary} />
+                <Text style={dynamicStyles.permissionText}>Visualizar informações do artista</Text>
               </View>
-              <View style={styles.permissionItem}>
-                <Ionicons name="calendar" size={16} color="#6B7280" />
-                <Text style={styles.permissionText}>Ver agenda e eventos</Text>
+              <View style={dynamicStyles.permissionItem}>
+                <Ionicons name="calendar" size={16} color={colors.textSecondary} />
+                <Text style={dynamicStyles.permissionText}>Ver agenda e eventos</Text>
               </View>
-              <View style={styles.permissionItem}>
-                <Ionicons name="people" size={16} color="#6B7280" />
-                <Text style={styles.permissionText}>Ver outros colaboradores</Text>
+              <View style={dynamicStyles.permissionItem}>
+                <Ionicons name="people" size={16} color={colors.textSecondary} />
+                <Text style={dynamicStyles.permissionText}>Ver outros colaboradores</Text>
               </View>
             </View>
             
             <TouchableOpacity
-              style={styles.modalButton}
+              style={dynamicStyles.modalButton}
               onPress={() => setShowSuccessModal(false)}
             >
-              <Text style={styles.modalButtonText}>Entendi</Text>
+              <Text style={dynamicStyles.modalButtonText}>Entendi</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -751,17 +612,17 @@ export default function NotificacoesScreen() {
 
       {/* Modal de Convite Aceito */}
       {showAcceptedModal && acceptedInviteData && (
-        <View style={styles.modalOverlay}>
-          <View style={styles.acceptedModalContainer}>
+        <View style={dynamicStyles.modalOverlay}>
+          <View style={[styles.acceptedModalContainer, { backgroundColor: colors.surface }]}>
             {/* Header */}
             <View style={styles.acceptedModalHeader}>
               <View style={styles.successIconCircle}>
                 <Ionicons name="checkmark-circle" size={64} color="#10B981" />
               </View>
-              <Text style={styles.acceptedModalTitle}>
+              <Text style={[styles.acceptedModalTitle, { color: isDarkMode ? '#10B981' : '#10B981' }]}>
                 {acceptedInviteData.isFirstArtist ? 'Bem-vindo!' : 'Convite Aceito!'}
               </Text>
-              <Text style={styles.acceptedModalSubtitle}>
+              <Text style={[styles.acceptedModalSubtitle, { color: colors.textSecondary }]}>
                 {acceptedInviteData.isFirstArtist 
                   ? 'Você agora faz parte do time'
                   : 'Você foi adicionado como colaborador'
@@ -770,20 +631,20 @@ export default function NotificacoesScreen() {
             </View>
 
             {/* Info Card */}
-            <View style={styles.acceptedInfoCard}>
+            <View style={[styles.acceptedInfoCard, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
               <View style={styles.acceptedInfoRow}>
-                <Ionicons name="musical-notes" size={20} color="#667eea" />
-                <Text style={styles.acceptedInfoLabel}>Artista:</Text>
+                <Ionicons name="musical-notes" size={20} color={colors.primary} />
+                <Text style={[styles.acceptedInfoLabel, { color: colors.textSecondary }]}>Artista:</Text>
               </View>
-              <Text style={styles.acceptedInfoValue}>{acceptedInviteData.artistName}</Text>
+              <Text style={[styles.acceptedInfoValue, { color: colors.text }]}>{acceptedInviteData.artistName}</Text>
 
               <View style={[styles.acceptedInfoRow, { marginTop: 16 }]}>
-                <Ionicons name="shield-checkmark" size={20} color="#667eea" />
-                <Text style={styles.acceptedInfoLabel}>Cargo:</Text>
+                <Ionicons name="shield-checkmark" size={20} color={colors.primary} />
+                <Text style={[styles.acceptedInfoLabel, { color: colors.textSecondary }]}>Cargo:</Text>
               </View>
-              <View style={styles.acceptedRoleBadge}>
-                <Ionicons name="eye" size={16} color="#6B7280" />
-                <Text style={styles.acceptedRoleText}>{acceptedInviteData.role}</Text>
+              <View style={[styles.acceptedRoleBadge, { backgroundColor: colors.secondary }]}>
+                <Ionicons name="eye" size={16} color={colors.textSecondary} />
+                <Text style={[styles.acceptedRoleText, { color: colors.textSecondary }]}>{acceptedInviteData.role}</Text>
               </View>
             </View>
 
@@ -808,18 +669,18 @@ export default function NotificacoesScreen() {
 
             {/* Status */}
             {acceptedInviteData.isFirstArtist && (
-              <View style={styles.acceptedStatusBox}>
-                <Ionicons name="information-circle" size={20} color="#3B82F6" />
-                <Text style={styles.acceptedStatusText}>
+              <View style={[styles.acceptedStatusBox, { backgroundColor: colors.primary + '20', borderColor: colors.primary + '40' }]}>
+                <Ionicons name="information-circle" size={20} color={colors.primary} />
+                <Text style={[styles.acceptedStatusText, { color: colors.primary }]}>
                   Este artista foi definido como seu artista ativo. Você pode acessar a agenda, eventos e configurações agora mesmo!
                 </Text>
               </View>
             )}
 
             {!acceptedInviteData.isFirstArtist && (
-              <View style={styles.acceptedStatusBox}>
-                <Ionicons name="information-circle" size={20} color="#3B82F6" />
-                <Text style={styles.acceptedStatusText}>
+              <View style={[styles.acceptedStatusBox, { backgroundColor: colors.primary + '20', borderColor: colors.primary + '40' }]}>
+                <Ionicons name="information-circle" size={20} color={colors.primary} />
+                <Text style={[styles.acceptedStatusText, { color: colors.primary }]}>
                   Para trabalhar com este artista, troque para ele nas Configurações → Selecionar Artista.
                 </Text>
               </View>
@@ -827,7 +688,7 @@ export default function NotificacoesScreen() {
 
             {/* Button */}
             <TouchableOpacity
-              style={styles.acceptedModalButton}
+              style={[styles.acceptedModalButton, { backgroundColor: colors.primary }]}
               onPress={() => setShowAcceptedModal(false)}
             >
               <Text style={styles.acceptedModalButtonText}>Entendi</Text>

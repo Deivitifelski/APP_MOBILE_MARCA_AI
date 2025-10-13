@@ -498,7 +498,7 @@ export default function FinanceiroScreen() {
         </View>
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={[styles.content, { backgroundColor: colors.background }]}>
         {/* Resumo financeiro */}
         <View style={styles.summaryContainer}>
           <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
@@ -684,7 +684,6 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   transactionCard: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,

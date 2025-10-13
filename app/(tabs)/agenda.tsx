@@ -2,14 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
-  FlatList,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Alert,
+    FlatList,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import OptimizedImage from '../../components/OptimizedImage';
@@ -422,13 +422,13 @@ export default function AgendaScreen() {
       </View>
 
       <ScrollView 
-        style={styles.content}
+        style={[styles.content, { backgroundColor: colors.background }]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#667eea"
-            colors={['#667eea']}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
           />
         }
       >
@@ -438,7 +438,7 @@ export default function AgendaScreen() {
           </View>
         ) : !activeArtist ? (
           /* Estado vazio - sem artistas para gerenciar */
-          <View style={styles.emptyStateContainer}>
+          <View style={[styles.emptyStateContainer, { backgroundColor: colors.background }]}>
             <View style={styles.emptyStateIcon}>
               <Ionicons name="musical-notes" size={64} color={colors.textSecondary} />
             </View>
@@ -514,14 +514,11 @@ export default function AgendaScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
   },
   header: {
-    backgroundColor: '#fff',
     paddingHorizontal: 20,
     paddingBottom: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
   },
   artistHeader: {
     marginBottom: 15,
@@ -541,12 +538,10 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#f8f9fa',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
     borderWidth: 2,
-    borderColor: '#e9ecef',
   },
   artistDetails: {
     flex: 1,
@@ -559,17 +554,14 @@ const styles = StyleSheet.create({
   artistName: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
     flex: 1,
   },
   artistSubtitle: {
     fontSize: 14,
-    color: '#666',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
     marginBottom: 15,
   },
   monthNavigation: {
@@ -580,12 +572,10 @@ const styles = StyleSheet.create({
   navButton: {
     padding: 8,
     borderRadius: 8,
-    backgroundColor: '#f8f9fa',
   },
   monthYear: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
   },
   content: {
     flex: 1,
@@ -594,7 +584,6 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   showCard: {
-    backgroundColor: '#fff',
     borderRadius: 16,
     marginBottom: 16,
     shadowColor: '#000',
@@ -645,7 +634,6 @@ const styles = StyleSheet.create({
   showName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
     flex: 1,
     lineHeight: 20,
   },
@@ -671,20 +659,17 @@ const styles = StyleSheet.create({
   },
   showTime: {
     fontSize: 14,
-    color: '#666',
     marginLeft: 4,
     fontWeight: '500',
   },
   showLocation: {
     fontSize: 14,
-    color: '#666',
     marginLeft: 4,
     fontWeight: '500',
   },
   showValue: {
     fontSize: 15,
     fontWeight: 'bold',
-    color: '#667eea',
   },
   showArrowSection: {
     alignItems: 'center',
@@ -696,7 +681,6 @@ const styles = StyleSheet.create({
   },
   noShowsText: {
     fontSize: 16,
-    color: '#999',
     marginTop: 12,
     textAlign: 'center',
   },
@@ -727,7 +711,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: '#666',
   },
   emptyStateContainer: {
     flex: 1,
@@ -742,13 +725,11 @@ const styles = StyleSheet.create({
   emptyStateTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
     textAlign: 'center',
     marginBottom: 12,
   },
   emptyStateSubtitle: {
     fontSize: 16,
-    color: '#666',
     textAlign: 'center',
     lineHeight: 24,
     marginBottom: 32,
@@ -758,7 +739,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   createButton: {
-    backgroundColor: '#667eea',
     borderRadius: 12,
     paddingVertical: 16,
     flexDirection: 'row',
@@ -773,19 +753,16 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   waitButton: {
-    backgroundColor: '#f8f9fa',
     borderRadius: 12,
     paddingVertical: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#e9ecef',
   },
   waitButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#667eea',
     marginLeft: 8,
   },
   noArtistHeader: {
