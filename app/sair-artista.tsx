@@ -677,10 +677,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
   },
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
