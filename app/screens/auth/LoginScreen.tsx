@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import {
     Alert,
     KeyboardAvoidingView,
+    LogBox,
+    Modal,
     Platform,
     SafeAreaView,
     ScrollView,
@@ -19,6 +21,13 @@ import { supabase } from '../../../lib/supabase';
 import { loginUser } from '../../../services/supabase/authService';
 import { checkUserExists } from '../../../services/supabase/userService';
 
+// Ignorar erros de rede no console
+LogBox.ignoreLogs([
+  'Network request failed',
+  'TypeError: Network request failed',
+]);
+LogBox.ignoreAllLogs(true); // Remove TODOS os erros/warnings visuais
+
 export default function LoginScreen() {
   const { colors, isDarkMode } = useTheme();
   const [email, setEmail] = useState('deivitifelskiefisio@outlook.com');
@@ -26,6 +35,7 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showCompleteProfileModal, setShowCompleteProfileModal] = useState(false);
+  const [showNoInternetModal, setShowNoInternetModal] = useState(false);
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -38,11 +48,15 @@ export default function LoginScreen() {
       const result = await loginUser(email, password);
       
       if (result.error) {
-        Alert.alert('Erro', result.error.message);
+        // Verificar se é erro de rede
+        const errorMsg = result.error.message?.toLowerCase() || '';
+        if (errorMsg.includes('network') || errorMsg.includes('fetch') || errorMsg.includes('failed')) {
+          setShowNoInternetModal(true);
+        } else {
+          Alert.alert('Erro', result.error.message);
+        }
       } else if (result.data?.user) {
-        // Verificar se o email foi confirmado
         if (result.data.user.email_confirmed_at) {
-          // Verificar se o usuário existe na tabela users
           const userCheck = await checkUserExists(result.data.user.id);
           
           if (userCheck.error) {
@@ -51,18 +65,22 @@ export default function LoginScreen() {
           }
           
           if (!userCheck.exists) {
-            // Usuário não existe na tabela users, mostrar modal personalizado
             setShowCompleteProfileModal(true);
           } else {
-            // Usuário existe, pode acessar a agenda
             router.replace('/(tabs)/agenda');
           }
         } else {
           router.replace('/email-confirmation');
         }
       }
-    } catch (error) {
-      Alert.alert('Erro', 'Ocorreu um erro inesperado');
+    } catch (error: any) {
+      // Verificar se é erro de rede
+      const errorMsg = error?.message?.toLowerCase() || '';
+      if (errorMsg.includes('network') || errorMsg.includes('fetch') || errorMsg.includes('failed')) {
+        setShowNoInternetModal(true);
+      } else {
+        Alert.alert('Erro', 'Ocorreu um erro inesperado');
+      }
     } finally {
       setLoading(false);
     }
@@ -72,94 +90,30 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       
-      // Log detalhado para debug
-      console.log('🔍 Iniciando login com Google...');
-      console.log('📱 Platform:', Platform.OS);
-      console.log('🌐 Redirect URL:', window.location?.origin || 'Expo development');
-      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location?.origin || 'exp://192.168.1.100:8081', // pode trocar por rota específica
+          redirectTo: window.location?.origin || 'exp://192.168.1.100:8081',
         },
       });
       
       if (error) {
-        console.error('❌ Erro detalhado do Supabase:', {
-          message: error.message,
-          status: error.status,
-          name: error.name,
-          stack: error.stack,
-        });
-        
-        // Soluções automáticas baseadas no tipo de erro
-        let errorMessage = error.message;
-        let suggestedSolution = '';
-        
-        if (error.message.includes('redirect_uri_mismatch')) {
-          suggestedSolution = 'Problema de configuração de redirect URI. Verifique as configurações do Google OAuth.';
-          console.log('🔧 Solução sugerida: Configurar redirect URI no Google Console');
-        } else if (error.message.includes('invalid_client')) {
-          suggestedSolution = 'Client ID inválido. Verifique as configurações do Google OAuth.';
-          console.log('🔧 Solução sugerida: Verificar Client ID no Google Console');
-        } else if (error.message.includes('access_denied')) {
-          suggestedSolution = 'Usuário cancelou a autenticação ou não concedeu permissões.';
-          console.log('🔧 Solução sugerida: Usuário precisa conceder permissões');
-        } else if (error.message.includes('network')) {
-          suggestedSolution = 'Problema de conexão. Verifique sua internet.';
-          console.log('🔧 Solução sugerida: Verificar conexão com internet');
-        } else if (error.message.includes('popup_blocked')) {
-          suggestedSolution = 'Popup bloqueado pelo navegador. Permita popups para este site.';
-          console.log('🔧 Solução sugerida: Permitir popups no navegador');
+        // Verificar se é erro de rede
+        const errorMsg = error.message?.toLowerCase() || '';
+        if (errorMsg.includes('network') || errorMsg.includes('fetch') || errorMsg.includes('failed')) {
+          setShowNoInternetModal(true);
+        } else {
+          Alert.alert('Erro no Login Google', error.message);
         }
-        
-        Alert.alert(
-          'Erro no Login Google', 
-          `${errorMessage}\n\n${suggestedSolution || 'Tente novamente ou entre em contato com o suporte.'}`,
-          [
-            { text: 'OK', style: 'default' },
-            ...(error.message.includes('redirect_uri_mismatch') ? [{
-              text: 'Ver Configurações',
-              onPress: () => {
-                console.log('🔧 Usuário quer verificar configurações de redirect URI');
-                // Aqui você pode adicionar navegação para página de configurações
-              }
-            }] : [])
-          ]
-        );
-      } else {
-        console.log('✅ Login iniciado com sucesso');
-        // O usuário será redirecionado para o Google
       }
-    } catch (error) {
-      // Log completo do erro inesperado
-      console.error('💥 Erro inesperado completo:', {
-        error,
-        message: error?.message,
-        stack: error?.stack,
-        name: error?.name,
-      });
-      
-      // Tentar identificar o tipo de erro
-      let errorType = 'Desconhecido';
-      if (error?.message?.includes('Network')) errorType = 'Rede';
-      if (error?.message?.includes('Timeout')) errorType = 'Timeout';
-      if (error?.message?.includes('CORS')) errorType = 'CORS';
-      
-      Alert.alert(
-        'Erro Inesperado', 
-        `Tipo: ${errorType}\nMensagem: ${error?.message || 'Erro desconhecido'}\n\nTente novamente ou verifique sua conexão.`,
-        [
-          { text: 'OK', style: 'default' },
-          { 
-            text: 'Tentar Novamente', 
-            onPress: () => {
-              console.log('🔄 Tentando login novamente...');
-              handleGoogleLogin();
-            }
-          }
-        ]
-      );
+    } catch (error: any) {
+      // Verificar se é erro de rede
+      const errorMsg = error?.message?.toLowerCase() || '';
+      if (errorMsg.includes('network') || errorMsg.includes('fetch') || errorMsg.includes('failed')) {
+        setShowNoInternetModal(true);
+      } else {
+        Alert.alert('Erro Inesperado', error?.message || 'Erro desconhecido');
+      }
     } finally {
       setLoading(false);
     }
@@ -335,6 +289,45 @@ export default function LoginScreen() {
           </View>
         </View>
       )}
+
+      {/* Modal de Sem Internet */}
+      <Modal
+        visible={showNoInternetModal}
+        transparent
+        animationType="fade"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
+            <View style={styles.modalHeader}>
+              <View style={[styles.modalIcon, { backgroundColor: isDarkMode ? 'rgba(102, 126, 234, 0.15)' : 'rgba(102, 126, 234, 0.1)' }]}>
+                <Ionicons name="cloud-offline-outline" size={40} color={colors.primary} />
+              </View>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Você está sem internet
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.modalContinueButton, 
+                { 
+                  backgroundColor: colors.primary,
+                  width: '100%',
+                  paddingVertical: 16,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }
+              ]}
+              onPress={() => setShowNoInternetModal(false)}
+            >
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#FFFFFF' }}>
+                Entendi
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
