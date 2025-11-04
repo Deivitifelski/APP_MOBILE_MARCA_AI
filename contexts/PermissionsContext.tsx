@@ -48,18 +48,14 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       }
 
       console.log('🔒 Permissões: Carregando para usuário:', user.id, 'artista:', activeArtist.id);
-      console.log('🔒 Permissões: Role do activeArtist:', activeArtist.role);
 
-      // ✅ SEMPRE buscar da tabela artist_members para garantir dados atualizados
-      console.log('🔍 Permissões: Buscando role atualizado da tabela artist_members');
-      
       // Limpar cache para garantir dados frescos
       clearPermissionsCache(user.id, activeArtist.id);
       
       const permissions = await getUserPermissions(user.id, activeArtist.id);
 
       if (permissions) {
-        console.log('✅ Permissões carregadas da tabela:', {
+        console.log('✅ Permissões carregadas:', {
           role: permissions.role,
           canViewFinancials: permissions.permissions.canViewFinancials
         });
@@ -76,14 +72,10 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   };
 
-  // Carregar permissões quando artista mudar OU quando o role do artista mudar
+  // Carregar permissões quando artista mudar
   useEffect(() => {
-    console.log('🔄 Permissões: Detectada mudança no artista ou role:', {
-      artistId: activeArtist?.id,
-      role: activeArtist?.role
-    });
     loadPermissions();
-  }, [activeArtist, activeArtist?.id, activeArtist?.role]);
+  }, [activeArtist]);
 
   // 🔥 ESCUTAR MUDANÇAS EM TEMPO REAL
   useEffect(() => {
