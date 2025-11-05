@@ -58,22 +58,8 @@ export default function DetalhesEventoScreen() {
     checkUserAccess();
   }, [activeArtist, currentUserId]);
 
-  // Log quando hasAccess mudar
-  useEffect(() => {
-    console.log('🔄 Detalhes Evento: Estado hasAccess MUDOU para:', hasAccess);
-  }, [hasAccess]);
-
   const checkUserAccess = async () => {
-    console.log('🔍 Detalhes Evento: INÍCIO checkUserAccess', {
-      activeArtist: activeArtist?.id,
-      currentUserId
-    });
-
     if (!activeArtist || !currentUserId) {
-      console.log('⚠️ Detalhes Evento: Sem artista ou usuário', {
-        hasArtist: !!activeArtist,
-        hasUserId: !!currentUserId
-      });
       setHasAccess(null);
       setIsCheckingAccess(false);
       return;
@@ -81,12 +67,6 @@ export default function DetalhesEventoScreen() {
 
     try {
       setIsCheckingAccess(true);
-      
-      console.log('🔍 Detalhes Evento: Verificando acesso do usuário', {
-        userId: currentUserId,
-        artistId: activeArtist.id,
-        artistName: activeArtist.name
-      });
 
       // Buscar role diretamente na tabela artist_members
       const { data: memberData, error } = await supabase
@@ -96,40 +76,21 @@ export default function DetalhesEventoScreen() {
         .eq('artist_id', activeArtist.id)
         .single();
 
-      console.log('📊 Detalhes Evento: Resultado da query', {
-        memberData,
-        error,
-        hasData: !!memberData
-      });
-
       if (error) {
-        console.error('❌ Detalhes Evento: Erro ao verificar permissões:', error);
         setHasAccess(false);
         setIsCheckingAccess(false);
         return;
       }
 
       const userRole = memberData?.role;
-      console.log('📋 Detalhes Evento: ROLE DO USUÁRIO:', userRole);
-      console.log('📋 Detalhes Evento: Tipo da role:', typeof userRole);
-      console.log('📋 Detalhes Evento: memberData completo:', JSON.stringify(memberData));
 
       // ✅ Ocultar valores APENAS para viewers
       const isViewer = userRole === 'viewer';
       const hasPermission = !isViewer; // Todos menos viewer têm acesso
       
-      console.log('🔐 Detalhes Evento: Verificação de permissão:', {
-        userRole,
-        isViewer,
-        hasPermission
-      });
-      
       setHasAccess(hasPermission);
       setIsCheckingAccess(false);
-      
-      console.log('✅ Detalhes Evento: hasAccess definido como:', hasPermission);
     } catch (error) {
-      console.error('❌ Detalhes Evento: Erro ao verificar acesso:', error);
       setHasAccess(false);
       setIsCheckingAccess(false);
     }
@@ -263,19 +224,10 @@ export default function DetalhesEventoScreen() {
   };
 
   const handleRestrictedAction = (actionName: string) => {
-    console.log(`🔒 Detalhes Evento: Tentando ação "${actionName}"`, {
-      hasAccess,
-      hasAccessType: typeof hasAccess,
-      willBlock: !hasAccess
-    });
-    
     if (!hasAccess) {
-      console.log(`🚫 Detalhes Evento: Ação "${actionName}" BLOQUEADA - abrindo modal de permissão`);
       setShowPermissionModal(true);
       return false;
     }
-    
-    console.log(`✅ Detalhes Evento: Ação "${actionName}" PERMITIDA`);
     return true;
   };
 
@@ -465,8 +417,6 @@ export default function DetalhesEventoScreen() {
 
   const profit = (event.value || 0) - totalExpenses;
 
-  console.log('🎨 Detalhes Evento: RENDERIZANDO com hasAccess:', hasAccess);
-
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
@@ -549,10 +499,7 @@ export default function DetalhesEventoScreen() {
         <View style={[styles.financialCard, { backgroundColor: colors.surface }]}>
           <Text style={[styles.financialTitle, { color: colors.text }]}>Resumo Financeiro</Text>
           
-          {(() => {
-            console.log('💰 Detalhes Evento: Renderizando resumo financeiro - hasAccess:', hasAccess);
-            return hasAccess;
-          })() ? (
+          {hasAccess ? (
             <>
               <View style={styles.financialRow}>
                 <Text style={[styles.financialLabel, { color: colors.textSecondary }]}>Valor do Evento:</Text>
@@ -593,10 +540,7 @@ export default function DetalhesEventoScreen() {
 
         {/* Ações */}
         <View style={styles.actionsContainer}>
-          {(() => {
-            console.log('🔧 Detalhes Evento: Renderizando botão de exportar - hasAccess:', hasAccess, 'Vai mostrar?', !!hasAccess);
-            return hasAccess;
-          })() && (
+          {hasAccess && (
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
               onPress={handleExportPDF}
