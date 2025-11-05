@@ -72,7 +72,7 @@ export const createEvent = async (eventData: CreateEventData): Promise<{ success
       .from('events')
       .insert({
         artist_id: eventData.artist_id,
-        created_by: eventData.user_id, // Campo para o trigger
+        created_by: eventData.user_id, // Quem criou o evento (para o trigger)
         name: eventData.name,
         description: eventData.description || null,
         event_date: eventData.event_date,
@@ -93,8 +93,8 @@ export const createEvent = async (eventData: CreateEventData): Promise<{ success
       return { success: false, error: eventError.message };
     }
 
-    // O trigger trg_notify_event_created executará automaticamente
-    // e criará as notificações para os colaboradores
+    // O trigger notify_event_created() no banco já cria as notificações
+    // automaticamente para todos os colaboradores (exceto o criador)
 
     // Se há despesas, criar elas
     if (eventData.expenses && eventData.expenses.length > 0) {
@@ -290,7 +290,12 @@ export const updateEventWithPermissions = async (eventId: string, eventData: Upd
     }
 
     // Atualizar o evento
-    return await updateEvent(eventId, eventData);
+    const result = await updateEvent(eventId, eventData);
+
+    // O trigger notify_event_updated() no banco (se existir) já cria as notificações
+    // automaticamente para todos os colaboradores (exceto quem editou)
+
+    return result;
   } catch (error) {
     console.error('Erro ao atualizar evento:', error);
     return { success: false, error: 'Erro ao atualizar evento' };

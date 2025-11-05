@@ -127,15 +127,16 @@ export const createCollaboratorRemovedNotification = async (
   }
 };
 
-// Criar notificação para eventos criados/atualizados
-export const createEventNotification = async (
-  userId: string,
+// Notificar colaboradores sobre evento criado/atualizado (EXCETO quem criou)
+export const notifyCollaboratorsAboutEvent = async (
   eventId: string,
   artistId: string,
   eventName: string,
+  createdByUserId: string,
   type: 'created' | 'updated'
 ) => {
   try {
+    // Buscar nome do artista
     const { data: artistData } = await supabase
       .from('artists')
       .select('name')
@@ -143,23 +144,47 @@ export const createEventNotification = async (
       .single();
 
     const artistName = artistData?.name || 'Artista';
-    const action = type === 'created' ? 'criado' : 'atualizado';
 
-    const { success, error } = await createNotification({
-      user_id: userId,
-      event_id: eventId,
-      artist_id: artistId,
-      title: `Evento ${action}`,
-      message: `O evento "${eventName}" foi ${action} no artista "${artistName}"`,
-      type: `event_${type}`
-    });
+    // Buscar nome de quem criou/editou
+    const { data: creatorData } = await supabase
+      .from('users')
+      .select('name')
+      .eq('id', createdByUserId)
+      .single();
 
-    if (success) {
-      console.log(`notificationManager: Notificação de evento ${type} criada`);
-    } else {
-      console.error(`notificationManager: Erro ao criar notificação de evento:`, error);
+    const creatorName = creatorData?.name || 'Alguém';
+    const action = type === 'created' ? 'criou' : 'atualizou';
+
+    // Buscar TODOS os colaboradores do artista EXCETO quem criou/editou
+    const { data: members } = await supabase
+      .from('artist_members')
+      .select('user_id')
+      .eq('artist_id', artistId)
+      .neq('user_id', createdByUserId); // ✅ EXCLUIR quem criou/editou
+
+    if (!members || members.length === 0) {
+      console.log(`notificationManager: Nenhum colaborador para notificar sobre evento ${type}`);
+      return;
     }
+
+    console.log(`notificationManager: Notificando ${members.length} colaboradores sobre evento ${type}`);
+
+    // Criar notificação para cada colaborador
+    const notificationPromises = members.map(member =>
+      createNotification({
+        user_id: member.user_id,
+        from_user_id: createdByUserId,
+        event_id: eventId,
+        artist_id: artistId,
+        title: `Evento ${type === 'created' ? 'criado' : 'atualizado'}`,
+        message: `${creatorName} ${action} o evento "${eventName}" em "${artistName}"`,
+        type: `event_${type}`
+      })
+    );
+
+    await Promise.all(notificationPromises);
+    console.log(`notificationManager: Notificações de evento ${type} enviadas com sucesso`);
   } catch (error) {
-    console.error(`notificationManager: Erro ao criar notificação de evento:`, error);
+    console.error(`notificationManager: Erro ao notificar colaboradores sobre evento:`, error);
   }
 };
