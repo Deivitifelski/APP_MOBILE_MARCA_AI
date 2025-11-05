@@ -16,6 +16,7 @@ import OptimizedImage from '../../components/OptimizedImage';
 import PermissionModal from '../../components/PermissionModal';
 import { usePermissions } from '../../contexts/PermissionsContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { supabase } from '../../lib/supabase';
 import { artistImageUpdateService } from '../../services/artistImageUpdateService';
 import { cacheService } from '../../services/cacheService';
 import { getEventsByMonth } from '../../services/supabase/eventService';
@@ -206,32 +207,58 @@ export default function AgendaScreen() {
     setCurrentDate(newDate);
   };
 
-  const handleAddShow = () => {
-    // Verificar se as permissões foram carregadas
-    if (!permissionsLoaded) {
-      Alert.alert('Aguarde', 'Carregando permissões...');
+  const handleAddShow = async () => {
+    if (!activeArtist) {
+      Alert.alert('Erro', 'Nenhum artista selecionado.');
       return;
     }
-    
-    // Verificar se o usuário tem permissão para criar eventos
-    if (isViewer) {
-      setShowPermissionModal(true);
-      return;
-    }
-    
-    // Navegar para tela de adicionar evento
-    const currentMonth = currentDate.getMonth();
-    const currentYear = currentDate.getFullYear();
-    const selectedDate = new Date(currentYear, currentMonth, 1);
-    
-    router.push({
-      pathname: '/adicionar-evento',
-      params: { 
-        selectedMonth: currentMonth,
-        selectedYear: currentYear,
-        selectedDate: selectedDate.toISOString()
+
+    // ✅ VERIFICAR PERMISSÃO DIRETAMENTE NO BANCO ANTES DE NAVEGAR
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        Alert.alert('Erro', 'Usuário não autenticado.');
+        return;
       }
-    });
+
+      const { data: memberData, error } = await supabase
+        .from('artist_members')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('artist_id', activeArtist.id)
+        .single();
+
+      if (error || !memberData) {
+        Alert.alert('Erro', 'Não foi possível verificar suas permissões.');
+        return;
+      }
+
+      const userRole = memberData.role;
+      const allowedRoles = ['owner', 'editor'];
+      
+      if (!allowedRoles.includes(userRole)) {
+        // Mostrar modal de permissão negada, NÃO navegar
+        setShowPermissionModal(true);
+        return;
+      }
+
+      // Se tem permissão, navegar para tela de adicionar evento
+      const currentMonth = currentDate.getMonth();
+      const currentYear = currentDate.getFullYear();
+      const selectedDate = new Date(currentYear, currentMonth, 1);
+      
+      router.push({
+        pathname: '/adicionar-evento',
+        params: { 
+          selectedMonth: currentMonth,
+          selectedYear: currentYear,
+          selectedDate: selectedDate.toISOString()
+        }
+      });
+    } catch (error) {
+      console.error('❌ Erro ao verificar permissões:', error);
+      Alert.alert('Erro', 'Erro ao verificar permissões. Tente novamente.');
+    }
   };
 
   const handleCreateArtist = () => {
@@ -504,7 +531,7 @@ export default function AgendaScreen() {
         visible={showPermissionModal}
         onClose={() => setShowPermissionModal(false)}
         title="Acesso Restrito"
-        message="Como visualizador, você não tem permissão para criar eventos. Apenas colaboradores com permissão de edição podem adicionar novos eventos."
+        message="Apenas proprietários e editores podem criar eventos para este artista. Entre em contato com um proprietário para solicitar mais permissões."
         icon="lock-closed"
       />
     </View>
