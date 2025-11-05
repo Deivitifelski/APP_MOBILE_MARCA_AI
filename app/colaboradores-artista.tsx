@@ -80,12 +80,28 @@ export default function ColaboradoresArtistaScreen() {
     try {
       setIsLoading(true);
       
+      // Garantir que temos o currentUserId
+      if (!currentUserId) {
+        const { user } = await getCurrentUser();
+        if (user) {
+          setCurrentUserId(user.id);
+        }
+      }
+      
       // Verificar se é owner
       const isUserOwner = activeArtist.role === 'owner';
       setIsOwner(isUserOwner);
 
       // Buscar colaboradores
       const { collaborators, userRole, canManage, canAddCollaborators, error: collaboratorsError } = await getCollaborators(activeArtist.id);
+      
+      console.log('📊 Dados carregados:', {
+        userRole,
+        canManage,
+        canAddCollaborators,
+        currentUserId,
+        totalColaboradores: collaborators?.length || 0
+      });
       
       if (collaboratorsError) {
         Alert.alert('Erro', 'Erro ao carregar colaboradores');
@@ -268,12 +284,12 @@ export default function ColaboradoresArtistaScreen() {
       return;
     }
 
-    // ✅ Se você é OWNER, não pode remover ADMIN
+    // ✅ Se você é OWNER, não pode remover ADMIN nem OWNER (outros)
     const collaborator = collaborators.find(c => c.user_id === userId);
-    if (userRole === 'owner' && collaborator?.role === 'admin') {
+    if (userRole === 'owner' && (collaborator?.role === 'admin' || collaborator?.role === 'owner')) {
       Alert.alert(
         'Ação Não Permitida',
-        'Proprietários não podem remover administradores.',
+        'Proprietários não podem remover administradores ou outros proprietários.',
         [{ text: 'OK' }]
       );
       return;
@@ -319,11 +335,11 @@ export default function ColaboradoresArtistaScreen() {
       return;
     }
 
-    // ✅ Se você é OWNER, não pode alterar permissões de ADMIN
-    if (userRole === 'owner' && currentRole === 'admin') {
+    // ✅ Se você é OWNER, não pode alterar permissões de ADMIN nem de OWNER (outros)
+    if (userRole === 'owner' && (currentRole === 'admin' || currentRole === 'owner')) {
       Alert.alert(
         'Ação Não Permitida',
-        'Proprietários não podem alterar permissões de administradores.',
+        'Proprietários não podem alterar permissões de administradores ou outros proprietários.',
         [{ text: 'OK' }]
       );
       return;
@@ -418,17 +434,34 @@ export default function ColaboradoresArtistaScreen() {
     let canChangeThisRole = false;
     let canRemoveThis = false;
     
-    if (!isCurrentUser && item.role !== 'owner') {
+    console.log('👥 Renderizando colaborador:', {
+      nome: item.user.name,
+      role: item.role,
+      isCurrentUser,
+      userRole,
+      currentUserId,
+      itemUserId: item.user_id
+    });
+    
+    if (!isCurrentUser) {
       if (userRole === 'admin') {
-        // Admin pode alterar/remover qualquer um (menos owner e ele mesmo)
+        // ✅ ADMIN pode alterar/remover TODOS (owner, admin, editor, viewer) - menos ele mesmo
         canChangeThisRole = true;
         canRemoveThis = true;
+        console.log('✅ ADMIN pode alterar/remover:', item.user.name);
       } else if (userRole === 'owner') {
-        // Owner pode alterar/remover todos EXCETO admin (e exceto ele mesmo)
-        canChangeThisRole = item.role !== 'admin';
-        canRemoveThis = item.role !== 'admin';
+        // ✅ OWNER pode alterar/remover todos EXCETO admin (e exceto ele mesmo)
+        canChangeThisRole = item.role !== 'admin' && item.role !== 'owner';
+        canRemoveThis = item.role !== 'admin' && item.role !== 'owner';
+        console.log('✅ OWNER pode alterar/remover?', { nome: item.user.name, pode: item.role !== 'admin' && item.role !== 'owner' });
       }
+    } else {
+      console.log('❌ Não pode alterar:', { 
+        motivo: 'É você mesmo'
+      });
     }
+    
+    console.log('🔧 Botões:', { canChangeThisRole, canRemoveThis });
     
     return (
       <View style={[styles.collaboratorCard, { backgroundColor: colors.surface }]}>

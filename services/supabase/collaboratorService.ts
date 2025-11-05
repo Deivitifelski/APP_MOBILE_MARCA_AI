@@ -237,22 +237,26 @@ export const removeCollaborator = async (userId: string, artistId: string): Prom
       return { success: false, error: 'Apenas proprietários e administradores podem remover colaboradores' };
     }
 
-    // ✅ Buscar role do alvo
-    const { data: targetMember, error: targetError } = await supabase
-      .from('artist_members')
-      .select('role')
-      .eq('artist_id', artistId)
-      .eq('user_id', userId)
-      .single();
+    // ✅ Se você é OWNER, buscar role do alvo para validar
+    if (userMembership.role === 'owner') {
+      const { data: targetMember, error: targetError } = await supabase
+        .from('artist_members')
+        .select('role')
+        .eq('artist_id', artistId)
+        .eq('user_id', userId)
+        .single();
 
-    if (targetError || !targetMember) {
-      return { success: false, error: 'Colaborador não encontrado' };
-    }
+      if (targetError || !targetMember) {
+        return { success: false, error: 'Colaborador não encontrado' };
+      }
 
-    // ✅ Se você é OWNER, não pode remover ADMIN
-    if (userMembership.role === 'owner' && targetMember.role === 'admin') {
-      return { success: false, error: 'Proprietários não podem remover administradores' };
+      // OWNER não pode remover ADMIN nem OWNER (outros)
+      if (targetMember.role === 'admin' || targetMember.role === 'owner') {
+        return { success: false, error: 'Proprietários não podem remover administradores ou outros proprietários' };
+      }
     }
+    
+    // ✅ ADMIN pode remover TODOS (inclusive owner e outros admins)
 
     const { error } = await supabase
       .from('artist_members')
@@ -300,22 +304,26 @@ export const updateCollaboratorRole = async (userId: string, artistId: string, n
       return { success: false, error: 'Apenas proprietários e administradores podem atualizar roles' };
     }
 
-    // ✅ Buscar role do alvo
-    const { data: targetMember, error: targetError } = await supabase
-      .from('artist_members')
-      .select('role')
-      .eq('artist_id', artistId)
-      .eq('user_id', userId)
-      .single();
+    // ✅ Se você é OWNER, buscar role do alvo para validar
+    if (userMembership.role === 'owner') {
+      const { data: targetMember, error: targetError } = await supabase
+        .from('artist_members')
+        .select('role')
+        .eq('artist_id', artistId)
+        .eq('user_id', userId)
+        .single();
 
-    if (targetError || !targetMember) {
-      return { success: false, error: 'Colaborador não encontrado' };
-    }
+      if (targetError || !targetMember) {
+        return { success: false, error: 'Colaborador não encontrado' };
+      }
 
-    // ✅ Se você é OWNER, não pode alterar permissões de ADMIN
-    if (userMembership.role === 'owner' && targetMember.role === 'admin') {
-      return { success: false, error: 'Proprietários não podem alterar permissões de administradores' };
+      // OWNER não pode alterar permissões de ADMIN nem de OWNER (outros)
+      if (targetMember.role === 'admin' || targetMember.role === 'owner') {
+        return { success: false, error: 'Proprietários não podem alterar permissões de administradores ou outros proprietários' };
+      }
     }
+    
+    // ✅ ADMIN pode alterar permissões de TODOS (inclusive owner e outros admins)
 
     const { error } = await supabase
       .from('artist_members')
