@@ -1,17 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    FlatList,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Alert,
+  FlatList,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import UpgradeModal from '../../components/UpgradeModal';
-import { usePermissions } from '../../contexts/PermissionsContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { generateFinancialReport } from '../../services/financialReportService';
@@ -42,8 +41,9 @@ export default function FinanceiroScreen() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { activeArtist, loadActiveArtist } = useActiveArtist();
   
-  // ✅ USAR PERMISSÕES GLOBAIS
-  const { isViewer, isEditor, isAdmin, isOwner, canViewFinancials, permissionsLoaded } = usePermissions();
+  // Estados para controle de acesso
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+  const [isCheckingAccess, setIsCheckingAccess] = useState(true);
 
   const currentMonth = selectedDate.getMonth();
   const currentYear = selectedDate.getFullYear();
@@ -69,12 +69,72 @@ export default function FinanceiroScreen() {
     loadActiveArtist();
   }, []);
 
-  // ✅ Carregar dados financeiros quando permissões estiverem prontas
+  // ✅ Verificar permissões diretamente no banco quando artista mudar
   useEffect(() => {
-    if (activeArtist && permissionsLoaded) {
+    checkUserAccess();
+  }, [activeArtist]);
+
+  const checkUserAccess = async () => {
+    if (!activeArtist) {
+      setHasAccess(null);
+      setIsCheckingAccess(false);
+      return;
+    }
+
+    try {
+      setIsCheckingAccess(true);
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('🚫 Financeiro: Usuário não autenticado');
+        setHasAccess(false);
+        setIsCheckingAccess(false);
+        return;
+      }
+
+      console.log('🔍 Financeiro: Verificando acesso do usuário', {
+        userId: user.id,
+        artistId: activeArtist.id
+      });
+
+      // Buscar role diretamente na tabela artist_members
+      const { data: memberData, error } = await supabase
+        .from('artist_members')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('artist_id', activeArtist.id)
+        .single();
+
+      if (error) {
+        console.error('❌ Financeiro: Erro ao verificar permissões:', error);
+        setHasAccess(false);
+        setIsCheckingAccess(false);
+        return;
+      }
+
+      const userRole = memberData?.role;
+      console.log('📋 Financeiro: Role do usuário:', userRole);
+
+      // ✅ Apenas owner e editor têm acesso à tela de finanças
+      const allowedRoles = ['owner', 'editor'];
+      const hasPermission = userRole && allowedRoles.includes(userRole);
+      
+      console.log('🔐 Financeiro: Acesso permitido?', hasPermission);
+      setHasAccess(hasPermission);
+      setIsCheckingAccess(false);
+    } catch (error) {
+      console.error('❌ Financeiro: Erro ao verificar acesso:', error);
+      setHasAccess(false);
+      setIsCheckingAccess(false);
+    }
+  };
+
+  // ✅ Carregar dados financeiros quando tiver acesso confirmado
+  useEffect(() => {
+    if (activeArtist && hasAccess) {
       loadFinancialData();
     }
-  }, [activeArtist, permissionsLoaded, currentMonth, currentYear]);
+  }, [activeArtist, hasAccess, currentMonth, currentYear]);
 
   const loadFinancialData = async () => {
     if (!activeArtist) {
@@ -82,23 +142,17 @@ export default function FinanceiroScreen() {
       return;
     }
     
-    console.log('💰 Financeiro: Carregando dados...', {
-      artistId: activeArtist.id,
-      isViewer,
-      isEditor,
-      isAdmin,
-      isOwner,
-      canViewFinancials,
-      permissionsLoaded
-    });
-    
-    // ✅ VERIFICAR PERMISSÃO GLOBAL - Se for viewer, não carregar dados financeiros
-    if (isViewer || !canViewFinancials) {
+    // ✅ VERIFICAR PERMISSÃO - Só carregar se tiver acesso
+    if (!hasAccess) {
       console.log('🚫 Financeiro: Sem permissão para visualizar finanças');
       setEvents([]);
       setIsLoading(false);
       return;
     }
+    
+    console.log('💰 Financeiro: Carregando dados...', {
+      artistId: activeArtist.id
+    });
     
     try {
       setIsLoading(true);
@@ -110,7 +164,7 @@ export default function FinanceiroScreen() {
       
       if (eventsError) {
         console.error('❌ Financeiro: Erro ao carregar eventos:', eventsError);
-        Alert.alert('Erro ao Carregar Eventos', eventsError.message || 'Não foi possível carregar os eventos do mês.');
+        Alert.alert('Erro ao Carregar Eventos', eventsError || 'Não foi possível carregar os eventos do mês.');
         return;
       }
 
@@ -251,11 +305,11 @@ export default function FinanceiroScreen() {
     }
   };
 
-  // ✅ VERIFICAÇÃO DE SEGURANÇA: Cálculos financeiros só se tiver permissão
-  const totalRevenue = (canViewFinancials && !isViewer) 
+  // ✅ VERIFICAÇÃO DE SEGURANÇA: Cálculos financeiros só se tiver acesso
+  const totalRevenue = hasAccess 
     ? events.reduce((sum, event) => sum + (event.value || 0), 0) 
     : 0;
-  const totalExpenses = (canViewFinancials && !isViewer) 
+  const totalExpenses = hasAccess 
     ? events.reduce((sum, event) => sum + event.totalExpenses, 0) 
     : 0;
   const netProfit = totalRevenue - totalExpenses;
@@ -316,8 +370,8 @@ export default function FinanceiroScreen() {
     </View>
   );
 
-  // Se ainda está carregando permissões, mostrar loading
-  if (!permissionsLoaded) {
+  // Se ainda está verificando acesso, mostrar loading
+  if (isCheckingAccess) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { 
@@ -328,7 +382,7 @@ export default function FinanceiroScreen() {
           <Text style={[styles.title, { color: colors.text }]}>Financeiro</Text>
         </View>
         <View style={styles.loadingContainer}>
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Carregando...</Text>
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Verificando permissões...</Text>
         </View>
       </View>
     );
@@ -393,8 +447,8 @@ export default function FinanceiroScreen() {
   }
 
 
-  // ✅ SE FOR VIEWER, BLOQUEAR ACESSO TOTAL À TELA
-  if (isViewer) {
+  // ✅ SE NÃO TEM ACESSO (não é owner nem editor), BLOQUEAR ACESSO TOTAL À TELA
+  if (hasAccess === false) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { 
@@ -413,10 +467,10 @@ export default function FinanceiroScreen() {
               Acesso Restrito
             </Text>
             <Text style={[styles.noAccessMessage, { color: colors.textSecondary }]}>
-              Como visualizador, você não tem permissão para acessar dados financeiros deste artista.
+              Apenas proprietários e editores podem acessar dados financeiros deste artista.
             </Text>
             <Text style={[styles.noAccessSubMessage, { color: colors.textSecondary }]}>
-              Entre em contato com um administrador do artista para solicitar mais permissões e acessar:
+              Entre em contato com um proprietário para solicitar a alteração da sua role e acessar:
             </Text>
             
             <View style={styles.featuresList}>
