@@ -258,6 +258,27 @@ export default function ColaboradoresArtistaScreen() {
   const handleRemoveCollaborator = (userId: string, userName: string) => {
     if (!activeArtist) return;
 
+    // ✅ Ninguém pode se remover (deve usar "Sair do Artista")
+    if (userId === currentUserId) {
+      Alert.alert(
+        'Ação Não Permitida',
+        'Você não pode se remover desta forma. Use a opção "Sair do Artista" nas configurações.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    // ✅ Se você é OWNER, não pode remover ADMIN
+    const collaborator = collaborators.find(c => c.user_id === userId);
+    if (userRole === 'owner' && collaborator?.role === 'admin') {
+      Alert.alert(
+        'Ação Não Permitida',
+        'Proprietários não podem remover administradores.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     Alert.alert(
       'Remover Colaborador',
       `Tem certeza que deseja remover ${userName}?`,
@@ -287,6 +308,26 @@ export default function ColaboradoresArtistaScreen() {
 
   const handleUpdateRole = (userId: string, currentRole: string, userName: string) => {
     if (!activeArtist) return;
+    
+    // ✅ Ninguém pode alterar suas próprias permissões
+    if (userId === currentUserId) {
+      Alert.alert(
+        'Ação Não Permitida',
+        'Você não pode alterar suas próprias permissões.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    // ✅ Se você é OWNER, não pode alterar permissões de ADMIN
+    if (userRole === 'owner' && currentRole === 'admin') {
+      Alert.alert(
+        'Ação Não Permitida',
+        'Proprietários não podem alterar permissões de administradores.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     
     const collaborator = collaborators.find(c => c.user_id === userId);
     if (!collaborator) return;
@@ -368,48 +409,81 @@ export default function ColaboradoresArtistaScreen() {
     }
   };
 
-  const renderCollaborator = ({ item }: { item: Collaborator }) => (
-    <View style={[styles.collaboratorCard, { backgroundColor: colors.surface }]}>
-      <View style={styles.collaboratorInfo}>
-        <View style={[styles.collaboratorAvatar, { backgroundColor: colors.primary }]}>
-          <Text style={styles.avatarText}>
-            {item.user.name.charAt(0).toUpperCase()}
-          </Text>
-        </View>
-        <View style={styles.collaboratorDetails}>
-          <Text style={[styles.collaboratorName, { color: colors.text }]}>{item.user.name}</Text>
-          <Text style={[styles.collaboratorEmail, { color: colors.textSecondary }]}>{item.user.email}</Text>
-          <View style={styles.roleContainer}>
-            <Ionicons 
-              name={getRoleIcon(item.role) as any} 
-              size={16} 
-              color={getRoleColor(item.role)} 
-            />
-            <Text style={[styles.roleText, { color: getRoleColor(item.role) }]}>
-              {getRoleLabel(item.role)}
+  const renderCollaborator = ({ item }: { item: Collaborator }) => {
+    const isCurrentUser = item.user_id === currentUserId;
+    
+    // ✅ Determinar se pode alterar/remover baseado nas regras:
+    // - ADMIN: pode alterar todos (menos ele mesmo)
+    // - OWNER: pode alterar todos EXCETO admin (e exceto ele mesmo)
+    let canChangeThisRole = false;
+    let canRemoveThis = false;
+    
+    if (!isCurrentUser && item.role !== 'owner') {
+      if (userRole === 'admin') {
+        // Admin pode alterar/remover qualquer um (menos owner e ele mesmo)
+        canChangeThisRole = true;
+        canRemoveThis = true;
+      } else if (userRole === 'owner') {
+        // Owner pode alterar/remover todos EXCETO admin (e exceto ele mesmo)
+        canChangeThisRole = item.role !== 'admin';
+        canRemoveThis = item.role !== 'admin';
+      }
+    }
+    
+    return (
+      <View style={[styles.collaboratorCard, { backgroundColor: colors.surface }]}>
+        <View style={styles.collaboratorInfo}>
+          <View style={[styles.collaboratorAvatar, { backgroundColor: colors.primary }]}>
+            <Text style={styles.avatarText}>
+              {item.user.name.charAt(0).toUpperCase()}
             </Text>
           </View>
+          <View style={styles.collaboratorDetails}>
+            <View style={styles.nameRow}>
+              <Text style={[styles.collaboratorName, { color: colors.text }]}>{item.user.name}</Text>
+              {isCurrentUser && (
+                <View style={[styles.youBadge, { backgroundColor: colors.primary }]}>
+                  <Text style={styles.youBadgeText}>VOCÊ</Text>
+                </View>
+              )}
+            </View>
+            <Text style={[styles.collaboratorEmail, { color: colors.textSecondary }]}>{item.user.email}</Text>
+            <View style={styles.roleContainer}>
+              <Ionicons 
+                name={getRoleIcon(item.role) as any} 
+                size={16} 
+                color={getRoleColor(item.role)} 
+              />
+              <Text style={[styles.roleText, { color: getRoleColor(item.role) }]}>
+                {getRoleLabel(item.role)}
+              </Text>
+            </View>
+          </View>
         </View>
+        
+        {(canChangeThisRole || canRemoveThis) && (
+          <View style={styles.collaboratorActions}>
+            {canChangeThisRole && (
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => handleUpdateRole(item.user_id, item.role, item.user.name)}
+              >
+                <Ionicons name="swap-horizontal" size={20} color={colors.primary} />
+              </TouchableOpacity>
+            )}
+            {canRemoveThis && (
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => handleRemoveCollaborator(item.user_id, item.user.name)}
+              >
+                <Ionicons name="trash" size={20} color={colors.error} />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
-      
-      {canManage && item.role !== 'owner' && (
-        <View style={styles.collaboratorActions}>
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => handleUpdateRole(item.user_id, item.role, item.user.name)}
-          >
-            <Ionicons name="swap-horizontal" size={20} color={colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => handleRemoveCollaborator(item.user_id, item.user.name)}
-          >
-            <Ionicons name="trash" size={20} color={colors.error} />
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
-  );
+    );
+  };
 
   if (isLoading) {
     return (
@@ -1115,11 +1189,26 @@ const styles = StyleSheet.create({
   collaboratorDetails: {
     flex: 1,
   },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
   collaboratorName: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 2,
+  },
+  youBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  youBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   collaboratorEmail: {
     fontSize: 14,
