@@ -1,19 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
-    Alert,
-    Modal,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  Modal,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
-import { supabase } from '../lib/supabase';
 import { getArtists } from '../services/supabase/artistService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { createEvent, CreateExpenseData } from '../services/supabase/eventService';
@@ -275,104 +274,9 @@ export default function AdicionarEventoScreen() {
   const [showTimeInicioModal, setShowTimeInicioModal] = useState(false);
   const [showTimeFimModal, setShowTimeFimModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
-  const [isCheckingAccess, setIsCheckingAccess] = useState(true);
   const { activeArtist } = useActiveArtist();
 
-  // ✅ VERIFICAR PERMISSÃO DIRETAMENTE NO BANCO AO ABRIR A TELA
-  useEffect(() => {
-    checkUserAccess();
-  }, [activeArtist]);
-
-  const checkUserAccess = async () => {
-    if (!activeArtist) {
-      setHasAccess(null);
-      setIsCheckingAccess(false);
-      return;
-    }
-
-    try {
-      setIsCheckingAccess(true);
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.log('🚫 Adicionar Evento: Usuário não autenticado');
-        setHasAccess(false);
-        setIsCheckingAccess(false);
-        Alert.alert(
-          'Erro',
-          'Usuário não autenticado. Faça login novamente.',
-          [{ text: 'Voltar', onPress: () => router.back() }]
-        );
-        return;
-      }
-
-      console.log('🔍 Adicionar Evento: Verificando acesso do usuário', {
-        userId: user.id,
-        artistId: activeArtist.id
-      });
-
-      // Buscar role diretamente na tabela artist_members
-      const { data: memberData, error } = await supabase
-        .from('artist_members')
-        .select('role')
-        .eq('user_id', user.id)
-        .eq('artist_id', activeArtist.id)
-        .single();
-
-      if (error) {
-        console.error('❌ Adicionar Evento: Erro ao verificar permissões:', error);
-        setHasAccess(false);
-        setIsCheckingAccess(false);
-        Alert.alert(
-          'Erro',
-          'Erro ao verificar permissões. Tente novamente.',
-          [{ text: 'Voltar', onPress: () => router.back() }]
-        );
-        return;
-      }
-
-      const userRole = memberData?.role;
-      console.log('📋 Adicionar Evento: Role do usuário:', userRole);
-
-      // ✅ Apenas owner e editor podem criar eventos (conforme sua política RLS)
-      const allowedRoles = ['owner', 'editor'];
-      const hasPermission = userRole && allowedRoles.includes(userRole);
-      
-      console.log('🔐 Adicionar Evento: Acesso permitido?', hasPermission);
-      
-      if (!hasPermission) {
-        Alert.alert(
-          'Acesso Negado',
-          'Apenas proprietários e editores podem criar eventos para este artista.',
-          [{ text: 'Voltar', onPress: () => router.back() }]
-        );
-      }
-      
-      setHasAccess(hasPermission);
-      setIsCheckingAccess(false);
-    } catch (error) {
-      console.error('❌ Adicionar Evento: Erro ao verificar acesso:', error);
-      setHasAccess(false);
-      setIsCheckingAccess(false);
-      Alert.alert(
-        'Erro',
-        'Erro inesperado ao verificar permissões.',
-        [{ text: 'Voltar', onPress: () => router.back() }]
-      );
-    }
-  };
-
   const handleSave = async () => {
-    // ✅ VERIFICAR PERMISSÃO ANTES DE SALVAR
-    if (!hasAccess) {
-      Alert.alert(
-        'Acesso Negado',
-        'Apenas proprietários e editores podem criar eventos para este artista.'
-      );
-      return;
-    }
-
     // Validações básicas - apenas Nome, Valor e Data são obrigatórios
     if (!form.nome.trim()) {
       Alert.alert('Erro', 'Nome do evento é obrigatório');
@@ -524,29 +428,6 @@ export default function AdicionarEventoScreen() {
   const openTimeFimPicker = () => {
     setShowTimeFimModal(true);
   };
-
-  // Se ainda está verificando acesso, mostrar loading
-  if (isCheckingAccess) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={[styles.title, { color: colors.text }]}>Adicionar Evento</Text>
-          <View style={styles.placeholder} />
-        </View>
-        <View style={styles.loadingContainer}>
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Verificando permissões...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  // Se não tem acesso, não renderizar a tela (o alert já foi exibido)
-  if (hasAccess === false) {
-    return null;
-  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
