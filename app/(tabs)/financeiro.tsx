@@ -78,6 +78,11 @@ export default function FinanceiroScreen() {
     checkUserAccess();
   }, [activeArtist]);
 
+  // Log quando hasAccess mudar
+  useEffect(() => {
+    console.log('🔄 Financeiro: Estado hasAccess MUDOU para:', hasAccess);
+  }, [hasAccess]);
+
   const checkUserAccess = async () => {
     if (!activeArtist) {
       setHasAccess(null);
@@ -119,11 +124,16 @@ export default function FinanceiroScreen() {
       const userRole = memberData?.role;
       console.log('📋 Financeiro: Role do usuário:', userRole);
 
-      // ✅ Apenas owner e editor têm acesso total aos valores financeiros
-      const allowedRoles = ['owner', 'editor'];
-      const hasPermission = userRole && allowedRoles.includes(userRole);
+      // ✅ Ocultar valores APENAS para viewers
+      const isViewer = userRole === 'viewer';
+      const hasPermission = !isViewer; // Todos menos viewer têm acesso
       
-      console.log('🔐 Financeiro: Acesso aos valores permitido?', hasPermission);
+      console.log('🔐 Financeiro: Verificação de acesso:', {
+        userRole,
+        isViewer,
+        hasPermission
+      });
+      
       setHasAccess(hasPermission);
       setIsCheckingAccess(false);
     } catch (error) {

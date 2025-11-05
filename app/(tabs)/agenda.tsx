@@ -2,19 +2,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    FlatList,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Alert,
+  FlatList,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import OptimizedImage from '../../components/OptimizedImage';
 import PermissionModal from '../../components/PermissionModal';
-import { usePermissions } from '../../contexts/PermissionsContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { artistImageUpdateService } from '../../services/artistImageUpdateService';
@@ -81,8 +80,71 @@ export default function AgendaScreen() {
   const [artistImageUpdated, setArtistImageUpdated] = useState<boolean>(false);
   const { unreadCount, loadUnreadCount } = useNotifications();
   
-  // ✅ USAR PERMISSÕES GLOBAIS
-  const { isViewer, canViewFinancials, permissionsLoaded, reloadPermissions, userPermissions } = usePermissions();
+  // ✅ VERIFICAR ROLE DIRETAMENTE NO BANCO
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [hasFinancialAccess, setHasFinancialAccess] = useState(false);
+  
+  // Verificar role ao carregar a tela e quando artista mudar
+  useEffect(() => {
+    checkUserRole();
+  }, [activeArtist]);
+
+  const checkUserRole = async () => {
+    if (!activeArtist) {
+      setCurrentUserRole(null);
+      setHasFinancialAccess(false);
+      return;
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('🚫 Agenda: Usuário não autenticado');
+        setCurrentUserRole(null);
+        setHasFinancialAccess(false);
+        return;
+      }
+
+      console.log('🔍 Agenda: Verificando role do usuário', {
+        userId: user.id,
+        artistId: activeArtist.id
+      });
+
+      const { data: memberData, error } = await supabase
+        .from('artist_members')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('artist_id', activeArtist.id)
+        .single();
+
+      if (error || !memberData) {
+        console.error('❌ Agenda: Erro ao verificar role:', error);
+        setCurrentUserRole(null);
+        setHasFinancialAccess(false);
+        return;
+      }
+
+      const userRole = memberData.role;
+      console.log('📋 Agenda: ROLE DO USUÁRIO:', userRole);
+
+      // ✅ Apenas viewer NÃO pode ver valores financeiros
+      const isViewer = userRole === 'viewer';
+      const canViewFinancials = !isViewer;
+
+      console.log('🔐 Agenda: Verificação de acesso:', {
+        userRole,
+        isViewer,
+        canViewFinancials
+      });
+
+      setCurrentUserRole(userRole);
+      setHasFinancialAccess(canViewFinancials);
+    } catch (error) {
+      console.error('❌ Agenda: Erro ao verificar role:', error);
+      setCurrentUserRole(null);
+      setHasFinancialAccess(false);
+    }
+  };
 
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
@@ -129,12 +191,19 @@ export default function AgendaScreen() {
   }, [artistImageUpdated]);
 
   const handleEventPress = (eventId: string) => {
+    console.log('🔒 Agenda: Tentando abrir evento', {
+      currentUserRole,
+      hasFinancialAccess
+    });
+
     // Verificar se o usuário tem permissão para ver detalhes
-    if (isViewer || !canViewFinancials) {
+    if (!hasFinancialAccess) {
+      console.log('🚫 Agenda: Acesso negado - mostrando modal');
       setShowPermissionModal(true);
       return;
     }
     
+    console.log('✅ Agenda: Acesso permitido - navegando para detalhes');
     // Se não for viewer, permitir acesso aos detalhes
     router.push(`/detalhes-evento?eventId=${eventId}`);
   };
@@ -143,7 +212,7 @@ export default function AgendaScreen() {
     setRefreshing(true);
     await Promise.all([
       loadEvents(true),
-      reloadPermissions()
+      checkUserRole()
     ]);
     setRefreshing(false);
   };
@@ -213,52 +282,34 @@ export default function AgendaScreen() {
       return;
     }
 
-    // ✅ VERIFICAR PERMISSÃO DIRETAMENTE NO BANCO ANTES DE NAVEGAR
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        Alert.alert('Erro', 'Usuário não autenticado.');
-        return;
-      }
+    console.log('➕ Agenda: Tentando adicionar evento', {
+      currentUserRole,
+      hasFinancialAccess
+    });
 
-      const { data: memberData, error } = await supabase
-        .from('artist_members')
-        .select('role')
-        .eq('user_id', user.id)
-        .eq('artist_id', activeArtist.id)
-        .single();
-
-      if (error || !memberData) {
-        Alert.alert('Erro', 'Não foi possível verificar suas permissões.');
-        return;
-      }
-
-      const userRole = memberData.role;
-      const allowedRoles = ['owner', 'editor'];
-      
-      if (!allowedRoles.includes(userRole)) {
-        // Mostrar modal de permissão negada, NÃO navegar
-        setShowPermissionModal(true);
-        return;
-      }
-
-      // Se tem permissão, navegar para tela de adicionar evento
-      const currentMonth = currentDate.getMonth();
-      const currentYear = currentDate.getFullYear();
-      const selectedDate = new Date(currentYear, currentMonth, 1);
-      
-      router.push({
-        pathname: '/adicionar-evento',
-        params: { 
-          selectedMonth: currentMonth,
-          selectedYear: currentYear,
-          selectedDate: selectedDate.toISOString()
-        }
-      });
-    } catch (error) {
-      console.error('❌ Erro ao verificar permissões:', error);
-      Alert.alert('Erro', 'Erro ao verificar permissões. Tente novamente.');
+    // ✅ Verificar se pode criar eventos (owner e editor)
+    const allowedRoles = ['owner', 'editor'];
+    const canCreate = currentUserRole && allowedRoles.includes(currentUserRole);
+    
+    if (!canCreate) {
+      console.log('🚫 Agenda: Sem permissão para criar evento - mostrando modal');
+      setShowPermissionModal(true);
+      return;
     }
+
+    console.log('✅ Agenda: Permissão concedida - navegando para criar evento');
+
+    // Se tem permissão, navegar para tela de adicionar evento
+    const selectedDate = new Date(currentYear, currentMonth, 1);
+    
+    router.push({
+      pathname: '/adicionar-evento',
+      params: { 
+        selectedMonth: currentMonth,
+        selectedYear: currentYear,
+        selectedDate: selectedDate.toISOString()
+      }
+    });
   };
 
   const handleCreateArtist = () => {
@@ -304,8 +355,6 @@ export default function AgendaScreen() {
     const [year, month, day] = item.event_date.split('-').map(Number);
     const eventDate = new Date(year, month - 1, day);
     const dayOfWeek = eventDate.toLocaleDateString('pt-BR', { weekday: 'short' });
-    
-    const hasFinancialAccess = permissionsLoaded && canViewFinancials;
     
     return (
       <TouchableOpacity 

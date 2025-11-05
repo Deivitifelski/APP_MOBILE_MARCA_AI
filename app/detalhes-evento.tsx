@@ -10,6 +10,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import PermissionModal from '../components/PermissionModal';
 import UpgradeModal from '../components/UpgradeModal';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
@@ -34,7 +35,12 @@ export default function DetalhesEventoScreen() {
   const [creatorName, setCreatorName] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
   const { activeArtist } = useActiveArtist();
+  
+  // Estados para controle de acesso
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+  const [isCheckingAccess, setIsCheckingAccess] = useState(true);
 
   // Obter usuário atual
   useEffect(() => {
@@ -46,6 +52,88 @@ export default function DetalhesEventoScreen() {
     };
     getCurrentUser();
   }, []);
+
+  // Verificar permissões quando o artista ativo mudar
+  useEffect(() => {
+    checkUserAccess();
+  }, [activeArtist, currentUserId]);
+
+  // Log quando hasAccess mudar
+  useEffect(() => {
+    console.log('🔄 Detalhes Evento: Estado hasAccess MUDOU para:', hasAccess);
+  }, [hasAccess]);
+
+  const checkUserAccess = async () => {
+    console.log('🔍 Detalhes Evento: INÍCIO checkUserAccess', {
+      activeArtist: activeArtist?.id,
+      currentUserId
+    });
+
+    if (!activeArtist || !currentUserId) {
+      console.log('⚠️ Detalhes Evento: Sem artista ou usuário', {
+        hasArtist: !!activeArtist,
+        hasUserId: !!currentUserId
+      });
+      setHasAccess(null);
+      setIsCheckingAccess(false);
+      return;
+    }
+
+    try {
+      setIsCheckingAccess(true);
+      
+      console.log('🔍 Detalhes Evento: Verificando acesso do usuário', {
+        userId: currentUserId,
+        artistId: activeArtist.id,
+        artistName: activeArtist.name
+      });
+
+      // Buscar role diretamente na tabela artist_members
+      const { data: memberData, error } = await supabase
+        .from('artist_members')
+        .select('role')
+        .eq('user_id', currentUserId)
+        .eq('artist_id', activeArtist.id)
+        .single();
+
+      console.log('📊 Detalhes Evento: Resultado da query', {
+        memberData,
+        error,
+        hasData: !!memberData
+      });
+
+      if (error) {
+        console.error('❌ Detalhes Evento: Erro ao verificar permissões:', error);
+        setHasAccess(false);
+        setIsCheckingAccess(false);
+        return;
+      }
+
+      const userRole = memberData?.role;
+      console.log('📋 Detalhes Evento: ROLE DO USUÁRIO:', userRole);
+      console.log('📋 Detalhes Evento: Tipo da role:', typeof userRole);
+      console.log('📋 Detalhes Evento: memberData completo:', JSON.stringify(memberData));
+
+      // ✅ Ocultar valores APENAS para viewers
+      const isViewer = userRole === 'viewer';
+      const hasPermission = !isViewer; // Todos menos viewer têm acesso
+      
+      console.log('🔐 Detalhes Evento: Verificação de permissão:', {
+        userRole,
+        isViewer,
+        hasPermission
+      });
+      
+      setHasAccess(hasPermission);
+      setIsCheckingAccess(false);
+      
+      console.log('✅ Detalhes Evento: hasAccess definido como:', hasPermission);
+    } catch (error) {
+      console.error('❌ Detalhes Evento: Erro ao verificar acesso:', error);
+      setHasAccess(false);
+      setIsCheckingAccess(false);
+    }
+  };
 
   const loadEventData = async (isInitialLoad = true) => {
     if (isInitialLoad) {
@@ -174,7 +262,56 @@ export default function DetalhesEventoScreen() {
     }
   };
 
+  const handleRestrictedAction = (actionName: string) => {
+    console.log(`🔒 Detalhes Evento: Tentando ação "${actionName}"`, {
+      hasAccess,
+      hasAccessType: typeof hasAccess,
+      willBlock: !hasAccess
+    });
+    
+    if (!hasAccess) {
+      console.log(`🚫 Detalhes Evento: Ação "${actionName}" BLOQUEADA - abrindo modal de permissão`);
+      setShowPermissionModal(true);
+      return false;
+    }
+    
+    console.log(`✅ Detalhes Evento: Ação "${actionName}" PERMITIDA`);
+    return true;
+  };
+
+  const handleEditEvent = () => {
+    if (!handleRestrictedAction('editar')) return;
+    router.push({
+      pathname: '/editar-evento',
+      params: { eventId: event?.id }
+    });
+  };
+
+  const handleManageExpenses = () => {
+    if (!handleRestrictedAction('gerenciar despesas')) return;
+    router.push({
+      pathname: '/despesas-evento',
+      params: { 
+        eventId: event?.id, 
+        eventName: event?.name 
+      }
+    });
+  };
+
+  const handleAddExpense = () => {
+    if (!handleRestrictedAction('adicionar despesa')) return;
+    router.push({
+      pathname: '/adicionar-despesa',
+      params: { 
+        eventId: event?.id, 
+        eventName: event?.name 
+      }
+    });
+  };
+
   const handleDeleteEvent = () => {
+    if (!handleRestrictedAction('deletar')) return;
+    
     Alert.alert(
       'Deletar Evento',
       `Tem certeza que deseja deletar o evento "${event?.name}"?\n\nEsta ação não pode ser desfeita e todas as despesas relacionadas também serão removidas.`,
@@ -328,6 +465,8 @@ export default function DetalhesEventoScreen() {
 
   const profit = (event.value || 0) - totalExpenses;
 
+  console.log('🎨 Detalhes Evento: RENDERIZANDO com hasAccess:', hasAccess);
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
@@ -410,84 +549,94 @@ export default function DetalhesEventoScreen() {
         <View style={[styles.financialCard, { backgroundColor: colors.surface }]}>
           <Text style={[styles.financialTitle, { color: colors.text }]}>Resumo Financeiro</Text>
           
-          <View style={styles.financialRow}>
-            <Text style={[styles.financialLabel, { color: colors.textSecondary }]}>Valor do Evento:</Text>
-            <Text style={[styles.financialValue, { color: colors.success }]}>{formatCurrency(event.value || 0)}</Text>
-          </View>
+          {(() => {
+            console.log('💰 Detalhes Evento: Renderizando resumo financeiro - hasAccess:', hasAccess);
+            return hasAccess;
+          })() ? (
+            <>
+              <View style={styles.financialRow}>
+                <Text style={[styles.financialLabel, { color: colors.textSecondary }]}>Valor do Evento:</Text>
+                <Text style={[styles.financialValue, { color: colors.success }]}>{formatCurrency(event.value || 0)}</Text>
+              </View>
 
-          <View style={styles.financialRow}>
-            <Text style={[styles.financialLabel, { color: colors.textSecondary }]}>Total de Despesas:</Text>
-            <Text style={[styles.financialValue, { color: colors.error }]}>
-              -{formatCurrency(totalExpenses)}
-            </Text>
-          </View>
+              <View style={styles.financialRow}>
+                <Text style={[styles.financialLabel, { color: colors.textSecondary }]}>Total de Despesas:</Text>
+                <Text style={[styles.financialValue, { color: colors.error }]}>
+                  -{formatCurrency(totalExpenses)}
+                </Text>
+              </View>
 
-          <View style={[styles.financialRow, styles.financialTotal, { borderTopColor: colors.border }]}>
-            <Text style={[styles.financialTotalLabel, { color: colors.text }]}>Lucro Líquido:</Text>
-            <Text style={[
-              styles.financialTotalValue,
-              { color: profit >= 0 ? colors.success : colors.error }
-            ]}>
-              {formatCurrency(profit)}
-            </Text>
-          </View>
+              <View style={[styles.financialRow, styles.financialTotal, { borderTopColor: colors.border }]}>
+                <Text style={[styles.financialTotalLabel, { color: colors.text }]}>Lucro Líquido:</Text>
+                <Text style={[
+                  styles.financialTotalValue,
+                  { color: profit >= 0 ? colors.success : colors.error }
+                ]}>
+                  {formatCurrency(profit)}
+                </Text>
+              </View>
+            </>
+          ) : (
+            <View style={styles.lockedFinancialContainer}>
+              <Ionicons name="lock-closed" size={32} color={colors.textSecondary} />
+              <Text style={[styles.lockedFinancialText, { color: colors.textSecondary }]}>
+                Valores financeiros ocultos
+              </Text>
+              <Text style={[styles.lockedFinancialSubtext, { color: colors.textSecondary }]}>
+                Apenas proprietários e editores podem visualizar dados financeiros
+              </Text>
+            </View>
+          )}
         </View>
 
 
 
         {/* Ações */}
         <View style={styles.actionsContainer}>
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={handleExportPDF}
-            disabled={isGeneratingPDF}
-          >
-            <Ionicons name="document-text" size={24} color="#9C27B0" />
-            <Text style={[styles.actionButtonText, { color: colors.text }]}>
-              {isGeneratingPDF ? 'Gerando Relatório...' : 'Exportar Relatório'}
-            </Text>
-            <Ionicons name="chevron-forward" size={20} color="#9C27B0" />
-          </TouchableOpacity>
+          {(() => {
+            console.log('🔧 Detalhes Evento: Renderizando botão de exportar - hasAccess:', hasAccess, 'Vai mostrar?', !!hasAccess);
+            return hasAccess;
+          })() && (
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={handleExportPDF}
+              disabled={isGeneratingPDF}
+            >
+              <Ionicons name="document-text" size={24} color="#9C27B0" />
+              <Text style={[styles.actionButtonText, { color: colors.text }]}>
+                {isGeneratingPDF ? 'Gerando Relatório...' : 'Exportar Relatório'}
+              </Text>
+              <Ionicons name="chevron-forward" size={20} color="#9C27B0" />
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() => router.push({
-              pathname: '/editar-evento',
-              params: { eventId: event.id }
-            })}
+            onPress={handleEditEvent}
           >
             <Ionicons name="create" size={24} color={colors.warning} />
             <Text style={[styles.actionButtonText, { color: colors.text }]}>Editar Evento</Text>
+            {!hasAccess && <Ionicons name="lock-closed" size={16} color={colors.textSecondary} style={{ marginLeft: 8 }} />}
             <Ionicons name="chevron-forward" size={20} color={colors.warning} />
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() => router.push({
-              pathname: '/despesas-evento',
-              params: { 
-                eventId: event.id, 
-                eventName: event.name 
-              }
-            })}
+            onPress={handleManageExpenses}
           >
             <Ionicons name="receipt" size={24} color={colors.primary} />
             <Text style={[styles.actionButtonText, { color: colors.text }]}>Gerenciar Despesas</Text>
+            {!hasAccess && <Ionicons name="lock-closed" size={16} color={colors.textSecondary} style={{ marginLeft: 8 }} />}
             <Ionicons name="chevron-forward" size={20} color={colors.primary} />
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() => router.push({
-              pathname: '/adicionar-despesa',
-              params: { 
-                eventId: event.id, 
-                eventName: event.name 
-              }
-            })}
+            onPress={handleAddExpense}
           >
             <Ionicons name="add-circle" size={24} color={colors.success} />
             <Text style={[styles.actionButtonText, { color: colors.text }]}>Adicionar Despesa</Text>
+            {!hasAccess && <Ionicons name="lock-closed" size={16} color={colors.textSecondary} style={{ marginLeft: 8 }} />}
             <Ionicons name="chevron-forward" size={20} color={colors.success} />
           </TouchableOpacity>
 
@@ -500,11 +649,22 @@ export default function DetalhesEventoScreen() {
             <Text style={[styles.actionButtonText, styles.deleteButtonText, { color: colors.error }]}>
               {isDeleting ? 'Deletando...' : 'Deletar Evento'}
             </Text>
+            {!hasAccess && <Ionicons name="lock-closed" size={16} color={colors.textSecondary} style={{ marginLeft: 8 }} />}
             <Ionicons name="chevron-forward" size={20} color={colors.error} />
           </TouchableOpacity>
         </View>
       </ScrollView>
 
+      {/* Modal de Permissão */}
+      <PermissionModal
+        visible={showPermissionModal}
+        onClose={() => setShowPermissionModal(false)}
+        title="Acesso Restrito"
+        message="Apenas proprietários e editores podem editar eventos, gerenciar despesas e visualizar valores financeiros. Entre em contato com um proprietário para solicitar mais permissões."
+        icon="lock-closed"
+      />
+
+      {/* Modal de Upgrade */}
       <UpgradeModal
         visible={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}
@@ -706,5 +866,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     textTransform: 'capitalize',
+  },
+  lockedFinancialContainer: {
+    alignItems: 'center',
+    paddingVertical: 30,
+  },
+  lockedFinancialText: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  lockedFinancialSubtext: {
+    fontSize: 12,
+    marginTop: 8,
+    textAlign: 'center',
+    lineHeight: 16,
   },
 });
