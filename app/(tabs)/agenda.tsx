@@ -130,7 +130,7 @@ export default function AgendaScreen() {
 
   const handleEventPress = (eventId: string) => {
     // Verificar se o usuário tem permissão para ver detalhes
-    if (isViewer) {
+    if (isViewer || !canViewFinancials) {
       setShowPermissionModal(true);
       return;
     }
@@ -305,11 +305,18 @@ export default function AgendaScreen() {
     const eventDate = new Date(year, month - 1, day);
     const dayOfWeek = eventDate.toLocaleDateString('pt-BR', { weekday: 'short' });
     
+    const hasFinancialAccess = permissionsLoaded && canViewFinancials;
+    
     return (
       <TouchableOpacity 
-        style={[styles.showCard, { backgroundColor: colors.surface }]}
+        style={[
+          styles.showCard, 
+          { 
+            backgroundColor: colors.surface
+          }
+        ]}
         onPress={() => handleEventPress(item.id)}
-        activeOpacity={0.7}
+        activeOpacity={hasFinancialAccess ? 0.7 : 1}
       >
         <View style={styles.showContent}>
           <View style={[styles.showDateSection, { backgroundColor: colors.primary }]}>
@@ -319,7 +326,12 @@ export default function AgendaScreen() {
           
           <View style={styles.showInfoSection}>
             <View style={styles.showHeaderRow}>
-              <Text style={[styles.showName, { color: colors.text }]}>{item.name}</Text>
+              <View style={styles.eventNameContainer}>
+                <Text style={[styles.showName, { color: colors.text }]}>{item.name}</Text>
+                {!hasFinancialAccess && (
+                  <Ionicons name="lock-closed" size={14} color={colors.textSecondary} style={{ marginLeft: 6 }} />
+                )}
+              </View>
               {item.tag && (
                 <View style={[styles.tagContainer, { backgroundColor: getTagColor(item.tag) }]}>
                   <Ionicons name={getTagIcon(item.tag)} size={12} color="#fff" />
@@ -340,11 +352,18 @@ export default function AgendaScreen() {
               </View>
             )}
             
-            {item.value && permissionsLoaded && canViewFinancials && (
+            {item.value && hasFinancialAccess ? (
               <Text style={[styles.showValue, { color: colors.primary }]}>
                 R$ {item.value.toLocaleString('pt-BR')}
               </Text>
-            )}
+            ) : item.value && !hasFinancialAccess ? (
+              <View style={styles.lockedValueContainer}>
+                <Ionicons name="lock-closed" size={12} color={colors.textSecondary} />
+                <Text style={[styles.lockedValueText, { color: colors.textSecondary }]}>
+                  Valor oculto
+                </Text>
+              </View>
+            ) : null}
           </View>
           
           <View style={styles.showArrowSection}>
@@ -531,7 +550,7 @@ export default function AgendaScreen() {
         visible={showPermissionModal}
         onClose={() => setShowPermissionModal(false)}
         title="Acesso Restrito"
-        message="Apenas proprietários e editores podem criar eventos para este artista. Entre em contato com um proprietário para solicitar mais permissões."
+        message="Apenas proprietários e editores podem criar e visualizar detalhes e valores financeiros dos eventos. Entre em contato com um proprietário para solicitar mais permissões."
         icon="lock-closed"
       />
     </View>
@@ -658,10 +677,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 8,
   },
+  eventNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
   showName: {
     fontSize: 16,
     fontWeight: '600',
-    flex: 1,
     lineHeight: 20,
   },
   tagContainer: {
@@ -697,6 +720,16 @@ const styles = StyleSheet.create({
   showValue: {
     fontSize: 15,
     fontWeight: 'bold',
+  },
+  lockedValueContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  lockedValueText: {
+    fontSize: 12,
+    marginLeft: 4,
+    fontStyle: 'italic',
   },
   showArrowSection: {
     alignItems: 'center',

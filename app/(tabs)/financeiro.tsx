@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
@@ -10,6 +11,7 @@ import {
   View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import PermissionModal from '../../components/PermissionModal';
 import UpgradeModal from '../../components/UpgradeModal';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
@@ -31,13 +33,15 @@ interface EventWithExpenses {
 }
 
 export default function FinanceiroScreen() {
-  const { colors, isDarkMode } = useTheme();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [events, setEvents] = useState<EventWithExpenses[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { activeArtist, loadActiveArtist } = useActiveArtist();
   
@@ -115,11 +119,11 @@ export default function FinanceiroScreen() {
       const userRole = memberData?.role;
       console.log('📋 Financeiro: Role do usuário:', userRole);
 
-      // ✅ Apenas owner e editor têm acesso à tela de finanças
+      // ✅ Apenas owner e editor têm acesso total aos valores financeiros
       const allowedRoles = ['owner', 'editor'];
       const hasPermission = userRole && allowedRoles.includes(userRole);
       
-      console.log('🔐 Financeiro: Acesso permitido?', hasPermission);
+      console.log('🔐 Financeiro: Acesso aos valores permitido?', hasPermission);
       setHasAccess(hasPermission);
       setIsCheckingAccess(false);
     } catch (error) {
@@ -129,9 +133,9 @@ export default function FinanceiroScreen() {
     }
   };
 
-  // ✅ Carregar dados financeiros quando tiver acesso confirmado
+  // ✅ Carregar dados financeiros (eventos sempre, valores só com permissão)
   useEffect(() => {
-    if (activeArtist && hasAccess) {
+    if (activeArtist && hasAccess !== null) {
       loadFinancialData();
     }
   }, [activeArtist, hasAccess, currentMonth, currentYear]);
@@ -142,16 +146,9 @@ export default function FinanceiroScreen() {
       return;
     }
     
-    // ✅ VERIFICAR PERMISSÃO - Só carregar se tiver acesso
-    if (!hasAccess) {
-      console.log('🚫 Financeiro: Sem permissão para visualizar finanças');
-      setEvents([]);
-      setIsLoading(false);
-      return;
-    }
-    
     console.log('💰 Financeiro: Carregando dados...', {
-      artistId: activeArtist.id
+      artistId: activeArtist.id,
+      hasAccess
     });
     
     try {
@@ -298,7 +295,7 @@ export default function FinanceiroScreen() {
       if (!result.success) {
         Alert.alert('❌ Erro ao Gerar Relatório', result.error || 'Ocorreu um erro inesperado. Tente novamente.');
       }
-    } catch (error) {
+    } catch {
       Alert.alert('❌ Erro ao Gerar Relatório', 'Ocorreu um erro inesperado ao gerar o relatório. Verifique sua conexão e tente novamente.');
     } finally {
       setIsGeneratingReport(false);
@@ -315,6 +312,16 @@ export default function FinanceiroScreen() {
   const netProfit = totalRevenue - totalExpenses;
 
 
+  const handleEventPress = (eventId: string) => {
+    if (!hasAccess) {
+      setShowPermissionModal(true);
+      return;
+    }
+    
+    // Navegar para detalhes do evento
+    router.push(`/detalhes-evento?id=${eventId}`);
+  };
+
   const renderExpense = ({ item }: { item: any }) => (
     <View style={[styles.expenseItem, { backgroundColor: colors.secondary }]}>
       <View style={styles.expenseInfo}>
@@ -326,37 +333,55 @@ export default function FinanceiroScreen() {
 
 
   const renderEvent = ({ item }: { item: EventWithExpenses }) => (
-    <View style={[styles.eventCard, { backgroundColor: colors.surface }]}>
+    <TouchableOpacity 
+      style={[styles.eventCard, { backgroundColor: colors.surface }]}
+      onPress={() => handleEventPress(item.id)}
+      activeOpacity={hasAccess ? 0.7 : 1}
+    >
       <View style={styles.eventHeader}>
         <View style={styles.eventInfo}>
-          <Text style={[styles.eventName, { color: colors.text }]}>{item.name}</Text>
+          <View style={styles.eventNameContainer}>
+            <Text style={[styles.eventName, { color: colors.text }]}>{item.name}</Text>
+            {!hasAccess && (
+              <Ionicons name="lock-closed" size={16} color={colors.textSecondary} style={{ marginLeft: 8 }} />
+            )}
+          </View>
           <Text style={[styles.eventDate, { color: colors.textSecondary }]}>{formatDate(item.event_date)}</Text>
         </View>
-        <View style={styles.eventValues}>
-          <View style={styles.eventValueRow}>
-            <Text style={[styles.eventValueLabel, { color: colors.textSecondary }]}>Receita:</Text>
-            <Text style={[styles.eventRevenue, { color: colors.success }]}>
-              {formatCurrency(item.value || 0)}
-            </Text>
-          </View>
-          {item.totalExpenses > 0 && (
+        {hasAccess ? (
+          <View style={styles.eventValues}>
             <View style={styles.eventValueRow}>
-              <Text style={[styles.eventValueLabel, { color: colors.textSecondary }]}>Despesas:</Text>
-              <Text style={[styles.eventExpenses, { color: colors.error }]}>
-                -{formatCurrency(item.totalExpenses)}
+              <Text style={[styles.eventValueLabel, { color: colors.textSecondary }]}>Receita:</Text>
+              <Text style={[styles.eventRevenue, { color: colors.success }]}>
+                {formatCurrency(item.value || 0)}
               </Text>
             </View>
-          )}
-          <View style={[styles.eventValueRow, styles.eventNetRow, { borderTopColor: colors.border }]}>
-            <Text style={[styles.eventNetLabel, { color: colors.text }]}>Líquido:</Text>
-            <Text style={[styles.eventNet, { color: ((item.value || 0) - item.totalExpenses) >= 0 ? colors.success : colors.error }]}>
-              {formatCurrency((item.value || 0) - item.totalExpenses)}
-            </Text>
+            {item.totalExpenses > 0 && (
+              <View style={styles.eventValueRow}>
+                <Text style={[styles.eventValueLabel, { color: colors.textSecondary }]}>Despesas:</Text>
+                <Text style={[styles.eventExpenses, { color: colors.error }]}>
+                  -{formatCurrency(item.totalExpenses)}
+                </Text>
+              </View>
+            )}
+            <View style={[styles.eventValueRow, styles.eventNetRow, { borderTopColor: colors.border }]}>
+              <Text style={[styles.eventNetLabel, { color: colors.text }]}>Líquido:</Text>
+              <Text style={[styles.eventNet, { color: ((item.value || 0) - item.totalExpenses) >= 0 ? colors.success : colors.error }]}>
+                {formatCurrency((item.value || 0) - item.totalExpenses)}
+              </Text>
+            </View>
           </View>
-        </View>
+        ) : (
+          <View style={styles.eventValues}>
+            <View style={[styles.lockedInfo, { backgroundColor: colors.background }]}>
+              <Ionicons name="lock-closed" size={20} color={colors.textSecondary} />
+              <Text style={[styles.lockedText, { color: colors.textSecondary }]}>Valores ocultos</Text>
+            </View>
+          </View>
+        )}
       </View>
       
-      {item.expenses.length > 0 && (
+      {hasAccess && item.expenses.length > 0 && (
         <View style={[styles.expensesSection, { borderTopColor: colors.border }]}>
           <Text style={[styles.expensesTitle, { color: colors.text }]}>Despesas:</Text>
           <FlatList
@@ -367,7 +392,7 @@ export default function FinanceiroScreen() {
           />
         </View>
       )}
-    </View>
+    </TouchableOpacity>
   );
 
   // Se ainda está verificando acesso, mostrar loading
@@ -447,65 +472,7 @@ export default function FinanceiroScreen() {
   }
 
 
-  // ✅ SE NÃO TEM ACESSO (não é owner nem editor), BLOQUEAR ACESSO TOTAL À TELA
-  if (hasAccess === false) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { 
-          backgroundColor: colors.surface, 
-          borderBottomColor: colors.border,
-          paddingTop: insets.top + 20
-        }]}>
-          <Text style={[styles.title, { color: colors.text }]}>Financeiro</Text>
-        </View>
-        <View style={styles.noAccessContainer}>
-          <View style={[styles.noAccessCard, { backgroundColor: colors.surface }]}>
-            <View style={[styles.noAccessIcon, { backgroundColor: colors.error + '20' }]}>
-              <Ionicons name="lock-closed" size={60} color={colors.error} />
-            </View>
-            <Text style={[styles.noAccessTitle, { color: colors.text }]}>
-              Acesso Restrito
-            </Text>
-            <Text style={[styles.noAccessMessage, { color: colors.textSecondary }]}>
-              Apenas proprietários e editores podem acessar dados financeiros deste artista.
-            </Text>
-            <Text style={[styles.noAccessSubMessage, { color: colors.textSecondary }]}>
-              Entre em contato com um proprietário para solicitar a alteração da sua role e acessar:
-            </Text>
-            
-            <View style={styles.featuresList}>
-              <View style={styles.featureItem}>
-                <Ionicons name="lock-closed" size={20} color={colors.error} />
-                <Text style={[styles.featureText, { color: colors.textSecondary }]}>
-                  Receitas dos eventos
-                </Text>
-              </View>
-              <View style={styles.featureItem}>
-                <Ionicons name="lock-closed" size={20} color={colors.error} />
-                <Text style={[styles.featureText, { color: colors.textSecondary }]}>
-                  Controle de despesas
-                </Text>
-              </View>
-              <View style={styles.featureItem}>
-                <Ionicons name="lock-closed" size={20} color={colors.error} />
-                <Text style={[styles.featureText, { color: colors.textSecondary }]}>
-                  Relatórios financeiros
-                </Text>
-              </View>
-              <View style={styles.featureItem}>
-                <Ionicons name="lock-closed" size={20} color={colors.error} />
-                <Text style={[styles.featureText, { color: colors.textSecondary }]}>
-                  Análise de lucratividade
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
-      </View>
-    );
-  }
-
-  // Removido o loading da tela toda - agora só na área dos dados
+  // Removido o bloqueio total - viewers podem ver a tela mas sem valores
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -517,8 +484,8 @@ export default function FinanceiroScreen() {
         <View style={styles.headerTop}>
           <Text style={[styles.title, { color: colors.text }]}>Financeiro</Text>
           
-          {/* Botão de exportação */}
-          {events.length > 0 && (
+          {/* Botão de exportação - apenas para owners e editors */}
+          {hasAccess && events.length > 0 && (
             <TouchableOpacity
               style={[styles.exportButton, { backgroundColor: colors.primary }]}
               onPress={handleExportFinancialReport}
@@ -554,30 +521,42 @@ export default function FinanceiroScreen() {
 
       <ScrollView style={[styles.content, { backgroundColor: colors.background }]}>
         {/* Resumo financeiro */}
-        <View style={styles.summaryContainer}>
-          <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Lucro Líquido</Text>
-            <Text style={[styles.summaryValue, { color: netProfit >= 0 ? colors.success : colors.error }]}>
-              {formatCurrency(netProfit)}
-            </Text>
-          </View>
-          
-          <View style={styles.summaryRow}>
-            <View style={[styles.summaryItem, { backgroundColor: colors.surface }]}>
-              <Text style={[styles.summaryItemLabel, { color: colors.textSecondary }]}>Receita Bruta</Text>
-              <Text style={[styles.summaryItemValue, { color: colors.success }]}>
-                {formatCurrency(totalRevenue)}
+        {hasAccess ? (
+          <View style={styles.summaryContainer}>
+            <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Lucro Líquido</Text>
+              <Text style={[styles.summaryValue, { color: netProfit >= 0 ? colors.success : colors.error }]}>
+                {formatCurrency(netProfit)}
               </Text>
             </View>
             
-            <View style={[styles.summaryItem, { backgroundColor: colors.surface }]}>
-              <Text style={[styles.summaryItemLabel, { color: colors.textSecondary }]}>Despesas Totais</Text>
-              <Text style={[styles.summaryItemValue, { color: colors.error }]}>
-                {formatCurrency(totalExpenses)}
+            <View style={styles.summaryRow}>
+              <View style={[styles.summaryItem, { backgroundColor: colors.surface }]}>
+                <Text style={[styles.summaryItemLabel, { color: colors.textSecondary }]}>Receita Bruta</Text>
+                <Text style={[styles.summaryItemValue, { color: colors.success }]}>
+                  {formatCurrency(totalRevenue)}
+                </Text>
+              </View>
+              
+              <View style={[styles.summaryItem, { backgroundColor: colors.surface }]}>
+                <Text style={[styles.summaryItemLabel, { color: colors.textSecondary }]}>Despesas Totais</Text>
+                <Text style={[styles.summaryItemValue, { color: colors.error }]}>
+                  {formatCurrency(totalExpenses)}
+                </Text>
+              </View>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.summaryContainer}>
+            <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
+              <Ionicons name="lock-closed" size={32} color={colors.textSecondary} style={{ marginBottom: 8 }} />
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Valores Financeiros Ocultos</Text>
+              <Text style={[styles.lockedSubtext, { color: colors.textSecondary }]}>
+                Apenas proprietários e editores podem visualizar dados financeiros
               </Text>
             </View>
           </View>
-        </View>
+        )}
 
         {/* Lista de eventos */}
         <View style={styles.eventsSection}>
@@ -610,6 +589,16 @@ export default function FinanceiroScreen() {
 
       </ScrollView>
 
+      {/* Modal de Permissão */}
+      <PermissionModal
+        visible={showPermissionModal}
+        onClose={() => setShowPermissionModal(false)}
+        title="Acesso Restrito"
+        message="Apenas proprietários e editores podem visualizar os detalhes e valores financeiros dos eventos. Entre em contato com um proprietário para solicitar mais permissões."
+        icon="lock-closed"
+      />
+
+      {/* Modal de Upgrade */}
       <UpgradeModal
         visible={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}
@@ -812,6 +801,10 @@ const styles = StyleSheet.create({
   eventInfo: {
     flex: 1,
   },
+  eventNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   eventName: {
     fontSize: 16,
     fontWeight: '600',
@@ -1004,6 +997,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 20,
+  },
+  lockedInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  lockedText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  lockedSubtext: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 16,
   },
 });
 
