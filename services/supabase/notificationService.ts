@@ -146,13 +146,13 @@ export const deleteNotification = async (notificationId: string): Promise<{ succ
   }
 };
 
-// Contar notificações não lidas (recebidas e enviadas)
+// Contar notificações não lidas (apenas RECEBIDAS)
 export const getUnreadNotificationCount = async (userId: string): Promise<{ count: number; error: string | null }> => {
   try {
     const { count, error } = await supabase
       .from('notifications')
       .select('*', { count: 'exact', head: true })
-      .or(`user_id.eq.${userId},from_user_id.eq.${userId}`)
+      .eq('user_id', userId)  // ✅ Apenas notificações RECEBIDAS
       .eq('read', false);
 
     if (error) {

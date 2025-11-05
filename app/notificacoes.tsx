@@ -63,10 +63,23 @@ export default function NotificacoesScreen() {
         return;
       }
 
+      console.log('📬 Notificações: Carregando para usuário:', user.id);
       setCurrentUserId(user.id);
 
       // Carregar notificações
       const { notifications, error } = await getUserNotifications(user.id);
+      
+      console.log('📊 Notificações: Resultado da query:', {
+        total: notifications?.length || 0,
+        error,
+        notifications: notifications?.map(n => ({
+          id: n.id.substring(0, 8),
+          type: n.type,
+          user_id: n.user_id.substring(0, 8),
+          from_user_id: n.from_user_id?.substring(0, 8),
+          read: n.read
+        }))
+      });
       
       if (error) {
         Alert.alert('Erro', 'Erro ao carregar notificações');
@@ -77,6 +90,7 @@ export default function NotificacoesScreen() {
       
       // Contar APENAS notificações não lidas do usuário (read === false)
       const unreadNotifications = (notifications || []).filter(n => !n.read && n.user_id === user.id).length;
+      console.log('🔔 Notificações não lidas:', unreadNotifications);
       setUnreadCount(unreadNotifications);
     } catch (error) {
       console.error('Erro ao carregar notificações:', error);

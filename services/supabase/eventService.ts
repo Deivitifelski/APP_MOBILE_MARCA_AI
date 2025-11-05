@@ -67,6 +67,12 @@ export interface UpdateEventData {
 // Criar evento com despesas
 export const createEvent = async (eventData: CreateEventData): Promise<{ success: boolean; error: string | null; event?: Event }> => {
   try {
+    console.log('📝 Criando evento:', {
+      artist_id: eventData.artist_id,
+      user_id: eventData.user_id,
+      name: eventData.name
+    });
+
     // Criar o evento
     const { data: event, error: eventError } = await supabase
       .from('events')
@@ -90,8 +96,11 @@ export const createEvent = async (eventData: CreateEventData): Promise<{ success
       .single();
 
     if (eventError) {
+      console.error('❌ Erro ao criar evento:', eventError);
       return { success: false, error: eventError.message };
     }
+
+    console.log('✅ Evento criado com sucesso:', event.id);
 
     // O trigger notify_event_created() no banco já cria as notificações
     // automaticamente para todos os colaboradores (exceto o criador)
