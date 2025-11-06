@@ -34,13 +34,13 @@ export const createArtist = async (artistData: CreateArtistData): Promise<{ succ
       return { success: false, error: artistError.message };
     }
 
-    // Depois, criar o relacionamento na tabela artist_members como owner
+    // Depois, criar o relacionamento na tabela artist_members como admin (criador sempre é admin)
     const { error: memberError } = await supabase
       .from('artist_members')
       .insert({
         user_id: artistData.user_id,
         artist_id: artistData_result.id,
-        role: 'owner',
+        role: 'admin',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       });

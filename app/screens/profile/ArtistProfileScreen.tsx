@@ -149,31 +149,20 @@ export default function ArtistProfileScreen() {
         return;
       }
 
-      // Armazenar dados do artista criado para usar nos callbacks
-      const newArtist = artist;
+      // Automaticamente mudar para o novo artista criado
+      await setActiveArtist({
+        id: artist.id,
+        name: artist.name,
+        role: 'admin' // Criador sempre é admin
+      });
 
       Alert.alert(
         'Sucesso', 
-        'Perfil do artista criado com sucesso!',
+        `Perfil do artista "${artist.name}" criado com sucesso! Você está agora gerenciando este artista.`,
         [
           {
-            text: 'Continuar com Artista Atual',
+            text: 'OK',
             onPress: () => router.replace('/(tabs)/agenda')
-          },
-          {
-            text: 'Alternar para Novo Artista',
-            onPress: async () => {
-              // Definir o novo artista como ativo
-              await setActiveArtist({
-                id: newArtist.id,
-                name: newArtist.name,
-                role: 'owner'
-              });
-              
-              Alert.alert('Sucesso', `Agora você está usando o artista: ${newArtist.name}`);
-              // Recarregar a tela principal para atualizar com o novo artista
-              router.replace('/(tabs)/agenda');
-            }
           }
         ]
       );

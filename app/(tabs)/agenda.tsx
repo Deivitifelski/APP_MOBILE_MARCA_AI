@@ -287,8 +287,8 @@ export default function AgendaScreen() {
       hasFinancialAccess
     });
 
-    // ✅ Verificar se pode criar eventos (owner e editor)
-    const allowedRoles = ['owner', 'editor'];
+    // ✅ Verificar se pode criar eventos (admin e editor)
+    const allowedRoles = ['admin', 'editor', 'owner'];
     const canCreate = currentUserRole && allowedRoles.includes(currentUserRole);
     
     if (!canCreate) {

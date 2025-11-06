@@ -110,7 +110,7 @@ export const getUserPermissionsByRole = (role: UserRole) => {
         canDeleteEvents: true,
         canManageMembers: true,
         canManageArtist: true,
-        canDeleteArtist: false,
+        canDeleteArtist: true, // Admin pode deletar artista
       };
     
     case 'owner':
