@@ -215,60 +215,47 @@ export const acceptArtistInvite = async (inviteId: string, userId: string): Prom
 // Recusar convite
 export const declineArtistInvite = async (inviteId: string, userId: string): Promise<InviteResponse> => {
   try {
-    const now = new Date();
-    const brazilTime = new Date(now.getTime() - (3 * 60 * 60 * 1000)); // Subtrai 3 horas para ajustar ao Brasil
+    console.log('🔄 Recusando convite:', { inviteId, userId });
     
-    const { data: invite, error } = await supabase
+    // Buscar o convite para garantir que existe
+    const { data: invite, error: fetchError } = await supabase
       .from('artist_invites')
-      .update({
-        status: 'declined',
-        responded_at: brazilTime.toISOString()
-      })
+      .select('id, artist_id, to_user_id, from_user_id, status')
       .eq('id', inviteId)
       .eq('to_user_id', userId)
       .eq('status', 'pending')
-      .select(`
-        *,
-        artist:artists(id, name),
-        from_user:users!artist_invites_from_user_id_fkey(id, name, email),
-        to_user:users!artist_invites_to_user_id_fkey(id, name, email)
-      `)
       .single();
 
-    if (error) {
-      console.error('Erro ao recusar convite:', error);
-      return { success: false, error: error.message };
-    }
-
-    if (!invite) {
+    if (fetchError || !invite) {
+      console.error('❌ Convite não encontrado:', fetchError);
       return { success: false, error: 'Convite não encontrado ou já processado' };
     }
 
-    // Deletar notificação relacionada ao convite recusado
-    try {
-      const { deleteNotification } = await import('./notificationService');
-      // Buscar e deletar notificações relacionadas ao convite
-      const { data: notifications } = await supabase
-        .from('notifications')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('type', 'artist_invite')
-        .eq('artist_id', invite.artist_id)
-        .eq('from_user_id', invite.from_user_id);
+    console.log('✅ Convite encontrado:', invite);
 
-      if (notifications && notifications.length > 0) {
-        for (const notification of notifications) {
-          await deleteNotification(notification.id);
-        }
-      }
-    } catch (notificationError) {
-      console.error('Erro ao deletar notificação do convite recusado:', notificationError);
-      // Não falhar o processo se a notificação não for deletada
+    // Marcar convite como recusado
+    const now = new Date();
+    const brazilTime = new Date(now.getTime() - (3 * 60 * 60 * 1000));
+    
+    const { error: updateError } = await supabase
+      .from('artist_invites')
+      .update({
+        status: 'declined', // ✅ Marcar como declined
+        responded_at: brazilTime.toISOString()
+      })
+      .eq('id', inviteId);
+
+    if (updateError) {
+      console.error('❌ Erro ao recusar convite:', updateError);
+      return { success: false, error: updateError.message };
     }
 
-    return { success: true, invite };
+    console.log('✅ Convite marcado como declined');
+
+    // Notificação será marcada como lida pela função chamadora (não deletar)
+    return { success: true };
   } catch (error) {
-    console.error('Erro ao recusar convite:', error);
+    console.error('❌ Erro ao recusar convite:', error);
     return { success: false, error: 'Erro interno ao recusar convite' };
   }
 };

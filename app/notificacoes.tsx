@@ -274,8 +274,8 @@ export default function NotificacoesScreen() {
       const { success, error } = await acceptArtistInvite(inviteId, currentUserId);
       
       if (success) {
-        // Deletar a notificação após aceitar
-        await deleteNotification(notificationId);
+        // Marcar notificação como lida (não deletar)
+        await markNotificationAsRead(notificationId);
 
         // Verificar se o usuário já tem artistas
         const { artists } = await getArtists(currentUserId);
@@ -292,45 +292,29 @@ export default function NotificacoesScreen() {
               role: inviteRole // ✅ Role do convite
             });
 
-            // Traduzir role para português
-            const roleName = 
-              inviteRole === 'admin' ? 'Administrador' :
-              inviteRole === 'editor' ? 'Editor' :
-              inviteRole === 'owner' ? 'Proprietário' :
-              'Visualizador';
-
-            // Mostrar modal de sucesso
-            setAcceptedInviteData({
-              artistName,
-              role: roleName,
-              isFirstArtist: true
-            });
-            setShowAcceptedModal(true);
-            
             // Recarregar notificações
             await loadNotifications();
+            
+            // Mostrar alerta simples
+            Alert.alert(
+              '✅ Convite Aceito!',
+              `Você agora faz parte do artista "${artistName}" e este foi definido como seu artista ativo.`,
+              [{ text: 'OK', onPress: () => router.replace('/(tabs)/agenda') }]
+            );
           } catch (error) {
             console.error('Erro ao setar artista:', error);
             Alert.alert('Erro', 'Erro ao configurar artista ativo');
           }
         } else {
-          // Se já tem artistas, apenas mostrar modal informativo
-          // Traduzir role para português
-          const roleName = 
-            inviteRole === 'admin' ? 'Administrador' :
-            inviteRole === 'editor' ? 'Editor' :
-            inviteRole === 'owner' ? 'Proprietário' :
-            'Visualizador';
-
-          setAcceptedInviteData({
-            artistName,
-            role: roleName,
-            isFirstArtist: false
-          });
-          setShowAcceptedModal(true);
-          
+          // Se já tem artistas, apenas mostrar alerta
           // Recarregar notificações
           await loadNotifications();
+          
+          Alert.alert(
+            '✅ Convite Aceito!',
+            `Você foi adicionado ao artista "${artistName}". Para trabalhar com ele, troque nas Configurações → Selecionar Artista.`,
+            [{ text: 'OK' }]
+          );
         }
       } else {
         Alert.alert('Erro', error || 'Erro ao aceitar convite');
@@ -364,8 +348,8 @@ export default function NotificacoesScreen() {
       const { success, error } = await declineArtistInvite(inviteId, currentUserId);
       
       if (success) {
-        // Deletar a notificação após recusar
-        await deleteNotification(notificationId);
+        // Marcar notificação como lida (não deletar)
+        await markNotificationAsRead(notificationId);
         
         // Recarregar notificações
         await loadNotifications();
@@ -614,39 +598,48 @@ export default function NotificacoesScreen() {
                         )}
                       </View>
 
-                      {/* Botões de Aceitar/Recusar para convites de artista */}
+                      {/* Botões de Aceitar/Recusar para convites de artista (só se não foi lido) */}
                       {notification.type === 'artist_invite' && notification.artist_id && (
-                        <View style={styles.inviteActions}>
-                          <TouchableOpacity
-                            style={styles.acceptButton}
-                            onPress={(e) => {
-                              e.stopPropagation();
-                              handleAcceptInviteFromNotification(
-                                notification.artist_id!,
-                                notification.message.split('"')[1] || 'Artista',
-                                notification.id,
-                                notification.role // ✅ Passar role da notificação
-                              );
-                            }}
-                          >
-                            <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
-                            <Text style={styles.acceptButtonText}>Aceitar</Text>
-                          </TouchableOpacity>
+                        <>
+                          {!notification.read ? (
+                            <View style={styles.inviteActions}>
+                              <TouchableOpacity
+                                style={styles.acceptButton}
+                                onPress={(e) => {
+                                  e.stopPropagation();
+                                  handleAcceptInviteFromNotification(
+                                    notification.artist_id!,
+                                    notification.message.split('"')[1] || 'Artista',
+                                    notification.id,
+                                    notification.role // ✅ Passar role da notificação
+                                  );
+                                }}
+                              >
+                                <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
+                                <Text style={styles.acceptButtonText}>Aceitar</Text>
+                              </TouchableOpacity>
 
-                          <TouchableOpacity
-                            style={styles.declineButton}
-                            onPress={(e) => {
-                              e.stopPropagation();
-                              handleDeclineInviteFromNotification(
-                                notification.artist_id!,
-                                notification.id
-                              );
-                            }}
-                          >
-                            <Ionicons name="close-circle" size={16} color="#6B7280" />
-                            <Text style={styles.declineButtonText}>Recusar</Text>
-                          </TouchableOpacity>
-                        </View>
+                              <TouchableOpacity
+                                style={styles.declineButton}
+                                onPress={(e) => {
+                                  e.stopPropagation();
+                                  handleDeclineInviteFromNotification(
+                                    notification.artist_id!,
+                                    notification.id
+                                  );
+                                }}
+                              >
+                                <Ionicons name="close-circle" size={16} color="#6B7280" />
+                                <Text style={styles.declineButtonText}>Recusar</Text>
+                              </TouchableOpacity>
+                            </View>
+                          ) : (
+                            <View style={styles.inviteProcessedBadge}>
+                              <Ionicons name="checkmark-done" size={14} color="#10B981" />
+                              <Text style={styles.inviteProcessedText}>Convite processado</Text>
+                            </View>
+                          )}
+                        </>
                       )}
                     </View>
                   </View>
@@ -1644,6 +1637,24 @@ const styles = StyleSheet.create({
   acceptedModalButtonText: {
     color: '#fff',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  // Badge de convite processado
+  inviteProcessedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    gap: 6,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  inviteProcessedText: {
+    fontSize: 13,
+    color: '#065F46',
     fontWeight: '600',
   },
 });
