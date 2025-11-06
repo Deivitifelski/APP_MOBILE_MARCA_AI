@@ -34,7 +34,7 @@ USING (
     FROM artist_members am
     WHERE am.user_id = auth.uid()
       AND am.artist_id = events.artist_id
-      AND am.role IN ('viewer', 'editor', 'admin')
+      AND am.role IN ('viewer', 'editor', 'admin', 'owner')
   )
 );
 
@@ -47,7 +47,7 @@ WITH CHECK (
     FROM artist_members am
     WHERE am.user_id = auth.uid()
       AND am.artist_id = events.artist_id
-      AND am.role IN ('editor', 'admin')
+      AND am.role IN ('editor', 'admin', 'owner')
   )
 );
 
@@ -60,7 +60,7 @@ USING (
     FROM artist_members am
     WHERE am.user_id = auth.uid()
       AND am.artist_id = events.artist_id
-      AND am.role IN ('editor', 'admin')
+      AND am.role IN ('editor', 'admin', 'owner')
   )
 );
 
@@ -73,7 +73,7 @@ USING (
     FROM artist_members am
     WHERE am.user_id = auth.uid()
       AND am.artist_id = events.artist_id
-      AND am.role IN ('editor', 'admin')
+      AND am.role IN ('editor', 'admin', 'owner')
   )
 );
 
