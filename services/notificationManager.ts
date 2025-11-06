@@ -6,7 +6,8 @@ export const createArtistInviteNotification = async (
   inviteId: string,
   toUserId: string,
   fromUserId: string,
-  artistId: string
+  artistId: string,
+  role?: 'viewer' | 'editor' | 'admin' | 'owner' // Role que será atribuída
 ) => {
   try {
     // Buscar informações do artista e usuário remetente
@@ -30,6 +31,7 @@ export const createArtistInviteNotification = async (
       user_id: toUserId,
       from_user_id: fromUserId,
       artist_id: artistId,
+      role: role || 'viewer', // ✅ Salvar a role do convite
       title: 'Novo Convite de Artista',
       message: `${fromUserName} te convidou para ser colaborador do artista "${artistName}"`,
       type: 'artist_invite'

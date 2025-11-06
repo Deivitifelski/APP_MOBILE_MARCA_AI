@@ -6,6 +6,7 @@ export interface ArtistInvite {
   artist_id: string;
   from_user_id: string;
   to_user_id: string;
+  role: 'viewer' | 'editor' | 'admin' | 'owner'; // Role que será atribuída ao aceitar
   status: 'pending' | 'accepted' | 'declined';
   read: boolean;
   created_at: string;
@@ -30,6 +31,7 @@ export interface CreateInviteData {
   artistId: string;
   toUserId: string;
   fromUserId: string;
+  role?: 'viewer' | 'editor' | 'admin' | 'owner'; // Role a ser atribuída (padrão: viewer)
 }
 
 export interface InviteResponse {
@@ -52,6 +54,7 @@ export const createArtistInvite = async (data: CreateInviteData): Promise<Invite
         artist_id: data.artistId,
         from_user_id: data.fromUserId,
         to_user_id: data.toUserId,
+        role: data.role || 'viewer', // ✅ Salvar a role escolhida
         status: 'pending',
         read: false,
         created_at: brazilTime.toISOString()
@@ -75,7 +78,8 @@ export const createArtistInvite = async (data: CreateInviteData): Promise<Invite
         invite.id,
         data.toUserId,
         data.fromUserId,
-        data.artistId
+        data.artistId,
+        invite.role || data.role || 'viewer' // ✅ Passar a role do convite
       );
     } catch (notificationError) {
       console.error('Erro ao criar notificação de convite:', notificationError);
@@ -142,63 +146,68 @@ export const getArtistInvitesSent = async (userId: string): Promise<InviteRespon
 // Aceitar convite
 export const acceptArtistInvite = async (inviteId: string, userId: string): Promise<InviteResponse> => {
   try {
-    // Primeiro, buscar o convite para obter os dados
+    console.log('🔄 Aceitando convite:', { inviteId, userId });
+    
+    // Buscar o convite para obter os dados (artist_id e role)
     const { data: invite, error: fetchError } = await supabase
       .from('artist_invites')
-      .select('*')
+      .select('id, artist_id, to_user_id, from_user_id, role, status')
       .eq('id', inviteId)
       .eq('to_user_id', userId)
       .eq('status', 'pending')
       .single();
 
     if (fetchError || !invite) {
+      console.error('❌ Convite não encontrado:', fetchError);
       return { success: false, error: 'Convite não encontrado ou já processado' };
     }
 
-    // Atualizar o status do convite
+    console.log('✅ Convite encontrado:', invite);
+
+    // INSERIR DIRETAMENTE em artist_members com a role do convite
+    const roleToUse = invite.role || 'viewer';
+    console.log('🔐 Inserindo em artist_members com role:', roleToUse);
+
+    const { error: insertError } = await supabase
+      .from('artist_members')
+      .insert({
+        user_id: invite.to_user_id,
+        artist_id: invite.artist_id,
+        role: roleToUse, // ✅ Role do convite
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+
+    if (insertError) {
+      // Verificar se o erro é porque o usuário já é membro
+      if (insertError.code === '23505') { // Unique violation
+        console.error('❌ Usuário já é membro deste artista');
+        return { success: false, error: 'Você já é membro deste artista' };
+      }
+      
+      console.error('❌ Erro ao inserir em artist_members:', insertError);
+      return { success: false, error: insertError.message };
+    }
+
+    console.log('✅ Colaborador adicionado com role:', roleToUse);
+
+    // Marcar convite como aceito (opcional - para histórico)
     const now = new Date();
-    const brazilTime = new Date(now.getTime() - (3 * 60 * 60 * 1000)); // Subtrai 3 horas para ajustar ao Brasil
+    const brazilTime = new Date(now.getTime() - (3 * 60 * 60 * 1000));
     
-    const { data: updatedInvite, error: updateError } = await supabase
+    await supabase
       .from('artist_invites')
       .update({
         status: 'accepted',
         responded_at: brazilTime.toISOString()
       })
-      .eq('id', inviteId)
-      .select(`
-        *,
-        artist:artists(id, name),
-        from_user:users!artist_invites_from_user_id_fkey(id, name, email),
-        to_user:users!artist_invites_to_user_id_fkey(id, name, email)
-      `)
-      .single();
+      .eq('id', inviteId);
 
-    if (updateError) {
-      console.error('Erro ao aceitar convite:', updateError);
-      return { success: false, error: updateError.message };
-    }
+    console.log('✅ Convite marcado como aceito');
 
-    // Adicionar como colaborador com role padrão (viewer)
-    const { addCollaboratorViaInvite } = await import('./collaboratorService');
-    const { success: addSuccess, error: addError } = await addCollaboratorViaInvite(
-      invite.artist_id, 
-      { userId: invite.to_user_id, role: 'viewer' }
-    );
-
-    if (!addSuccess) {
-      console.error('Erro ao adicionar colaborador:', addError);
-      // Reverter o status do convite
-      await supabase
-        .from('artist_invites')
-        .update({ status: 'pending' })
-        .eq('id', inviteId);
-      return { success: false, error: addError || 'Erro ao adicionar colaborador' };
-    }
-
-    return { success: true, invite: updatedInvite };
+    return { success: true };
   } catch (error) {
-    console.error('Erro ao aceitar convite:', error);
+    console.error('❌ Erro ao aceitar convite:', error);
     return { success: false, error: 'Erro interno ao aceitar convite' };
   }
 };

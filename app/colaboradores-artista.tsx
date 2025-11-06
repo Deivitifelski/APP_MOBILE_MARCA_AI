@@ -208,7 +208,8 @@ export default function ColaboradoresArtistaScreen() {
       const { success, error, invite } = await createArtistInvite({
         artistId: activeArtist.id,
         toUserId: selectedUser.id,
-        fromUserId: currentUser.id
+        fromUserId: currentUser.id,
+        role: newCollaboratorRole // ✅ Passar a role selecionada no dropdown
       });
 
       if (success) {

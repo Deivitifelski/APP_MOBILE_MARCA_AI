@@ -6,6 +6,7 @@ export interface Notification {
   from_user_id?: string;
   artist_id?: string;
   event_id?: string;
+  role?: 'viewer' | 'editor' | 'admin' | 'owner'; // Role para convites de artista
   title: string;
   message: string;
   type: string;
@@ -28,6 +29,7 @@ export interface CreateNotificationData {
   from_user_id?: string;
   artist_id?: string;
   event_id?: string;
+  role?: 'viewer' | 'editor' | 'admin' | 'owner'; // Role para convites
   title: string;
   message: string;
   type: string;
@@ -43,6 +45,7 @@ export const createNotification = async (notificationData: CreateNotificationDat
         from_user_id: notificationData.from_user_id || null,
         artist_id: notificationData.artist_id || null,
         event_id: notificationData.event_id || null,
+        role: notificationData.role || null, // ✅ Salvar role da notificação
         title: notificationData.title,
         message: notificationData.message,
         type: notificationData.type,

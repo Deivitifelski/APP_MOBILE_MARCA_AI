@@ -249,7 +249,7 @@ export default function NotificacoesScreen() {
     );
   };
 
-  const handleAcceptInviteFromNotification = async (artistId: string, artistName: string, notificationId: string) => {
+  const handleAcceptInviteFromNotification = async (artistId: string, artistName: string, notificationId: string, notificationRole?: string) => {
     if (!currentUserId) return;
 
     try {
@@ -269,6 +269,7 @@ export default function NotificacoesScreen() {
       }
 
       const inviteId = invites[0].id;
+      const inviteRole = notificationRole || 'viewer'; // ✅ Role vem da notificação
 
       const { success, error } = await acceptArtistInvite(inviteId, currentUserId);
       
@@ -288,13 +289,20 @@ export default function NotificacoesScreen() {
             await setActiveArtist({
               id: artistId,
               name: artistName,
-              role: 'viewer' // Role padrão para convites
+              role: inviteRole // ✅ Role do convite
             });
+
+            // Traduzir role para português
+            const roleName = 
+              inviteRole === 'admin' ? 'Administrador' :
+              inviteRole === 'editor' ? 'Editor' :
+              inviteRole === 'owner' ? 'Proprietário' :
+              'Visualizador';
 
             // Mostrar modal de sucesso
             setAcceptedInviteData({
               artistName,
-              role: 'Visualizador',
+              role: roleName,
               isFirstArtist: true
             });
             setShowAcceptedModal(true);
@@ -307,9 +315,16 @@ export default function NotificacoesScreen() {
           }
         } else {
           // Se já tem artistas, apenas mostrar modal informativo
+          // Traduzir role para português
+          const roleName = 
+            inviteRole === 'admin' ? 'Administrador' :
+            inviteRole === 'editor' ? 'Editor' :
+            inviteRole === 'owner' ? 'Proprietário' :
+            'Visualizador';
+
           setAcceptedInviteData({
             artistName,
-            role: 'Visualizador',
+            role: roleName,
             isFirstArtist: false
           });
           setShowAcceptedModal(true);
@@ -609,7 +624,8 @@ export default function NotificacoesScreen() {
                               handleAcceptInviteFromNotification(
                                 notification.artist_id!,
                                 notification.message.split('"')[1] || 'Artista',
-                                notification.id
+                                notification.id,
+                                notification.role // ✅ Passar role da notificação
                               );
                             }}
                           >
@@ -735,7 +751,16 @@ export default function NotificacoesScreen() {
                 <Text style={[styles.acceptedInfoLabel, { color: colors.textSecondary }]}>Cargo:</Text>
               </View>
               <View style={[styles.acceptedRoleBadge, { backgroundColor: colors.secondary }]}>
-                <Ionicons name="eye" size={16} color={colors.textSecondary} />
+                <Ionicons 
+                  name={
+                    acceptedInviteData.role === 'Administrador' ? 'shield-checkmark' :
+                    acceptedInviteData.role === 'Editor' ? 'create' :
+                    acceptedInviteData.role === 'Proprietário' ? 'star' :
+                    'eye'
+                  } 
+                  size={16} 
+                  color={colors.textSecondary} 
+                />
                 <Text style={[styles.acceptedRoleText, { color: colors.textSecondary }]}>{acceptedInviteData.role}</Text>
               </View>
             </View>
@@ -744,6 +769,7 @@ export default function NotificacoesScreen() {
             <View style={styles.acceptedPermissionsBox}>
               <Text style={styles.acceptedPermissionsTitle}>📋 Suas Permissões:</Text>
               <View style={styles.acceptedPermissionsList}>
+                {/* Permissões básicas para todos */}
                 <View style={styles.acceptedPermissionItem}>
                   <Ionicons name="checkmark-circle" size={18} color="#10B981" />
                   <Text style={styles.acceptedPermissionText}>Visualizar eventos e agenda</Text>
@@ -752,10 +778,34 @@ export default function NotificacoesScreen() {
                   <Ionicons name="checkmark-circle" size={18} color="#10B981" />
                   <Text style={styles.acceptedPermissionText}>Ver dados do artista</Text>
                 </View>
-                <View style={styles.acceptedPermissionItem}>
-                  <Ionicons name="checkmark-circle" size={18} color="#10B981" />
-                  <Text style={styles.acceptedPermissionText}>Acessar lista de colaboradores</Text>
-                </View>
+                
+                {/* Permissões para Editor/Admin */}
+                {(acceptedInviteData.role === 'Editor' || acceptedInviteData.role === 'Administrador') && (
+                  <>
+                    <View style={styles.acceptedPermissionItem}>
+                      <Ionicons name="checkmark-circle" size={18} color="#10B981" />
+                      <Text style={styles.acceptedPermissionText}>Criar e editar eventos</Text>
+                    </View>
+                    <View style={styles.acceptedPermissionItem}>
+                      <Ionicons name="checkmark-circle" size={18} color="#10B981" />
+                      <Text style={styles.acceptedPermissionText}>Visualizar valores financeiros</Text>
+                    </View>
+                  </>
+                )}
+                
+                {/* Permissões apenas para Admin */}
+                {acceptedInviteData.role === 'Administrador' && (
+                  <>
+                    <View style={styles.acceptedPermissionItem}>
+                      <Ionicons name="checkmark-circle" size={18} color="#10B981" />
+                      <Text style={styles.acceptedPermissionText}>Gerenciar colaboradores</Text>
+                    </View>
+                    <View style={styles.acceptedPermissionItem}>
+                      <Ionicons name="checkmark-circle" size={18} color="#10B981" />
+                      <Text style={styles.acceptedPermissionText}>Deletar eventos e artista</Text>
+                    </View>
+                  </>
+                )}
               </View>
             </View>
 
