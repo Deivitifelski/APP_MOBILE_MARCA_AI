@@ -1,15 +1,15 @@
 -- =====================================================
--- FUNÇÃO FINAL CORRIGIDA - SEM user_id
--- A tabela events só tem created_by, não user_id
+-- REMOVER FUNÇÕES ANTIGAS E CRIAR NOVAS
+-- Execute este arquivo completo no Supabase SQL Editor
 -- =====================================================
 
--- 1️⃣ REMOVER FUNÇÕES ANTIGAS
+-- 1️⃣ REMOVER FUNÇÕES ANTIGAS (se existirem)
 DROP FUNCTION IF EXISTS get_events_by_role(uuid);
 DROP FUNCTION IF EXISTS get_event_by_id_with_role(uuid);
 DROP FUNCTION IF EXISTS get_user_role_for_artist(uuid);
 
 -- =====================================================
--- 2️⃣ Função auxiliar para obter role do usuário
+-- 2️⃣ Criar função auxiliar para obter role do usuário
 -- =====================================================
 
 CREATE OR REPLACE FUNCTION get_user_role_for_artist(p_artist_id UUID)
@@ -26,7 +26,8 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- =====================================================
--- 3️⃣ FUNÇÃO PRINCIPAL - SEM user_id
+-- 3️⃣ FUNÇÃO RPC PARA BUSCAR EVENTOS BASEADO NA ROLE
+-- Retorna eventos com colunas filtradas por permissão
 -- =====================================================
 
 CREATE OR REPLACE FUNCTION get_events_by_role(p_artist_id UUID)
@@ -44,8 +45,8 @@ RETURNS TABLE (
   contractor_phone TEXT,
   confirmed BOOLEAN,
   tag TEXT,
-  created_at TIMESTAMP,
-  updated_at TIMESTAMP,
+  created_at TIMESTAMP WITH TIME ZONE,
+  updated_at TIMESTAMP WITH TIME ZONE,
   user_role TEXT  -- Role do usuário atual
 ) AS $$
 DECLARE
@@ -84,7 +85,7 @@ BEGIN
     e.tag,
     e.created_at,
     e.updated_at,
-    user_role_var AS user_role
+    user_role_var AS user_role  -- Incluir role na resposta
   FROM events e
   WHERE e.artist_id = p_artist_id
   ORDER BY e.event_date DESC, e.start_time DESC;
@@ -110,8 +111,8 @@ RETURNS TABLE (
   contractor_phone TEXT,
   confirmed BOOLEAN,
   tag TEXT,
-  created_at TIMESTAMP,
-  updated_at TIMESTAMP,
+  created_at TIMESTAMP WITH TIME ZONE,
+  updated_at TIMESTAMP WITH TIME ZONE,
   user_role TEXT
 ) AS $$
 DECLARE
@@ -178,50 +179,32 @@ WHERE routine_schema = 'public'
 ORDER BY routine_name;
 
 -- =====================================================
--- 6️⃣ VERIFICAR COLUNAS DA TABELA EVENTS
+-- 6️⃣ TESTAR AS FUNÇÕES (OPCIONAL)
 -- =====================================================
 
-SELECT 
-  column_name,
-  data_type,
-  ordinal_position
-FROM information_schema.columns
-WHERE table_name = 'events'
-  AND table_schema = 'public'
-ORDER BY ordinal_position;
-
--- =====================================================
--- 7️⃣ TESTAR (OPCIONAL)
--- =====================================================
+-- ⚠️ Descomente e substitua pelos IDs reais para testar
 
 /*
--- Descomente para testar com um artist_id real
-SELECT * FROM get_events_by_role('SEU_ARTIST_ID_AQUI') LIMIT 1;
+-- Testar buscar eventos de um artista
+SELECT * FROM get_events_by_role('SEU_ARTIST_ID_AQUI');
+
+-- Testar buscar um evento específico
+SELECT * FROM get_event_by_id_with_role('SEU_EVENT_ID_AQUI');
 */
 
 -- =====================================================
--- ✅ ESTRUTURA FINAL DA FUNÇÃO
+-- ✅ FUNÇÕES CRIADAS COM SUCESSO!
 -- =====================================================
 -- 
--- Colunas retornadas:
--- 1. id UUID
--- 2. artist_id UUID
--- 3. created_by UUID (quem criou o evento)
--- 4. name TEXT
--- 5. description TEXT
--- 6. event_date DATE
--- 7. start_time TIME
--- 8. end_time TIME
--- 9. value NUMERIC (NULL para viewer)
--- 10. city TEXT
--- 11. contractor_phone TEXT
--- 12. confirmed BOOLEAN
--- 13. tag TEXT
--- 14. created_at TIMESTAMP
--- 15. updated_at TIMESTAMP
--- 16. user_role TEXT (role do usuário atual)
+-- Agora você pode usar no código TypeScript:
 -- 
--- ⚠️ NOTA: user_id NÃO existe na tabela events
--- Apenas created_by existe (UUID de quem criou)
+-- const { data } = await supabase.rpc('get_events_by_role', { 
+--   p_artist_id: artistId 
+-- });
+-- 
+-- Resultado:
+-- - VIEWER: value será NULL
+-- - EDITOR/ADMIN/OWNER: value terá o valor real
 -- 
 -- =====================================================
+

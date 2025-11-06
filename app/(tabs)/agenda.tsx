@@ -18,7 +18,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { artistImageUpdateService } from '../../services/artistImageUpdateService';
 import { cacheService } from '../../services/cacheService';
-import { getEventsByMonth } from '../../services/supabase/eventService';
+import { getEventsByMonthWithRole } from '../../services/supabase/eventService';
 import { useActiveArtist } from '../../services/useActiveArtist';
 import { useNotifications } from '../../services/useNotifications';
 
@@ -238,8 +238,8 @@ export default function AgendaScreen() {
         return;
       }
       
-      // Carregar dados frescos do servidor
-      const result = await getEventsByMonth(activeArtist.id, currentYear, currentMonth);
+      // Carregar dados frescos do servidor COM FILTRAGEM POR ROLE
+      const result = await getEventsByMonthWithRole(activeArtist.id, currentYear, currentMonth);
       
       if (result.success) {
         const eventsData = result.events || [];
@@ -401,18 +401,18 @@ export default function AgendaScreen() {
               </View>
             )}
             
-            {item.value && hasFinancialAccess ? (
+            {item.value !== null && item.value !== undefined ? (
               <Text style={[styles.showValue, { color: colors.primary }]}>
                 R$ {item.value.toLocaleString('pt-BR')}
               </Text>
-            ) : item.value && !hasFinancialAccess ? (
+            ) : (
               <View style={styles.lockedValueContainer}>
                 <Ionicons name="lock-closed" size={12} color={colors.textSecondary} />
                 <Text style={[styles.lockedValueText, { color: colors.textSecondary }]}>
                   Valor oculto
                 </Text>
               </View>
-            ) : null}
+            )}
           </View>
           
           <View style={styles.showArrowSection}>

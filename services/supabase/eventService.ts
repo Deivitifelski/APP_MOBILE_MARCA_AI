@@ -363,3 +363,102 @@ export const getEventByIdWithPermissions = async (eventId: string, userId: strin
     return { event: null, error: 'Erro ao buscar evento' };
   }
 };
+
+// =====================================================
+// FUNÇÕES RPC COM FILTRAGEM POR ROLE
+// Usam as funções do banco que automaticamente ocultam
+// colunas sensíveis (como 'value') para viewers
+// =====================================================
+
+export interface EventWithRole {
+  id: string;
+  artist_id: string;
+  created_by: string; // Quem criou o evento
+  name: string;
+  description?: string;
+  event_date: string;
+  start_time: string;
+  end_time: string;
+  value?: number | null; // NULL para viewer
+  city?: string;
+  contractor_phone?: string;
+  confirmed: boolean;
+  tag: 'ensaio' | 'evento' | 'reunião';
+  created_at: string;
+  updated_at: string;
+  user_role?: string; // Role do usuário atual para este artista
+}
+
+// Buscar eventos de um artista com filtragem automática por role
+export const getEventsByArtistWithRole = async (artistId: string): Promise<{ events: EventWithRole[] | null; error: string | null }> => {
+  try {
+    console.log('🔐 Buscando eventos com filtragem por role para artista:', artistId);
+    
+    const { data, error } = await supabase
+      .rpc('get_events_by_role', { p_artist_id: artistId });
+
+    if (error) {
+      console.error('❌ Erro ao buscar eventos com role:', error);
+      return { events: null, error: error.message };
+    }
+
+    console.log('✅ Eventos carregados com filtragem:', data?.length || 0);
+    return { events: data || [], error: null };
+  } catch (error) {
+    console.error('❌ Erro ao buscar eventos com role:', error);
+    return { events: null, error: 'Erro ao buscar eventos' };
+  }
+};
+
+// Buscar eventos de um mês específico com filtragem por role
+export const getEventsByMonthWithRole = async (
+  artistId: string, 
+  year: number, 
+  month: number
+): Promise<{ success: boolean; error: string | null; events?: EventWithRole[] }> => {
+  try {
+    const startDate = new Date(year, month, 1).toISOString().split('T')[0];
+    const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+
+    console.log('🔐 getEventsByMonthWithRole:', { artistId, year, month, startDate, endDate });
+
+    // Buscar todos os eventos do artista com filtragem por role
+    const { events, error } = await getEventsByArtistWithRole(artistId);
+
+    if (error) {
+      return { success: false, error };
+    }
+
+    // Filtrar por mês no cliente (já vem com value filtrado do banco)
+    const filteredEvents = events?.filter(event => {
+      return event.event_date >= startDate && event.event_date <= endDate;
+    }) || [];
+
+    console.log('✅ Eventos filtrados por mês:', filteredEvents.length);
+    return { success: true, error: null, events: filteredEvents };
+  } catch (error) {
+    console.error('❌ Erro ao buscar eventos por mês:', error);
+    return { success: false, error: 'Erro de conexão' };
+  }
+};
+
+// Buscar um evento específico com filtragem por role
+export const getEventByIdWithRole = async (eventId: string): Promise<{ event: EventWithRole | null; error: string | null }> => {
+  try {
+    console.log('🔐 Buscando evento por ID com role:', eventId);
+    
+    const { data, error } = await supabase
+      .rpc('get_event_by_id_with_role', { p_event_id: eventId });
+
+    if (error) {
+      console.error('❌ Erro ao buscar evento:', error);
+      return { event: null, error: error.message };
+    }
+
+    console.log('✅ Evento carregado:', data?.[0]);
+    return { event: data?.[0] || null, error: null };
+  } catch (error) {
+    console.error('❌ Erro ao buscar evento:', error);
+    return { event: null, error: 'Erro ao buscar evento' };
+  }
+};

@@ -1,6 +1,6 @@
 -- =====================================================
--- FUNÇÃO FINAL CORRIGIDA - SEM user_id
--- A tabela events só tem created_by, não user_id
+-- FUNÇÃO CORRIGIDA - TODAS AS COLUNAS DE EVENTS
+-- Execute este arquivo completo no Supabase SQL Editor
 -- =====================================================
 
 -- 1️⃣ REMOVER FUNÇÕES ANTIGAS
@@ -9,7 +9,7 @@ DROP FUNCTION IF EXISTS get_event_by_id_with_role(uuid);
 DROP FUNCTION IF EXISTS get_user_role_for_artist(uuid);
 
 -- =====================================================
--- 2️⃣ Função auxiliar para obter role do usuário
+-- 2️⃣ Criar função auxiliar para obter role do usuário
 -- =====================================================
 
 CREATE OR REPLACE FUNCTION get_user_role_for_artist(p_artist_id UUID)
@@ -26,13 +26,14 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- =====================================================
--- 3️⃣ FUNÇÃO PRINCIPAL - SEM user_id
+-- 3️⃣ FUNÇÃO PRINCIPAL - COM TODAS AS COLUNAS
 -- =====================================================
 
 CREATE OR REPLACE FUNCTION get_events_by_role(p_artist_id UUID)
 RETURNS TABLE (
   id UUID,
   artist_id UUID,
+  user_id UUID,
   created_by UUID,
   name TEXT,
   description TEXT,
@@ -44,8 +45,8 @@ RETURNS TABLE (
   contractor_phone TEXT,
   confirmed BOOLEAN,
   tag TEXT,
-  created_at TIMESTAMP,
-  updated_at TIMESTAMP,
+  created_at TIMESTAMP WITH TIME ZONE,
+  updated_at TIMESTAMP WITH TIME ZONE,
   user_role TEXT  -- Role do usuário atual
 ) AS $$
 DECLARE
@@ -67,6 +68,7 @@ BEGIN
   SELECT 
     e.id,
     e.artist_id,
+    e.user_id,
     e.created_by,
     e.name,
     e.description,
@@ -84,7 +86,7 @@ BEGIN
     e.tag,
     e.created_at,
     e.updated_at,
-    user_role_var AS user_role
+    user_role_var AS user_role  -- Incluir role na resposta
   FROM events e
   WHERE e.artist_id = p_artist_id
   ORDER BY e.event_date DESC, e.start_time DESC;
@@ -99,6 +101,7 @@ CREATE OR REPLACE FUNCTION get_event_by_id_with_role(p_event_id UUID)
 RETURNS TABLE (
   id UUID,
   artist_id UUID,
+  user_id UUID,
   created_by UUID,
   name TEXT,
   description TEXT,
@@ -110,8 +113,8 @@ RETURNS TABLE (
   contractor_phone TEXT,
   confirmed BOOLEAN,
   tag TEXT,
-  created_at TIMESTAMP,
-  updated_at TIMESTAMP,
+  created_at TIMESTAMP WITH TIME ZONE,
+  updated_at TIMESTAMP WITH TIME ZONE,
   user_role TEXT
 ) AS $$
 DECLARE
@@ -142,6 +145,7 @@ BEGIN
   SELECT 
     e.id,
     e.artist_id,
+    e.user_id,
     e.created_by,
     e.name,
     e.description,
@@ -178,50 +182,31 @@ WHERE routine_schema = 'public'
 ORDER BY routine_name;
 
 -- =====================================================
--- 6️⃣ VERIFICAR COLUNAS DA TABELA EVENTS
--- =====================================================
-
-SELECT 
-  column_name,
-  data_type,
-  ordinal_position
-FROM information_schema.columns
-WHERE table_name = 'events'
-  AND table_schema = 'public'
-ORDER BY ordinal_position;
-
--- =====================================================
--- 7️⃣ TESTAR (OPCIONAL)
+-- 6️⃣ TESTAR (OPCIONAL - descomente para testar)
 -- =====================================================
 
 /*
--- Descomente para testar com um artist_id real
+-- Verificar estrutura da tabela events
+SELECT 
+  column_name,
+  data_type
+FROM information_schema.columns
+WHERE table_name = 'events'
+ORDER BY ordinal_position;
+
+-- Testar função
 SELECT * FROM get_events_by_role('SEU_ARTIST_ID_AQUI') LIMIT 1;
 */
 
 -- =====================================================
--- ✅ ESTRUTURA FINAL DA FUNÇÃO
+-- ✅ PRONTO! FUNÇÃO CORRIGIDA
 -- =====================================================
 -- 
--- Colunas retornadas:
--- 1. id UUID
--- 2. artist_id UUID
--- 3. created_by UUID (quem criou o evento)
--- 4. name TEXT
--- 5. description TEXT
--- 6. event_date DATE
--- 7. start_time TIME
--- 8. end_time TIME
--- 9. value NUMERIC (NULL para viewer)
--- 10. city TEXT
--- 11. contractor_phone TEXT
--- 12. confirmed BOOLEAN
--- 13. tag TEXT
--- 14. created_at TIMESTAMP
--- 15. updated_at TIMESTAMP
--- 16. user_role TEXT (role do usuário atual)
+-- Mudanças principais:
+-- 1. Adicionado: user_id UUID
+-- 2. Adicionado: created_by UUID  
+-- 3. Confirmado: tag TEXT
 -- 
--- ⚠️ NOTA: user_id NÃO existe na tabela events
--- Apenas created_by existe (UUID de quem criou)
--- 
+-- Agora a estrutura corresponde exatamente à tabela events!
 -- =====================================================
+

@@ -1,32 +1,6 @@
 -- =====================================================
--- FUNÇÃO FINAL CORRIGIDA - SEM user_id
--- A tabela events só tem created_by, não user_id
--- =====================================================
-
--- 1️⃣ REMOVER FUNÇÕES ANTIGAS
-DROP FUNCTION IF EXISTS get_events_by_role(uuid);
-DROP FUNCTION IF EXISTS get_event_by_id_with_role(uuid);
-DROP FUNCTION IF EXISTS get_user_role_for_artist(uuid);
-
--- =====================================================
--- 2️⃣ Função auxiliar para obter role do usuário
--- =====================================================
-
-CREATE OR REPLACE FUNCTION get_user_role_for_artist(p_artist_id UUID)
-RETURNS TEXT AS $$
-BEGIN
-  RETURN (
-    SELECT role 
-    FROM artist_members 
-    WHERE user_id = auth.uid() 
-      AND artist_id = p_artist_id
-    LIMIT 1
-  );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- =====================================================
--- 3️⃣ FUNÇÃO PRINCIPAL - SEM user_id
+-- FUNÇÃO RPC PARA BUSCAR EVENTOS BASEADO NA ROLE
+-- Retorna eventos com colunas filtradas por permissão
 -- =====================================================
 
 CREATE OR REPLACE FUNCTION get_events_by_role(p_artist_id UUID)
@@ -44,8 +18,8 @@ RETURNS TABLE (
   contractor_phone TEXT,
   confirmed BOOLEAN,
   tag TEXT,
-  created_at TIMESTAMP,
-  updated_at TIMESTAMP,
+  created_at TIMESTAMP WITH TIME ZONE,
+  updated_at TIMESTAMP WITH TIME ZONE,
   user_role TEXT  -- Role do usuário atual
 ) AS $$
 DECLARE
@@ -84,7 +58,7 @@ BEGIN
     e.tag,
     e.created_at,
     e.updated_at,
-    user_role_var AS user_role
+    user_role_var AS user_role  -- Incluir role na resposta
   FROM events e
   WHERE e.artist_id = p_artist_id
   ORDER BY e.event_date DESC, e.start_time DESC;
@@ -92,7 +66,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- =====================================================
--- 4️⃣ FUNÇÃO PARA BUSCAR UM EVENTO ESPECÍFICO
+-- FUNÇÃO PARA BUSCAR UM EVENTO ESPECÍFICO
 -- =====================================================
 
 CREATE OR REPLACE FUNCTION get_event_by_id_with_role(p_event_id UUID)
@@ -110,8 +84,8 @@ RETURNS TABLE (
   contractor_phone TEXT,
   confirmed BOOLEAN,
   tag TEXT,
-  created_at TIMESTAMP,
-  updated_at TIMESTAMP,
+  created_at TIMESTAMP WITH TIME ZONE,
+  updated_at TIMESTAMP WITH TIME ZONE,
   user_role TEXT
 ) AS $$
 DECLARE
@@ -166,62 +140,89 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- =====================================================
--- 5️⃣ VERIFICAR FUNÇÕES CRIADAS
+-- TESTAR AS FUNÇÕES
 -- =====================================================
 
-SELECT 
-  routine_name as "Função",
-  routine_type as "Tipo"
-FROM information_schema.routines
-WHERE routine_schema = 'public'
-  AND routine_name IN ('get_events_by_role', 'get_event_by_id_with_role', 'get_user_role_for_artist')
-ORDER BY routine_name;
+-- Buscar todos os eventos de um artista
+SELECT * FROM get_events_by_role('SEU_ARTIST_ID_AQUI');
+
+-- Buscar um evento específico
+SELECT * FROM get_event_by_id_with_role('SEU_EVENT_ID_AQUI');
 
 -- =====================================================
--- 6️⃣ VERIFICAR COLUNAS DA TABELA EVENTS
--- =====================================================
-
-SELECT 
-  column_name,
-  data_type,
-  ordinal_position
-FROM information_schema.columns
-WHERE table_name = 'events'
-  AND table_schema = 'public'
-ORDER BY ordinal_position;
-
--- =====================================================
--- 7️⃣ TESTAR (OPCIONAL)
+-- COMO USAR NO CÓDIGO TYPESCRIPT
 -- =====================================================
 
 /*
--- Descomente para testar com um artist_id real
-SELECT * FROM get_events_by_role('SEU_ARTIST_ID_AQUI') LIMIT 1;
+// services/supabase/eventService.ts
+
+// Buscar eventos de um artista com role filtering
+export const getEventsByArtistWithRole = async (artistId: string) => {
+  try {
+    const { data, error } = await supabase
+      .rpc('get_events_by_role', { p_artist_id: artistId });
+
+    if (error) {
+      console.error('Erro ao buscar eventos:', error);
+      return { events: null, error: error.message };
+    }
+
+    // data já vem com:
+    // - value = NULL se for viewer
+    // - value = valor real se for editor/admin/owner
+    // - user_role incluído na resposta
+    
+    return { events: data, error: null };
+  } catch (error) {
+    return { events: null, error: 'Erro ao buscar eventos' };
+  }
+};
+
+// Buscar um evento específico
+export const getEventByIdWithRole = async (eventId: string) => {
+  try {
+    const { data, error } = await supabase
+      .rpc('get_event_by_id_with_role', { p_event_id: eventId });
+
+    if (error) {
+      return { event: null, error: error.message };
+    }
+
+    return { event: data?.[0] || null, error: null };
+  } catch (error) {
+    return { event: null, error: 'Erro ao buscar evento' };
+  }
+};
 */
 
 -- =====================================================
--- ✅ ESTRUTURA FINAL DA FUNÇÃO
+-- VANTAGENS DA FUNÇÃO RPC
 -- =====================================================
 -- 
--- Colunas retornadas:
--- 1. id UUID
--- 2. artist_id UUID
--- 3. created_by UUID (quem criou o evento)
--- 4. name TEXT
--- 5. description TEXT
--- 6. event_date DATE
--- 7. start_time TIME
--- 8. end_time TIME
--- 9. value NUMERIC (NULL para viewer)
--- 10. city TEXT
--- 11. contractor_phone TEXT
--- 12. confirmed BOOLEAN
--- 13. tag TEXT
--- 14. created_at TIMESTAMP
--- 15. updated_at TIMESTAMP
--- 16. user_role TEXT (role do usuário atual)
--- 
--- ⚠️ NOTA: user_id NÃO existe na tabela events
--- Apenas created_by existe (UUID de quem criou)
+-- ✅ Mais flexível que VIEW
+-- ✅ Pode receber parâmetros
+-- ✅ Pode ter lógica complexa
+-- ✅ Centraliza a segurança no banco
+-- ✅ Melhor performance que filtrar no código
+-- ✅ Seguro - SECURITY DEFINER executa com privilégios do criador
 -- 
 -- =====================================================
+
+-- =====================================================
+-- COMPARAÇÃO: VIEW vs FUNÇÃO RPC
+-- =====================================================
+-- 
+-- VIEW:
+-- - Mais simples de usar (SELECT * FROM view)
+-- - Comporta-se como uma tabela
+-- - Melhor para queries complexas com JOINs
+-- 
+-- FUNÇÃO RPC:
+-- - Mais flexível
+-- - Pode receber parâmetros
+-- - Pode ter validações e lógica complexa
+-- - Melhor para casos de uso específicos
+-- 
+-- RECOMENDAÇÃO: Use função RPC para maior controle
+-- =====================================================
+

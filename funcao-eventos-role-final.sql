@@ -225,3 +225,4 @@ SELECT * FROM get_events_by_role('SEU_ARTIST_ID_AQUI') LIMIT 1;
 -- Apenas created_by existe (UUID de quem criou)
 -- 
 -- =====================================================
+
