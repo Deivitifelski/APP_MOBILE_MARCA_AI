@@ -18,6 +18,7 @@ import { cacheService } from '../services/cacheService';
 import { deleteArtist } from '../services/supabase/artistService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { getCollaborators, removeCollaborator } from '../services/supabase/collaboratorService';
+import { validateLeaveArtist, LeaveArtistValidation } from '../services/supabase/leaveArtistValidation';
 import { clearPermissionsCache } from '../services/supabase/permissionsService';
 import { useActiveArtist } from '../services/useActiveArtist';
 
@@ -39,6 +40,7 @@ export default function SairArtistaScreen() {
   const { colors } = useTheme();
   const { activeArtist, loadActiveArtist } = useActiveArtist();
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [validation, setValidation] = useState<LeaveArtistValidation | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showOwnerOptionsModal, setShowOwnerOptionsModal] = useState(false);
@@ -55,6 +57,13 @@ export default function SairArtistaScreen() {
     try {
       setIsLoading(true);
       
+      // Buscar usuário atual
+      const { user } = await getCurrentUser();
+      if (!user) {
+        Alert.alert('Erro', 'Usuário não encontrado');
+        return;
+      }
+
       // Buscar todos os colaboradores do artista
       const { collaborators, error } = await getCollaborators(activeArtist.id);
       
@@ -64,6 +73,19 @@ export default function SairArtistaScreen() {
       }
 
       setCollaborators((collaborators || []) as Collaborator[]);
+
+      // ✅ Validar situação de saída do artista
+      const { validation: validationResult, error: validationError } = await validateLeaveArtist(
+        user.id,
+        activeArtist.id
+      );
+
+      if (validationError) {
+        console.error('Erro ao validar saída:', validationError);
+      } else {
+        setValidation(validationResult);
+      }
+
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
       Alert.alert('Erro', 'Erro ao carregar dados');
@@ -73,28 +95,27 @@ export default function SairArtistaScreen() {
   };
 
   const handleLeaveArtist = async () => {
-    if (!activeArtist) return;
+    if (!activeArtist || !validation) return;
 
-    // Verificar se o usuário atual é owner
-    const { user } = await getCurrentUser();
-    if (!user) return;
+    // ✅ Usar dados da validação carregada
+    switch (validation.action) {
+      case 'DELETE_ARTIST':
+        // 🔴 ÚNICO COLABORADOR - Mostrar modal de deletar
+        setShowDeleteConfirmModal(true);
+        break;
 
-    const currentUserCollaborator = collaborators.find(c => c.user_id === user.id);
-    const isOwner = currentUserCollaborator?.role === 'owner';
+      case 'TRANSFER_OWNERSHIP':
+        // 🟡 ÚNICO OWNER - Mostrar modal de transferir propriedade
+        setShowOwnerOptionsModal(true);
+        break;
 
-    // Contar quantos owners existem
-    const ownerCount = collaborators.filter(c => c.role === 'owner').length;
-    const eligibleCollaborators = collaborators.filter(c => c.role !== 'owner');
+      case 'LEAVE_NORMALLY':
+        // 🟢 PODE SAIR NORMALMENTE - Mostrar modal de confirmação
+        setShowLeaveConfirmModal(true);
+        break;
 
-    if (isOwner && ownerCount === 1 && eligibleCollaborators.length > 0) {
-      // Único owner com outros colaboradores - mostrar modal de opções
-      setShowOwnerOptionsModal(true);
-    } else if (isOwner && ownerCount === 1 && eligibleCollaborators.length === 0) {
-      // Único owner sem outros colaboradores - modal de deletar
-      setShowDeleteConfirmModal(true);
-    } else {
-      // Não é owner ou há outros owners - modal de sair normalmente
-      setShowLeaveConfirmModal(true);
+      default:
+        Alert.alert('Erro', 'Não foi possível determinar a ação apropriada');
     }
   };
 
@@ -236,75 +257,90 @@ export default function SairArtistaScreen() {
           <View style={styles.infoContent}>
             <Text style={[styles.infoTitle, { color: colors.primary }]}>Informações do Artista</Text>
             <Text style={[styles.infoText, { color: colors.primary }]}>
-              • Total de colaboradores: {collaborators.length}
+              • Total de colaboradores: {validation?.totalCollaborators || collaborators.length}
             </Text>
             <Text style={[styles.infoText, { color: colors.primary }]}>
-              • Proprietários: {ownerCount}
+              • Proprietários: {validation?.totalOwners || ownerCount}
             </Text>
             <Text style={[styles.infoText, { color: colors.primary }]}>
-              • Outros colaboradores: {eligibleCollaborators.length}
+              • Sua role: {validation?.userRole || 'Carregando...'}
             </Text>
           </View>
         </View>
 
-        <View style={[styles.warningCard, { backgroundColor: colors.warning + '20' }]}>
-          <Ionicons name="warning" size={24} color={colors.warning} />
-          <View style={styles.warningContent}>
-            <Text style={[styles.warningTitle, { color: colors.warning }]}>Atenção</Text>
-            {ownerCount === 1 && eligibleCollaborators.length > 0 ? (
-              <Text style={[styles.warningText, { color: colors.warning }]}>
-                Você é o único proprietário. Para sair, você deve transferir a propriedade para outro colaborador.
+        {validation && (
+          <View style={[
+            styles.warningCard, 
+            { backgroundColor: validation.action === 'DELETE_ARTIST' ? colors.error + '20' : colors.warning + '20' }
+          ]}>
+            <Ionicons 
+              name={validation.action === 'DELETE_ARTIST' ? "alert-circle" : "warning"} 
+              size={24} 
+              color={validation.action === 'DELETE_ARTIST' ? colors.error : colors.warning} 
+            />
+            <View style={styles.warningContent}>
+              <Text style={[
+                styles.warningTitle, 
+                { color: validation.action === 'DELETE_ARTIST' ? colors.error : colors.warning }
+              ]}>
+                {validation.title}
               </Text>
-            ) : ownerCount === 1 && eligibleCollaborators.length === 0 ? (
-              <Text style={[styles.warningText, { color: colors.warning }]}>
-                Você é o único colaborador. Ao sair, o artista será deletado permanentemente.
+              <Text style={[
+                styles.warningText, 
+                { color: validation.action === 'DELETE_ARTIST' ? colors.error : colors.warning }
+              ]}>
+                {validation.message}
               </Text>
+              {validation.warning.map((warning, index) => (
+                <Text 
+                  key={index}
+                  style={[
+                    styles.warningText, 
+                    { color: validation.action === 'DELETE_ARTIST' ? colors.error : colors.warning, marginTop: 8 }
+                  ]}
+                >
+                  • {warning}
+                </Text>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {validation && (
+          <TouchableOpacity
+            style={[
+              styles.actionButton,
+              validation.action === 'DELETE_ARTIST' 
+                ? { backgroundColor: colors.error }
+                : validation.action === 'TRANSFER_OWNERSHIP'
+                ? { backgroundColor: colors.primary }
+                : { backgroundColor: colors.textSecondary }
+            ]}
+            onPress={handleLeaveArtist}
+            disabled={isProcessing || !validation}
+          >
+            {isProcessing ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <Text style={[styles.warningText, { color: colors.warning }]}>
-                Ao sair, você perderá acesso a todos os dados e funcionalidades deste artista.
-              </Text>
+              <>
+                <Ionicons 
+                  name={
+                    validation.action === 'DELETE_ARTIST' 
+                      ? "trash" 
+                      : validation.action === 'TRANSFER_OWNERSHIP'
+                      ? "swap-horizontal"
+                      : "log-out"
+                  } 
+                  size={20} 
+                  color="#FFFFFF" 
+                />
+                <Text style={styles.actionButtonText}>
+                  {validation.buttonText}
+                </Text>
+              </>
             )}
-          </View>
-        </View>
-
-        <TouchableOpacity
-          style={[
-            styles.actionButton,
-            ownerCount === 1 && eligibleCollaborators.length > 0 
-              ? { backgroundColor: colors.primary }
-              : ownerCount === 1 && eligibleCollaborators.length === 0
-              ? { backgroundColor: colors.error }
-              : { backgroundColor: colors.textSecondary }
-          ]}
-          onPress={handleLeaveArtist}
-          disabled={isProcessing}
-        >
-          {isProcessing ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <>
-              <Ionicons 
-                name={
-                  ownerCount === 1 && eligibleCollaborators.length > 0 
-                    ? "swap-horizontal" 
-                    : ownerCount === 1 && eligibleCollaborators.length === 0
-                    ? "trash"
-                    : "log-out"
-                } 
-                size={20} 
-                color="#FFFFFF" 
-              />
-              <Text style={styles.actionButtonText}>
-                {ownerCount === 1 && eligibleCollaborators.length > 0 
-                  ? "Transferir Propriedade" 
-                  : ownerCount === 1 && eligibleCollaborators.length === 0
-                  ? "Deletar Artista"
-                  : "Sair do Artista"
-                }
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
+          </TouchableOpacity>
+        )}
       </ScrollView>
 
       {/* Modal: Opções para Owner Único com Colaboradores */}

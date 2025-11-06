@@ -155,20 +155,103 @@ export const updateArtist = async (artistId: string, artistData: Partial<CreateA
   }
 };
 
-// Deletar artista
+// Deletar artista (com todos os dados relacionados)
 export const deleteArtist = async (artistId: string): Promise<{ success: boolean; error: string | null }> => {
   try {
-    const { error } = await supabase
+    console.log('🗑️ Iniciando deleção do artista:', artistId);
+
+    // 1️⃣ Deletar despesas dos eventos do artista
+    console.log('🗑️ Deletando despesas dos eventos...');
+    const { data: events } = await supabase
+      .from('events')
+      .select('id')
+      .eq('artist_id', artistId);
+
+    if (events && events.length > 0) {
+      const eventIds = events.map(e => e.id);
+      const { error: expensesError } = await supabase
+        .from('event_expenses')
+        .delete()
+        .in('event_id', eventIds);
+
+      if (expensesError) {
+        console.error('❌ Erro ao deletar despesas:', expensesError);
+        return { success: false, error: 'Erro ao deletar despesas dos eventos: ' + expensesError.message };
+      }
+      console.log('✅ Despesas deletadas');
+    }
+
+    // 2️⃣ Deletar eventos do artista
+    console.log('🗑️ Deletando eventos...');
+    const { error: eventsError } = await supabase
+      .from('events')
+      .delete()
+      .eq('artist_id', artistId);
+
+    if (eventsError) {
+      console.error('❌ Erro ao deletar eventos:', eventsError);
+      return { success: false, error: 'Erro ao deletar eventos: ' + eventsError.message };
+    }
+    console.log('✅ Eventos deletados');
+
+    // 3️⃣ Deletar convites pendentes do artista
+    console.log('🗑️ Deletando convites...');
+    const { error: invitesError } = await supabase
+      .from('artist_invites')
+      .delete()
+      .eq('artist_id', artistId);
+
+    if (invitesError) {
+      console.error('❌ Erro ao deletar convites:', invitesError);
+      // Não retornar erro, continuar a deleção
+    } else {
+      console.log('✅ Convites deletados');
+    }
+
+    // 4️⃣ Deletar colaboradores (artist_members)
+    console.log('🗑️ Deletando colaboradores...');
+    const { error: membersError } = await supabase
+      .from('artist_members')
+      .delete()
+      .eq('artist_id', artistId);
+
+    if (membersError) {
+      console.error('❌ Erro ao deletar colaboradores:', membersError);
+      return { success: false, error: 'Erro ao deletar colaboradores: ' + membersError.message };
+    }
+    console.log('✅ Colaboradores deletados');
+
+    // 5️⃣ Deletar notificações relacionadas ao artista
+    console.log('🗑️ Deletando notificações...');
+    const { error: notificationsError } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('artist_id', artistId);
+
+    if (notificationsError) {
+      console.error('❌ Erro ao deletar notificações:', notificationsError);
+      // Não retornar erro, continuar a deleção
+    } else {
+      console.log('✅ Notificações deletadas');
+    }
+
+    // 6️⃣ Finalmente, deletar o artista
+    console.log('🗑️ Deletando artista...');
+    const { error: artistError } = await supabase
       .from('artists')
       .delete()
       .eq('id', artistId);
 
-    if (error) {
-      return { success: false, error: error.message };
+    if (artistError) {
+      console.error('❌ Erro ao deletar artista:', artistError);
+      return { success: false, error: 'Erro ao deletar artista: ' + artistError.message };
     }
 
+    console.log('✅ Artista deletado com sucesso!');
     return { success: true, error: null };
+
   } catch (error) {
-    return { success: false, error: 'Erro de conexão' };
+    console.error('❌ Erro geral ao deletar artista:', error);
+    return { success: false, error: 'Erro de conexão ao deletar artista' };
   }
 };
