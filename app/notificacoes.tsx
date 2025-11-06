@@ -2,19 +2,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    RefreshControl,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import PermissionModal from '../components/PermissionModal';
 import { useTheme } from '../contexts/ThemeContext';
+import { supabase } from '../lib/supabase';
 import {
   acceptArtistInvite,
   declineArtistInvite,
@@ -23,11 +24,11 @@ import { getArtists } from '../services/supabase/artistService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { getEventById } from '../services/supabase/eventService';
 import {
-    deleteNotification,
-    getUserNotifications,
-    markAllNotificationsAsRead,
-    markNotificationAsRead,
-    Notification
+  deleteNotification,
+  getUserNotifications,
+  markAllNotificationsAsRead,
+  markNotificationAsRead,
+  Notification
 } from '../services/supabase/notificationService';
 import { hasPermission } from '../services/supabase/permissionsService';
 
@@ -248,13 +249,33 @@ export default function NotificacoesScreen() {
     );
   };
 
-  const handleAcceptInvite = async (inviteId: string, artistName: string, artistId: string) => {
+  const handleAcceptInviteFromNotification = async (artistId: string, artistName: string, notificationId: string) => {
     if (!currentUserId) return;
 
     try {
+      // Buscar o convite pendente para este usuário e artista
+      const { data: invites, error: inviteError } = await supabase
+        .from('artist_invites')
+        .select('id')
+        .eq('to_user_id', currentUserId)
+        .eq('artist_id', artistId)
+        .eq('status', 'pending')
+        .limit(1);
+
+      if (inviteError || !invites || invites.length === 0) {
+        Alert.alert('Erro', 'Convite não encontrado ou já foi processado');
+        await loadNotifications(); // Recarregar para atualizar
+        return;
+      }
+
+      const inviteId = invites[0].id;
+
       const { success, error } = await acceptArtistInvite(inviteId, currentUserId);
       
       if (success) {
+        // Deletar a notificação após aceitar
+        await deleteNotification(notificationId);
+
         // Verificar se o usuário já tem artistas
         const { artists } = await getArtists(currentUserId);
         const isFirstArtist = !artists || artists.length === 0;
@@ -278,7 +299,7 @@ export default function NotificacoesScreen() {
             });
             setShowAcceptedModal(true);
             
-            // Recarregar notificações (o convite será removido automaticamente)
+            // Recarregar notificações
             await loadNotifications();
           } catch (error) {
             console.error('Erro ao setar artista:', error);
@@ -293,7 +314,7 @@ export default function NotificacoesScreen() {
           });
           setShowAcceptedModal(true);
           
-          // Recarregar notificações (o convite será removido automaticamente)
+          // Recarregar notificações
           await loadNotifications();
         }
       } else {
@@ -304,14 +325,34 @@ export default function NotificacoesScreen() {
     }
   };
 
-  const handleDeclineInvite = async (inviteId: string) => {
+  const handleDeclineInviteFromNotification = async (artistId: string, notificationId: string) => {
     if (!currentUserId) return;
 
     try {
+      // Buscar o convite pendente para este usuário e artista
+      const { data: invites, error: inviteError } = await supabase
+        .from('artist_invites')
+        .select('id')
+        .eq('to_user_id', currentUserId)
+        .eq('artist_id', artistId)
+        .eq('status', 'pending')
+        .limit(1);
+
+      if (inviteError || !invites || invites.length === 0) {
+        Alert.alert('Erro', 'Convite não encontrado ou já foi processado');
+        await loadNotifications(); // Recarregar para atualizar
+        return;
+      }
+
+      const inviteId = invites[0].id;
+
       const { success, error } = await declineArtistInvite(inviteId, currentUserId);
       
       if (success) {
-        // Recarregar notificações (o convite será removido automaticamente)
+        // Deletar a notificação após recusar
+        await deleteNotification(notificationId);
+        
+        // Recarregar notificações
         await loadNotifications();
       } else {
         Alert.alert('Erro', error || 'Erro ao recusar convite');
@@ -557,17 +598,54 @@ export default function NotificacoesScreen() {
                           </View>
                         )}
                       </View>
+
+                      {/* Botões de Aceitar/Recusar para convites de artista */}
+                      {notification.type === 'artist_invite' && notification.artist_id && (
+                        <View style={styles.inviteActions}>
+                          <TouchableOpacity
+                            style={styles.acceptButton}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              handleAcceptInviteFromNotification(
+                                notification.artist_id!,
+                                notification.message.split('"')[1] || 'Artista',
+                                notification.id
+                              );
+                            }}
+                          >
+                            <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
+                            <Text style={styles.acceptButtonText}>Aceitar</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.declineButton}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              handleDeclineInviteFromNotification(
+                                notification.artist_id!,
+                                notification.id
+                              );
+                            }}
+                          >
+                            <Ionicons name="close-circle" size={16} color="#6B7280" />
+                            <Text style={styles.declineButtonText}>Recusar</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
                     </View>
                   </View>
                   
                   <View style={styles.notificationRight}>
                     {!notification.read && <View style={dynamicStyles.unreadDot} />}
-                    <TouchableOpacity
-                      style={styles.deleteButton}
-                      onPress={() => handleDeleteNotification(notification.id)}
-                    >
-                      <Ionicons name="trash-outline" size={16} color={colors.textSecondary} />
-                    </TouchableOpacity>
+                    {/* Esconder botão de deletar para convites - será deletado ao aceitar/recusar */}
+                    {notification.type !== 'artist_invite' && (
+                      <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={() => handleDeleteNotification(notification.id)}
+                      >
+                        <Ionicons name="trash-outline" size={16} color={colors.textSecondary} />
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </TouchableOpacity>
               </View>
