@@ -2,16 +2,17 @@
 
 ## 📊 Tabela Comparativa de Permissões
 
-| Permissão | 👁️ Viewer | ✏️ Editor | 🛡️ Admin | ⭐ Owner |
-|-----------|-----------|-----------|-----------|----------|
-| **Ver eventos** | ✅ | ✅ | ✅ | ✅ |
-| **Ver valores financeiros** | ❌ | ✅ | ✅ | ✅ |
-| **Criar eventos** | ❌ | ✅ | ✅ | ✅ |
-| **Editar eventos** | ❌ | ✅ | ✅ | ✅ |
-| **Deletar eventos** | ❌ | ❌ | ✅ | ✅ |
-| **Gerenciar colaboradores** | ❌ | ❌ | ✅ | ✅ |
-| **Editar perfil do artista** | ❌ | ❌ | ✅ | ✅ |
-| **Deletar artista** | ❌ | ❌ | ✅ | ✅ |
+| **Permissão**                | 👁️ **Viewer** | ✏️ **Editor** | 🛡️ **Admin** | ⭐ **Owner** |
+| ---------------------------- | :------------: | :-----------: | :-----------: | :---------: |
+| **Ver eventos**              |        ✅       |       ✅       |       ✅       |      ✅      |
+| **Ver valores financeiros**  |        ❌       |       ✅       |       ✅       |      ✅      |
+| **Criar eventos**            |        ❌       |       ✅       |       ✅       |      ✅      |
+| **Editar eventos**           |        ❌       |       ✅       |       ✅       |      ✅      |
+| **Deletar eventos**          |        ❌       |       ❌       |       ✅       |      ✅      |
+| **Gerenciar colaboradores**  |        ❌       |       ❌       |       ✅       |      ✅      |
+| **Editar perfil do artista** |        ❌       |       ❌       |       ✅       |      ✅      |
+| **Deletar artista**          |        ❌       |       ❌       |       ✅       |      ✅      |
+
 
 ---
 
