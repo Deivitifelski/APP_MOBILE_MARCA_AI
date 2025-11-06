@@ -19,6 +19,7 @@ import { supabase } from '../../lib/supabase';
 import { artistImageUpdateService } from '../../services/artistImageUpdateService';
 import { cacheService } from '../../services/cacheService';
 import { getEventsByMonthWithRole } from '../../services/supabase/eventService';
+import { getCurrentUser } from '../../services/supabase/authService';
 import { useActiveArtist } from '../../services/useActiveArtist';
 import { useNotifications } from '../../services/useNotifications';
 
@@ -190,22 +191,55 @@ export default function AgendaScreen() {
     }
   }, [artistImageUpdated]);
 
-  const handleEventPress = (eventId: string) => {
-    console.log('🔒 Agenda: Tentando abrir evento', {
-      currentUserRole,
-      hasFinancialAccess
-    });
-
-    // Verificar se o usuário tem permissão para ver detalhes
-    if (!hasFinancialAccess) {
-      console.log('🚫 Agenda: Acesso negado - mostrando modal');
-      setShowPermissionModal(true);
+  const handleEventPress = async (eventId: string) => {
+    if (!activeArtist) {
+      Alert.alert('Erro', 'Nenhum artista selecionado.');
       return;
     }
-    
-    console.log('✅ Agenda: Acesso permitido - navegando para detalhes');
-    // Se não for viewer, permitir acesso aos detalhes
-    router.push(`/detalhes-evento?eventId=${eventId}`);
+
+    console.log('🔒 Agenda: Tentando abrir evento');
+
+    // ✅ VERIFICAR PERMISSÃO ATUALIZADA DO BANCO (sempre que clicar)
+    try {
+      const { user } = await getCurrentUser();
+      if (!user) {
+        Alert.alert('Erro', 'Usuário não encontrado');
+        return;
+      }
+
+      // Buscar role atual do usuário DIRETO DO BANCO
+      const { data: memberData, error: roleError } = await supabase
+        .from('artist_members')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('artist_id', activeArtist.id)
+        .single();
+
+      if (roleError || !memberData) {
+        console.log('❌ Erro ao buscar permissões:', roleError);
+        Alert.alert('Erro', 'Você não tem acesso a este artista');
+        return;
+      }
+
+      const userRole = memberData.role;
+      console.log('🔐 Role atual do usuário:', userRole);
+
+      // Viewer não pode ver detalhes (apenas editor, admin, owner)
+      const allowedRoles = ['editor', 'admin', 'owner'];
+      const canViewDetails = allowedRoles.includes(userRole);
+      
+      if (!canViewDetails) {
+        console.log('🚫 Agenda: Sem permissão para ver detalhes - Role:', userRole);
+        setShowPermissionModal(true);
+        return;
+      }
+      
+      console.log('✅ Agenda: Acesso permitido - navegando para detalhes');
+      router.push(`/detalhes-evento?eventId=${eventId}`);
+    } catch (error) {
+      console.error('❌ Erro ao verificar permissões:', error);
+      Alert.alert('Erro', 'Erro ao verificar permissões');
+    }
   };
 
   const onRefresh = async () => {
@@ -282,34 +316,60 @@ export default function AgendaScreen() {
       return;
     }
 
-    console.log('➕ Agenda: Tentando adicionar evento', {
-      currentUserRole,
-      hasFinancialAccess
-    });
+    console.log('➕ Agenda: Tentando adicionar evento');
 
-    // ✅ Verificar se pode criar eventos (admin e editor e owner)
-    const allowedRoles = ['admin', 'editor', 'owner'];
-    const canCreate = currentUserRole && allowedRoles.includes(currentUserRole);
-    
-    if (!canCreate) {
-      console.log('🚫 Agenda: Sem permissão para criar evento - mostrando modal');
-      setShowPermissionModal(true);
-      return;
-    }
-
-    console.log('✅ Agenda: Permissão concedida - navegando para criar evento');
-
-    // Se tem permissão, navegar para tela de adicionar evento
-    const selectedDate = new Date(currentYear, currentMonth, 1);
-    
-    router.push({
-      pathname: '/adicionar-evento',
-      params: { 
-        selectedMonth: currentMonth,
-        selectedYear: currentYear,
-        selectedDate: selectedDate.toISOString()
+    // ✅ VERIFICAR PERMISSÃO ATUALIZADA DO BANCO (sempre que clicar)
+    try {
+      const { user } = await getCurrentUser();
+      if (!user) {
+        Alert.alert('Erro', 'Usuário não encontrado');
+        return;
       }
-    });
+
+      // Buscar role atual do usuário DIRETO DO BANCO
+      const { data: memberData, error: roleError } = await supabase
+        .from('artist_members')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('artist_id', activeArtist.id)
+        .single();
+
+      if (roleError || !memberData) {
+        console.log('❌ Erro ao buscar permissões:', roleError);
+        Alert.alert('Erro', 'Você não tem acesso a este artista');
+        return;
+      }
+
+      const userRole = memberData.role;
+      console.log('🔐 Role atual do usuário:', userRole);
+
+      // Verificar se pode criar eventos (admin, editor, owner)
+      const allowedRoles = ['admin', 'editor', 'owner'];
+      const canCreate = allowedRoles.includes(userRole);
+      
+      if (!canCreate) {
+        console.log('🚫 Agenda: Sem permissão para criar evento - Role:', userRole);
+        setShowPermissionModal(true);
+        return;
+      }
+
+      console.log('✅ Agenda: Permissão concedida - navegando para criar evento');
+
+      // Se tem permissão, navegar para tela de adicionar evento
+      const selectedDate = new Date(currentYear, currentMonth, 1);
+      
+      router.push({
+        pathname: '/adicionar-evento',
+        params: { 
+          selectedMonth: currentMonth,
+          selectedYear: currentYear,
+          selectedDate: selectedDate.toISOString()
+        }
+      });
+    } catch (error) {
+      console.error('❌ Erro ao verificar permissões:', error);
+      Alert.alert('Erro', 'Erro ao verificar permissões');
+    }
   };
 
   const handleCreateArtist = () => {

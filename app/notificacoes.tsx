@@ -271,45 +271,50 @@ export default function NotificacoesScreen() {
       const inviteId = invites[0].id;
       const inviteRole = notificationRole || 'viewer'; // ✅ Role vem da notificação
 
+      // Verificar ANTES de aceitar se o usuário já tem artistas
+      const { artists: artistsBefore } = await getArtists(currentUserId);
+      const isFirstArtist = !artistsBefore || artistsBefore.length === 0;
+
+      console.log('🔍 Verificando artistas antes de aceitar:', {
+        totalArtistas: artistsBefore?.length || 0,
+        isFirstArtist
+      });
+
       const { success, error } = await acceptArtistInvite(inviteId, currentUserId);
       
       if (success) {
         // Marcar notificação como lida (não deletar)
         await markNotificationAsRead(notificationId);
-
-        // Verificar se o usuário já tem artistas
-        const { artists } = await getArtists(currentUserId);
-        const isFirstArtist = !artists || artists.length === 0;
+        
+        // Recarregar notificações
+        await loadNotifications();
 
         if (isFirstArtist) {
           // Se é o primeiro artista, setar automaticamente como ativo
-          try {
-            const { setActiveArtist } = await import('../services/artistContext');
-            
-            await setActiveArtist({
-              id: artistId,
-              name: artistName,
-              role: inviteRole // ✅ Role do convite
-            });
+          const { setActiveArtist } = await import('../services/artistContext');
+          
+          await setActiveArtist({
+            id: artistId,
+            name: artistName,
+            role: inviteRole // ✅ Role do convite
+          });
 
-            // Recarregar notificações
-            await loadNotifications();
-            
-            // Mostrar alerta simples
-            Alert.alert(
-              '✅ Convite Aceito!',
-              `Você agora faz parte do artista "${artistName}" e este foi definido como seu artista ativo.`,
-              [{ text: 'OK', onPress: () => router.replace('/(tabs)/agenda') }]
-            );
-          } catch (error) {
-            console.error('Erro ao setar artista:', error);
-            Alert.alert('Erro', 'Erro ao configurar artista ativo');
-          }
+          console.log('✅ Primeiro artista definido como ativo:', artistName);
+          
+          // Mostrar alerta simples e redirecionar
+          Alert.alert(
+            '✅ Convite Aceito!',
+            `Você agora faz parte do artista "${artistName}" e este foi definido como seu artista ativo.`,
+            [{ 
+              text: 'OK', 
+              onPress: () => {
+                // Redirecionar para agenda
+                router.replace('/(tabs)/agenda');
+              }
+            }]
+          );
         } else {
           // Se já tem artistas, apenas mostrar alerta
-          // Recarregar notificações
-          await loadNotifications();
-          
           Alert.alert(
             '✅ Convite Aceito!',
             `Você foi adicionado ao artista "${artistName}". Para trabalhar com ele, troque nas Configurações → Selecionar Artista.`,
