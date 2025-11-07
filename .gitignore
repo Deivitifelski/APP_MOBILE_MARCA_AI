@@ -39,6 +39,8 @@ yarn-error.*
 
 app-example
 
+commands.md
+
 # generated native folders
 /ios
 /android

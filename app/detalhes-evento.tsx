@@ -3,8 +3,10 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
     Alert,
+    Platform,
     SafeAreaView,
     ScrollView,
+    StatusBar,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -23,7 +25,7 @@ import { useActiveArtist } from '../services/useActiveArtist';
 
 
 export default function DetalhesEventoScreen() {
-  const { colors } = useTheme();
+  const { colors, isDarkMode } = useTheme();
   const params = useLocalSearchParams();
   const eventId = params.eventId as string;
 
@@ -379,7 +381,8 @@ export default function DetalhesEventoScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 }]}>
+        <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
         <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
@@ -396,7 +399,8 @@ export default function DetalhesEventoScreen() {
 
   if (!event) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 }]}>
+        <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
         <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
@@ -418,7 +422,8 @@ export default function DetalhesEventoScreen() {
   const profit = (event.value || 0) - totalExpenses;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 }]}>
+      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
@@ -427,7 +432,11 @@ export default function DetalhesEventoScreen() {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        contentContainerStyle={{ paddingBottom: Platform.OS === 'ios' ? 20 : 10 }}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Informações do Evento */}
         <View style={[styles.eventCard, { backgroundColor: colors.surface }]}>
           <View style={styles.eventHeader}>

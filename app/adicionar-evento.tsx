@@ -384,8 +384,11 @@ export default function AdicionarEventoScreen() {
     // Se não há valor, retorna vazio
     if (!numericValue) return '';
     
+    // Limita a 11 dígitos (999.999.999,99)
+    const limitedValue = numericValue.slice(0, 11);
+    
     // Converte para número e divide por 100 para ter centavos
-    const amount = parseInt(numericValue) / 100;
+    const amount = parseInt(limitedValue) / 100;
     
     // Formata como moeda brasileira
     return amount.toLocaleString('pt-BR', {
@@ -719,7 +722,7 @@ export default function AdicionarEventoScreen() {
                     style={[styles.despesaInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
                     value={despesa.valor ? formatCurrency(despesa.valor) : ''}
                     onChangeText={(text) => {
-                      const numericValue = text.replace(/\D/g, '');
+                      const numericValue = text.replace(/\D/g, '').slice(0, 11);
                       updateDespesa(index, 'valor', numericValue);
                     }}
                     placeholder="R$ 0,00"

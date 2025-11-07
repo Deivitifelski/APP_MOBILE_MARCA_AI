@@ -103,8 +103,11 @@ export default function AdicionarDespesaScreen() {
     
     if (!numericValue) return '';
     
+    // Limita a 11 dígitos (999.999.999,99)
+    const limitedValue = numericValue.slice(0, 11);
+    
     // Converte para número e formata como moeda
-    const number = parseFloat(numericValue) / 100;
+    const number = parseInt(limitedValue) / 100;
     return number.toLocaleString('pt-BR', {
       style: 'currency',
       currency: 'BRL'

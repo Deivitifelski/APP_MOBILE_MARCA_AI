@@ -357,12 +357,19 @@ export default function EditarEventoScreen() {
   };
 
   const formatCurrency = (value: string) => {
+    // Remove tudo que não é dígito
     const numericValue = value.replace(/\D/g, '');
     
+    // Se não há valor, retorna vazio
     if (!numericValue) return '';
     
-    const amount = parseInt(numericValue) / 100;
+    // Limita a 11 dígitos (999.999.999,99)
+    const limitedValue = numericValue.slice(0, 11);
     
+    // Converte para número e divide por 100 para ter centavos
+    const amount = parseInt(limitedValue) / 100;
+    
+    // Formata como moeda brasileira
     return amount.toLocaleString('pt-BR', {
       style: 'currency',
       currency: 'BRL',

@@ -5,9 +5,11 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Platform,
   RefreshControl,
   SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -454,7 +456,9 @@ export default function NotificacoesScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
+        <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
@@ -470,7 +474,8 @@ export default function NotificacoesScreen() {
           <ActivityIndicator size="large" color="#6366F1" />
           <Text style={styles.loadingText}>Carregando notificações...</Text>
         </View>
-      </SafeAreaView>
+        </SafeAreaView>
+      </View>
     );
   }
 
@@ -478,7 +483,9 @@ export default function NotificacoesScreen() {
   const dynamicStyles = createDynamicStyles(isDarkMode, colors);
 
   return (
-    <SafeAreaView style={dynamicStyles.container}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
+      <SafeAreaView style={dynamicStyles.container}>
       <View style={dynamicStyles.header}>
         <TouchableOpacity
           style={dynamicStyles.backButton}
@@ -499,6 +506,7 @@ export default function NotificacoesScreen() {
 
       <ScrollView
         style={[dynamicStyles.content, { paddingHorizontal: 0 }]}
+        contentContainerStyle={{ paddingBottom: Platform.OS === 'ios' ? 20 : 10 }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
@@ -836,7 +844,8 @@ export default function NotificacoesScreen() {
           </View>
         </View>
       )}
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
