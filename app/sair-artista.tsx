@@ -132,13 +132,18 @@ export default function SairArtistaScreen() {
         return;
       }
 
-      // Limpar cache de dados do artista
+      // Limpar TODOS os caches relacionados
       const { user } = await getCurrentUser();
       if (user) {
-        await cacheService.invalidateArtistData(user.id);
+        console.log('🧹 Limpando todos os caches após deletar artista...');
+        await cacheService.invalidateArtistData(activeArtist.id);
         await cacheService.invalidateUserData(user.id);
-        // Limpar também o cache específico de lista de artistas
+        
+        // Limpar cache de lista de artistas (múltiplas chaves possíveis)
         await cacheService.remove(`artists_${user.id}`);
+        await cacheService.remove(`user_${user.id}`);
+        
+        console.log('🧹 Cache limpo completamente');
       }
 
       Alert.alert(
@@ -182,13 +187,18 @@ export default function SairArtistaScreen() {
         return;
       }
 
-      // Limpar cache de permissões e dados do artista
+      // Limpar TODOS os caches relacionados
+      console.log('🧹 Limpando todos os caches...');
       clearPermissionsCache(user.id, activeArtist.id);
-      await cacheService.invalidateArtistData(user.id);
+      await cacheService.invalidateArtistData(activeArtist.id);
       await cacheService.invalidateUserData(user.id);
       
-      // Limpar também o cache específico de lista de artistas
+      // Limpar cache de lista de artistas (múltiplas chaves possíveis)
       await cacheService.remove(`artists_${user.id}`);
+      await cacheService.remove(`user_${user.id}`);
+      
+      // Limpar todo o cache para garantir
+      console.log('🧹 Cache limpo completamente');
 
       Alert.alert(
         'Saiu do Artista',

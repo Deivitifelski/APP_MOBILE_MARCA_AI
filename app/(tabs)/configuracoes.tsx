@@ -201,15 +201,18 @@ export default function ConfiguracoesScreen() {
 
   const loadArtistData = async (forceRefresh = false) => {
     try {
+      console.log(`🔄 loadArtistData chamado com forceRefresh=${forceRefresh}`);
       const { user, error: userError } = await getCurrentUser();
       
       if (userError || !user) {
+        console.log('❌ Erro ao obter usuário ou usuário não encontrado');
         return;
       }
 
       // Se não forçar refresh, verificar cache primeiro
       if (!forceRefresh) {
         const cachedArtists = await cacheService.getUserData<any[]>(`artists_${user.id}`);
+        console.log(`📦 Cache consultado para artists_${user.id}:`, cachedArtists);
         
         if (cachedArtists && cachedArtists.length > 0) {
           setHasArtist(true);
@@ -255,9 +258,19 @@ export default function ConfiguracoesScreen() {
           await cacheService.setPermissionsData(user.id, currentArtist.id, permissions);
         }
         console.log('🎭 Dados do artista carregados do servidor:', currentArtist.name);
+      } else {
+        // Não há artistas - limpar estado
+        console.log('🎭 Nenhum artista encontrado - limpando estado');
+        setHasArtist(false);
+        setCurrentArtist(null);
+        setUserPermissions(null);
       }
     } catch (error) {
       console.error('❌ Erro ao carregar dados do artista:', error);
+      // Em caso de erro, também limpar estado
+      setHasArtist(false);
+      setCurrentArtist(null);
+      setUserPermissions(null);
     }
   };
 
