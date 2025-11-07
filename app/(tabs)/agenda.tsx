@@ -18,8 +18,8 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { artistImageUpdateService } from '../../services/artistImageUpdateService';
 import { cacheService } from '../../services/cacheService';
-import { getEventsByMonthWithRole } from '../../services/supabase/eventService';
 import { getCurrentUser } from '../../services/supabase/authService';
+import { getEventsByMonthWithRole } from '../../services/supabase/eventService';
 import { useActiveArtist } from '../../services/useActiveArtist';
 import { useNotifications } from '../../services/useNotifications';
 
