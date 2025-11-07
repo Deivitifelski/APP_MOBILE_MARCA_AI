@@ -35,7 +35,14 @@ export default function TransferirPropriedadeScreen() {
     try {
       setIsLoading(true);
       
-      // Buscar colaboradores (excluindo o usuário atual)
+      // Buscar usuário atual
+      const { user } = await getCurrentUser();
+      if (!user) {
+        Alert.alert('Erro', 'Usuário não encontrado');
+        return;
+      }
+
+      // Buscar colaboradores
       const { collaborators, error } = await getCollaborators(activeArtist.id);
       
       if (error) {
@@ -43,9 +50,11 @@ export default function TransferirPropriedadeScreen() {
         return;
       }
 
-      // Filtrar apenas colaboradores que não são owners
+      // Filtrar colaboradores: excluir admins e o próprio usuário atual
       const eligibleCollaborators = collaborators?.filter(
-        (collaborator) => collaborator.role !== 'owner'
+        (collaborator) => 
+          collaborator.role !== 'admin' && // Não incluir quem já é admin
+          collaborator.user_id !== user.id  // Não incluir o próprio usuário
       ) || [];
 
       setCollaborators(eligibleCollaborators);
