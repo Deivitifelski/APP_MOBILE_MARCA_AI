@@ -23,46 +23,6 @@ import { getEventsByMonthWithRole } from '../../services/supabase/eventService';
 import { useActiveArtist } from '../../services/useActiveArtist';
 import { useNotifications } from '../../services/useNotifications';
 
-// Dados mockados de shows
-const mockShows = [
-  {
-    id: '1',
-    date: 15,
-    dayOfWeek: 'Sábado',
-    name: 'Rock in Rio 2025',
-    venue: 'Parque Olímpico',
-    location: 'Rio de Janeiro, RJ',
-    time: '20:00',
-  },
-  {
-    id: '2',
-    date: 22,
-    dayOfWeek: 'Sábado',
-    name: 'Lollapalooza Brasil',
-    venue: 'Interlagos',
-    location: 'São Paulo, SP',
-    time: '19:30',
-  },
-  {
-    id: '3',
-    date: 28,
-    dayOfWeek: 'Sexta',
-    name: 'Festival de Inverno',
-    venue: 'Parque Ibirapuera',
-    location: 'São Paulo, SP',
-    time: '18:00',
-  },
-  {
-    id: '4',
-    date: 5,
-    dayOfWeek: 'Domingo',
-    name: 'Show Acústico',
-    venue: 'Teatro Municipal',
-    location: 'Belo Horizonte, MG',
-    time: '20:30',
-  },
-];
-
 const months = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
