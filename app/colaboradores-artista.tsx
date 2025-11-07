@@ -479,11 +479,14 @@ export default function ColaboradoresArtistaScreen() {
     return (
       <View style={[styles.collaboratorCard, { backgroundColor: colors.surface }]}>
         <View style={styles.collaboratorInfo}>
-          <View style={[styles.collaboratorAvatar, { backgroundColor: colors.primary }]}>
-            <Text style={styles.avatarText}>
-              {item.user.name.charAt(0).toUpperCase()}
-            </Text>
-          </View>
+          <OptimizedImage
+            imageUrl={item.user.profile_url || ''}
+            style={styles.collaboratorAvatar}
+            cacheKey={`collaborator_${item.user_id}`}
+            fallbackIcon="person"
+            fallbackIconSize={24}
+            fallbackIconColor="#FFFFFF"
+          />
           <View style={styles.collaboratorDetails}>
             <View style={styles.nameRow}>
               <Text style={[styles.collaboratorName, { color: colors.text }]}>{item.user.name}</Text>
@@ -763,11 +766,14 @@ export default function ColaboradoresArtistaScreen() {
               
               {selectedUser && (
                 <View style={styles.permissionUserCard}>
-                  <View style={styles.permissionUserAvatar}>
-                    <Text style={styles.permissionUserAvatarText}>
-                      {selectedUser.name.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
+                  <OptimizedImage
+                    imageUrl={selectedUser.profile_url || ''}
+                    style={styles.permissionUserAvatar}
+                    cacheKey={`permission_${selectedUser.id}`}
+                    fallbackIcon="person"
+                    fallbackIconSize={24}
+                    fallbackIconColor="#FFFFFF"
+                  />
                   <View style={styles.permissionUserInfo}>
                     <Text style={styles.permissionUserName}>{selectedUser.name}</Text>
                     <Text style={styles.permissionUserEmail}>{selectedUser.email}</Text>
@@ -878,11 +884,14 @@ export default function ColaboradoresArtistaScreen() {
             {selectedCollaborator && (
               <View style={styles.selectedCollaboratorCard}>
                 <View style={styles.selectedCollaboratorHeader}>
-                  <View style={styles.selectedCollaboratorAvatar}>
-                    <Text style={styles.selectedCollaboratorAvatarText}>
-                      {selectedCollaborator.user.name.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
+                  <OptimizedImage
+                    imageUrl={selectedCollaborator.user.profile_url || ''}
+                    style={styles.selectedCollaboratorAvatar}
+                    cacheKey={`selected_${selectedCollaborator.user_id}`}
+                    fallbackIcon="person"
+                    fallbackIconSize={28}
+                    fallbackIconColor="#FFFFFF"
+                  />
                   <View style={styles.selectedCollaboratorInfo}>
                     <Text style={styles.selectedCollaboratorName}>
                       {selectedCollaborator.user.name}
@@ -1226,6 +1235,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+    overflow: 'hidden',
   },
   avatarText: {
     color: '#fff',
@@ -1390,6 +1400,7 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     marginRight: 12,
+    overflow: 'hidden',
   },
   userAvatarText: {
     color: '#fff',
@@ -1641,6 +1652,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+    overflow: 'hidden',
   },
   permissionUserAvatarText: {
     color: '#fff',
@@ -1793,6 +1805,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
+    overflow: 'hidden',
   },
   selectedCollaboratorAvatarText: {
     color: '#fff',
