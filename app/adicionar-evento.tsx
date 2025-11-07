@@ -470,7 +470,7 @@ export default function AdicionarEventoScreen() {
             }}
             placeholder="R$ 0,00"
             placeholderTextColor={colors.textSecondary}
-            keyboardType="default"
+            keyboardType="numeric"
             autoCorrect={false}
             autoCapitalize="none"
             returnKeyType="done"
@@ -499,10 +499,14 @@ export default function AdicionarEventoScreen() {
           <TextInput
             style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
             value={form.telefoneContratante}
-            onChangeText={(text) => updateForm('telefoneContratante', text)}
+            onChangeText={(text) => {
+              // Aceitar apenas números e caracteres especiais de telefone: + - ( ) espaço
+              const cleaned = text.replace(/[^0-9+\-() ]/g, '');
+              updateForm('telefoneContratante', cleaned);
+            }}
             placeholder="Ex: (21) 99999-9999"
             placeholderTextColor={colors.textSecondary}
-            keyboardType="default"
+            keyboardType="phone-pad"
             autoCorrect={false}
             autoCapitalize="none"
             returnKeyType="next"
@@ -727,7 +731,7 @@ export default function AdicionarEventoScreen() {
                     }}
                     placeholder="R$ 0,00"
                     placeholderTextColor={colors.textSecondary}
-                    keyboardType="default"
+                    keyboardType="numeric"
                   />
                 </View>
               </View>

@@ -253,6 +253,11 @@ class CacheService {
     await this.remove(`image_${imageKey}`);
   }
 
+  async invalidateEventsCache(artistId: string, year: number, month: number): Promise<void> {
+    const key = `events_${artistId}_${year}_${month}`;
+    await this.remove(key);
+  }
+
   /**
    * Obtém informações sobre o cache atual
    */

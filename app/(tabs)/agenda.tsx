@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
@@ -182,6 +182,17 @@ export default function AgendaScreen() {
   useEffect(() => {
     setImageLoadError(false);
   }, [activeArtist?.profile_url]);
+
+  // Recarregar eventos quando a tela receber foco (ex: voltar de adicionar/editar evento)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (activeArtist) {
+        // Invalidar cache e recarregar eventos
+        cacheService.invalidateEventsCache(activeArtist.id, currentYear, currentMonth);
+        loadEvents(true);
+      }
+    }, [activeArtist, currentMonth, currentYear])
+  );
 
   // Recarregar artista ativo apenas se a imagem foi atualizada via notificação
   useEffect(() => {
