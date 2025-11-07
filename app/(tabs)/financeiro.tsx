@@ -534,23 +534,44 @@ export default function FinanceiroScreen() {
         {hasAccess ? (
           <View style={styles.summaryContainer}>
             <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
-              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Lucro Líquido</Text>
-              <Text style={[styles.summaryValue, { color: netProfit >= 0 ? colors.success : colors.error }]}>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]} numberOfLines={1}>
+                Lucro Líquido
+              </Text>
+              <Text 
+                style={[styles.summaryValue, { color: netProfit >= 0 ? colors.success : colors.error }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.6}
+              >
                 {formatCurrency(netProfit)}
               </Text>
             </View>
             
             <View style={styles.summaryRow}>
               <View style={[styles.summaryItem, { backgroundColor: colors.surface }]}>
-                <Text style={[styles.summaryItemLabel, { color: colors.textSecondary }]}>Receita Bruta</Text>
-                <Text style={[styles.summaryItemValue, { color: colors.success }]}>
+                <Text style={[styles.summaryItemLabel, { color: colors.textSecondary }]} numberOfLines={1}>
+                  Receita Bruta
+                </Text>
+                <Text 
+                  style={[styles.summaryItemValue, { color: colors.success }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
                   {formatCurrency(totalRevenue)}
                 </Text>
               </View>
               
               <View style={[styles.summaryItem, { backgroundColor: colors.surface }]}>
-                <Text style={[styles.summaryItemLabel, { color: colors.textSecondary }]}>Despesas Totais</Text>
-                <Text style={[styles.summaryItemValue, { color: colors.error }]}>
+                <Text style={[styles.summaryItemLabel, { color: colors.textSecondary }]} numberOfLines={1}>
+                  Despesas Totais
+                </Text>
+                <Text 
+                  style={[styles.summaryItemValue, { color: colors.error }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
                   {formatCurrency(totalExpenses)}
                 </Text>
               </View>
