@@ -474,7 +474,7 @@ export default function SairArtistaScreen() {
                 <View style={styles.warningItem}>
                   <Ionicons name="close-circle" size={20} color={colors.error} />
                   <Text style={[styles.warningItemText, { color: colors.error }]}>
-                    Artista "{activeArtist?.name}"
+                    Artista &quot;{activeArtist?.name}&quot;
                   </Text>
                 </View>
                 <View style={styles.warningItem}>
@@ -543,7 +543,7 @@ export default function SairArtistaScreen() {
               </View>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Sair do Artista</Text>
               <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
-                Tem certeza que deseja sair de "{activeArtist?.name}"?
+                Tem certeza que deseja sair de &quot;{activeArtist?.name}&quot;?
               </Text>
             </View>
 
