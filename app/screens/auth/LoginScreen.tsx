@@ -132,7 +132,7 @@ export default function LoginScreen() {
           <View style={styles.content}>
             {/* Logo/Header */}
             <View style={styles.header}>
-              <LogoMarcaAi size="large" showTagline={true} />
+              <LogoMarcaAi size="large" showTagline={true} showIcon={false} />
             </View>
 
             {/* Formulário de Login */}
@@ -354,7 +354,9 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 40,
+    justifyContent: 'center',
+    marginBottom: 60,
+    marginTop: 20,
   },
   form: {
     borderRadius: 16,

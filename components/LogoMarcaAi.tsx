@@ -4,12 +4,14 @@ import { StyleSheet, Text, View } from 'react-native';
 interface LogoMarcaAiProps {
   size?: 'small' | 'medium' | 'large';
   showTagline?: boolean;
+  showIcon?: boolean;
   style?: any;
 }
 
 export default function LogoMarcaAi({ 
   size = 'medium', 
-  showTagline = true, 
+  showTagline = true,
+  showIcon = true,
   style 
 }: LogoMarcaAiProps) {
   const getSizeConfig = () => {
@@ -45,42 +47,61 @@ export default function LogoMarcaAi({
 
   return (
     <View style={[styles.container, style]}>
-      <View style={styles.logoRow}>
-        {/* Quadrado azul com M */}
-        <View style={[
-          styles.iconContainer, 
-          { 
-            width: config.containerSize, 
-            height: config.containerSize,
-            borderRadius: config.containerSize * 0.2
-          }
-        ]}>
-          <Text style={[
-            styles.iconText, 
-            { fontSize: config.iconSize }
+      {showIcon ? (
+        <View style={styles.logoRow}>
+          {/* Quadrado azul com M */}
+          <View style={[
+            styles.iconContainer, 
+            { 
+              width: config.containerSize, 
+              height: config.containerSize,
+              borderRadius: config.containerSize * 0.2
+            }
           ]}>
-            M
-          </Text>
+            <Text style={[
+              styles.iconText, 
+              { fontSize: config.iconSize }
+            ]}>
+              M
+            </Text>
+          </View>
+          
+          {/* Texto MarcaAi */}
+          <View style={styles.textContainer}>
+            <Text style={[
+              styles.title, 
+              { fontSize: config.titleFontSize }
+            ]}>
+              MarcaAi
+            </Text>
+            {showTagline && (
+              <Text style={[
+                styles.tagline, 
+                { fontSize: config.taglineFontSize }
+              ]}>
+                Agenda & Finanças
+              </Text>
+            )}
+          </View>
         </View>
-        
-        {/* Texto MarcaAi */}
-        <View style={styles.textContainer}>
+      ) : (
+        <View style={styles.textOnlyContainer}>
           <Text style={[
-            styles.title, 
-            { fontSize: config.titleFontSize }
+            styles.titleCentered, 
+            { fontSize: config.titleFontSize * 1.5 }
           ]}>
             MarcaAi
           </Text>
           {showTagline && (
             <Text style={[
-              styles.tagline, 
-              { fontSize: config.taglineFontSize }
+              styles.taglineCentered, 
+              { fontSize: config.taglineFontSize * 1.2 }
             ]}>
               Agenda & Finanças
             </Text>
           )}
         </View>
-      </View>
+      )}
     </View>
   );
 }
@@ -126,5 +147,22 @@ const styles = StyleSheet.create({
     color: '#666666',
     fontFamily: 'System',
     fontWeight: '400',
+  },
+  textOnlyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  titleCentered: {
+    color: '#667eea',
+    fontWeight: 'bold',
+    fontFamily: 'System',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  taglineCentered: {
+    color: '#666666',
+    fontFamily: 'System',
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });
