@@ -207,7 +207,58 @@ export const addCollaborator = async (artistId: string, collaboratorData: AddCol
   }
 };
 
-// Remover colaborador
+// Sair do artista (remover a si mesmo)
+export const leaveArtist = async (artistId: string): Promise<{ success: boolean; error: string | null }> => {
+  try {
+    console.log('🚪 leaveArtist: Iniciando saída do artista:', artistId);
+    
+    // Verificar se o usuário está autenticado
+    const { data: currentUser } = await supabase.auth.getUser();
+    if (!currentUser.user) {
+      console.error('❌ leaveArtist: Usuário não autenticado');
+      return { success: false, error: 'Usuário não autenticado' };
+    }
+
+    console.log('👤 leaveArtist: Usuário atual:', currentUser.user.id);
+
+    // Verificar se o usuário é membro antes de tentar remover
+    const { data: checkMember, error: checkError } = await supabase
+      .from('artist_members')
+      .select('user_id, role')
+      .eq('user_id', currentUser.user.id)
+      .eq('artist_id', artistId)
+      .single();
+
+    if (checkError || !checkMember) {
+      console.error('❌ leaveArtist: Usuário não é membro deste artista:', checkError);
+      return { success: false, error: 'Você não é membro deste artista' };
+    }
+
+    console.log('✅ leaveArtist: Usuário é membro com role:', checkMember.role);
+
+    // Remover o próprio usuário do artista
+    console.log('🗑️ leaveArtist: Tentando remover usuário...');
+    const { data: deleteData, error: deleteError } = await supabase
+      .from('artist_members')
+      .delete()
+      .eq('user_id', currentUser.user.id)
+      .eq('artist_id', artistId)
+      .select();
+
+    if (deleteError) {
+      console.error('❌ leaveArtist: Erro ao deletar:', deleteError);
+      return { success: false, error: deleteError.message };
+    }
+
+    console.log('✅ leaveArtist: Usuário removido com sucesso!', deleteData);
+    return { success: true, error: null };
+  } catch (error) {
+    console.error('❌ leaveArtist: Erro inesperado:', error);
+    return { success: false, error: 'Erro de conexão' };
+  }
+};
+
+// Remover colaborador (por um admin/owner)
 export const removeCollaborator = async (userId: string, artistId: string): Promise<{ success: boolean; error: string | null }> => {
   try {
     // Verificar se o usuário atual tem permissão para remover colaboradores
@@ -216,7 +267,7 @@ export const removeCollaborator = async (userId: string, artistId: string): Prom
       return { success: false, error: 'Usuário não autenticado' };
     }
 
-    // ✅ Não pode remover a si mesmo
+    // ✅ Não pode remover a si mesmo usando esta função
     if (userId === currentUser.user.id) {
       return { success: false, error: 'Você não pode se remover desta forma. Use a opção "Sair do Artista"' };
     }

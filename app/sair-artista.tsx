@@ -2,22 +2,22 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Modal,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { clearActiveArtist } from '../services/artistContext';
 import { cacheService } from '../services/cacheService';
 import { deleteArtist } from '../services/supabase/artistService';
 import { getCurrentUser } from '../services/supabase/authService';
-import { getCollaborators, removeCollaborator } from '../services/supabase/collaboratorService';
+import { getCollaborators, leaveArtist } from '../services/supabase/collaboratorService';
 import { LeaveArtistValidation, validateLeaveArtist } from '../services/supabase/leaveArtistValidation';
 import { clearPermissionsCache } from '../services/supabase/permissionsService';
 import { useActiveArtist } from '../services/useActiveArtist';
@@ -137,6 +137,8 @@ export default function SairArtistaScreen() {
       if (user) {
         await cacheService.invalidateArtistData(user.id);
         await cacheService.invalidateUserData(user.id);
+        // Limpar também o cache específico de lista de artistas
+        await cacheService.remove(`artists_${user.id}`);
       }
 
       Alert.alert(
@@ -172,8 +174,8 @@ export default function SairArtistaScreen() {
     try {
       setIsProcessing(true);
 
-      // ✅ Remover usuário da tabela artist_members
-      const { success, error } = await removeCollaborator(user.id, activeArtist.id);
+      // ✅ Usar função leaveArtist que permite remover a si mesmo
+      const { success, error } = await leaveArtist(activeArtist.id);
       
       if (!success) {
         Alert.alert('Erro', error || 'Erro ao sair do artista');
@@ -184,6 +186,9 @@ export default function SairArtistaScreen() {
       clearPermissionsCache(user.id, activeArtist.id);
       await cacheService.invalidateArtistData(user.id);
       await cacheService.invalidateUserData(user.id);
+      
+      // Limpar também o cache específico de lista de artistas
+      await cacheService.remove(`artists_${user.id}`);
 
       Alert.alert(
         'Saiu do Artista',
@@ -263,7 +268,7 @@ export default function SairArtistaScreen() {
               • Administradores: {validation?.totalAdmins || adminCount}
             </Text>
             <Text style={[styles.infoText, { color: colors.primary }]}>
-              • Sua role: {validation?.userRole || 'Carregando...'}
+              • Permissão: {validation?.userRole || 'Carregando...'}
             </Text>
           </View>
         </View>

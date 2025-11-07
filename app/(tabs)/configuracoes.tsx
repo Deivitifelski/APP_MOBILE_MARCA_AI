@@ -71,6 +71,14 @@ export default function ConfiguracoesScreen() {
     };
   }, []);
 
+  // Recarregar dados quando a tela ganhar foco
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('🔄 Tela de configurações ganhou foco, recarregando dados...');
+      loadArtistData(true); // Força refresh do servidor
+    }, [])
+  );
+
 
 
   // Debug: Log da URL da imagem do usuário

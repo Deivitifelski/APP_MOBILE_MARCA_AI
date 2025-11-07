@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { getCollaborators, updateCollaboratorRole, removeCollaborator, Collaborator } from '../services/supabase/collaboratorService';
+import { getCollaborators, updateCollaboratorRole, leaveArtist, Collaborator } from '../services/supabase/collaboratorService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { useActiveArtist } from '../services/useActiveArtist';
 import { clearActiveArtist } from '../services/artistContext';
@@ -110,15 +110,8 @@ export default function TransferirPropriedadeScreen() {
         return;
       }
 
-      // Remover o usuário atual do artista (precisamos obter o user_id atual)
-      const { user } = await getCurrentUser();
-      if (!user) {
-        Alert.alert('Erro', 'Usuário não encontrado');
-        return;
-      }
-
-      const { success: removeSuccess, error: removeError } = await removeCollaborator(
-        user.id,
+      // Remover o usuário atual do artista usando leaveArtist
+      const { success: removeSuccess, error: removeError } = await leaveArtist(
         activeArtist!.id
       );
 
