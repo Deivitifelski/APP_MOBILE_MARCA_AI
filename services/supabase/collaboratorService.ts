@@ -288,26 +288,25 @@ export const removeCollaborator = async (userId: string, artistId: string): Prom
       return { success: false, error: 'Apenas proprietários e administradores podem remover colaboradores' };
     }
 
-    // ✅ Se você é OWNER, buscar role do alvo para validar
-    if (userMembership.role === 'owner') {
-      const { data: targetMember, error: targetError } = await supabase
-        .from('artist_members')
-        .select('role')
-        .eq('artist_id', artistId)
-        .eq('user_id', userId)
-        .single();
+    // ✅ Buscar role do alvo para validar hierarquia
+    const { data: targetMember, error: targetError } = await supabase
+      .from('artist_members')
+      .select('role')
+      .eq('artist_id', artistId)
+      .eq('user_id', userId)
+      .single();
 
-      if (targetError || !targetMember) {
-        return { success: false, error: 'Colaborador não encontrado' };
-      }
+    if (targetError || !targetMember) {
+      return { success: false, error: 'Colaborador não encontrado' };
+    }
 
-      // OWNER não pode remover ADMIN nem OWNER (outros)
-      if (targetMember.role === 'admin' || targetMember.role === 'owner') {
-        return { success: false, error: 'Proprietários não podem remover administradores ou outros proprietários' };
-      }
+    // ✅ Se você é OWNER, não pode remover ADMIN
+    if (userMembership.role === 'owner' && targetMember.role === 'admin') {
+      return { success: false, error: 'Proprietários não podem remover administradores' };
     }
     
-    // ✅ ADMIN pode remover TODOS (inclusive owner e outros admins)
+    // ✅ ADMIN pode remover TODOS (inclusive owner)
+    // ✅ OWNER pode remover todos EXCETO admin
 
     const { error } = await supabase
       .from('artist_members')
@@ -328,17 +327,24 @@ export const removeCollaborator = async (userId: string, artistId: string): Prom
 // Atualizar role do colaborador
 export const updateCollaboratorRole = async (userId: string, artistId: string, newRole: 'owner' | 'admin' | 'editor' | 'viewer'): Promise<{ success: boolean; error: string | null }> => {
   try {
+    console.log('🔵 Iniciando updateCollaboratorRole:', { userId, artistId, newRole });
+    
     // Verificar se o usuário atual tem permissão para atualizar roles
     const { data: currentUser } = await supabase.auth.getUser();
+    console.log('👤 Current User:', currentUser.user?.id);
+    
     if (!currentUser.user) {
+      console.error('❌ Usuário não autenticado');
       return { success: false, error: 'Usuário não autenticado' };
     }
 
     // ✅ Não pode alterar a própria role
     if (userId === currentUser.user.id) {
+      console.error('❌ Tentando alterar própria role');
       return { success: false, error: 'Você não pode alterar suas próprias permissões' };
     }
 
+    console.log('🔍 Buscando membership do usuário atual...');
     const { data: userMembership, error: membershipError } = await supabase
       .from('artist_members')
       .select('role')
@@ -346,7 +352,10 @@ export const updateCollaboratorRole = async (userId: string, artistId: string, n
       .eq('user_id', currentUser.user.id)
       .single();
 
+    console.log('📋 Membership do usuário atual:', { userMembership, membershipError });
+
     if (membershipError || !userMembership) {
+      console.error('❌ Usuário não tem acesso a este artista:', membershipError);
       return { success: false, error: 'Usuário não tem acesso a este artista' };
     }
 
@@ -355,40 +364,57 @@ export const updateCollaboratorRole = async (userId: string, artistId: string, n
       return { success: false, error: 'Apenas proprietários e administradores podem atualizar roles' };
     }
 
-    // ✅ Se você é OWNER, buscar role do alvo para validar
-    if (userMembership.role === 'owner') {
-      const { data: targetMember, error: targetError } = await supabase
-        .from('artist_members')
-        .select('role')
-        .eq('artist_id', artistId)
-        .eq('user_id', userId)
-        .single();
+    // ✅ Buscar role do alvo para validar hierarquia
+    const { data: targetMember, error: targetError } = await supabase
+      .from('artist_members')
+      .select('role')
+      .eq('artist_id', artistId)
+      .eq('user_id', userId)
+      .single();
 
-      if (targetError || !targetMember) {
-        return { success: false, error: 'Colaborador não encontrado' };
-      }
+    if (targetError || !targetMember) {
+      return { success: false, error: 'Colaborador não encontrado' };
+    }
 
-      // OWNER não pode alterar permissões de ADMIN nem de OWNER (outros)
-      if (targetMember.role === 'admin' || targetMember.role === 'owner') {
-        return { success: false, error: 'Proprietários não podem alterar permissões de administradores ou outros proprietários' };
-      }
+    // ✅ Se você é OWNER, não pode alterar permissões de ADMIN
+    if (userMembership.role === 'owner' && targetMember.role === 'admin') {
+      return { success: false, error: 'Proprietários não podem alterar permissões de administradores' };
     }
     
-    // ✅ ADMIN pode alterar permissões de TODOS (inclusive owner e outros admins)
+    // ✅ ADMIN pode alterar permissões de TODOS (inclusive owner)
+    // ✅ OWNER pode alterar permissões de todos EXCETO admin
 
-    const { error } = await supabase
+    console.log('🔄 Atualizando role:', {
+      userId,
+      artistId,
+      currentRole: targetMember.role,
+      newRole,
+      userRole: userMembership.role
+    });
+
+    const { data, error } = await supabase
       .from('artist_members')
       .update({
         role: newRole,
         updated_at: new Date().toISOString()
       })
       .eq('user_id', userId)
-      .eq('artist_id', artistId);
+      .eq('artist_id', artistId)
+      .select();
+
+    console.log('✅ Resultado do UPDATE:', { data, error });
 
     if (error) {
+      console.error('❌ Erro ao atualizar role:', error);
       return { success: false, error: error.message };
     }
 
+    if (!data || data.length === 0) {
+      console.error('⚠️ UPDATE não afetou nenhuma linha');
+      return { success: false, error: 'Nenhuma linha foi atualizada. Verifique as políticas RLS.' };
+    }
+
+    console.log('✅ Role atualizada com sucesso:', data);
     return { success: true, error: null };
   } catch (error) {
     return { success: false, error: 'Erro de conexão' };

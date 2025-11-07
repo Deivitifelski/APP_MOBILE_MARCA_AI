@@ -2,17 +2,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Modal,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import OptimizedImage from '../components/OptimizedImage';
 import UpgradeModal from '../components/UpgradeModal';
@@ -285,12 +285,12 @@ export default function ColaboradoresArtistaScreen() {
       return;
     }
 
-    // ✅ Se você é OWNER, não pode remover ADMIN nem OWNER (outros)
+    // ✅ Se você é OWNER, não pode remover ADMIN
     const collaborator = collaborators.find(c => c.user_id === userId);
-    if (userRole === 'owner' && (collaborator?.role === 'admin' || collaborator?.role === 'owner')) {
+    if (userRole === 'owner' && collaborator?.role === 'admin') {
       Alert.alert(
         'Ação Não Permitida',
-        'Proprietários não podem remover administradores ou outros proprietários.',
+        'Proprietários não podem remover administradores.',
         [{ text: 'OK' }]
       );
       return;
@@ -336,11 +336,11 @@ export default function ColaboradoresArtistaScreen() {
       return;
     }
 
-    // ✅ Se você é OWNER, não pode alterar permissões de ADMIN nem de OWNER (outros)
-    if (userRole === 'owner' && (currentRole === 'admin' || currentRole === 'owner')) {
+    // ✅ Se você é OWNER, não pode alterar permissões de ADMIN
+    if (userRole === 'owner' && currentRole === 'admin') {
       Alert.alert(
         'Ação Não Permitida',
-        'Proprietários não podem alterar permissões de administradores ou outros proprietários.',
+        'Proprietários não podem alterar permissões de administradores.',
         [{ text: 'OK' }]
       );
       return;
@@ -430,16 +430,16 @@ export default function ColaboradoresArtistaScreen() {
     const isCurrentUser = item.user_id === currentUserId;
     
     // ✅ Determinar se pode alterar/remover baseado nas regras:
-    // - ADMIN: pode alterar todos (menos ele mesmo)
+    // - ADMIN: pode alterar TODOS (incluindo owner) - hierarquia mais alta
     // - OWNER: pode alterar todos EXCETO admin (e exceto ele mesmo)
     let canChangeThisRole = false;
     let canRemoveThis = false;
     
     console.log('👥 Renderizando colaborador:', {
       nome: item.user.name,
-      role: item.role,
+      colaboradorRole: item.role,
+      meuRole: userRole,
       isCurrentUser,
-      userRole,
       currentUserId,
       itemUserId: item.user_id
     });
@@ -449,12 +449,18 @@ export default function ColaboradoresArtistaScreen() {
         // ✅ ADMIN pode alterar/remover TODOS (owner, admin, editor, viewer) - menos ele mesmo
         canChangeThisRole = true;
         canRemoveThis = true;
-        console.log('✅ ADMIN pode alterar/remover:', item.user.name);
+        console.log('✅ EU SOU ADMIN - posso alterar:', item.user.name, 'que é', item.role);
       } else if (userRole === 'owner') {
         // ✅ OWNER pode alterar/remover todos EXCETO admin (e exceto ele mesmo)
-        canChangeThisRole = item.role !== 'admin' && item.role !== 'owner';
-        canRemoveThis = item.role !== 'admin' && item.role !== 'owner';
-        console.log('✅ OWNER pode alterar/remover?', { nome: item.user.name, pode: item.role !== 'admin' && item.role !== 'owner' });
+        canChangeThisRole = item.role !== 'admin';
+        canRemoveThis = item.role !== 'admin';
+        console.log('✅ EU SOU OWNER - posso alterar?', { 
+          nome: item.user.name, 
+          roleColaborador: item.role,
+          pode: item.role !== 'admin' 
+        });
+      } else {
+        console.log('⚠️ Meu role não é admin nem owner:', userRole);
       }
     } else {
       console.log('❌ Não pode alterar:', { 
@@ -462,7 +468,13 @@ export default function ColaboradoresArtistaScreen() {
       });
     }
     
-    console.log('🔧 Botões:', { canChangeThisRole, canRemoveThis });
+    console.log('🔧 Resultado final dos botões:', { 
+      colaborador: item.user.name,
+      canChangeThisRole, 
+      canRemoveThis,
+      meuRole: userRole,
+      colaboradorRole: item.role
+    });
     
     return (
       <View style={[styles.collaboratorCard, { backgroundColor: colors.surface }]}>
