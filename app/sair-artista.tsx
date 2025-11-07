@@ -18,7 +18,7 @@ import { cacheService } from '../services/cacheService';
 import { deleteArtist } from '../services/supabase/artistService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { getCollaborators, removeCollaborator } from '../services/supabase/collaboratorService';
-import { validateLeaveArtist, LeaveArtistValidation } from '../services/supabase/leaveArtistValidation';
+import { LeaveArtistValidation, validateLeaveArtist } from '../services/supabase/leaveArtistValidation';
 import { clearPermissionsCache } from '../services/supabase/permissionsService';
 import { useActiveArtist } from '../services/useActiveArtist';
 
@@ -104,8 +104,8 @@ export default function SairArtistaScreen() {
         setShowDeleteConfirmModal(true);
         break;
 
-      case 'TRANSFER_OWNERSHIP':
-        // 🟡 ÚNICO OWNER - Mostrar modal de transferir propriedade
+      case 'TRANSFER_ADMIN':
+        // 🟡 ÚNICO ADMIN - Mostrar modal de opções (transferir ou deletar)
         setShowOwnerOptionsModal(true);
         break;
 
@@ -227,8 +227,8 @@ export default function SairArtistaScreen() {
     );
   }
 
-  const ownerCount = collaborators.filter(c => c.role === 'owner').length;
-  const eligibleCollaborators = collaborators.filter(c => c.role !== 'owner');
+  const adminCount = collaborators.filter(c => c.role === 'admin').length;
+  const eligibleCollaborators = collaborators.filter(c => c.role !== 'admin');
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -260,7 +260,7 @@ export default function SairArtistaScreen() {
               • Total de colaboradores: {validation?.totalCollaborators || collaborators.length}
             </Text>
             <Text style={[styles.infoText, { color: colors.primary }]}>
-              • Proprietários: {validation?.totalOwners || ownerCount}
+              • Administradores: {validation?.totalAdmins || adminCount}
             </Text>
             <Text style={[styles.infoText, { color: colors.primary }]}>
               • Sua role: {validation?.userRole || 'Carregando...'}
@@ -312,7 +312,7 @@ export default function SairArtistaScreen() {
               styles.actionButton,
               validation.action === 'DELETE_ARTIST' 
                 ? { backgroundColor: colors.error }
-                : validation.action === 'TRANSFER_OWNERSHIP'
+                : validation.action === 'TRANSFER_ADMIN'
                 ? { backgroundColor: colors.primary }
                 : { backgroundColor: colors.textSecondary }
             ]}
@@ -327,7 +327,7 @@ export default function SairArtistaScreen() {
                   name={
                     validation.action === 'DELETE_ARTIST' 
                       ? "trash" 
-                      : validation.action === 'TRANSFER_OWNERSHIP'
+                      : validation.action === 'TRANSFER_ADMIN'
                       ? "swap-horizontal"
                       : "log-out"
                   } 
@@ -343,7 +343,7 @@ export default function SairArtistaScreen() {
         )}
       </ScrollView>
 
-      {/* Modal: Opções para Owner Único com Colaboradores */}
+      {/* Modal: Opções para Admin Único com Colaboradores */}
       <Modal
         visible={showOwnerOptionsModal}
         transparent
@@ -356,14 +356,14 @@ export default function SairArtistaScreen() {
               <View style={[styles.modalIcon, { backgroundColor: colors.warning + '30' }]}>
                 <Ionicons name="shield-checkmark" size={32} color={colors.warning} />
               </View>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Você é o Único Proprietário</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Você é o Único Administrador</Text>
               <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
                 Escolha uma das opções abaixo para continuar
               </Text>
             </View>
 
             <View style={styles.optionsContainer}>
-              {/* Opção 1: Transferir Propriedade */}
+              {/* Opção 1: Promover outro a Admin */}
               <TouchableOpacity
                 style={[styles.optionCard, { backgroundColor: colors.background, borderColor: colors.border }]}
                 onPress={() => {
@@ -375,9 +375,9 @@ export default function SairArtistaScreen() {
                   <Ionicons name="swap-horizontal" size={24} color={colors.primary} />
                 </View>
                 <View style={styles.optionContent}>
-                  <Text style={[styles.optionTitle, { color: colors.text }]}>Transferir Propriedade</Text>
+                  <Text style={[styles.optionTitle, { color: colors.text }]}>Indicar Novo Administrador</Text>
                   <Text style={[styles.optionDescription, { color: colors.textSecondary }]}>
-                    Escolha outro colaborador para ser o novo proprietário e depois você sai do artista.
+                    Escolha outro colaborador para ser administrador e depois você sai do artista.
                   </Text>
                   <View style={styles.optionSteps}>
                     <View style={styles.stepItem}>
@@ -386,7 +386,7 @@ export default function SairArtistaScreen() {
                     </View>
                     <View style={styles.stepItem}>
                       <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
-                      <Text style={[styles.stepText, { color: colors.textSecondary }]}>Outro colaborador assume o controle</Text>
+                      <Text style={[styles.stepText, { color: colors.textSecondary }]}>Outro colaborador assume como admin</Text>
                     </View>
                   </View>
                 </View>
@@ -592,126 +592,6 @@ export default function SairArtistaScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  placeholder: {
-    width: 40,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  content: {
-    flex: 1,
-    padding: 16,
-  },
-  artistInfo: {
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  artistName: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginTop: 16,
-    textAlign: 'center',
-  },
-  artistDescription: {
-    fontSize: 16,
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  infoCard: {
-    flexDirection: 'row',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    alignItems: 'flex-start',
-  },
-  infoContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  infoTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  infoText: {
-    fontSize: 14,
-    marginBottom: 4,
-    lineHeight: 20,
-  },
-  warningCard: {
-    flexDirection: 'row',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 32,
-    alignItems: 'flex-start',
-  },
-  warningContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  warningTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  warningText: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  actionButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
   },
   header: {
     flexDirection: 'row',

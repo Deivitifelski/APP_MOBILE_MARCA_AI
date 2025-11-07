@@ -10,9 +10,9 @@ export interface LeaveArtistValidation {
   isOnlyCollaborator: boolean;
   totalCollaborators: number;
   userRole: string;
-  isOnlyOwner: boolean;
-  totalOwners: number;
-  action: 'DELETE_ARTIST' | 'TRANSFER_OWNERSHIP' | 'LEAVE_NORMALLY';
+  isOnlyAdmin: boolean;
+  totalAdmins: number;
+  action: 'DELETE_ARTIST' | 'TRANSFER_ADMIN' | 'LEAVE_NORMALLY';
   title: string;
   message: string;
   buttonText: string;
@@ -48,23 +48,49 @@ export const validateLeaveArtist = async (
 
     // 2. Calcular estatísticas
     const totalCollaborators = collaborators.length;
-    const totalOwners = collaborators.filter(c => c.role === 'owner').length;
+    const totalAdmins = collaborators.filter(c => c.role === 'admin').length;
     const currentUser = collaborators.find(c => c.user_id === userId);
     const userRole = currentUser?.role || '';
-    const isOwner = userRole === 'owner';
+    const isAdmin = userRole === 'admin';
 
-    // 3. Verificar cenários
+    // 3. Verificar cenários baseado em ADMIN
 
-    // 🔴 CENÁRIO 1: ÚNICO COLABORADOR - Ao sair, deleta o artista
-    if (totalCollaborators === 1) {
+    // 🟢 CENÁRIO 1: Usuário NÃO é admin - Pode sair normalmente
+    if (!isAdmin) {
+      return {
+        validation: {
+          canLeave: true,
+          isOnlyCollaborator: false,
+          totalCollaborators,
+          userRole,
+          isOnlyAdmin: false,
+          totalAdmins,
+          action: 'LEAVE_NORMALLY',
+          title: 'Sair do Artista',
+          message: 'Ao sair, você perderá acesso a todos os dados e funcionalidades deste artista.',
+          buttonText: 'Sair do Artista',
+          buttonColor: 'primary',
+          warning: [
+            'Você será removido da lista de colaboradores',
+            'Perderá acesso aos eventos do artista',
+            'Não poderá mais visualizar ou editar dados',
+            `O artista continuará existindo para os outros ${totalCollaborators - 1} colaboradores`
+          ]
+        },
+        error: null
+      };
+    }
+
+    // 🔴 CENÁRIO 2: Admin é o ÚNICO COLABORADOR - Ao sair, deleta o artista
+    if (isAdmin && totalCollaborators === 1) {
       return {
         validation: {
           canLeave: false, // Precisa deletar, não pode sair normalmente
           isOnlyCollaborator: true,
           totalCollaborators,
           userRole,
-          isOnlyOwner: isOwner,
-          totalOwners,
+          isOnlyAdmin: true,
+          totalAdmins,
           action: 'DELETE_ARTIST',
           title: '⚠️ Você é o Único Colaborador',
           message: 'Ao sair deste artista, ele será deletado permanentemente junto com todos os dados associados.',
@@ -82,40 +108,66 @@ export const validateLeaveArtist = async (
       };
     }
 
-    // 🟡 CENÁRIO 2: ÚNICO OWNER com outros colaboradores - Transferir propriedade
-    if (isOwner && totalOwners === 1 && totalCollaborators > 1) {
+    // 🟢 CENÁRIO 3: Admin com outros colaboradores E há outro admin - Pode sair normalmente
+    if (isAdmin && totalAdmins > 1 && totalCollaborators > 1) {
       return {
         validation: {
-          canLeave: false, // Precisa transferir propriedade primeiro
+          canLeave: true,
           isOnlyCollaborator: false,
           totalCollaborators,
           userRole,
-          isOnlyOwner: true,
-          totalOwners,
-          action: 'TRANSFER_OWNERSHIP',
-          title: '⚠️ Você é o Único Proprietário',
-          message: 'Para sair, você deve transferir a propriedade para outro colaborador antes.',
-          buttonText: 'Transferir Propriedade',
-          buttonColor: 'warning',
+          isOnlyAdmin: false,
+          totalAdmins,
+          action: 'LEAVE_NORMALLY',
+          title: 'Sair do Artista',
+          message: 'Ao sair, você perderá acesso a todos os dados e funcionalidades deste artista.',
+          buttonText: 'Sair do Artista',
+          buttonColor: 'primary',
           warning: [
-            `Existem ${totalCollaborators - 1} outros colaboradores no artista`,
-            'Você precisa escolher um novo proprietário',
-            'Após transferir, você poderá sair do artista'
+            'Você será removido da lista de colaboradores',
+            'Perderá acesso aos eventos do artista',
+            `Outro admin continuará gerenciando o artista`,
+            `O artista continuará existindo para os outros ${totalCollaborators - 1} colaboradores`
           ]
         },
         error: null
       };
     }
 
-    // 🟢 CENÁRIO 3: Pode sair normalmente
+    // 🟡 CENÁRIO 4: ÚNICO ADMIN com outros colaboradores - Transferir admin ou deletar
+    if (isAdmin && totalAdmins === 1 && totalCollaborators > 1) {
+      return {
+        validation: {
+          canLeave: false, // Precisa transferir admin primeiro ou deletar
+          isOnlyCollaborator: false,
+          totalCollaborators,
+          userRole,
+          isOnlyAdmin: true,
+          totalAdmins,
+          action: 'TRANSFER_ADMIN',
+          title: '⚠️ Você é o Único Administrador',
+          message: 'Para sair, você deve indicar outro colaborador para ser admin ou deletar o artista.',
+          buttonText: 'Escolher Ação',
+          buttonColor: 'warning',
+          warning: [
+            `Existem ${totalCollaborators - 1} outros colaboradores no artista`,
+            'Você precisa escolher um novo admin',
+            'Ou pode deletar o artista e remover todos os dados'
+          ]
+        },
+        error: null
+      };
+    }
+
+    // 🟢 CENÁRIO 5: Caso padrão - Pode sair normalmente
     return {
       validation: {
         canLeave: true,
         isOnlyCollaborator: false,
         totalCollaborators,
         userRole,
-        isOnlyOwner: false,
-        totalOwners,
+        isOnlyAdmin: false,
+        totalAdmins,
         action: 'LEAVE_NORMALLY',
         title: 'Sair do Artista',
         message: 'Ao sair, você perderá acesso a todos os dados e funcionalidades deste artista.',
