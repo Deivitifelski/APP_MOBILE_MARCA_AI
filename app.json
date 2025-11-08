@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.APP-MOBILE-MARCA-AI",
+      "bundleIdentifier": "com.marcaai.app",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Este app precisa acessar sua galeria de fotos para permitir que você selecione uma foto de perfil.",
         "NSCameraUsageDescription": "Este app precisa acessar sua câmera para permitir que você tire uma foto para o perfil.",
@@ -32,7 +32,7 @@
       }
     },
     "android": {
-      "package": "com.anonymous.APP_MOBILE_MARCA_AI",
+      "package": "com.marcaai.app",
       "adaptiveIcon": {
         "backgroundColor": "#667eea",
         "foregroundImage": "./assets/images/LOGO_MARCA_ANDROID_512.png",
