@@ -568,6 +568,13 @@ export default function ConfiguracoesScreen() {
 
           <View style={dynamicStyles.settingsCard}>
             {renderSettingItem(
+              'person-circle',
+              'Perfil',
+              'Editar informações pessoais',
+              handleEditUser
+            )}
+
+            {renderSettingItem(
               'swap-horizontal',
               'Selecionar Artista',
               'Alternar entre artistas colaboradores',
@@ -688,13 +695,6 @@ export default function ConfiguracoesScreen() {
           <Text style={dynamicStyles.sectionTitle}>Conta</Text>
           
           <View style={dynamicStyles.settingsCard}>
-            {renderSettingItem(
-              'person-circle',
-              'Perfil',
-              'Editar informações pessoais',
-              handleEditUser
-            )}
-            
             {renderSettingItem(
               'lock-closed',
               'Segurança',
