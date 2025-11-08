@@ -32,7 +32,6 @@ export default function ConfiguracoesScreen() {
   const { isDarkMode, toggleDarkMode, colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [notifications, setNotifications] = useState(true);
-  const [autoSync, setAutoSync] = useState(true);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [hasArtist, setHasArtist] = useState(false);
@@ -679,19 +678,6 @@ export default function ConfiguracoesScreen() {
                 onValueChange={toggleDarkMode}
                 trackColor={{ false: '#f0f0f0', true: '#667eea' }}
                 thumbColor={isDarkMode ? '#fff' : '#f4f3f4'}
-              />
-            )}
-            
-            {renderSettingItem(
-              'sync',
-              'Sincronização Automática',
-              'Sincronizar dados automaticamente',
-              undefined,
-              <Switch
-                value={autoSync}
-                onValueChange={setAutoSync}
-                trackColor={{ false: '#f0f0f0', true: '#667eea' }}
-                thumbColor={autoSync ? '#fff' : '#f4f3f4'}
               />
             )}
           </View>
