@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { getTotalUnreadCount } from './supabase/notificationService';
+import { getUnreadNotificationCount } from './supabase/notificationService';
 import { getCurrentUser } from './supabase/authService';
 import { subscribeToNotifications, subscribeToArtistInvites, RealtimeSubscription } from './realtimeService';
 
@@ -19,12 +19,14 @@ export const useNotifications = () => {
         return;
       }
 
-      const { count, error } = await getTotalUnreadCount(user.id);
+      // Contar APENAS notificações não lidas (sem convites pendentes)
+      const { count, error } = await getUnreadNotificationCount(user.id);
       
       if (error) {
         console.error('Erro ao carregar contador de notificações:', error);
         setUnreadCount(0);
       } else {
+        console.log('🔔 Notificações não lidas (badge):', count);
         setUnreadCount(count);
       }
     } catch (error) {

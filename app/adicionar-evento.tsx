@@ -694,8 +694,8 @@ export default function AdicionarEventoScreen() {
           <View style={styles.despesasHeader}>
             <Text style={[styles.label, { color: colors.text }]}>Despesas do Evento</Text>
             <TouchableOpacity style={styles.addDespesaButton} onPress={addDespesa}>
-              <Ionicons name="add" size={20} color={colors.primary} />
-              <Text style={[styles.addDespesaText, { color: colors.primary }]}>Adicionar</Text>
+              <Ionicons name="add" size={20} color="#FFFFFF" />
+              <Text style={styles.addDespesaText}>Adicionar</Text>
             </TouchableOpacity>
           </View>
 
@@ -1059,6 +1059,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginLeft: 4,
+    color: '#FFFFFF',
   },
   despesaItem: {
     borderRadius: 12,

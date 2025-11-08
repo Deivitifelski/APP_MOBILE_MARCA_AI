@@ -110,11 +110,19 @@ export default function NotificacoesScreen() {
   };
 
   const handleNotificationPress = async (notification: Notification) => {
+    console.log('📱 Notificação clicada:', {
+      id: notification.id.substring(0, 8),
+      type: notification.type,
+      hasEventId: !!notification.event_id,
+      read: notification.read
+    });
+
     // Marcar como lida se não estiver lida
     if (!notification.read) {
       const { success, error } = await markNotificationAsRead(notification.id);
       
       if (success) {
+        console.log('✅ Notificação marcada como lida');
         // Atualizar estado local
         setNotifications(prev => 
           prev.map(n => 
@@ -123,33 +131,43 @@ export default function NotificacoesScreen() {
         );
         setUnreadCount(prev => Math.max(0, prev - 1));
       } else {
-        console.error('Erro ao marcar notificação como lida:', error);
+        console.error('❌ Erro ao marcar notificação como lida:', error);
       }
     }
 
     // Navegar baseado no tipo de notificação
-    switch (notification.type) {
-      case 'artist_invite':
-        // Para convites de artista, navegar para a tela de convites recebidos
-        router.push('/convites-recebidos');
-        break;
-      case 'collaborator_added':
-      case 'collaborator_removed':
-        router.push('/colaboradores-artista');
-        break;
-      case 'event_created':
-      case 'event_updated':
-        // Se a notificação tem event_id, verificar permissões antes de navegar
-        if (notification.event_id) {
-          await handleEventNotificationPress(notification.event_id);
-        } else {
-          // Fallback para a agenda se não houver event_id
+    console.log('🔀 Navegando para:', notification.type);
+    
+    try {
+      switch (notification.type) {
+        case 'artist_invite':
+          console.log('→ Indo para convites recebidos');
+          router.push('/convites-recebidos');
+          break;
+        case 'collaborator_added':
+        case 'collaborator_removed':
+          console.log('→ Indo para colaboradores');
+          router.push('/colaboradores-artista');
+          break;
+        case 'event_created':
+        case 'event_updated':
+          // Se a notificação tem event_id, verificar permissões antes de navegar
+          if (notification.event_id) {
+            console.log('→ Indo para evento:', notification.event_id.substring(0, 8));
+            await handleEventNotificationPress(notification.event_id);
+          } else {
+            console.log('→ Sem event_id, indo para agenda');
+            router.push('/(tabs)/agenda');
+          }
+          break;
+        default:
+          console.log('⚠️ Tipo desconhecido, indo para agenda');
           router.push('/(tabs)/agenda');
-        }
-        break;
-      default:
-        // Não navegar para tipos desconhecidos
-        break;
+          break;
+      }
+    } catch (error) {
+      console.error('❌ Erro ao navegar:', error);
+      Alert.alert('Erro', 'Erro ao abrir notificação. Tente novamente.');
     }
   };
 
