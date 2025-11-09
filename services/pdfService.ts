@@ -452,46 +452,55 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
             background: white;
           }
           
-          .logo-section {
-            text-align: center;
+          .header-section {
+            display: flex;
+            align-items: flex-start;
             margin-bottom: 30px;
+            gap: 20px;
           }
           
           .logo {
-            width: 80px;
-            height: 80px;
+            width: 70px;
+            height: 70px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 20px;
-            display: inline-flex;
+            border-radius: 14px;
+            display: flex;
             align-items: center;
             justify-content: center;
-            margin-bottom: 15px;
+            flex-shrink: 0;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
           }
           
           .logo-text {
-            font-size: 48px;
+            font-size: 42px;
             font-weight: bold;
             color: white;
+            line-height: 1;
+          }
+          
+          .header-content {
+            flex: 1;
           }
           
           .artist-name {
-            font-size: 28px;
+            font-size: 24px;
             font-weight: bold;
-            color: #667eea;
-            margin-bottom: 10px;
+            color: #333;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
           }
           
           .report-title {
-            font-size: 22px;
+            font-size: 18px;
             color: #333;
             font-weight: 600;
-            margin-bottom: 5px;
+            margin-bottom: 8px;
           }
           
           .generated-info {
-            font-size: 12px;
+            font-size: 11px;
             color: #666;
-            margin-top: 15px;
+            line-height: 1.5;
           }
           
           .divider {
@@ -596,43 +605,68 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
           }
           
           .summary-section {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
-            border-radius: 12px;
             margin-top: 40px;
-            text-align: center;
           }
           
           .summary-title {
-            font-size: 24px;
+            font-size: 20px;
             font-weight: bold;
+            color: #333;
+            text-align: center;
             margin-bottom: 25px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
           }
           
           .summary-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 20px;
-            margin-top: 20px;
+            gap: 15px;
           }
           
           .summary-item {
-            background: rgba(255, 255, 255, 0.15);
+            background: #f9fafb;
             padding: 20px;
-            border-radius: 8px;
-            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            text-align: center;
+            border: 2px solid;
+          }
+          
+          .summary-item.receitas {
+            border-color: #3b82f6;
+          }
+          
+          .summary-item.despesas {
+            border-color: #ef4444;
+          }
+          
+          .summary-item.liquido {
+            border-color: #10b981;
           }
           
           .summary-label {
-            font-size: 14px;
-            opacity: 0.9;
-            margin-bottom: 8px;
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
           }
           
           .summary-value {
-            font-size: 28px;
+            font-size: 26px;
             font-weight: bold;
+          }
+          
+          .summary-value.receitas {
+            color: #3b82f6;
+          }
+          
+          .summary-value.despesas {
+            color: #ef4444;
+          }
+          
+          .summary-value.liquido {
+            color: #10b981;
           }
           
           .empty-state {
@@ -658,13 +692,17 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
       </head>
       <body>
         <!-- Logo e Cabeçalho -->
-        <div class="logo-section">
+        <div class="header-section">
           <div class="logo">
             <div class="logo-text">M</div>
           </div>
-          ${artistName ? `<h1 class="artist-name">${artistName.toUpperCase()}</h1>` : ''}
-          <h2 class="report-title">Lista de Eventos - ${months[month]}/${year}</h2>
-          <p class="generated-info">Relatório gerado: ${dataGeracao} pelo aplicativo Marca AI.</p>
+          <div class="header-content">
+            ${artistName ? `<h1 class="artist-name">${artistName.toUpperCase()}</h1>` : ''}
+            <h2 class="report-title">Lista de Eventos - ${months[month]}/${year}</h2>
+            <p class="generated-info">
+              Relatório gerado: ${dataGeracao} pelo aplicativo Marca AI.
+            </p>
+          </div>
         </div>
 
         <div class="divider"></div>
@@ -753,17 +791,17 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
           <div class="summary-section">
             <div class="summary-title">RESUMO FINANCEIRO</div>
             <div class="summary-grid">
-              <div class="summary-item">
+              <div class="summary-item receitas">
                 <div class="summary-label">Receitas</div>
-                <div class="summary-value">R$ ${formatNumber(totalReceitas)}</div>
+                <div class="summary-value receitas">R$ ${formatNumber(totalReceitas)}</div>
               </div>
-              <div class="summary-item">
+              <div class="summary-item despesas">
                 <div class="summary-label">Despesas</div>
-                <div class="summary-value">R$ ${formatNumber(totalDespesas)}</div>
+                <div class="summary-value despesas">R$ ${formatNumber(totalDespesas)}</div>
               </div>
-              <div class="summary-item">
+              <div class="summary-item liquido">
                 <div class="summary-label">Saldo Líquido</div>
-                <div class="summary-value">R$ ${formatNumber(saldoLiquido)}</div>
+                <div class="summary-value liquido">R$ ${formatNumber(saldoLiquido)}</div>
               </div>
             </div>
           </div>
