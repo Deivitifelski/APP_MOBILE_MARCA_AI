@@ -454,7 +454,33 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
           }
           
           .header-section {
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
             margin-bottom: 20px;
+          }
+          
+          .logo {
+            width: 70px;
+            height: 70px;
+            background: #667eea;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+          }
+          
+          .logo-text {
+            font-size: 42px;
+            font-weight: bold;
+            color: #ffffff;
+            line-height: 1;
+          }
+          
+          .header-content {
+            flex: 1;
           }
           
           .artist-name {
@@ -693,11 +719,16 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
       <body>
         <!-- Cabeçalho -->
         <div class="header-section">
-          ${artistName ? `<h1 class="artist-name">${artistName.toUpperCase()}</h1>` : ''}
-          <h2 class="report-title">Lista de Eventos - ${months[month]}/${year}</h2>
-          <p class="generated-info">
-            Relatório gerado: ${dataGeracao} pelo aplicativo Marca AI.
-          </p>
+          <div class="logo">
+            <div class="logo-text">M</div>
+          </div>
+          <div class="header-content">
+            ${artistName ? `<h1 class="artist-name">${artistName.toUpperCase()}</h1>` : ''}
+            <h2 class="report-title">Lista de Eventos - ${months[month]}/${year}</h2>
+            <p class="generated-info">
+              Relatório gerado: ${dataGeracao} pelo aplicativo Marca AI.
+            </p>
+          </div>
         </div>
         
         <div class="header-divider"></div>
