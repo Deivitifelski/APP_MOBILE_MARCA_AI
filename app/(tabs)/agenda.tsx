@@ -14,12 +14,15 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import OptimizedImage from '../../components/OptimizedImage';
 import PermissionModal from '../../components/PermissionModal';
+import UpgradeModal from '../../components/UpgradeModal';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { artistImageUpdateService } from '../../services/artistImageUpdateService';
 import { cacheService } from '../../services/cacheService';
+import { generateAgendaPDF } from '../../services/pdfService';
 import { getCurrentUser } from '../../services/supabase/authService';
 import { getEventsByMonthWithRole } from '../../services/supabase/eventService';
+import { canExportData } from '../../services/supabase/userService';
 import { useActiveArtist } from '../../services/useActiveArtist';
 import { useNotifications } from '../../services/useNotifications';
 
@@ -40,6 +43,8 @@ export default function AgendaScreen() {
   const { activeArtist, loadActiveArtist, isLoading } = useActiveArtist();
   const [artistImageUpdated, setArtistImageUpdated] = useState<boolean>(false);
   const { unreadCount, loadUnreadCount } = useNotifications();
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   
   // ✅ VERIFICAR ROLE DIRETAMENTE NO BANCO
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
@@ -48,7 +53,15 @@ export default function AgendaScreen() {
   // Verificar role ao carregar a tela e quando artista mudar
   useEffect(() => {
     checkUserRole();
+    loadCurrentUser();
   }, [activeArtist]);
+
+  const loadCurrentUser = async () => {
+    const { user } = await getCurrentUser();
+    if (user) {
+      setCurrentUserId(user.id);
+    }
+  };
 
   const checkUserRole = async () => {
     if (!activeArtist) {
@@ -343,6 +356,79 @@ export default function AgendaScreen() {
     }
   };
 
+  const handleExportAgenda = async () => {
+    if (!activeArtist || !currentUserId) {
+      Alert.alert('Erro', 'Artista não selecionado');
+      return;
+    }
+
+    // Verificar se o usuário pode exportar dados (plano premium)
+    const { canExport, error: canExportError } = await canExportData(currentUserId);
+    
+    if (canExportError) {
+      Alert.alert('Erro', 'Erro ao verificar permissões: ' + canExportError);
+      return;
+    }
+
+    if (!canExport) {
+      setShowUpgradeModal(true);
+      return;
+    }
+
+    // Se não há eventos, avisar
+    if (events.length === 0) {
+      Alert.alert(
+        'Agenda Vazia',
+        'Não há eventos neste mês para exportar.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    // Perguntar se quer incluir valores financeiros
+    Alert.alert(
+      '📄 Exportar Agenda',
+      'Escolha o tipo de relatório:',
+      [
+        {
+          text: '💰 Com Valores',
+          onPress: () => exportAgendaWithOptions(true),
+          style: 'default'
+        },
+        {
+          text: '🔒 Sem Valores',
+          onPress: () => exportAgendaWithOptions(false),
+          style: 'default'
+        },
+        {
+          text: 'Cancelar',
+          style: 'cancel'
+        }
+      ]
+    );
+  };
+
+  const exportAgendaWithOptions = async (includeFinancials: boolean) => {
+    if (!activeArtist) return;
+
+    try {
+      const result = await generateAgendaPDF({
+        events,
+        month: currentMonth,
+        year: currentYear,
+        artistName: activeArtist.name,
+        includeFinancials
+      });
+
+      if (!result.success) {
+        Alert.alert('Erro', result.error || 'Erro ao gerar PDF da agenda');
+      }
+    } catch (error) {
+      console.error('Erro ao exportar agenda:', error);
+      Alert.alert('Erro', 'Erro ao exportar agenda');
+    }
+  };
+
   const handleCreateArtist = () => {
     router.push('/cadastro-artista');
   };
@@ -485,20 +571,29 @@ export default function AgendaScreen() {
               <View style={styles.artistDetails}>
                 <View style={styles.artistNameRow}>
                   <Text style={[styles.artistName, { color: colors.text }]}>{activeArtist.name}</Text>
-                  {/* Ícone de Notificações */}
-                  <TouchableOpacity
-                    style={styles.notificationButton}
-                    onPress={() => router.push('/notificacoes')}
-                  >
-                    <Ionicons name="notifications-outline" size={24} color={colors.primary} />
-                    {unreadCount > 0 && (
-                      <View style={styles.notificationBadge}>
-                        <Text style={styles.badgeText}>
-                          {unreadCount > 99 ? '99+' : unreadCount.toString()}
-                        </Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
+                  <View style={styles.headerActions}>
+                    {/* Botão de Exportar Agenda */}
+                    <TouchableOpacity
+                      style={styles.exportButton}
+                      onPress={handleExportAgenda}
+                    >
+                      <Ionicons name="download-outline" size={22} color={colors.primary} />
+                    </TouchableOpacity>
+                    {/* Ícone de Notificações */}
+                    <TouchableOpacity
+                      style={styles.notificationButton}
+                      onPress={() => router.push('/notificacoes')}
+                    >
+                      <Ionicons name="notifications-outline" size={24} color={colors.primary} />
+                      {unreadCount > 0 && (
+                        <View style={styles.notificationBadge}>
+                          <Text style={styles.badgeText}>
+                            {unreadCount > 99 ? '99+' : unreadCount.toString()}
+                          </Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  </View>
                 </View>
                 <Text style={[styles.artistSubtitle, { color: colors.textSecondary }]}>Agenda de Shows</Text>
               </View>
@@ -632,6 +727,19 @@ export default function AgendaScreen() {
         title="Acesso Restrito"
         message="Apenas proprietários e editores podem criar e visualizar detalhes e valores financeiros dos eventos. Entre em contato com um proprietário para solicitar mais permissões."
         icon="lock-closed"
+      />
+
+      <UpgradeModal
+        visible={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        title="Exportar Agenda Premium"
+        message="
+Exporte sua agenda em PDF profissional:
+• PDF formatado e organizado
+• Compartilhe via WhatsApp, Email e mais
+• Escolha incluir ou omitir valores
+• Ideal para clientes e parceiros"
+        feature="export_agenda"
       />
     </View>
   );
@@ -910,6 +1018,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 15,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  exportButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: 'transparent',
   },
   notificationButton: {
     position: 'relative',
