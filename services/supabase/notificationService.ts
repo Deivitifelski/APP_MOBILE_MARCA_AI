@@ -152,18 +152,55 @@ export const deleteNotification = async (notificationId: string): Promise<{ succ
 // Contar notificações não lidas (apenas RECEBIDAS)
 export const getUnreadNotificationCount = async (userId: string): Promise<{ count: number; error: string | null }> => {
   try {
-    const { count, error } = await supabase
+    // Buscar todas as notificações não lidas
+    const { data: allNotifications, error: notifError } = await supabase
       .from('notifications')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId)  // ✅ Apenas notificações RECEBIDAS
+      .select('id, type, read, user_id, created_at, artist_id')
+      .eq('user_id', userId)
       .eq('read', false);
 
-    if (error) {
-      return { count: 0, error: error.message };
+    if (notifError) {
+      console.error('❌ [BADGE DEBUG] Erro ao buscar notificações:', notifError);
+      return { count: 0, error: notifError.message };
     }
 
-    return { count: count || 0, error: null };
+    console.log('🔍 [BADGE DEBUG] Total de notificações não lidas no banco:', allNotifications?.length || 0);
+
+    // Filtrar notificações de convites para verificar se o convite ainda está pendente
+    let validNotifications = [];
+    
+    for (const notification of (allNotifications || [])) {
+      console.log(`   📬 Analisando: Tipo=${notification.type}, ID=${notification.id.substring(0, 8)}`);
+      
+      if (notification.type === 'artist_invite' && notification.artist_id) {
+        // Verificar se o convite ainda está pendente
+        const { data: invites, error: inviteError } = await supabase
+          .from('artist_invites')
+          .select('status')
+          .eq('to_user_id', userId)
+          .eq('artist_id', notification.artist_id)
+          .eq('status', 'pending')
+          .limit(1);
+
+        if (!inviteError && invites && invites.length > 0) {
+          console.log(`      ✅ Convite ainda pendente - CONTAR`);
+          validNotifications.push(notification);
+        } else {
+          console.log(`      ❌ Convite já processado - NÃO CONTAR (deve ser marcado como lido)`);
+        }
+      } else {
+        // Outras notificações sempre contam
+        console.log(`      ✅ Notificação válida - CONTAR`);
+        validNotifications.push(notification);
+      }
+    }
+
+    const finalCount = validNotifications.length;
+    console.log('🔔 [BADGE DEBUG] Contagem final válida:', finalCount);
+
+    return { count: finalCount, error: null };
   } catch (error) {
+    console.error('❌ [BADGE DEBUG] Erro de conexão:', error);
     return { count: 0, error: 'Erro de conexão' };
   }
 };

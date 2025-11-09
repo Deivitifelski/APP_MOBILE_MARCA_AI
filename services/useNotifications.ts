@@ -23,14 +23,15 @@ export const useNotifications = () => {
       const { count, error } = await getUnreadNotificationCount(user.id);
       
       if (error) {
-        console.error('Erro ao carregar contador de notificações:', error);
+        console.error('❌ Erro ao carregar contador de notificações:', error);
         setUnreadCount(0);
       } else {
-        console.log('🔔 Notificações não lidas (badge):', count);
+        console.log('🔔 [BADGE DEBUG] Notificações não lidas contadas:', count);
+        console.log('🔔 [BADGE DEBUG] User ID:', user.id);
         setUnreadCount(count);
       }
     } catch (error) {
-      console.error('Erro ao carregar contador de notificações:', error);
+      console.error('❌ Erro ao carregar contador de notificações:', error);
       setUnreadCount(0);
     } finally {
       setIsLoading(false);

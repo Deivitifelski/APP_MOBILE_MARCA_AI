@@ -33,9 +33,11 @@ import {
   Notification
 } from '../services/supabase/notificationService';
 import { hasPermission } from '../services/supabase/permissionsService';
+import { useNotifications } from '../services/useNotifications';
 
 export default function NotificacoesScreen() {
   const { colors, isDarkMode } = useTheme();
+  const { loadUnreadCount } = useNotifications(); // ✅ Hook para atualizar badge
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -130,6 +132,9 @@ export default function NotificacoesScreen() {
           )
         );
         setUnreadCount(prev => Math.max(0, prev - 1));
+        
+        // ✅ Atualizar badge de notificações
+        await loadUnreadCount();
       } else {
         console.error('❌ Erro ao marcar notificação como lida:', error);
       }
@@ -224,6 +229,9 @@ export default function NotificacoesScreen() {
         );
         
         setUnreadCount(0);
+        
+        // ✅ Atualizar badge de notificações
+        await loadUnreadCount();
       } else {
         Alert.alert('Erro', error || 'Erro ao marcar notificações como lidas');
       }
@@ -256,6 +264,8 @@ export default function NotificacoesScreen() {
                 // Decrementar contador apenas se a notificação era não lida
                 if (wasUnread) {
                   setUnreadCount(prev => Math.max(0, prev - 1));
+                  // ✅ Atualizar badge de notificações
+                  await loadUnreadCount();
                 }
               } else {
                 Alert.alert('Erro', 'Erro ao deletar notificação');
@@ -308,6 +318,9 @@ export default function NotificacoesScreen() {
         
         // Recarregar notificações
         await loadNotifications();
+        
+        // ✅ Atualizar badge de notificações
+        await loadUnreadCount();
 
         if (isFirstArtist) {
           // Se é o primeiro artista, setar automaticamente como ativo
@@ -378,6 +391,9 @@ export default function NotificacoesScreen() {
         
         // Recarregar notificações
         await loadNotifications();
+        
+        // ✅ Atualizar badge de notificações
+        await loadUnreadCount();
       } else {
         Alert.alert('Erro', error || 'Erro ao recusar convite');
       }
