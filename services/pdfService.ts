@@ -13,8 +13,12 @@ interface EventPDFData {
   includeFinancials?: boolean;
 }
 
+interface EventWithExpensesForPDF extends Event {
+  expenses?: { name: string; value: number }[];
+}
+
 interface AgendaPDFData {
-  events: Event[];
+  events: EventWithExpensesForPDF[];
   month: number;
   year: number;
   artistName?: string;
@@ -399,11 +403,11 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
       return timeString.substring(0, 5); // HH:MM
     };
     
-    // Formatar moeda
-    const formatCurrency = (value: number) => {
+    // Formatar moeda sem símbolo
+    const formatNumber = (value: number) => {
       return value.toLocaleString('pt-BR', {
-        style: 'currency',
-        currency: 'BRL'
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
       });
     };
 
@@ -411,20 +415,23 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
       'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
       'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
     ];
-    
-    // Agrupar eventos por dia
-    const eventsByDate: { [key: string]: Event[] } = {};
-    events.forEach(event => {
-      if (!eventsByDate[event.event_date]) {
-        eventsByDate[event.event_date] = [];
-      }
-      eventsByDate[event.event_date].push(event);
-    });
 
-    // Ordenar datas
-    const sortedDates = Object.keys(eventsByDate).sort();
+    // Ordenar eventos por data
+    const sortedEvents = [...events].sort((a, b) => a.event_date.localeCompare(b.event_date));
+    
+    // Calcular totais
+    const totalReceitas = sortedEvents.reduce((sum, event) => sum + (event.value || 0), 0);
+    const totalDespesas = sortedEvents.reduce((sum, event) => {
+      // Calcular despesas deste evento
+      const expensesSum = event.expenses?.reduce((s: number, e: any) => s + (e.value || 0), 0) || 0;
+      return sum + expensesSum;
+    }, 0);
+    const saldoLiquido = totalReceitas - totalDespesas;
 
     // Criar HTML formatado para o PDF da agenda
+    const now = new Date();
+    const dataGeracao = `${now.toLocaleDateString('pt-BR')} às ${now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}hs`;
+    
     const htmlContent = `
     <!DOCTYPE html>
     <html>
@@ -432,187 +439,335 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+          }
+          
           body {
             font-family: 'Helvetica', 'Arial', sans-serif;
             padding: 40px;
             color: #333;
-            line-height: 1.6;
+            background: white;
           }
-          .header {
+          
+          .logo-section {
             text-align: center;
-            margin-bottom: 40px;
-            border-bottom: 3px solid #667eea;
-            padding-bottom: 20px;
-          }
-          .header h1 {
-            color: #667eea;
-            margin: 0;
-            font-size: 28px;
-          }
-          .header p {
-            color: #666;
-            margin: 5px 0 0 0;
-            font-size: 16px;
-          }
-          .period {
-            text-align: center;
-            font-size: 18px;
-            color: #667eea;
-            font-weight: bold;
             margin-bottom: 30px;
           }
-          .date-section {
-            margin-bottom: 30px;
-            page-break-inside: avoid;
-          }
-          .date-header {
-            background: #667eea;
-            color: white;
-            padding: 12px 20px;
-            border-radius: 8px;
-            font-weight: bold;
-            font-size: 16px;
+          
+          .logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             margin-bottom: 15px;
           }
-          .event-card {
+          
+          .logo-text {
+            font-size: 48px;
+            font-weight: bold;
+            color: white;
+          }
+          
+          .artist-name {
+            font-size: 28px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+          }
+          
+          .report-title {
+            font-size: 22px;
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 5px;
+          }
+          
+          .generated-info {
+            font-size: 12px;
+            color: #666;
+            margin-top: 15px;
+          }
+          
+          .divider {
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #667eea, transparent);
+            margin: 30px 0;
+          }
+          
+          .events-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 40px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          }
+          
+          .events-table thead {
+            background: #667eea;
+            color: white;
+          }
+          
+          .events-table th {
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 14px;
+            border: 1px solid #5568d3;
+          }
+          
+          .events-table td {
+            padding: 10px 12px;
+            border: 1px solid #e5e7eb;
+            font-size: 13px;
+          }
+          
+          .events-table tbody tr:nth-child(even) {
             background: #f9fafb;
-            padding: 18px;
-            border-radius: 10px;
-            margin-bottom: 12px;
-            border-left: 4px solid #667eea;
           }
-          .event-header {
-            margin-bottom: 12px;
+          
+          .events-table tbody tr:hover {
+            background: #f3f4f6;
           }
-          .event-name {
+          
+          .value-positive {
+            color: #10b981;
+            font-weight: 600;
+          }
+          
+          .value-negative {
+            color: #ef4444;
+            font-weight: 600;
+          }
+          
+          .section-title {
             font-size: 18px;
             font-weight: bold;
-            color: #333;
-            display: inline;
-          }
-          .event-tag {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            margin-left: 10px;
-          }
-          .tag-evento {
-            background: #dbeafe;
-            color: #1e40af;
-          }
-          .tag-ensaio {
-            background: #d1fae5;
-            color: #065f46;
-          }
-          .tag-reuniao {
-            background: #fef3c7;
-            color: #92400e;
-          }
-          .status-badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 600;
-            margin-left: 10px;
-          }
-          .status-confirmado {
-            background: #10b981;
-            color: white;
-          }
-          .status-a-confirmar {
-            background: #f59e0b;
-            color: white;
-          }
-          .event-details {
-            color: #666;
-            font-size: 14px;
-            line-height: 1.8;
-          }
-          .event-time {
             color: #667eea;
-            font-weight: 600;
+            margin: 30px 0 20px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
           }
-          .event-financial {
-            background: white;
-            padding: 12px;
+          
+          .expense-card {
+            background: #f9fafb;
             border-radius: 8px;
-            margin-top: 12px;
-            border: 1px solid #e5e7eb;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+            page-break-inside: avoid;
           }
-          .financial-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 6px;
+          
+          .expense-card-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 15px;
+          }
+          
+          .expense-table {
+            width: 100%;
+            border-collapse: collapse;
+          }
+          
+          .expense-table td {
+            padding: 8px;
+            border-bottom: 1px solid #e5e7eb;
+          }
+          
+          .expense-table tr:last-child td {
+            border-bottom: none;
+            font-weight: bold;
+            padding-top: 12px;
+            border-top: 2px solid #333;
+          }
+          
+          .expense-label {
+            color: #666;
+          }
+          
+          .expense-value {
+            text-align: right;
+            color: #333;
+          }
+          
+          .summary-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-top: 40px;
+            text-align: center;
+          }
+          
+          .summary-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 25px;
+          }
+          
+          .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-top: 20px;
+          }
+          
+          .summary-item {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 20px;
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+          }
+          
+          .summary-label {
             font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 8px;
           }
+          
+          .summary-value {
+            font-size: 28px;
+            font-weight: bold;
+          }
+          
           .empty-state {
             text-align: center;
             padding: 60px 20px;
             color: #999;
           }
+          
           .footer {
-            margin-top: 50px;
+            margin-top: 40px;
             padding-top: 20px;
-            border-top: 2px solid #e5e7eb;
             text-align: center;
-            color: #666;
-            font-size: 12px;
+            color: #999;
+            font-size: 11px;
+          }
+          
+          @media print {
+            body {
+              padding: 20px;
+            }
           }
         </style>
       </head>
       <body>
-        <div class="header">
-          <h1>📅 MARCA AI</h1>
-          <p>Agenda de Eventos</p>
+        <!-- Logo e Cabeçalho -->
+        <div class="logo-section">
+          <div class="logo">
+            <div class="logo-text">M</div>
+          </div>
+          ${artistName ? `<h1 class="artist-name">${artistName.toUpperCase()}</h1>` : ''}
+          <h2 class="report-title">Lista de Eventos - ${months[month]}/${year}</h2>
+          <p class="generated-info">Relatório gerado: ${dataGeracao} pelo aplicativo Marca AI.</p>
         </div>
 
-        <div class="period">
-          ${months[month]} de ${year}
-          ${artistName ? `<br>🎭 ${artistName}` : ''}
-        </div>
+        <div class="divider"></div>
 
-        ${sortedDates.length > 0 ? `
-          ${sortedDates.map(date => `
-            <div class="date-section">
-              <div class="date-header">
-                📅 ${formatDate(date)}
+        ${sortedEvents.length > 0 ? `
+          <!-- Tabela de Eventos -->
+          <table class="events-table">
+            <thead>
+              <tr>
+                <th style="width: 35%;">Evento</th>
+                <th style="width: 15%;">Data</th>
+                ${includeFinancials ? `
+                <th style="width: 15%; text-align: right;">Valor (R$)</th>
+                <th style="width: 15%; text-align: right;">Despesas (R$)</th>
+                <th style="width: 20%; text-align: right;">Líquido (R$)</th>
+                ` : `
+                <th style="width: 20%;">Horário</th>
+                <th style="width: 30%;">Local</th>
+                `}
+              </tr>
+            </thead>
+            <tbody>
+              ${sortedEvents.map(event => {
+                const eventExpenses = event.expenses?.reduce((s: number, e: any) => s + (e.value || 0), 0) || 0;
+                const liquido = (event.value || 0) - eventExpenses;
+                
+                return `
+                <tr>
+                  <td><strong>${event.name}</strong></td>
+                  <td>${formatDate(event.event_date)}</td>
+                  ${includeFinancials ? `
+                  <td style="text-align: right;">${formatNumber(event.value || 0)}</td>
+                  <td style="text-align: right;">${formatNumber(eventExpenses)}</td>
+                  <td style="text-align: right;" class="${liquido >= 0 ? 'value-positive' : 'value-negative'}">
+                    ${formatNumber(liquido)}
+                  </td>
+                  ` : `
+                  <td>${formatTime(event.start_time)} - ${formatTime(event.end_time)}</td>
+                  <td>${event.city || 'Não informado'}</td>
+                  `}
+                </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+
+          ${includeFinancials ? `
+          <!-- Detalhamento de Despesas -->
+          <h3 class="section-title">DETALHAMENTO DE DESPESAS</h3>
+          
+          ${sortedEvents.filter(event => event.expenses && event.expenses.length > 0).map(event => {
+            const totalEventExpenses = event.expenses?.reduce((s: number, e: any) => s + (e.value || 0), 0) || 0;
+            
+            return `
+            <div class="expense-card">
+              <div class="expense-card-title">
+                Evento: ${event.name} - ${formatDate(event.event_date)}
               </div>
-              ${eventsByDate[date].map(event => `
-                <div class="event-card">
-                  <div class="event-header">
-                    <span class="event-name">${event.name}</span>
-                    <span class="event-tag tag-${event.tag || 'evento'}">${
-                      event.tag === 'ensaio' ? 'Ensaio' : 
-                      event.tag === 'reunião' ? 'Reunião' : 
-                      'Evento'
-                    }</span>
-                    <span class="status-badge status-${event.confirmed ? 'confirmado' : 'a-confirmar'}">
-                      ${event.confirmed ? '✓ Confirmado' : '⏳ A Confirmar'}
-                    </span>
-                  </div>
-                  <div class="event-details">
-                    <div class="event-time">
-                      ⏰ ${formatTime(event.start_time)} - ${formatTime(event.end_time)}
-                    </div>
-                    ${event.city ? `<div>📍 ${event.city}</div>` : ''}
-                    ${event.contractor_phone ? `<div>📞 ${event.contractor_phone}</div>` : ''}
-                    ${event.description ? `<div style="margin-top: 8px; font-style: italic;">${event.description}</div>` : ''}
-                  </div>
-                  ${includeFinancials && event.value ? `
-                  <div class="event-financial">
-                    <div class="financial-row">
-                      <span>Valor:</span>
-                      <strong>${formatCurrency(event.value)}</strong>
-                    </div>
-                  </div>
-                  ` : ''}
-                </div>
-              `).join('')}
+              <table class="expense-table">
+                <tbody>
+                  ${(event.expenses || []).map((expense: any) => `
+                    <tr>
+                      <td class="expense-label">${expense.name}</td>
+                      <td class="expense-value">R$ ${formatNumber(expense.value)}</td>
+                    </tr>
+                  `).join('')}
+                  <tr>
+                    <td class="expense-label">Total</td>
+                    <td class="expense-value">R$ ${formatNumber(totalEventExpenses)}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-          `).join('')}
+            `;
+          }).join('')}
+
+          ${sortedEvents.filter(event => !event.expenses || event.expenses.length === 0).length > 0 ? `
+            <p style="text-align: center; color: #999; padding: 20px;">
+              ${sortedEvents.filter(event => event.expenses && event.expenses.length > 0).length === 0 
+                ? 'Nenhum evento possui despesas registradas.' 
+                : 'Alguns eventos não possuem despesas registradas.'}
+            </p>
+          ` : ''}
+
+          <!-- Resumo Financeiro -->
+          <div class="summary-section">
+            <div class="summary-title">RESUMO FINANCEIRO</div>
+            <div class="summary-grid">
+              <div class="summary-item">
+                <div class="summary-label">Receitas</div>
+                <div class="summary-value">R$ ${formatNumber(totalReceitas)}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Despesas</div>
+                <div class="summary-value">R$ ${formatNumber(totalDespesas)}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Saldo Líquido</div>
+                <div class="summary-value">R$ ${formatNumber(saldoLiquido)}</div>
+              </div>
+            </div>
+          </div>
+          ` : ''}
         ` : `
         <div class="empty-state">
           <p style="font-size: 48px; margin: 0;">📅</p>
@@ -622,9 +777,8 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
         `}
 
         <div class="footer">
-          <p><strong>Sistema: Marca AI - Gestão de Shows e Eventos</strong></p>
-          <p>Agenda gerada em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</p>
-          <p>${includeFinancials ? '💰 Com valores financeiros' : '🔒 Sem valores financeiros'}</p>
+          <p>Marca AI - Gestão Profissional de Shows e Eventos</p>
+          <p>Documento gerado automaticamente • ${includeFinancials ? 'Relatório Completo' : 'Relatório Sem Valores'}</p>
         </div>
       </body>
     </html>

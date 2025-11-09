@@ -22,6 +22,7 @@ import { cacheService } from '../../services/cacheService';
 import { generateAgendaPDF } from '../../services/pdfService';
 import { getCurrentUser } from '../../services/supabase/authService';
 import { getEventsByMonthWithRole } from '../../services/supabase/eventService';
+import { getExpensesByEvent } from '../../services/supabase/expenseService';
 import { canExportData } from '../../services/supabase/userService';
 import { useActiveArtist } from '../../services/useActiveArtist';
 import { useNotifications } from '../../services/useNotifications';
@@ -412,8 +413,22 @@ export default function AgendaScreen() {
     if (!activeArtist) return;
 
     try {
+      // Carregar despesas para cada evento
+      console.log('📊 Carregando despesas dos eventos...');
+      const eventsWithExpenses = await Promise.all(
+        events.map(async (event) => {
+          const { success, expenses } = await getExpensesByEvent(event.id);
+          return {
+            ...event,
+            expenses: success ? expenses || [] : []
+          };
+        })
+      );
+
+      console.log('✅ Eventos com despesas carregados:', eventsWithExpenses.length);
+
       const result = await generateAgendaPDF({
-        events,
+        events: eventsWithExpenses,
         month: currentMonth,
         year: currentYear,
         artistName: activeArtist.name,
