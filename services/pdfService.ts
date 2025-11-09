@@ -450,19 +450,22 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
             padding: 40px;
             color: #333;
             background: white;
+            line-height: 1.5;
           }
           
           .header-section {
             display: flex;
             align-items: flex-start;
-            margin-bottom: 30px;
+            margin-bottom: 35px;
             gap: 20px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #d1d5db;
           }
           
           .logo {
             width: 70px;
             height: 70px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #667eea;
             border-radius: 14px;
             display: flex;
             align-items: center;
@@ -474,7 +477,7 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
           .logo-text {
             font-size: 42px;
             font-weight: bold;
-            color: white;
+            color: #ffffff;
             line-height: 1;
           }
           
@@ -488,6 +491,7 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
             color: #333;
             margin-bottom: 8px;
             letter-spacing: 0.5px;
+            text-transform: uppercase;
           }
           
           .report-title {
@@ -504,35 +508,39 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
           }
           
           .divider {
-            height: 2px;
-            background: linear-gradient(90deg, transparent, #667eea, transparent);
+            height: 1px;
+            background: #e5e7eb;
             margin: 30px 0;
           }
           
           .events-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 40px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 45px;
+            border: 1px solid #d1d5db;
+            font-size: 13px;
           }
           
           .events-table thead {
-            background: #667eea;
-            color: white;
+            background: #f3f4f6;
           }
           
           .events-table th {
-            padding: 12px;
+            padding: 14px 12px;
             text-align: left;
-            font-weight: 600;
-            font-size: 14px;
-            border: 1px solid #5568d3;
+            font-weight: 700;
+            font-size: 12px;
+            border: 1px solid #d1d5db;
+            color: #333;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
           }
           
           .events-table td {
-            padding: 10px 12px;
-            border: 1px solid #e5e7eb;
+            padding: 12px;
+            border: 1px solid #d1d5db;
             font-size: 13px;
+            color: #333;
           }
           
           .events-table tbody tr:nth-child(even) {
@@ -544,59 +552,83 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
           }
           
           .value-positive {
-            color: #10b981;
+            color: #333;
             font-weight: 600;
           }
           
           .value-negative {
-            color: #ef4444;
+            color: #333;
             font-weight: 600;
           }
           
           .section-title {
             font-size: 18px;
             font-weight: bold;
-            color: #667eea;
-            margin: 30px 0 20px 0;
+            color: #333;
+            margin: 40px 0 20px 0;
             padding-bottom: 10px;
-            border-bottom: 2px solid #667eea;
+            border-bottom: 1px solid #d1d5db;
           }
           
           .expense-card {
-            background: #f9fafb;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 20px;
-            border-left: 4px solid #667eea;
+            background: white;
+            padding: 20px 0;
+            margin-bottom: 30px;
             page-break-inside: avoid;
           }
           
           .expense-card-title {
-            font-size: 16px;
+            font-size: 15px;
             font-weight: bold;
             color: #333;
             margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e5e7eb;
           }
           
           .expense-table {
             width: 100%;
             border-collapse: collapse;
+            border: 1px solid #d1d5db;
+            margin-top: 10px;
+          }
+          
+          .expense-table thead {
+            background: #f3f4f6;
+          }
+          
+          .expense-table th {
+            padding: 12px;
+            text-align: left;
+            font-weight: 700;
+            font-size: 12px;
+            color: #333;
+            border: 1px solid #d1d5db;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: #f3f4f6;
           }
           
           .expense-table td {
-            padding: 8px;
-            border-bottom: 1px solid #e5e7eb;
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            font-size: 13px;
+            color: #333;
           }
           
-          .expense-table tr:last-child td {
-            border-bottom: none;
-            font-weight: bold;
-            padding-top: 12px;
-            border-top: 2px solid #333;
+          .expense-table tbody tr:nth-child(even) {
+            background: #f9fafb;
+          }
+          
+          .expense-table tr.total-row {
+            font-weight: 700;
+            background: #f3f4f6;
+            border-top: 2px solid #d1d5db;
+            font-size: 14px;
           }
           
           .expense-label {
-            color: #666;
+            color: #333;
           }
           
           .expense-value {
@@ -605,82 +637,79 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
           }
           
           .summary-section {
-            margin-top: 40px;
+            margin-top: 50px;
+            padding-top: 30px;
+            border-top: 2px solid #d1d5db;
           }
           
           .summary-title {
-            font-size: 20px;
+            font-size: 18px;
             font-weight: bold;
             color: #333;
             text-align: center;
-            margin-bottom: 25px;
+            margin-bottom: 30px;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 1.5px;
           }
           
           .summary-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 15px;
+            gap: 30px;
+            border: 1px solid #d1d5db;
+            padding: 25px;
+            background: #f9fafb;
           }
           
           .summary-item {
-            background: #f9fafb;
-            padding: 20px;
-            border-radius: 10px;
             text-align: center;
-            border: 2px solid;
-          }
-          
-          .summary-item.receitas {
-            border-color: #3b82f6;
-          }
-          
-          .summary-item.despesas {
-            border-color: #ef4444;
-          }
-          
-          .summary-item.liquido {
-            border-color: #10b981;
+            padding: 10px;
           }
           
           .summary-label {
-            font-size: 13px;
-            color: #666;
-            margin-bottom: 10px;
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 12px;
             font-weight: 600;
             text-transform: uppercase;
+            letter-spacing: 0.5px;
           }
           
           .summary-value {
-            font-size: 26px;
+            font-size: 28px;
             font-weight: bold;
+            color: #333;
           }
           
           .summary-value.receitas {
-            color: #3b82f6;
+            color: #333;
           }
           
           .summary-value.despesas {
-            color: #ef4444;
+            color: #333;
           }
           
           .summary-value.liquido {
-            color: #10b981;
+            color: #333;
           }
           
           .empty-state {
             text-align: center;
             padding: 60px 20px;
-            color: #999;
+            color: #666;
+            border: 1px dashed #d1d5db;
+            border-radius: 8px;
+            background: #f9fafb;
           }
           
           .footer {
-            margin-top: 40px;
-            padding-top: 20px;
+            margin-top: 50px;
+            padding-top: 25px;
+            border-top: 1px solid #e5e7eb;
             text-align: center;
-            color: #999;
+            color: #666;
             font-size: 11px;
+            line-height: 1.6;
           }
           
           @media print {
@@ -704,8 +733,6 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
             </p>
           </div>
         </div>
-
-        <div class="divider"></div>
 
         ${sortedEvents.length > 0 ? `
           <!-- Tabela de Eventos -->
@@ -736,7 +763,7 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
                   ${includeFinancials ? `
                   <td style="text-align: right;">${formatNumber(event.value || 0)}</td>
                   <td style="text-align: right;">${formatNumber(eventExpenses)}</td>
-                  <td style="text-align: right;" class="${liquido >= 0 ? 'value-positive' : 'value-negative'}">
+                  <td style="text-align: right;">
                     ${formatNumber(liquido)}
                   </td>
                   ` : `
@@ -762,6 +789,12 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
                 Evento: ${event.name} - ${formatDate(event.event_date)}
               </div>
               <table class="expense-table">
+                <thead>
+                  <tr>
+                    <th>Descrição</th>
+                    <th style="text-align: right;">Valor</th>
+                  </tr>
+                </thead>
                 <tbody>
                   ${(event.expenses || []).map((expense: any) => `
                     <tr>
@@ -769,7 +802,7 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
                       <td class="expense-value">R$ ${formatNumber(expense.value)}</td>
                     </tr>
                   `).join('')}
-                  <tr>
+                  <tr class="total-row">
                     <td class="expense-label">Total</td>
                     <td class="expense-value">R$ ${formatNumber(totalEventExpenses)}</td>
                   </tr>
@@ -780,7 +813,7 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
           }).join('')}
 
           ${sortedEvents.filter(event => !event.expenses || event.expenses.length === 0).length > 0 ? `
-            <p style="text-align: center; color: #999; padding: 20px;">
+            <p style="text-align: center; color: #666; padding: 20px; font-style: italic;">
               ${sortedEvents.filter(event => event.expenses && event.expenses.length > 0).length === 0 
                 ? 'Nenhum evento possui despesas registradas.' 
                 : 'Alguns eventos não possuem despesas registradas.'}
@@ -791,15 +824,15 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
           <div class="summary-section">
             <div class="summary-title">RESUMO FINANCEIRO</div>
             <div class="summary-grid">
-              <div class="summary-item receitas">
+              <div class="summary-item">
                 <div class="summary-label">Receitas</div>
                 <div class="summary-value receitas">R$ ${formatNumber(totalReceitas)}</div>
               </div>
-              <div class="summary-item despesas">
+              <div class="summary-item">
                 <div class="summary-label">Despesas</div>
                 <div class="summary-value despesas">R$ ${formatNumber(totalDespesas)}</div>
               </div>
-              <div class="summary-item liquido">
+              <div class="summary-item">
                 <div class="summary-label">Saldo Líquido</div>
                 <div class="summary-value liquido">R$ ${formatNumber(saldoLiquido)}</div>
               </div>

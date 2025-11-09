@@ -11,6 +11,7 @@ import {
   View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import LoadingModal from '../../components/LoadingModal';
 import PermissionModal from '../../components/PermissionModal';
 import UpgradeModal from '../../components/UpgradeModal';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -636,6 +637,12 @@ export default function FinanceiroScreen() {
         title="Seja Premium"
         message="Desbloqueie recursos avançados, usuários ilimitados, relatórios detalhados e suporte prioritário para sua banda."
         feature="finances"
+      />
+
+      {/* Modal de Loading durante geração do PDF */}
+      <LoadingModal
+        visible={isGeneratingReport}
+        message="Gerando documento..."
       />
     </View>
   );
