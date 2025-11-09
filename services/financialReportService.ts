@@ -1,4 +1,3 @@
-import * as Clipboard from 'expo-clipboard';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -156,6 +155,8 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
             margin-top: 50px;
             padding-top: 30px;
             border-top: 2px solid #d1d5db;
+            page-break-inside: avoid;
+            page-break-before: auto;
           }
           
           .summary-title {
@@ -172,6 +173,7 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 20px;
+            page-break-inside: avoid;
           }
           
           .summary-item {
@@ -179,6 +181,7 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
             padding: 25px 20px;
             border: 2px solid #d1d5db;
             background: white;
+            page-break-inside: avoid;
           }
           
           .summary-label {

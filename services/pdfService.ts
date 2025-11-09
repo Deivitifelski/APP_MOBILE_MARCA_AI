@@ -87,6 +87,7 @@ export const generateEventPDF = async (data: EventPDFData): Promise<{ success: b
             background: #f9fafb;
             padding: 20px;
             border-radius: 10px;
+            page-break-inside: avoid;
           }
           .section-title {
             color: #667eea;
@@ -120,6 +121,7 @@ export const generateEventPDF = async (data: EventPDFData): Promise<{ success: b
             border-radius: 10px;
             padding: 20px;
             margin-top: 10px;
+            page-break-inside: avoid;
           }
           .financial-row {
             display: flex;
@@ -150,6 +152,7 @@ export const generateEventPDF = async (data: EventPDFData): Promise<{ success: b
             border-radius: 8px;
             border-left: 4px solid #667eea;
             margin-top: 10px;
+            page-break-inside: avoid;
           }
           .footer {
             margin-top: 50px;
@@ -636,6 +639,8 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
             margin-top: 50px;
             padding-top: 30px;
             border-top: 2px solid #d1d5db;
+            page-break-inside: avoid;
+            page-break-before: auto;
           }
           
           .summary-title {
@@ -653,6 +658,7 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
             grid-template-columns: repeat(3, 1fr);
             gap: 20px;
             margin-top: 20px;
+            page-break-inside: avoid;
           }
           
           .summary-item {
@@ -660,6 +666,7 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
             padding: 25px 20px;
             border: 2px solid #d1d5db;
             background: white;
+            page-break-inside: avoid;
           }
           
           .summary-label {
