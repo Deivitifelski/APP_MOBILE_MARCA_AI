@@ -6,13 +6,13 @@ import {
     Alert,
     FlatList,
     RefreshControl,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { ArtistInvite, cancelArtistInvite, getArtistInvitesSent } from '../services/supabase/artistInviteService';
 import { getCurrentUser } from '../services/supabase/authService';

@@ -4,7 +4,6 @@ import React, { useEffect, useState } from 'react';
 import {
     Alert,
     Platform,
-    SafeAreaView,
     ScrollView,
     StatusBar,
     StyleSheet,
@@ -12,6 +11,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import PermissionModal from '../components/PermissionModal';
 import UpgradeModal from '../components/UpgradeModal';
 import { useTheme } from '../contexts/ThemeContext';

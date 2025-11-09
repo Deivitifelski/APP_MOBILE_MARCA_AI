@@ -6,7 +6,6 @@ import {
     ActivityIndicator,
     Alert,
     Image,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
@@ -14,6 +13,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { getCurrentUser } from '../services/supabase/authService';
 import { deleteImageFromSupabase, extractFileNameFromUrl, uploadUserImage } from '../services/supabase/imageUploadService';

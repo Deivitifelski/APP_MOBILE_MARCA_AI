@@ -8,7 +8,6 @@ import {
     Image,
     KeyboardAvoidingView,
     Platform,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
@@ -16,6 +15,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import UpgradeModal from '../../../components/UpgradeModal';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { setActiveArtist } from '../../../services/artistContext';

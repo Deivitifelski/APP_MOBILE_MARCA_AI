@@ -5,13 +5,13 @@ import {
     ActivityIndicator,
     Alert,
     RefreshControl,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
     View
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { acceptArtistInvite, ArtistInvite, declineArtistInvite, getArtistInvitesReceived } from '../services/supabase/artistInviteService';
 import { getCurrentUser } from '../services/supabase/authService';
 
