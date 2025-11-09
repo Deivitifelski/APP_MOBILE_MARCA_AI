@@ -454,57 +454,35 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
           }
           
           .header-section {
-            display: flex;
-            align-items: flex-start;
-            margin-bottom: 35px;
-            gap: 20px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #d1d5db;
-          }
-          
-          .logo {
-            width: 70px;
-            height: 70px;
-            background: #667eea;
-            border-radius: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-          }
-          
-          .logo-text {
-            font-size: 42px;
-            font-weight: bold;
-            color: #ffffff;
-            line-height: 1;
-          }
-          
-          .header-content {
-            flex: 1;
+            margin-bottom: 20px;
           }
           
           .artist-name {
-            font-size: 24px;
+            font-size: 32px;
             font-weight: bold;
             color: #333;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             letter-spacing: 0.5px;
-            text-transform: uppercase;
+            line-height: 1.2;
           }
           
           .report-title {
-            font-size: 18px;
+            font-size: 20px;
             color: #333;
-            font-weight: 600;
-            margin-bottom: 8px;
+            font-weight: 700;
+            margin-bottom: 6px;
           }
           
           .generated-info {
             font-size: 11px;
             color: #666;
             line-height: 1.5;
+          }
+          
+          .header-divider {
+            height: 2px;
+            background: #333;
+            margin: 20px 0 30px 0;
           }
           
           .divider {
@@ -516,8 +494,8 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
           .events-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 45px;
-            border: 1px solid #d1d5db;
+            margin-bottom: 40px;
+            border: 2px solid #333;
             font-size: 13px;
           }
           
@@ -526,29 +504,24 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
           }
           
           .events-table th {
-            padding: 14px 12px;
+            padding: 12px;
             text-align: left;
             font-weight: 700;
-            font-size: 12px;
-            border: 1px solid #d1d5db;
+            font-size: 13px;
+            border: 1px solid #333;
             color: #333;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            background: #f3f4f6;
           }
           
           .events-table td {
-            padding: 12px;
-            border: 1px solid #d1d5db;
+            padding: 10px 12px;
+            border: 1px solid #333;
             font-size: 13px;
             color: #333;
           }
           
           .events-table tbody tr:nth-child(even) {
             background: #f9fafb;
-          }
-          
-          .events-table tbody tr:hover {
-            background: #f3f4f6;
           }
           
           .value-positive {
@@ -562,12 +535,13 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
           }
           
           .section-title {
-            font-size: 18px;
+            font-size: 20px;
             font-weight: bold;
             color: #333;
-            margin: 40px 0 20px 0;
+            margin: 40px 0 25px 0;
             padding-bottom: 10px;
-            border-bottom: 1px solid #d1d5db;
+            text-transform: uppercase;
+            letter-spacing: 1px;
           }
           
           .expense-card {
@@ -579,18 +553,16 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
           
           .expense-card-title {
             font-size: 15px;
-            font-weight: bold;
+            font-weight: 700;
             color: #333;
             margin-bottom: 15px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid #e5e7eb;
           }
           
           .expense-table {
             width: 100%;
             border-collapse: collapse;
-            border: 1px solid #d1d5db;
-            margin-top: 10px;
+            border: 2px solid #333;
+            margin-top: 12px;
           }
           
           .expense-table thead {
@@ -598,20 +570,18 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
           }
           
           .expense-table th {
-            padding: 12px;
+            padding: 10px;
             text-align: left;
             font-weight: 700;
             font-size: 12px;
             color: #333;
-            border: 1px solid #d1d5db;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            border: 1px solid #333;
             background: #f3f4f6;
           }
           
           .expense-table td {
-            padding: 10px 12px;
-            border: 1px solid #d1d5db;
+            padding: 8px 10px;
+            border: 1px solid #333;
             font-size: 13px;
             color: #333;
           }
@@ -623,7 +593,7 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
           .expense-table tr.total-row {
             font-weight: 700;
             background: #f3f4f6;
-            border-top: 2px solid #d1d5db;
+            border-top: 2px solid #333;
             font-size: 14px;
           }
           
@@ -655,30 +625,31 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
           .summary-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 30px;
-            border: 1px solid #d1d5db;
-            padding: 25px;
-            background: #f9fafb;
+            gap: 20px;
+            margin-top: 20px;
           }
           
           .summary-item {
             text-align: center;
-            padding: 10px;
+            padding: 25px 20px;
+            border: 2px solid #d1d5db;
+            background: white;
           }
           
           .summary-label {
             font-size: 14px;
             color: #333;
-            margin-bottom: 12px;
+            margin-bottom: 15px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
           }
           
           .summary-value {
-            font-size: 28px;
+            font-size: 32px;
             font-weight: bold;
             color: #333;
+            line-height: 1.2;
           }
           
           .summary-value.receitas {
@@ -720,19 +691,16 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
         </style>
       </head>
       <body>
-        <!-- Logo e Cabeçalho -->
+        <!-- Cabeçalho -->
         <div class="header-section">
-          <div class="logo">
-            <div class="logo-text">M</div>
-          </div>
-          <div class="header-content">
-            ${artistName ? `<h1 class="artist-name">${artistName.toUpperCase()}</h1>` : ''}
-            <h2 class="report-title">Lista de Eventos - ${months[month]}/${year}</h2>
-            <p class="generated-info">
-              Relatório gerado: ${dataGeracao} pelo aplicativo Marca AI.
-            </p>
-          </div>
+          ${artistName ? `<h1 class="artist-name">${artistName.toUpperCase()}</h1>` : ''}
+          <h2 class="report-title">Lista de Eventos - ${months[month]}/${year}</h2>
+          <p class="generated-info">
+            Relatório gerado: ${dataGeracao} pelo aplicativo Marca AI.
+          </p>
         </div>
+        
+        <div class="header-divider"></div>
 
         ${sortedEvents.length > 0 ? `
           <!-- Tabela de Eventos -->
