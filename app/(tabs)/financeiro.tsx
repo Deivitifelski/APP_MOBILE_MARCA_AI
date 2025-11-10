@@ -74,11 +74,7 @@ export default function FinanceiroScreen() {
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
   ];
 
-  useEffect(() => {
-    loadActiveArtist();
-  }, []);
-
-  // ✅ Verificar permissões diretamente no banco quando artista mudar
+  // ✅ Verificar permissões quando artista mudar
   useEffect(() => {
     checkUserAccess();
   }, [activeArtist]);

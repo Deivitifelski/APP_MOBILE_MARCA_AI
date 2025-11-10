@@ -45,7 +45,7 @@ export default function AgendaScreen() {
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [hasFinancialAccess, setHasFinancialAccess] = useState(false);
   
-  // Verificar role ao carregar a tela e quando artista mudar
+  // Verificar role quando artista mudar
   useEffect(() => {
     // Limpar eventos imediatamente quando artista muda
     setEvents([]);

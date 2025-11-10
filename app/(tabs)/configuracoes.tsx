@@ -64,8 +64,6 @@ export default function ConfiguracoesScreen() {
 
   useEffect(() => {
     loadUserProfile();
-    loadArtistData();
-    loadActiveArtist(); // Carregar artista ativo global
     checkUserPlan();
     setupRealtimeSubscriptions();
     
@@ -77,8 +75,9 @@ export default function ConfiguracoesScreen() {
 
   // Sincronizar com o artista ativo quando mudar
   useEffect(() => {
+    console.log('🔄 Configurações: useEffect [activeArtist] disparado');
     if (activeArtist) {
-      console.log('🔄 Configurações: Artista ativo mudou para:', activeArtist.name);
+      console.log('✅ Configurações: Artista ativo mudou para:', activeArtist.name);
       console.log('   ID:', activeArtist.id);
       console.log('   Profile URL:', activeArtist.profile_url || '❌ VAZIO');
       
@@ -299,8 +298,8 @@ export default function ConfiguracoesScreen() {
       return;
     }
     
-    // Navegar diretamente para a tela de cadastro do artista
-    router.push('/cadastro-artista');
+    // Navegar diretamente para a tela de cadastro do artista com parâmetro indicando que veio das configurações
+    router.push('/cadastro-artista?fromSettings=true');
   };
 
   const handleLogout = () => {

@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
     Image,
     KeyboardAvoidingView,
+    Modal,
     Platform,
     ScrollView,
     StyleSheet,
@@ -23,15 +24,22 @@ import { createArtist } from '../../../services/supabase/artistService';
 import { getCurrentUser } from '../../../services/supabase/authService';
 import { uploadImageToSupabase } from '../../../services/supabase/imageUploadService';
 import { canCreateArtist } from '../../../services/supabase/userService';
+import { useActiveArtist } from '../../../services/useActiveArtist';
 
 export default function ArtistProfileScreen() {
   const { colors } = useTheme();
+  const params = useLocalSearchParams();
+  const fromSettings = params.fromSettings === 'true';
+  const { loadActiveArtist } = useActiveArtist();
+  
   const [name, setName] = useState('');
   const [profileUrl, setProfileUrl] = useState<string | null>(null);
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [createdArtistName, setCreatedArtistName] = useState('');
 
   const pickImage = async () => {
     try {
@@ -150,26 +158,33 @@ export default function ArtistProfileScreen() {
       }
 
       // Automaticamente mudar para o novo artista criado
+      console.log('🔄 Definindo novo artista como ativo:', artist.name);
       await setActiveArtist({
         id: artist.id,
         name: artist.name,
-        role: 'admin' // Criador sempre é admin
+        role: 'admin', // Criador sempre é admin
+        profile_url: finalProfileUrl || undefined
       });
+      console.log('✅ Artista ativo atualizado com sucesso!');
 
-      Alert.alert(
-        'Sucesso', 
-        `Perfil do artista "${artist.name}" criado com sucesso! Você está agora gerenciando este artista.`,
-        [
-          {
-            text: 'OK',
-            onPress: () => router.replace('/(tabs)/agenda')
-          }
-        ]
-      );
+      // Mostrar modal de sucesso personalizado
+      setCreatedArtistName(artist.name);
+      setShowSuccessModal(true);
     } catch (error) {
       Alert.alert('Erro', 'Ocorreu um erro ao criar o perfil do artista');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCloseSuccessModal = () => {
+    setShowSuccessModal(false);
+    if (fromSettings) {
+      // Se veio das configurações, voltar para lá
+      router.back();
+    } else {
+      // Senão, ir para a agenda (primeiro acesso)
+      router.replace('/(tabs)/agenda');
     }
   };
 
@@ -183,18 +198,24 @@ export default function ArtistProfileScreen() {
           <View style={styles.content}>
             {/* Header */}
             <View style={styles.header}>
-              <TouchableOpacity 
-                style={styles.backButton}
-                onPress={() => router.back()}
-              >
-                <Ionicons name="arrow-back" size={24} color={colors.primary} />
-              </TouchableOpacity>
+              {fromSettings && (
+                <TouchableOpacity 
+                  style={styles.backButton}
+                  onPress={() => router.back()}
+                >
+                  <Ionicons name="arrow-back" size={24} color={colors.primary} />
+                </TouchableOpacity>
+              )}
               <View style={[styles.logoContainer, { backgroundColor: colors.surface }]}>
                 <Ionicons name="musical-notes" size={50} color={colors.primary} />
               </View>
-              <Text style={[styles.title, { color: colors.text }]}>Criar Perfil do Artista</Text>
+              <Text style={[styles.title, { color: colors.text }]}>
+                {fromSettings ? 'Criar Novo Artista' : 'Criar Perfil do Artista'}
+              </Text>
               <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-                Configure o perfil do artista que você irá gerenciar
+                {fromSettings 
+                  ? 'Adicione um novo perfil de artista para gerenciar' 
+                  : 'Configure o perfil do artista que você irá gerenciar'}
               </Text>
             </View>
 
@@ -260,25 +281,30 @@ export default function ArtistProfileScreen() {
                 </Text>
               </TouchableOpacity>
 
-              <View style={styles.divider}>
-                <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-                <Text style={[styles.dividerText, { color: colors.textSecondary }]}>ou</Text>
-                <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-              </View>
+              {/* Mostrar opções alternativas apenas se NÃO vier das configurações */}
+              {!fromSettings && (
+                <>
+                  <View style={styles.divider}>
+                    <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+                    <Text style={[styles.dividerText, { color: colors.textSecondary }]}>ou</Text>
+                    <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+                  </View>
 
-              <TouchableOpacity
-                style={[styles.skipButton, { backgroundColor: colors.background, borderColor: colors.border }]}
-                onPress={() => router.replace('/(tabs)/agenda')}
-              >
-                <Text style={[styles.skipButtonText, { color: colors.primary }]}>Criar Mais Tarde</Text>
-              </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.skipButton, { backgroundColor: colors.background, borderColor: colors.border }]}
+                    onPress={() => router.replace('/(tabs)/agenda')}
+                  >
+                    <Text style={[styles.skipButtonText, { color: colors.primary }]}>Criar Mais Tarde</Text>
+                  </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.inviteButton, { backgroundColor: colors.success }]}
-                onPress={() => router.replace('/(tabs)/agenda')}
-              >
-                <Text style={styles.inviteButtonText}>Aguardar Convite</Text>
-              </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.inviteButton, { backgroundColor: colors.success }]}
+                    onPress={() => router.replace('/(tabs)/agenda')}
+                  >
+                    <Text style={styles.inviteButtonText}>Aguardar Convite</Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           </View>
         </ScrollView>
@@ -291,6 +317,78 @@ export default function ArtistProfileScreen() {
         message="Desbloqueie recursos avançados, usuários ilimitados, relatórios detalhados e suporte prioritário para sua banda."
         feature="artists"
       />
+
+      {/* Modal de Sucesso */}
+      <Modal
+        visible={showSuccessModal}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCloseSuccessModal}
+      >
+        <View style={styles.successModalOverlay}>
+          <View style={[styles.successModalContainer, { backgroundColor: colors.surface }]}>
+            {/* Ícone de Sucesso Animado */}
+            <View style={[styles.successIconContainer, { backgroundColor: colors.success + '15' }]}>
+              <Ionicons name="checkmark-circle" size={80} color={colors.success} />
+            </View>
+
+            {/* Título */}
+            <Text style={[styles.successTitle, { color: colors.text }]}>
+              Artista Criado! 🎉
+            </Text>
+
+            {/* Nome do Artista */}
+            <View style={[styles.artistNameCard, { backgroundColor: colors.background }]}>
+              <Ionicons name="musical-notes" size={24} color={colors.primary} />
+              <Text style={[styles.artistNameText, { color: colors.text }]}>
+                {createdArtistName}
+              </Text>
+            </View>
+
+            {/* Mensagem */}
+            <Text style={[styles.successMessage, { color: colors.textSecondary }]}>
+              O perfil do artista foi criado com sucesso! Você está agora gerenciando este artista.
+            </Text>
+
+            {/* Features */}
+            <View style={styles.featuresList}>
+              <View style={styles.featureItem}>
+                <View style={[styles.featureIcon, { backgroundColor: colors.primary + '15' }]}>
+                  <Ionicons name="calendar" size={16} color={colors.primary} />
+                </View>
+                <Text style={[styles.featureText, { color: colors.text }]}>
+                  Gerencie eventos e shows
+                </Text>
+              </View>
+              <View style={styles.featureItem}>
+                <View style={[styles.featureIcon, { backgroundColor: colors.primary + '15' }]}>
+                  <Ionicons name="cash" size={16} color={colors.primary} />
+                </View>
+                <Text style={[styles.featureText, { color: colors.text }]}>
+                  Controle financeiro completo
+                </Text>
+              </View>
+              <View style={styles.featureItem}>
+                <View style={[styles.featureIcon, { backgroundColor: colors.primary + '15' }]}>
+                  <Ionicons name="people" size={16} color={colors.primary} />
+                </View>
+                <Text style={[styles.featureText, { color: colors.text }]}>
+                  Convide colaboradores
+                </Text>
+              </View>
+            </View>
+
+            {/* Botão Continuar */}
+            <TouchableOpacity
+              style={[styles.successButton, { backgroundColor: colors.primary }]}
+              onPress={handleCloseSuccessModal}
+            >
+              <Text style={styles.successButtonText}>Continuar</Text>
+              <Ionicons name="arrow-forward" size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -465,6 +563,96 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   inviteButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  successModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  successModalContainer: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 24,
+    padding: 32,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  successIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  successTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  artistNameCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    marginBottom: 20,
+    gap: 12,
+  },
+  artistNameText: {
+    fontSize: 20,
+    fontWeight: '600',
+  },
+  successMessage: {
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  featuresList: {
+    width: '100%',
+    gap: 12,
+    marginBottom: 24,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  featureIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  featureText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  successButton: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  successButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
