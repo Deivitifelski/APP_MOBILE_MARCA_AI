@@ -3,7 +3,9 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  Clipboard,
   FlatList,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -44,6 +46,7 @@ export default function FinanceiroScreen() {
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { activeArtist, loadActiveArtist } = useActiveArtist();
   
@@ -269,30 +272,14 @@ export default function FinanceiroScreen() {
     
     console.log('✅ Usuário pode exportar - continuando com exportação');
     
-    // Modal melhorado para escolher tipo de relatório
-    Alert.alert(
-      '📊 Exportar Relatório Financeiro',
-      `Período: ${months[currentMonth]} de ${currentYear}\nEventos: ${events.length}\n\nEscolha o tipo de relatório que deseja gerar:`,
-      [
-        {
-          text: '💰 Com Valores Financeiros',
-          onPress: () => generateReport(true)
-        },
-        {
-          text: '🔒 Sem Valores Financeiros',
-          onPress: () => generateReport(false)
-        },
-        {
-          text: '❌ Cancelar',
-          style: 'cancel'
-        }
-      ]
-    );
+    // Abrir modal de exportação
+    setShowExportModal(true);
   };
 
   const generateReport = async (includeFinancials: boolean) => {
     if (!activeArtist) return;
     
+    setShowExportModal(false);
     setIsGeneratingReport(true);
     
     try {
@@ -312,6 +299,74 @@ export default function FinanceiroScreen() {
     } finally {
       setIsGeneratingReport(false);
     }
+  };
+
+  const copyAsText = (includeFinancials: boolean) => {
+    if (!activeArtist) return;
+    
+    setShowExportModal(false);
+
+    // Formatar data
+    const formatDate = (dateString: string) => {
+      const [year, month, day] = dateString.split('-').map(Number);
+      const date = new Date(year, month - 1, day);
+      return date.toLocaleDateString('pt-BR');
+    };
+
+    // Obter dia da semana
+    const getDayOfWeek = (dateString: string) => {
+      const [year, month, day] = dateString.split('-').map(Number);
+      const date = new Date(year, month - 1, day);
+      const daysOfWeek = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+      return daysOfWeek[date.getDay()];
+    };
+
+    const formatCurrency = (value: number) => {
+      return value.toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+      });
+    };
+
+    let text = `📊 RELATÓRIO FINANCEIRO\n`;
+    text += `${activeArtist.name.toUpperCase()}\n`;
+    text += `${months[currentMonth]}/${currentYear}\n`;
+    text += `Gerado: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}\n`;
+    text += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+    if (includeFinancials) {
+      text += `💰 RESUMO FINANCEIRO\n`;
+      text += `Receitas: ${formatCurrency(totalRevenue)}\n`;
+      text += `Despesas: ${formatCurrency(totalExpenses)}\n`;
+      text += `Lucro Líquido: ${formatCurrency(netProfit)}\n`;
+      text += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+      text += `📋 DETALHAMENTO DOS EVENTOS\n\n`;
+      events.forEach((event, index) => {
+        text += `${index + 1}. ${event.name}\n`;
+        text += `   Data: ${formatDate(event.event_date)}\n`;
+        if (event.city) text += `   Local: ${event.city}\n`;
+        text += `   Receita: ${formatCurrency(event.value || 0)}\n`;
+        text += `   Despesas: ${formatCurrency(event.totalExpenses)}\n`;
+        text += `   Lucro: ${formatCurrency((event.value || 0) - event.totalExpenses)}\n`;
+        if (index < events.length - 1) text += `   ───────────────────────\n`;
+      });
+    } else {
+      text += `📅 EVENTOS DO MÊS (${events.length})\n\n`;
+      events.forEach((event, index) => {
+        text += `${index + 1}. ${event.name}\n`;
+        text += `   ${getDayOfWeek(event.event_date)}, ${formatDate(event.event_date)}\n`;
+        if (event.city) text += `   📍 ${event.city}\n`;
+        if (index < events.length - 1) text += `   ───────────────────────\n`;
+      });
+    }
+
+    text += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    text += `Marca AI - Gestão de Shows\n`;
+    text += includeFinancials ? `Relatório Completo` : `Relatório Sem Valores`;
+
+    Clipboard.setString(text);
+    Alert.alert('✅ Copiado!', 'Relatório copiado para a área de transferência. Cole em qualquer aplicativo de mensagem.');
   };
 
   // ✅ VERIFICAÇÃO DE SEGURANÇA: Cálculos financeiros só se tiver acesso
@@ -630,6 +685,143 @@ export default function FinanceiroScreen() {
         message="Apenas gerentes e editores podem visualizar os detalhes e valores financeiros dos eventos. Entre em contato com um gerente para solicitar mais permissões."
         icon="lock-closed"
       />
+
+      {/* Modal de Exportação */}
+      <Modal
+        visible={showExportModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowExportModal(false)}
+      >
+        <View style={styles.exportModalOverlay}>
+          <View style={[styles.exportModalContainer, { backgroundColor: colors.surface }]}>
+            {/* Header */}
+            <View style={styles.exportModalHeader}>
+              <View style={styles.exportModalTitleContainer}>
+                <Ionicons name="share-outline" size={24} color={colors.primary} />
+                <Text style={[styles.exportModalTitle, { color: colors.text }]}>
+                  Exportar Relatório
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowExportModal(false)}>
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Info Card */}
+            <View style={[styles.exportInfoCard, { backgroundColor: colors.background }]}>
+              <View style={styles.exportInfoRow}>
+                <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+                <Text style={[styles.exportInfoText, { color: colors.text }]}>
+                  {months[currentMonth]} de {currentYear}
+                </Text>
+              </View>
+              <View style={styles.exportInfoRow}>
+                <Ionicons name="musical-notes-outline" size={18} color={colors.primary} />
+                <Text style={[styles.exportInfoText, { color: colors.text }]}>
+                  {events.length} evento{events.length !== 1 ? 's' : ''}
+                </Text>
+              </View>
+              {activeArtist && (
+                <View style={styles.exportInfoRow}>
+                  <Ionicons name="person-outline" size={18} color={colors.primary} />
+                  <Text style={[styles.exportInfoText, { color: colors.text }]}>
+                    {activeArtist.name}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <ScrollView style={styles.exportModalContent}>
+              {/* Seção: Exportar como Documento PDF */}
+              <View style={styles.exportSection}>
+                <Text style={[styles.exportSectionTitle, { color: colors.text }]}>
+                  📄 Exportar como Documento
+                </Text>
+                
+                <TouchableOpacity
+                  style={[styles.exportOptionCard, { backgroundColor: colors.background, borderColor: colors.border }]}
+                  onPress={() => generateReport(true)}
+                >
+                  <View style={[styles.exportOptionIconCircle, { backgroundColor: colors.primary + '15' }]}>
+                    <Ionicons name="document-text" size={24} color={colors.primary} />
+                  </View>
+                  <View style={styles.exportOptionContent}>
+                    <Text style={[styles.exportOptionTitle, { color: colors.text }]}>
+                      Com Valores Financeiros
+                    </Text>
+                    <Text style={[styles.exportOptionDescription, { color: colors.textSecondary }]}>
+                      PDF completo com receitas, despesas e lucros
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.exportOptionCard, { backgroundColor: colors.background, borderColor: colors.border }]}
+                  onPress={() => generateReport(false)}
+                >
+                  <View style={[styles.exportOptionIconCircle, { backgroundColor: colors.primary + '15' }]}>
+                    <Ionicons name="eye-off" size={24} color={colors.primary} />
+                  </View>
+                  <View style={styles.exportOptionContent}>
+                    <Text style={[styles.exportOptionTitle, { color: colors.text }]}>
+                      Sem Valores Financeiros
+                    </Text>
+                    <Text style={[styles.exportOptionDescription, { color: colors.textSecondary }]}>
+                      PDF apenas com agenda e locais dos eventos
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Seção: Copiar como Texto */}
+              <View style={styles.exportSection}>
+                <Text style={[styles.exportSectionTitle, { color: colors.text }]}>
+                  📋 Copiar como Texto
+                </Text>
+                
+                <TouchableOpacity
+                  style={[styles.exportOptionCard, { backgroundColor: colors.background, borderColor: colors.border }]}
+                  onPress={() => copyAsText(true)}
+                >
+                  <View style={[styles.exportOptionIconCircle, { backgroundColor: '#25D366' + '15' }]}>
+                    <Ionicons name="copy" size={24} color="#25D366" />
+                  </View>
+                  <View style={styles.exportOptionContent}>
+                    <Text style={[styles.exportOptionTitle, { color: colors.text }]}>
+                      Com Valores Financeiros
+                    </Text>
+                    <Text style={[styles.exportOptionDescription, { color: colors.textSecondary }]}>
+                      Texto com receitas, despesas e lucros
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.exportOptionCard, { backgroundColor: colors.background, borderColor: colors.border }]}
+                  onPress={() => copyAsText(false)}
+                >
+                  <View style={[styles.exportOptionIconCircle, { backgroundColor: '#25D366' + '15' }]}>
+                    <Ionicons name="list" size={24} color="#25D366" />
+                  </View>
+                  <View style={styles.exportOptionContent}>
+                    <Text style={[styles.exportOptionTitle, { color: colors.text }]}>
+                      Sem Valores Financeiros
+                    </Text>
+                    <Text style={[styles.exportOptionDescription, { color: colors.textSecondary }]}>
+                      Texto com agenda e locais dos eventos
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* Modal de Upgrade */}
       <UpgradeModal
@@ -1054,6 +1246,96 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
     lineHeight: 16,
+  },
+  exportModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  exportModalContainer: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '90%',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -4,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  exportModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+  },
+  exportModalTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  exportModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  exportInfoCard: {
+    marginHorizontal: 20,
+    padding: 16,
+    borderRadius: 12,
+    gap: 10,
+  },
+  exportInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  exportInfoText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  exportModalContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  exportSection: {
+    marginTop: 20,
+  },
+  exportSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  exportOptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    gap: 12,
+  },
+  exportOptionIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  exportOptionContent: {
+    flex: 1,
+  },
+  exportOptionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  exportOptionDescription: {
+    fontSize: 13,
+    lineHeight: 18,
   },
 });
 
