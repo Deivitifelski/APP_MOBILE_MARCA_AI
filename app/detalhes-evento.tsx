@@ -539,7 +539,7 @@ export default function DetalhesEventoScreen() {
                 Valores financeiros ocultos
               </Text>
               <Text style={[styles.lockedFinancialSubtext, { color: colors.textSecondary }]}>
-                Apenas proprietários e editores podem visualizar dados financeiros
+                Apenas gerentes e editores podem visualizar dados financeiros
               </Text>
             </View>
           )}
@@ -613,7 +613,7 @@ export default function DetalhesEventoScreen() {
         visible={showPermissionModal}
         onClose={() => setShowPermissionModal(false)}
         title="Acesso Restrito"
-        message="Apenas proprietários e editores podem editar eventos, gerenciar despesas e visualizar valores financeiros. Entre em contato com um proprietário para solicitar mais permissões."
+        message="Apenas gerentes e editores podem editar eventos, gerenciar despesas e visualizar valores financeiros. Entre em contato com um gerente para solicitar mais permissões."
         icon="lock-closed"
       />
 

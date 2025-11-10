@@ -639,7 +639,7 @@ export default function AgendaScreen() {
         visible={showPermissionModal}
         onClose={() => setShowPermissionModal(false)}
         title="Acesso Restrito"
-        message="Apenas proprietários e editores podem criar e visualizar detalhes e valores financeiros dos eventos. Entre em contato com um proprietário para solicitar mais permissões."
+        message="Apenas gerentes e editores podem criar e visualizar detalhes e valores financeiros dos eventos. Entre em contato com um gerente para solicitar mais permissões."
         icon="lock-closed"
       />
     </View>
