@@ -18,6 +18,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { artistImageUpdateService } from '../../services/artistImageUpdateService';
 import { cacheService } from '../../services/cacheService';
+import { getCurrentUser } from '../../services/supabase/authService';
 import { getEventsByMonthWithRole } from '../../services/supabase/eventService';
 import { useActiveArtist } from '../../services/useActiveArtist';
 import { useNotifications } from '../../services/useNotifications';
@@ -46,6 +47,8 @@ export default function AgendaScreen() {
   
   // Verificar role ao carregar a tela e quando artista mudar
   useEffect(() => {
+    // Limpar eventos imediatamente quando artista muda
+    setEvents([]);
     checkUserRole();
   }, [activeArtist]);
 
@@ -53,6 +56,7 @@ export default function AgendaScreen() {
     if (!activeArtist) {
       setCurrentUserRole(null);
       setHasFinancialAccess(false);
+      setEvents([]); // Limpar eventos quando não há artista
       return;
     }
 
@@ -134,6 +138,8 @@ export default function AgendaScreen() {
     if (activeArtist) {
       loadEvents(true);
       setImageLoadError(false); // Reset image error state when artist changes
+    } else {
+      setEvents([]); // Limpar eventos se não houver artista
     }
   }, [activeArtist, currentMonth, currentYear]);
 
@@ -223,6 +229,7 @@ export default function AgendaScreen() {
 
   const loadEvents = async (isInitialLoad = true) => {
     if (!activeArtist) {
+      setEvents([]);
       return;
     }
     
@@ -258,15 +265,11 @@ export default function AgendaScreen() {
         }
       } else {
         console.error('❌ Erro ao carregar eventos:', result.error);
-        if (isInitialLoad) {
-          setEvents([]);
-        }
+        setEvents([]);
       }
     } catch (error) {
       console.error('❌ Erro ao carregar eventos:', error);
-      if (isInitialLoad) {
-        setEvents([]);
-      }
+      setEvents([]);
     }
   };
 
@@ -381,6 +384,11 @@ export default function AgendaScreen() {
   };
 
   const renderShow = ({ item }: { item: any }) => {
+    // Proteção: não renderizar se não houver artista ativo
+    if (!activeArtist) {
+      return null;
+    }
+    
     // Parse da data sem conversão de fuso horário
     const [year, month, day] = item.event_date.split('-').map(Number);
     const eventDate = new Date(year, month - 1, day);
