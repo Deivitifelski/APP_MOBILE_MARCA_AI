@@ -795,7 +795,7 @@ export default function NotificacoesScreen() {
                   name={
                     acceptedInviteData.role === 'Administrador' ? 'shield-checkmark' :
                     acceptedInviteData.role === 'Editor' ? 'create' :
-                    acceptedInviteData.role === 'Proprietário' ? 'star' :
+                    acceptedInviteData.role === 'Gerente' ? 'star' :
                     'eye'
                   } 
                   size={16} 

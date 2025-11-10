@@ -290,7 +290,7 @@ export default function ColaboradoresArtistaScreen() {
     if (userRole === 'owner' && collaborator?.role === 'admin') {
       Alert.alert(
         'Ação Não Permitida',
-        'Proprietários não podem remover administradores.',
+        'Gerentes não podem remover administradores.',
         [{ text: 'OK' }]
       );
       return;
@@ -340,7 +340,7 @@ export default function ColaboradoresArtistaScreen() {
     if (userRole === 'owner' && currentRole === 'admin') {
       Alert.alert(
         'Ação Não Permitida',
-        'Proprietários não podem alterar permissões de administradores.',
+        'Gerentes não podem alterar permissões de administradores.',
         [{ text: 'OK' }]
       );
       return;
@@ -414,7 +414,7 @@ export default function ColaboradoresArtistaScreen() {
   const getRoleLabel = (role: string) => {
     switch (role) {
       case 'owner':
-        return 'Proprietário';
+        return 'Gerente';
       case 'admin':
         return 'Administrador';
       case 'editor':
@@ -787,8 +787,8 @@ export default function ColaboradoresArtistaScreen() {
               
               <View style={styles.permissionOptions}>
                 {[
-                  { label: 'Proprietário', value: 'owner', description: 'Acesso total e controle completo' },
                   { label: 'Administrador', value: 'admin', description: 'Pode gerenciar colaboradores e editar tudo' },
+                  { label: 'Gerente', value: 'owner', description: 'Acesso total e controle completo' },
                   { label: 'Editor', value: 'editor', description: 'Pode editar eventos e despesas' },
                   { label: 'Visualizador', value: 'viewer', description: 'Pode apenas visualizar' }
                 ].map((role) => (
@@ -925,20 +925,20 @@ export default function ColaboradoresArtistaScreen() {
             <View style={styles.roleOptionsContainer}>
               {[
                 { 
-                  label: 'Proprietário', 
-                  value: 'owner', 
-                  icon: 'star',
-                  color: '#FFD700',
-                  description: 'Controle total do artista',
-                  features: ['Gerenciar tudo', 'Transferir propriedade', 'Deletar artista']
-                },
-                { 
                   label: 'Administrador', 
                   value: 'admin', 
                   icon: 'shield-checkmark',
                   color: '#FF6B35',
                   description: 'Gerenciamento avançado',
                   features: ['Gerenciar membros', 'Editar eventos', 'Ver finanças']
+                },
+                { 
+                  label: 'Gerente', 
+                  value: 'owner', 
+                  icon: 'star',
+                  color: '#FFD700',
+                  description: 'Controle total do artista',
+                  features: ['Gerenciar tudo', 'Transferir propriedade', 'Deletar artista']
                 },
                 { 
                   label: 'Editor', 

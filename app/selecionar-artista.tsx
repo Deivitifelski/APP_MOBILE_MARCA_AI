@@ -168,7 +168,7 @@ export default function SelecionarArtistaScreen() {
   const getRoleLabel = (role: string) => {
     switch (role) {
       case 'owner':
-        return 'Proprietário';
+        return 'Gerente';
       case 'admin':
         return 'Administrador';
       case 'editor':

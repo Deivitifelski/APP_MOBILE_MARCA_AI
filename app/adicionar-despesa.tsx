@@ -192,7 +192,7 @@ export default function AdicionarDespesaScreen() {
           router.back();
         }}
         title="Acesso Restrito"
-        message="Você não possui permissão para adicionar despesas. Solicite ao administrador permissões de Editor, Administrador ou Proprietário para gerenciar despesas."
+        message="Você não possui permissão para adicionar despesas. Solicite ao administrador permissões de Editor, Administrador ou Gerente para gerenciar despesas."
         icon="lock-closed"
       />
     </SafeAreaView>

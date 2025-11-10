@@ -324,7 +324,7 @@ export default function EditarArtistaScreen() {
             <View style={styles.artistInfo}>
               <Text style={[styles.artistName, { color: colors.text }]}>{artist.name}</Text>
               <Text style={[styles.artistRole, { color: colors.primary }]}>
-                {userPermissions?.role === 'owner' ? 'Proprietário' : 'Colaborador'}
+                {userPermissions?.role === 'owner' ? 'Gerente' : 'Colaborador'}
               </Text>
               <Text style={[styles.editImageText, { color: colors.textSecondary }]}>Toque na imagem para alterar</Text>
             </View>

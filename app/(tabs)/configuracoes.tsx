@@ -619,7 +619,7 @@ export default function ConfiguracoesScreen() {
               <View style={dynamicStyles.artistInfo}>
                 <Text style={dynamicStyles.artistName}>{currentArtist.name}</Text>
                 <Text style={dynamicStyles.artistRole}>
-                  {currentArtist.role === 'owner' ? 'Proprietário' : 'Colaborador'}
+                  {currentArtist.role === 'owner' ? 'Gerente' : 'Colaborador'}
                 </Text>
               </View>
               {userPermissions?.permissions?.canManageArtist && (
