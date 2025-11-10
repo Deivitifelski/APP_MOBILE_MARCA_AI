@@ -1,25 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  RefreshControl,
-  Image,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { getCollaborators, updateCollaboratorRole, leaveArtist, Collaborator } from '../services/supabase/collaboratorService';
-import { getCurrentUser } from '../services/supabase/authService';
-import { useActiveArtist } from '../services/useActiveArtist';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { clearActiveArtist } from '../services/artistContext';
+import { getCurrentUser } from '../services/supabase/authService';
+import { Collaborator, getCollaborators, leaveArtist, updateCollaboratorRole } from '../services/supabase/collaboratorService';
+import { useActiveArtist } from '../services/useActiveArtist';
 
 export default function TransferirPropriedadeScreen() {
-  const { activeArtist, loadActiveArtist } = useActiveArtist();
+  const { activeArtist } = useActiveArtist();
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isTransferring, setIsTransferring] = useState(false);
@@ -27,6 +27,7 @@ export default function TransferirPropriedadeScreen() {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeArtist]);
 
   const loadData = async () => {
@@ -176,6 +177,8 @@ export default function TransferirPropriedadeScreen() {
         return 'Editor';
       case 'viewer':
         return 'Visualizador';
+        case 'owner':
+          return 'Gerente';
       default:
         return 'Colaborador';
     }
@@ -225,7 +228,7 @@ export default function TransferirPropriedadeScreen() {
         <View style={styles.infoCard}>
           <Ionicons name="information-circle" size={24} color="#3B82F6" />
           <Text style={styles.infoText}>
-            Selecione um colaborador para se tornar o novo proprietário do artista "{activeArtist?.name}".
+            Selecione um colaborador para se tornar o novo proprietário do artista &quot;{activeArtist?.name}&quot;.
           </Text>
         </View>
 
