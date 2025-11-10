@@ -69,22 +69,25 @@ export const useActiveArtist = () => {
         }
       }
       
-      // Se não há artista válido salvo, pegar o primeiro artista do usuário
+      // Se não há artista válido salvo, NÃO selecionar automaticamente
+      // Deixar null para que o usuário escolha ou seja direcionado para criar
       if (!validActiveArtist) {
-        console.log('useActiveArtist: Definindo primeiro artista como ativo');
-        const firstArtist = artists[0];
-        validActiveArtist = {
-          id: firstArtist.id,
-          name: firstArtist.name,
-          role: firstArtist.role || 'owner',
-          profile_url: firstArtist.profile_url
-        };
+        console.log('⚠️ useActiveArtist: Nenhum artista salvo válido');
+        console.log('📋 Artistas disponíveis:', artists.length);
         
-        // Salvar como ativo
-        await saveActiveArtist(validActiveArtist);
+        // Se houver artistas mas nenhum selecionado, usuário precisa escolher
+        if (artists.length > 0) {
+          console.log('👤 Usuário tem artistas, mas nenhum estava selecionado');
+          // Não definir nenhum automaticamente
+          setActiveArtistState(null);
+        } else {
+          console.log('📝 Usuário não tem artistas, precisa criar');
+          setActiveArtistState(null);
+        }
+        return;
       }
       
-      console.log('useActiveArtist: Artista ativo final:', validActiveArtist);
+      console.log('✅ useActiveArtist: Artista ativo final:', validActiveArtist.name);
       setActiveArtistState(validActiveArtist);
     } catch (error) {
       console.error('Erro ao carregar artista ativo:', error);

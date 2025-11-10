@@ -40,11 +40,35 @@ export default function AgendaScreen() {
   const { activeArtist, loadActiveArtist, isLoading } = useActiveArtist();
   const [artistImageUpdated, setArtistImageUpdated] = useState<boolean>(false);
   const { unreadCount, loadUnreadCount } = useNotifications();
+  const [hasAnyArtist, setHasAnyArtist] = useState(false);
   
   // ✅ VERIFICAR ROLE DIRETAMENTE NO BANCO
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [hasFinancialAccess, setHasFinancialAccess] = useState(false);
   
+  // Verificar se usuário tem artistas disponíveis
+  useEffect(() => {
+    checkIfUserHasArtists();
+  }, []);
+
+  const checkIfUserHasArtists = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('artist_members')
+        .select('artist_id')
+        .eq('user_id', user.id)
+        .limit(1);
+
+      setHasAnyArtist(!error && data && data.length > 0);
+      console.log('👤 Usuário tem artistas?', !error && data && data.length > 0);
+    } catch (error) {
+      console.error('Erro ao verificar artistas:', error);
+    }
+  };
+
   // Verificar role quando artista mudar
   useEffect(() => {
     // Limpar eventos imediatamente quando artista muda
@@ -151,10 +175,14 @@ export default function AgendaScreen() {
   // Recarregar eventos quando a tela receber foco (ex: voltar de adicionar/editar evento)
   useFocusEffect(
     React.useCallback(() => {
+      // Apenas invalidar cache e recarregar eventos se houver artista
       if (activeArtist) {
-        // Invalidar cache e recarregar eventos
+        console.log('🔄 Agenda: Tela em foco, recarregando eventos...');
         cacheService.invalidateEventsCache(activeArtist.id, currentYear, currentMonth);
         loadEvents(true);
+      } else {
+        // Verificar se criou novos artistas
+        checkIfUserHasArtists();
       }
     }, [activeArtist, currentMonth, currentYear])
   );
@@ -572,35 +600,61 @@ export default function AgendaScreen() {
             <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Carregando...</Text>
           </View>
         ) : !activeArtist ? (
-          /* Estado vazio - sem artistas para gerenciar */
+          /* Estado vazio - sem artista selecionado */
           <View style={[styles.emptyStateContainer, { backgroundColor: colors.background }]}>
             <View style={styles.emptyStateIcon}>
               <Ionicons name="musical-notes" size={64} color={colors.textSecondary} />
             </View>
-            <Text style={[styles.emptyStateTitle, { color: colors.text }]}>
-              Nenhum perfil para gerenciar
-            </Text>
-            <Text style={[styles.emptyStateSubtitle, { color: colors.textSecondary }]}>
-              Você ainda não tem nenhum artista para gerenciar. Crie um perfil agora ou aguarde um convite.
-            </Text>
             
-            <View style={styles.emptyStateActions}>
-              <TouchableOpacity
-                style={[styles.createButton, { backgroundColor: colors.primary }]}
-                onPress={handleCreateArtist}
-              >
-                <Ionicons name="add-circle" size={20} color="#fff" />
-                <Text style={styles.createButtonText}>Criar Agora</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.waitButton, { backgroundColor: colors.secondary }]}
-                onPress={handleWaitForInvite}
-              >
-                <Ionicons name="time" size={20} color={colors.primary} />
-                <Text style={[styles.waitButtonText, { color: colors.primary }]}>Aguardar Convite</Text>
-              </TouchableOpacity>
-            </View>
+            {hasAnyArtist ? (
+              /* Usuário tem artistas mas nenhum selecionado */
+              <>
+                <Text style={[styles.emptyStateTitle, { color: colors.text }]}>
+                  Selecione um Artista
+                </Text>
+                <Text style={[styles.emptyStateSubtitle, { color: colors.textSecondary }]}>
+                  Você precisa selecionar um artista para acessar a agenda de shows.
+                </Text>
+                
+                <View style={styles.emptyStateActions}>
+                  <TouchableOpacity
+                    style={[styles.createButton, { backgroundColor: colors.primary }]}
+                    onPress={() => router.push('/selecionar-artista')}
+                  >
+                    <Ionicons name="list" size={20} color="#fff" />
+                    <Text style={styles.createButtonText}>Selecionar Artista</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              /* Usuário não tem artistas */
+              <>
+                <Text style={[styles.emptyStateTitle, { color: colors.text }]}>
+                  Nenhum perfil para gerenciar
+                </Text>
+                <Text style={[styles.emptyStateSubtitle, { color: colors.textSecondary }]}>
+                  Você ainda não tem nenhum artista para gerenciar. Crie um perfil agora ou aguarde um convite.
+                </Text>
+                
+                <View style={styles.emptyStateActions}>
+                  <TouchableOpacity
+                    style={[styles.createButton, { backgroundColor: colors.primary }]}
+                    onPress={handleCreateArtist}
+                  >
+                    <Ionicons name="add-circle" size={20} color="#fff" />
+                    <Text style={styles.createButtonText}>Criar Agora</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[styles.waitButton, { backgroundColor: colors.secondary }]}
+                    onPress={handleWaitForInvite}
+                  >
+                    <Ionicons name="time" size={20} color={colors.primary} />
+                    <Text style={[styles.waitButtonText, { color: colors.primary }]}>Aguardar Convite</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
           </View>
         ) : (
           /* Lista de shows do mês */

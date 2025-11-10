@@ -229,7 +229,7 @@ export default function TransferirPropriedadeScreen() {
           <Ionicons name="information-circle" size={24} color="#3B82F6" />
           <Text style={styles.infoText}>
             Selecione um colaborador para se tornar o novo gerente do artista &quot;{activeArtist?.name}&quot;.
-          </Text>
+        </Text>
         </View>
 
         {collaborators.length === 0 ? (

@@ -49,6 +49,7 @@ export default function FinanceiroScreen() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { activeArtist, loadActiveArtist } = useActiveArtist();
+  const [hasAnyArtist, setHasAnyArtist] = useState(false);
   
   // Estados para controle de acesso
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
@@ -73,6 +74,28 @@ export default function FinanceiroScreen() {
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
   ];
+
+  // Verificar se usuário tem artistas disponíveis
+  useEffect(() => {
+    checkIfUserHasArtists();
+  }, []);
+
+  const checkIfUserHasArtists = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('artist_members')
+        .select('artist_id')
+        .eq('user_id', user.id)
+        .limit(1);
+
+      setHasAnyArtist(!error && data && data.length > 0);
+    } catch (error) {
+      console.error('Erro ao verificar artistas:', error);
+    }
+  };
 
   // ✅ Verificar permissões quando artista mudar
   useEffect(() => {
@@ -492,42 +515,65 @@ export default function FinanceiroScreen() {
             <View style={[styles.noArtistIcon, { backgroundColor: colors.background }]}>
               <Ionicons name="musical-notes" size={60} color={colors.primary} />
             </View>
-            <Text style={[styles.noArtistTitle, { color: colors.text }]}>
-              Nenhum Artista Selecionado
-            </Text>
-            <Text style={[styles.noArtistMessage, { color: colors.textSecondary }]}>
-              Para visualizar dados financeiros, você precisa ter um perfil de artista ativo.
-            </Text>
-            <Text style={[styles.noArtistSubMessage, { color: colors.textSecondary }]}>
-              Após criar seu perfil de artista e começar a adicionar eventos, você poderá acompanhar:
-            </Text>
             
-            <View style={styles.featuresList}>
-              <View style={styles.featureItem}>
-                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-                <Text style={[styles.featureText, { color: colors.textSecondary }]}>
-                  Receitas dos seus eventos
+            {hasAnyArtist ? (
+              /* Usuário tem artistas mas nenhum selecionado */
+              <>
+                <Text style={[styles.noArtistTitle, { color: colors.text }]}>
+                  Selecione um Artista
                 </Text>
-              </View>
-              <View style={styles.featureItem}>
-                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-                <Text style={[styles.featureText, { color: colors.textSecondary }]}>
-                  Controle de despesas
+                <Text style={[styles.noArtistMessage, { color: colors.textSecondary }]}>
+                  Você precisa selecionar um artista para visualizar os dados financeiros.
                 </Text>
-              </View>
-              <View style={styles.featureItem}>
-                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-                <Text style={[styles.featureText, { color: colors.textSecondary }]}>
-                  Relatórios financeiros
+                <TouchableOpacity
+                  style={[styles.createButton, { backgroundColor: colors.primary, marginTop: 20 }]}
+                  onPress={() => router.push('/selecionar-artista')}
+                >
+                  <Ionicons name="list" size={20} color="#fff" />
+                  <Text style={styles.createButtonText}>Selecionar Artista</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              /* Usuário não tem artistas */
+              <>
+                <Text style={[styles.noArtistTitle, { color: colors.text }]}>
+                  Nenhum Artista Selecionado
                 </Text>
-              </View>
-              <View style={styles.featureItem}>
-                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-                <Text style={[styles.featureText, { color: colors.textSecondary }]}>
-                  Análise de lucratividade
+                <Text style={[styles.noArtistMessage, { color: colors.textSecondary }]}>
+                  Para visualizar dados financeiros, você precisa ter um perfil de artista ativo.
                 </Text>
-              </View>
-            </View>
+                <Text style={[styles.noArtistSubMessage, { color: colors.textSecondary }]}>
+                  Após criar seu perfil de artista e começar a adicionar eventos, você poderá acompanhar:
+                </Text>
+                
+                <View style={styles.featuresList}>
+                  <View style={styles.featureItem}>
+                    <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                    <Text style={[styles.featureText, { color: colors.textSecondary }]}>
+                      Receitas dos seus eventos
+                    </Text>
+                  </View>
+                  <View style={styles.featureItem}>
+                    <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                    <Text style={[styles.featureText, { color: colors.textSecondary }]}>
+                      Controle de despesas
+                    </Text>
+                  </View>
+                  <View style={styles.featureItem}>
+                    <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                    <Text style={[styles.featureText, { color: colors.textSecondary }]}>
+                      Relatórios financeiros
+                    </Text>
+                  </View>
+                  <View style={styles.featureItem}>
+                    <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                    <Text style={[styles.featureText, { color: colors.textSecondary }]}>
+                      Análise de lucratividade
+                    </Text>
+                  </View>
+                </View>
+              </>
+            )}
           </View>
         </View>
       </View>
@@ -1332,6 +1378,20 @@ const styles = StyleSheet.create({
   exportOptionDescription: {
     fontSize: 13,
     lineHeight: 18,
+  },
+  createButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    gap: 8,
+  },
+  createButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
 });
 
