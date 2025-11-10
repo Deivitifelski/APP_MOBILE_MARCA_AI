@@ -11,6 +11,7 @@ interface EventWithExpenses {
   expenses: any[];
   totalExpenses: number;
   description?: string;
+  city?: string;
 }
 
 interface FinancialReportData {
@@ -35,6 +36,14 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
       const [year, month, day] = dateString.split('-').map(Number);
       const date = new Date(year, month - 1, day);
       return date.toLocaleDateString('pt-BR');
+    };
+    
+    // Obter dia da semana
+    const getDayOfWeek = (dateString: string) => {
+      const [year, month, day] = dateString.split('-').map(Number);
+      const date = new Date(year, month - 1, day);
+      const daysOfWeek = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+      return daysOfWeek[date.getDay()];
     };
     
     // Formatar moeda
@@ -308,12 +317,11 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
         ${events.length > 0 ? `
         <!-- Detalhamento dos Eventos -->
         <h3 class="section-title">DETALHAMENTO DOS EVENTOS</h3>
-        ${events.map((event, index) => `
+        ${includeFinancials ? events.map((event, index) => `
           <div class="event-card">
             <div class="event-card-title">
               ${index + 1}. ${event.name} - ${formatDate(event.event_date)}
             </div>
-            ${includeFinancials ? `
             <table class="event-table">
               <thead>
                 <tr>
@@ -338,9 +346,30 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
                 </tr>
               </tbody>
             </table>
-            ` : ''}
           </div>
-        `).join('')}
+        `).join('') : `
+          <table class="event-table" style="margin-top: 20px;">
+            <thead>
+              <tr>
+                <th style="width: 40%;">Nome do Evento</th>
+                <th style="width: 35%; text-align: center;">Data</th>
+                <th style="width: 25%; text-align: center;">Cidade</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${events.map(event => `
+              <tr>
+                <td class="event-label">${event.name}</td>
+                <td class="event-value" style="text-align: center;">
+                  <strong>${getDayOfWeek(event.event_date)}</strong><br/>
+                  ${formatDate(event.event_date)}
+                </td>
+                <td class="event-value" style="text-align: center;">${event.city || '-'}</td>
+              </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `}
         
         <!-- Resumo Financeiro -->
         ${includeFinancials ? `

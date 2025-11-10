@@ -31,6 +31,7 @@ interface EventWithExpenses {
   value?: number;
   expenses: any[];
   totalExpenses: number;
+  city?: string;
 }
 
 export default function FinanceiroScreen() {
