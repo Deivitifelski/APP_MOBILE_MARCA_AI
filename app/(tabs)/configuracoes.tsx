@@ -19,6 +19,7 @@ import OptimizedImage from '../../components/OptimizedImage';
 import UpgradeModal from '../../components/UpgradeModal';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
+import { artistImageUpdateService } from '../../services/artistImageUpdateService';
 import { cacheService } from '../../services/cacheService';
 import { RealtimeSubscription, subscribeToUsers } from '../../services/realtimeService';
 import { getArtists } from '../../services/supabase/artistService';
@@ -26,10 +27,12 @@ import { getCurrentUser, updatePassword } from '../../services/supabase/authServ
 import { createFeedback } from '../../services/supabase/feedbackService';
 import { getUserPermissions } from '../../services/supabase/permissionsService';
 import { getUserProfile, isPremiumUser, UserProfile } from '../../services/supabase/userService';
+import { useActiveArtist } from '../../services/useActiveArtist';
 
 export default function ConfiguracoesScreen() {
   const { isDarkMode, toggleDarkMode, colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const { activeArtist, loadActiveArtist } = useActiveArtist();
   const [notifications, setNotifications] = useState(true);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
@@ -56,11 +59,14 @@ export default function ConfiguracoesScreen() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [artistImageUpdated, setArtistImageUpdated] = useState<boolean>(false);
+  const [imageLoadError, setImageLoadError] = useState(false);
 
   useEffect(() => {
     loadUserProfile();
     loadArtistData();
-    checkUserPlan(); // Verificar plano automaticamente
+    loadActiveArtist(); // Carregar artista ativo global
+    checkUserPlan();
     setupRealtimeSubscriptions();
     
     // Cleanup function
@@ -69,11 +75,49 @@ export default function ConfiguracoesScreen() {
     };
   }, []);
 
+  // Sincronizar com o artista ativo quando mudar
+  useEffect(() => {
+    if (activeArtist) {
+      console.log('🔄 Configurações: Artista ativo mudou para:', activeArtist.name);
+      console.log('   ID:', activeArtist.id);
+      console.log('   Profile URL:', activeArtist.profile_url || '❌ VAZIO');
+      
+      // Atualizar estado local com o artista ativo
+      setCurrentArtist(activeArtist);
+      setHasArtist(true);
+      
+      // Recarregar permissões para o novo artista
+      loadPermissionsForArtist(activeArtist.id);
+    } else {
+      console.log('⚠️ Configurações: Nenhum artista ativo');
+      setCurrentArtist(null);
+      setHasArtist(false);
+      setUserPermissions(null);
+    }
+  }, [activeArtist]);
+
+  // Escutar atualizações de imagem do artista
+  useEffect(() => {
+    const handleArtistImageUpdated = (data: { artistId: string; newImageUrl: string }) => {
+      if (activeArtist && data.artistId === activeArtist.id) {
+        console.log('🎨 Configurações: Imagem do artista atualizada');
+        loadActiveArtist(); // Recarregar artista ativo global
+      }
+    };
+
+    artistImageUpdateService.onArtistImageUpdated(handleArtistImageUpdated);
+
+    return () => {
+      artistImageUpdateService.removeArtistImageUpdatedListener(handleArtistImageUpdated);
+    };
+  }, [activeArtist]);
+
   // Recarregar dados quando a tela ganhar foco
   useFocusEffect(
     React.useCallback(() => {
       console.log('🔄 Tela de configurações ganhou foco, recarregando dados...');
-      loadArtistData(true); // Força refresh do servidor
+      loadArtistData(true);
+      loadActiveArtist(); // Recarregar artista ativo também
     }, [])
   );
 
@@ -121,36 +165,24 @@ export default function ConfiguracoesScreen() {
     setRealtimeSubscriptions([]);
   };
 
-  // Função para invalidar cache e recarregar dados
-  const invalidateCacheAndReload = React.useCallback(async () => {
+  // Carregar permissões para um artista específico
+  const loadPermissionsForArtist = async (artistId: string) => {
     try {
       const { user } = await getCurrentUser();
-      if (user) {
-        // Invalidar cache do usuário
-        await cacheService.invalidateUserData(user.id);
-        console.log('🗑️ Cache do usuário invalidado');
-        
-        // Invalidar cache dos artistas
-        await cacheService.invalidateArtistData(user.id);
-        console.log('🗑️ Cache dos artistas invalidado');
+      if (!user) return;
+      
+      console.log('🔐 Carregando permissões para artista:', artistId);
+      const permissions = await getUserPermissions(user.id, artistId);
+      
+      if (permissions) {
+        setUserPermissions(permissions);
+        await cacheService.setPermissionsData(user.id, artistId, permissions);
+        console.log('✅ Permissões carregadas');
       }
     } catch (error) {
-      console.error('Erro ao invalidar cache:', error);
+      console.error('❌ Erro ao carregar permissões:', error);
     }
-    
-    // Recarregar dados frescos (forçar refresh)
-    loadUserProfile(true); // true = forceRefresh
-    loadArtistData(true); // true = forceRefresh
-  }, []);
-
-  // Recarregar dados do artista e usuário quando a tela ganhar foco
-  useFocusEffect(
-    React.useCallback(() => {
-      console.log('🔄 Configurações ganhou foco - recarregando dados...');
-      // Invalidar cache e recarregar dados frescos
-      invalidateCacheAndReload();
-    }, [invalidateCacheAndReload])
-  );
+  };
 
   const loadUserProfile = async (forceRefresh = false) => {
     try {
@@ -199,73 +231,53 @@ export default function ConfiguracoesScreen() {
 
   const loadArtistData = async (forceRefresh = false) => {
     try {
-      console.log(`🔄 loadArtistData chamado com forceRefresh=${forceRefresh}`);
+      console.log(`🔄 Configurações: loadArtistData (forceRefresh=${forceRefresh})`);
       const { user, error: userError } = await getCurrentUser();
       
       if (userError || !user) {
-        console.log('❌ Erro ao obter usuário ou usuário não encontrado');
+        console.log('❌ Configurações: Usuário não encontrado');
         return;
       }
 
-      // Se não forçar refresh, verificar cache primeiro
-      if (!forceRefresh) {
-        const cachedArtists = await cacheService.getUserData<any[]>(`artists_${user.id}`);
-        console.log(`📦 Cache consultado para artists_${user.id}:`, cachedArtists);
-        
-        if (cachedArtists && cachedArtists.length > 0) {
-          setHasArtist(true);
-          const currentArtist = cachedArtists[0];
-          setCurrentArtist(currentArtist);
-          
-          // Verificar cache de permissões
-          const cachedPermissions = await cacheService.getPermissionsData(user.id, currentArtist.id);
-          if (cachedPermissions) {
-            setUserPermissions(cachedPermissions);
-            console.log('🎭 Dados do artista carregados do cache');
-            return;
-          }
-          
-          // Carregar permissões do servidor se não estiver em cache
-          const permissions = await getUserPermissions(user.id, currentArtist.id);
-          if (permissions) {
-            setUserPermissions(permissions);
-            await cacheService.setPermissionsData(user.id, currentArtist.id, permissions);
-          }
-          console.log('🎭 Dados do artista carregados do cache');
-          return;
-        }
-      }
+      console.log('🔍 Configurações: Buscando artista do usuário:', user.id);
 
-      // Carregar do servidor (sempre frescos)
-      console.log('🎭 Carregando dados do artista do servidor...');
+      // Carregar do servidor (sempre frescos quando forceRefresh=true)
       const { artists, error: artistsError } = await getArtists(user.id);
       
       if (!artistsError && artists && artists.length > 0) {
-        setHasArtist(true);
-        const currentArtist = artists[0];
-        setCurrentArtist(currentArtist);
+        const artistFromDb = artists[0];
         
-        // Salvar no cache para próxima vez
+        console.log('✅ Configurações: Artista recebido do servidor:', {
+          name: artistFromDb.name,
+          id: artistFromDb.id,
+          profile_url: artistFromDb.profile_url || '❌ VAZIO'
+        });
+        
+        // Não atualizar currentArtist aqui se já temos activeArtist
+        // O useEffect de sincronização vai cuidar disso
+        if (!activeArtist) {
+          setHasArtist(true);
+          setCurrentArtist(artistFromDb);
+        }
+        
+        // Salvar no cache para próxima vez (COM profile_url)
         await cacheService.setUserData(`artists_${user.id}`, artists);
+        console.log('💾 Artista salvo no cache (com profile_url)');
         
-        // Carregar permissões do usuário para o artista
-        const permissions = await getUserPermissions(user.id, currentArtist.id);
-        
+        // Carregar permissões
+        const permissions = await getUserPermissions(user.id, artistFromDb.id);
         if (permissions) {
           setUserPermissions(permissions);
-          await cacheService.setPermissionsData(user.id, currentArtist.id, permissions);
+          await cacheService.setPermissionsData(user.id, artistFromDb.id, permissions);
         }
-        console.log('🎭 Dados do artista carregados do servidor:', currentArtist.name);
       } else {
-        // Não há artistas - limpar estado
-        console.log('🎭 Nenhum artista encontrado - limpando estado');
+        console.log('⚠️ Configurações: Nenhum artista encontrado');
         setHasArtist(false);
         setCurrentArtist(null);
         setUserPermissions(null);
       }
     } catch (error) {
-      console.error('❌ Erro ao carregar dados do artista:', error);
-      // Em caso de erro, também limpar estado
+      console.error('❌ Configurações: Erro ao carregar artista:', error);
       setHasArtist(false);
       setCurrentArtist(null);
       setUserPermissions(null);
@@ -591,16 +603,17 @@ export default function ConfiguracoesScreen() {
               <OptimizedImage
                 imageUrl={currentArtist.profile_url || ''}
                 style={dynamicStyles.artistAvatarImage}
-                cacheKey={`artist_${currentArtist.id}`}
+                cacheKey={`artist_config_${currentArtist.id}`}
                 fallbackIcon="musical-notes"
-                fallbackIconSize={24}
+                fallbackIconSize={40}
                 fallbackIconColor="#667eea"
+                showLoadingIndicator={false}
                 onLoadSuccess={() => {
-                  console.log('✅ Imagem do artista carregada nas configurações:', currentArtist.profile_url);
+                  console.log('🖼️ Configurações: Imagem do artista carregada com sucesso!');
                 }}
                 onLoadError={(error) => {
-                  console.log('❌ Erro ao carregar imagem do artista nas configurações:', currentArtist.profile_url);
-                  console.log('❌ Detalhes:', error);
+                  console.log('❌ Configurações: Erro ao carregar imagem do artista');
+                  console.log('   URL tentada:', currentArtist.profile_url);
                 }}
               />
               <View style={dynamicStyles.artistInfo}>
