@@ -787,8 +787,8 @@ export default function ColaboradoresArtistaScreen() {
               
               <View style={styles.permissionOptions}>
                 {[
-                  { label: 'Administrador', value: 'admin', description: 'Pode gerenciar colaboradores e editar tudo' },
-                  { label: 'Gerente', value: 'owner', description: 'Acesso total e controle completo' },
+                  { label: 'Administrador', value: 'admin', description: 'Acesso total e controle completo' },
+                  { label: 'Gerente', value: 'owner', description: 'Alterar permissões, editar eventos e ver finanças' },
                   { label: 'Editor', value: 'editor', description: 'Pode editar eventos e despesas' },
                   { label: 'Visualizador', value: 'viewer', description: 'Pode apenas visualizar' }
                 ].map((role) => (
@@ -929,16 +929,16 @@ export default function ColaboradoresArtistaScreen() {
                   value: 'admin', 
                   icon: 'shield-checkmark',
                   color: '#FF6B35',
-                  description: 'Gerenciamento avançado',
-                  features: ['Gerenciar membros', 'Editar eventos', 'Ver finanças']
+                  description: 'Acesso total',
+                  features: ['Gerenciar tudo', 'Controle completo', 'Todas as permissões']
                 },
                 { 
                   label: 'Gerente', 
                   value: 'owner', 
                   icon: 'star',
                   color: '#FFD700',
-                  description: 'Controle total do artista',
-                  features: ['Gerenciar tudo', 'Transferir propriedade', 'Deletar artista']
+                  description: 'Gerenciamento do artista',
+                  features: ['Alterar permissões', 'Editar eventos', 'Ver finanças']
                 },
                 { 
                   label: 'Editor', 
