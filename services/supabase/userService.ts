@@ -37,18 +37,14 @@ export const checkUserExists = async (userId: string): Promise<{ exists: boolean
       .eq('id', userId)
       .maybeSingle(); // Usar maybeSingle() para evitar erro quando não encontrar
 
-    console.log('📋 checkUserExists: Resultado:', { data, error });
-
     if (error) {
       console.error('❌ checkUserExists: Erro na consulta:', error);
       return { exists: false, error: error.message };
     }
 
     const exists = data !== null;
-    console.log('✅ checkUserExists: Usuário existe?', exists);
     return { exists, error: null };
   } catch (error) {
-    console.error('💥 checkUserExists: Erro de conexão:', error);
     return { exists: false, error: 'Erro de conexão' };
   }
 };
