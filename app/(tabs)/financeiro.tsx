@@ -693,7 +693,7 @@ export default function FinanceiroScreen() {
         onRequestClose={() => setShowExportModal(false)}
       >
         <View style={styles.exportModalOverlay}>
-          <View style={[styles.exportModalContainer, { backgroundColor: colors.surface }]}>
+          <View style={[styles.exportModalContainer, { backgroundColor: colors.surface, paddingBottom: Math.max(insets.bottom, 20) + 30 }]}>
             {/* Header */}
             <View style={styles.exportModalHeader}>
               <View style={styles.exportModalTitleContainer}>
@@ -1298,7 +1298,6 @@ const styles = StyleSheet.create({
   },
   exportModalContent: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
   },
   exportSection: {
     marginTop: 20,

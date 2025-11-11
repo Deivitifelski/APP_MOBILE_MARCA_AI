@@ -12,7 +12,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { getArtists } from '../services/supabase/artistService';
 import { getCurrentUser } from '../services/supabase/authService';
@@ -391,6 +391,7 @@ const SuccessModal = ({
 export default function AdicionarEventoScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
+  const insets = useSafeAreaInsets();
   
   // Sempre usar dados atualizados - data atual como padrão
   const currentDate = new Date();
@@ -954,7 +955,7 @@ export default function AdicionarEventoScreen() {
               />
             </View>
             
-            <View style={styles.modalButtons}>
+            <View style={[styles.modalButtons, { paddingBottom: Math.max(insets.bottom, 20) + 30 }]}>
               <TouchableOpacity
                 style={[styles.modalConfirmButton, { backgroundColor: colors.primary }]}
                 onPress={() => setShowDateModal(false)}
@@ -991,7 +992,7 @@ export default function AdicionarEventoScreen() {
               colors={colors}
             />
             
-            <View style={styles.modalButtons}>
+            <View style={[styles.modalButtons, { paddingBottom: Math.max(insets.bottom, 20) + 30 }]}>
               <TouchableOpacity
                 style={[styles.modalConfirmButton, { backgroundColor: colors.primary }]}
                 onPress={() => setShowTimeInicioModal(false)}
@@ -1028,7 +1029,7 @@ export default function AdicionarEventoScreen() {
               colors={colors}
             />
             
-            <View style={styles.modalButtons}>
+            <View style={[styles.modalButtons, { paddingBottom: Math.max(insets.bottom, 20) + 30 }]}>
               <TouchableOpacity
                 style={[styles.modalConfirmButton, { backgroundColor: colors.primary }]}
                 onPress={() => setShowTimeFimModal(false)}
@@ -1415,8 +1416,7 @@ const styles = StyleSheet.create({
   },
   modalButtons: {
     paddingHorizontal: 20,
-    paddingVertical: 20,
-    paddingBottom: 34, // Para iPhone com home indicator
+    paddingTop: 20,
   },
   modalConfirmButton: {
     backgroundColor: '#667eea',
