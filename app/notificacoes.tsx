@@ -55,7 +55,71 @@ export default function NotificacoesScreen() {
 
   useEffect(() => {
     loadNotifications();
+    setupRealtimeSubscription();
+
+    return () => {
+      cleanupSubscription();
+    };
   }, []);
+
+  // Subscription em tempo real para notificações
+  const subscriptionRef = React.useRef<any>(null);
+
+  const setupRealtimeSubscription = async () => {
+    try {
+      const { user } = await getCurrentUser();
+      if (!user) return;
+
+      // Limpar subscription anterior se existir
+      if (subscriptionRef.current) {
+        await supabase.removeChannel(subscriptionRef.current);
+      }
+
+      // Criar subscription para mudanças nas notificações e convites
+      const channel = supabase
+        .channel('notifications-realtime')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            // Recarregar notificações e badge quando houver mudanças
+            loadNotifications();
+            loadUnreadCount();
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'artist_invites',
+            filter: `to_user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            // Recarregar notificações e badge quando houver mudanças nos convites
+            loadNotifications();
+            loadUnreadCount();
+          }
+        )
+        .subscribe();
+
+      subscriptionRef.current = channel;
+    } catch (error) {
+      // Erro ao configurar realtime
+    }
+  };
+
+  const cleanupSubscription = async () => {
+    if (subscriptionRef.current) {
+      await supabase.removeChannel(subscriptionRef.current);
+      subscriptionRef.current = null;
+    }
+  };
 
   const loadNotifications = async () => {
     try {
@@ -68,23 +132,10 @@ export default function NotificacoesScreen() {
         return;
       }
 
-      console.log('📬 Notificações: Carregando para usuário:', user.id);
       setCurrentUserId(user.id);
 
       // Carregar notificações
       const { notifications, error } = await getUserNotifications(user.id);
-      
-      console.log('📊 Notificações: Resultado da query:', {
-        total: notifications?.length || 0,
-        error,
-        notifications: notifications?.map(n => ({
-          id: n.id.substring(0, 8),
-          type: n.type,
-          user_id: n.user_id.substring(0, 8),
-          from_user_id: n.from_user_id?.substring(0, 8),
-          read: n.read
-        }))
-      });
       
       if (error) {
         Alert.alert('Erro', 'Erro ao carregar notificações');
@@ -95,10 +146,8 @@ export default function NotificacoesScreen() {
       
       // Contar APENAS notificações não lidas do usuário (read === false)
       const unreadNotifications = (notifications || []).filter(n => !n.read && n.user_id === user.id).length;
-      console.log('🔔 Notificações não lidas:', unreadNotifications);
       setUnreadCount(unreadNotifications);
     } catch (error) {
-      console.error('Erro ao carregar notificações:', error);
       Alert.alert('Erro', 'Erro ao carregar notificações');
     } finally {
       setIsLoading(false);
