@@ -1,7 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { Alert, Platform } from 'react-native';
 
 interface EventWithExpenses {
   id: string;
@@ -32,7 +31,7 @@ interface FinancialReportData {
   standaloneExpenses?: StandaloneTransaction[];
 }
 
-export const generateFinancialReport = async (data: FinancialReportData): Promise<{ success: boolean; error?: string }> => {
+export const generateFinancialReport = async (data: FinancialReportData): Promise<{ success: boolean; error?: string; uri?: string }> => {
   console.log('🚀 === INÍCIO DA GERAÇÃO DO RELATÓRIO FINANCEIRO ===');
   console.log('📊 Dados recebidos:', {
     eventos: data.events?.length || 0,
@@ -545,7 +544,7 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
       // Gerar PDF usando expo-print com timeout de 30 segundos
       const printStart = Date.now();
       
-      // Gerar PDF com timeout
+      // Gerar PDF (sem base64 primeiro, mais rápido)
       const pdfPromise = Print.printToFileAsync({ 
         html: htmlContent,
         base64: false
@@ -560,39 +559,35 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
       
       const printTime = ((Date.now() - printStart) / 1000).toFixed(2);
       console.log(`✅ PDF gerado em ${printTime}s`);
+      console.log('📄 URI gerado:', uri);
       
       if (!uri) {
-        console.error('❌ URI do PDF vazio');
-        return { success: false, error: 'Falha ao gerar arquivo PDF' };
+        console.error('❌ URI do PDF vazio após printToFileAsync');
+        return { success: false, error: 'Falha ao gerar arquivo PDF (URI vazio)' };
       }
-
-      console.log('✅ PDF gerado com sucesso!');
-      console.log('📄 URI:', uri);
       
-      // Ler PDF e salvar em local compartilhável
+      // Copiar diretamente para documentDirectory (mais rápido que base64)
       const fileName = `Relatorio_Financeiro_${months[month]}_${year}_${Date.now()}.pdf`;
-      const shareableUri = FileSystem.cacheDirectory + fileName;
+      const shareableUri = `${FileSystem.documentDirectory}${fileName}`;
       
-      // Ler como base64 e reescrever
-      const base64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64
+      console.log('📦 Copiando PDF para documentDirectory:', shareableUri);
+      
+      // Usar copyAsync é mais rápido e leve que base64
+      await FileSystem.copyAsync({
+        from: uri,
+        to: shareableUri
       });
       
-      await FileSystem.writeAsStringAsync(shareableUri, base64, {
-        encoding: FileSystem.EncodingType.Base64
-      });
+      console.log('✅ PDF copiado com sucesso!');
       
-      console.log('📤 Compartilhando PDF...');
+      // Verificar se foi copiado
+      const fileInfo = await FileSystem.getInfoAsync(shareableUri);
+      if (!fileInfo.exists) {
+        throw new Error('Falha ao copiar PDF para documentDirectory');
+      }
       
-      // Compartilhar
-      await Sharing.shareAsync(shareableUri, {
-        mimeType: 'application/pdf',
-        dialogTitle: 'Compartilhar Relatório Financeiro'
-      });
-      
-      console.log('✅ PDF compartilhado com sucesso!');
-      
-      return { success: true };
+      // Retornar URI para compartilhar depois (fora do modal)
+      return { success: true, uri: shareableUri };
     } catch (pdfError: any) {
       console.error('❌ Erro ao gerar/compartilhar PDF:', pdfError);
       console.error('Stack trace:', pdfError?.stack);

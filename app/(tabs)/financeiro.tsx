@@ -23,8 +23,8 @@ import { getEventsByMonth } from '../../services/supabase/eventService';
 import { getExpensesByEvent, getStandaloneExpensesByArtist, deleteStandaloneExpense } from '../../services/supabase/expenseService';
 import { canExportData } from '../../services/supabase/userService';
 import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
+import * as Sharing from 'expo-sharing';
 // import * as FileSystem from 'expo-file-system';
-// import * as Sharing from 'expo-sharing';
 
 interface EventWithExpenses {
   id: string;
@@ -342,6 +342,9 @@ export default function FinanceiroScreen() {
       // Limpar timeout de segurança
       clearTimeout(safetyTimeout);
       
+      // FECHAR MODAL ANTES DE COMPARTILHAR (importante!)
+      setIsGeneratingReport(false);
+      
       if (!result.success) {
         console.error('❌ Erro retornado:', result.error);
         Alert.alert(
@@ -354,12 +357,28 @@ export default function FinanceiroScreen() {
         );
       } else {
         console.log('✅ Relatório gerado com sucesso!');
-        // Mostrar mensagem de sucesso
-        Alert.alert(
-          '✅ Sucesso',
-          'Documento gerado! Escolha o aplicativo para compartilhar.',
-          [{ text: 'OK' }]
-        );
+        
+        // Aguardar um pouco para garantir que o modal fechou completamente
+        setTimeout(async () => {
+          if (result.uri) {
+            console.log('📤 Compartilhando PDF:', result.uri);
+            try {
+              await Sharing.shareAsync(result.uri, {
+                mimeType: 'application/pdf',
+                dialogTitle: 'Compartilhar Relatório Financeiro',
+                UTI: 'com.adobe.pdf'
+              });
+              console.log('✅ PDF compartilhado com sucesso!');
+            } catch (shareError: any) {
+              console.error('❌ Erro ao compartilhar:', shareError);
+              Alert.alert(
+                '⚠️ Erro ao Compartilhar',
+                'O PDF foi gerado mas não foi possível abrir o compartilhamento. Tente novamente.',
+                [{ text: 'OK' }]
+              );
+            }
+          }
+        }, 300); // 300ms para garantir que modal fechou
       }
     } catch (error: any) {
       console.error('💥 Exceção capturada:', error);
