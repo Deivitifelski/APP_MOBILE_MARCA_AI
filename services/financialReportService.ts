@@ -407,24 +407,21 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
     `;
 
     try {
+      // Verificar se compartilhamento está disponível
+      const isAvailable = await Sharing.isAvailableAsync();
+      
+      if (!isAvailable) {
+        return { success: false, error: 'Compartilhamento não disponível neste dispositivo' };
+      }
+
       // Gerar PDF usando expo-print
-      console.log('📄 Gerando relatório financeiro em PDF...');
       const { uri } = await Print.printToFileAsync({ 
         html: htmlContent,
         base64: false 
       });
       
-      console.log('✅ PDF gerado:', uri);
-
-      // Verificar se compartilhamento está disponível
-      const isAvailable = await Sharing.isAvailableAsync();
-      
-      if (!isAvailable) {
-        Alert.alert(
-          'Compartilhamento não disponível',
-          'Não foi possível compartilhar o PDF neste dispositivo.'
-        );
-        return { success: false, error: 'Compartilhamento não disponível' };
+      if (!uri) {
+        return { success: false, error: 'Falha ao gerar arquivo PDF' };
       }
 
       // Mover PDF para um local acessível
@@ -436,8 +433,6 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
         to: newUri
       });
 
-      console.log('📤 Compartilhando PDF financeiro:', newUri);
-
       // Compartilhar PDF via sistema nativo (WhatsApp, Email, etc)
       await Sharing.shareAsync(newUri, {
         mimeType: 'application/pdf',
@@ -446,15 +441,12 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
       });
 
       return { success: true };
-    } catch (pdfError) {
-      console.error('Erro ao gerar/compartilhar PDF financeiro:', pdfError);
-      return { success: false, error: 'Erro ao gerar PDF' };
+    } catch (pdfError: any) {
+      const errorMessage = pdfError?.message || 'Erro ao gerar documento';
+      return { success: false, error: errorMessage };
     }
-  } catch (error) {
-    console.error('Erro ao gerar relatório financeiro:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Erro desconhecido ao gerar relatório financeiro'
-    };
+  } catch (error: any) {
+    const errorMessage = error?.message || 'Erro desconhecido';
+    return { success: false, error: errorMessage };
   }
 };
