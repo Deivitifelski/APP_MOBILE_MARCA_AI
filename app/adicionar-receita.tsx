@@ -20,15 +20,15 @@ import { useTheme } from '../contexts/ThemeContext';
 import { createStandaloneExpense } from '../services/supabase/expenseService';
 
 const CATEGORIAS = [
-  { value: 'equipamento', label: 'Equipamento', icon: 'hardware-chip' },
-  { value: 'manutencao', label: 'Manutenção', icon: 'construct' },
-  { value: 'transporte', label: 'Transporte', icon: 'car' },
-  { value: 'software', label: 'Software/Assinaturas', icon: 'laptop' },
-  { value: 'marketing', label: 'Marketing', icon: 'megaphone' },
+  { value: 'show', label: 'Show/Apresentação', icon: 'musical-notes' },
+  { value: 'cache_extra', label: 'Cachê Extra', icon: 'cash' },
+  { value: 'streaming', label: 'Streaming', icon: 'logo-youtube' },
+  { value: 'direitos', label: 'Direitos Autorais', icon: 'document-text' },
+  { value: 'patrocinio', label: 'Patrocínio', icon: 'ribbon' },
   { value: 'outros', label: 'Outros', icon: 'ellipsis-horizontal-circle' },
 ];
 
-export default function AdicionarDespesaScreen() {
+export default function AdicionarReceitaScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { activeArtist } = useActiveArtistContext();
@@ -68,7 +68,7 @@ export default function AdicionarDespesaScreen() {
     }
 
     if (!descricao.trim()) {
-      Alert.alert('Atenção', 'Preencha a descrição da despesa');
+      Alert.alert('Atenção', 'Preencha a descrição da receita');
       return;
     }
 
@@ -88,27 +88,28 @@ export default function AdicionarDespesaScreen() {
       // Converter valor de string formatada para número
       const valorNumerico = parseFloat(valor.replace('.', '').replace(',', '.'));
 
+      // Salvar como despesa, mas com valor NEGATIVO para indicar receita
       const { success, error } = await createStandaloneExpense({
         artist_id: activeArtist.id,
         description: descricao.trim(),
-        value: valorNumerico,
+        value: -valorNumerico, // Negativo = receita
         category: categoria,
         notes: observacoes.trim() || undefined,
         date: data.toISOString().split('T')[0],
       });
 
       if (success) {
-        Alert.alert('Sucesso', 'Despesa adicionada com sucesso!', [
+        Alert.alert('Sucesso', 'Receita adicionada com sucesso!', [
           {
             text: 'OK',
             onPress: () => router.back(),
           },
         ]);
       } else {
-        Alert.alert('Erro', error || 'Não foi possível adicionar a despesa');
+        Alert.alert('Erro', error || 'Não foi possível adicionar a receita');
       }
     } catch (err) {
-      Alert.alert('Erro', 'Erro ao adicionar despesa');
+      Alert.alert('Erro', 'Erro ao adicionar receita');
     } finally {
       setIsLoading(false);
     }
@@ -125,7 +126,7 @@ export default function AdicionarDespesaScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text }]}>Nova Despesa</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Nova Receita</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -135,10 +136,10 @@ export default function AdicionarDespesaScreen() {
       >
         <ScrollView>
           {/* Info Card */}
-          <View style={[styles.infoCard, { backgroundColor: colors.primary + '20' }]}>
-            <Ionicons name="information-circle" size={20} color={colors.primary} />
-            <Text style={[styles.infoText, { color: colors.primary }]}>
-              Despesas avulsas não estão vinculadas a eventos específicos. Use para gastos gerais como equipamentos, manutenção, etc.
+          <View style={[styles.infoCard, { backgroundColor: colors.success + '20' }]}>
+            <Ionicons name="cash" size={20} color={colors.success} />
+            <Text style={[styles.infoText, { color: colors.success }]}>
+              Receitas avulsas são ganhos extras não vinculados a eventos. Use para cachês extras, direitos autorais, etc.
             </Text>
           </View>
 
@@ -151,7 +152,7 @@ export default function AdicionarDespesaScreen() {
               </Text>
               <TextInput
                 style={[styles.input, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
-                placeholder="Ex: Parcela do violão"
+                placeholder="Ex: Cachê extra do show"
                 placeholderTextColor={colors.textSecondary}
                 value={descricao}
                 onChangeText={setDescricao}
@@ -165,9 +166,9 @@ export default function AdicionarDespesaScreen() {
                 Valor * <Text style={styles.required}>*</Text>
               </Text>
               <View style={[styles.valorContainer, { borderColor: colors.border, backgroundColor: colors.background }]}>
-                <Text style={[styles.cifrao, { color: colors.text }]}>R$</Text>
+                <Text style={[styles.cifrao, { color: colors.success }]}>R$</Text>
                 <TextInput
-                  style={[styles.valorInput, { color: colors.text }]}
+                  style={[styles.valorInput, { color: colors.success }]}
                   placeholder="0,00"
                   placeholderTextColor={colors.textSecondary}
                   value={valor}
@@ -189,8 +190,8 @@ export default function AdicionarDespesaScreen() {
                     style={[
                       styles.categoriaButton,
                       {
-                        backgroundColor: categoria === cat.value ? colors.primary : colors.background,
-                        borderColor: categoria === cat.value ? colors.primary : colors.border,
+                        backgroundColor: categoria === cat.value ? colors.success : colors.background,
+                        borderColor: categoria === cat.value ? colors.success : colors.border,
                       },
                     ]}
                     onPress={() => setCategoria(cat.value)}
@@ -220,7 +221,7 @@ export default function AdicionarDespesaScreen() {
                 style={[styles.dateButton, { borderColor: colors.border, backgroundColor: colors.background }]}
                 onPress={() => setShowDatePicker(true)}
               >
-                <Ionicons name="calendar" size={20} color={colors.primary} />
+                <Ionicons name="calendar" size={20} color={colors.success} />
                 <Text style={[styles.dateText, { color: colors.text }]}>
                   {data.toLocaleDateString('pt-BR')}
                 </Text>
@@ -232,7 +233,7 @@ export default function AdicionarDespesaScreen() {
               <Text style={[styles.label, { color: colors.text }]}>Observações (opcional)</Text>
               <TextInput
                 style={[styles.textArea, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
-                placeholder="Adicione detalhes extras sobre esta despesa..."
+                placeholder="Adicione detalhes extras sobre esta receita..."
                 placeholderTextColor={colors.textSecondary}
                 value={observacoes}
                 onChangeText={setObservacoes}
@@ -247,7 +248,7 @@ export default function AdicionarDespesaScreen() {
           {/* Botão Salvar */}
           <View style={[styles.buttonContainer, { paddingBottom: Math.max(insets.bottom, 20) + 40 }]}>
             <TouchableOpacity
-              style={[styles.saveButton, { backgroundColor: colors.primary }]}
+              style={[styles.saveButton, { backgroundColor: colors.success }]}
               onPress={handleSalvar}
               disabled={isLoading}
             >
@@ -256,7 +257,7 @@ export default function AdicionarDespesaScreen() {
               ) : (
                 <>
                   <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                  <Text style={styles.saveButtonText}>Adicionar Despesa</Text>
+                  <Text style={styles.saveButtonText}>Adicionar Receita</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -309,7 +310,7 @@ export default function AdicionarDespesaScreen() {
                       key={day}
                       style={[
                         styles.calendarDay,
-                        isSelected && { backgroundColor: colors.primary, borderRadius: 20 }
+                        isSelected && { backgroundColor: colors.success, borderRadius: 20 }
                       ]}
                       onPress={() => {
                         const newDate = new Date(year, month, day);
@@ -424,6 +425,7 @@ const styles = StyleSheet.create({
   valorInput: {
     flex: 1,
     fontSize: 16,
+    fontWeight: 'bold',
   },
   textArea: {
     borderWidth: 1,
@@ -532,3 +534,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+

@@ -36,6 +36,7 @@ export default function RootLayout() {
             <Stack.Screen name="editar-evento" options={{ headerShown: false }} />
             <Stack.Screen name="detalhes-evento" options={{ headerShown: false }} />
             <Stack.Screen name="adicionar-despesa" options={{ headerShown: false }} />
+            <Stack.Screen name="adicionar-receita" options={{ headerShown: false }} />
             <Stack.Screen name="despesas-evento" options={{ headerShown: false }} />
             <Stack.Screen name="notificacoes" options={{ headerShown: false }} />
             <Stack.Screen name="editar-usuario" options={{ headerShown: false }} />

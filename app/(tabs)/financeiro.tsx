@@ -20,7 +20,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { generateFinancialReport } from '../../services/financialReportService';
 import { getEventsByMonth } from '../../services/supabase/eventService';
-import { getExpensesByEvent } from '../../services/supabase/expenseService';
+import { getExpensesByEvent, getStandaloneExpensesByArtist, deleteStandaloneExpense } from '../../services/supabase/expenseService';
 import { canExportData } from '../../services/supabase/userService';
 import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
 // import * as FileSystem from 'expo-file-system';
@@ -42,11 +42,13 @@ export default function FinanceiroScreen() {
   const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [events, setEvents] = useState<EventWithExpenses[]>([]);
+  const [standaloneExpenses, setStandaloneExpenses] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { activeArtist, refreshActiveArtist } = useActiveArtistContext();
   const [hasAnyArtist, setHasAnyArtist] = useState(false);
@@ -187,6 +189,20 @@ export default function FinanceiroScreen() {
       );
 
       setEvents(eventsWithExpenses);
+
+      // Buscar transações avulsas do artista (despesas E receitas)
+      const { success: expensesSuccess, expenses: standalone, error: standaloneError } = await getStandaloneExpensesByArtist(
+        activeArtist.id, 
+        currentMonth, 
+        currentYear
+      );
+
+      if (expensesSuccess && standalone) {
+        // Separar despesas (valor > 0) de receitas (valor < 0)
+        setStandaloneExpenses(standalone);
+      } else {
+        setStandaloneExpenses([]);
+      }
     } catch (error: any) {
       Alert.alert(
         'Erro ao Carregar Finanças', 
@@ -349,10 +365,26 @@ export default function FinanceiroScreen() {
   const totalRevenue = hasAccess 
     ? events.reduce((sum, event) => sum + (event.value || 0), 0) 
     : 0;
-  const totalExpenses = hasAccess 
+  
+  const eventsExpenses = hasAccess 
     ? events.reduce((sum, event) => sum + event.totalExpenses, 0) 
     : 0;
-  const netProfit = totalRevenue - totalExpenses;
+  
+  // Separar despesas (valor > 0) e receitas (valor < 0)
+  const standaloneExpensesOnly = standaloneExpenses.filter(item => item.value > 0);
+  const standaloneIncome = standaloneExpenses.filter(item => item.value < 0);
+  
+  const standaloneExpensesTotal = hasAccess
+    ? standaloneExpensesOnly.reduce((sum, expense) => sum + (expense.value || 0), 0)
+    : 0;
+  
+  const standaloneIncomeTotal = hasAccess
+    ? Math.abs(standaloneIncome.reduce((sum, income) => sum + (income.value || 0), 0))
+    : 0;
+  
+  const totalExpenses = eventsExpenses + standaloneExpensesTotal;
+  const totalRevenueWithIncome = totalRevenue + standaloneIncomeTotal;
+  const netProfit = totalRevenueWithIncome - totalExpenses;
 
 
   const handleEventPress = (eventId: string) => {
@@ -363,6 +395,35 @@ export default function FinanceiroScreen() {
     
     // Navegar para detalhes do evento
     router.push(`/detalhes-evento?id=${eventId}`);
+  };
+
+  const handleDeleteStandaloneExpense = async (expenseId: string) => {
+    if (!hasAccess) {
+      setShowPermissionModal(true);
+      return;
+    }
+
+    Alert.alert(
+      'Confirmar Exclusão',
+      'Tem certeza que deseja excluir esta despesa?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            const { success, error } = await deleteStandaloneExpense(expenseId);
+            if (success) {
+              // Recarregar dados
+              loadFinancialData();
+              Alert.alert('Sucesso', 'Despesa excluída com sucesso!');
+            } else {
+              Alert.alert('Erro', error || 'Não foi possível excluir a despesa');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const renderExpense = ({ item }: { item: any }) => (
@@ -550,23 +611,30 @@ export default function FinanceiroScreen() {
         <View style={styles.headerTop}>
           <Text style={[styles.title, { color: colors.text }]}>Financeiro</Text>
           
-          {/* Botão de exportação - apenas para owners e editors */}
-          {hasAccess && events.length > 0 && (
+          <View style={styles.headerButtons}>
+            {/* Botão de exportação - apenas para owners e editors */}
+            {hasAccess && events.length > 0 && (
+              <TouchableOpacity
+                style={styles.headerIconButton}
+                onPress={handleExportFinancialReport}
+                disabled={isGeneratingReport}
+              >
+                <Ionicons 
+                  name={isGeneratingReport ? "hourglass" : "share-outline"} 
+                  size={26} 
+                  color={colors.text} 
+                />
+              </TouchableOpacity>
+            )}
+
+            {/* Botão Adicionar */}
             <TouchableOpacity
-              style={[styles.exportButton, { backgroundColor: colors.primary }]}
-              onPress={handleExportFinancialReport}
-              disabled={isGeneratingReport}
+              style={styles.headerIconButton}
+              onPress={() => setShowAddModal(true)}
             >
-              <Ionicons 
-                name={isGeneratingReport ? "hourglass" : "document-text"} 
-                size={20} 
-                color="#fff" 
-              />
-              <Text style={styles.exportButtonText}>
-                {isGeneratingReport ? 'Gerando...' : 'Exportar'}
-              </Text>
+              <Ionicons name="add" size={28} color={colors.text} />
             </TouchableOpacity>
-          )}
+          </View>
         </View>
         
         {/* Navegação de mês */}
@@ -614,7 +682,7 @@ export default function FinanceiroScreen() {
                   adjustsFontSizeToFit
                   minimumFontScale={0.7}
                 >
-                  {formatCurrency(totalRevenue)}
+                  {formatCurrency(totalRevenueWithIncome)}
                 </Text>
               </View>
               
@@ -674,7 +742,212 @@ export default function FinanceiroScreen() {
           )}
         </View>
 
+        {/* Receitas Avulsas */}
+        {hasAccess && (
+          <View style={styles.eventsSection}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              💵 Receitas Avulsas ({standaloneIncome.length})
+            </Text>
+            
+            {standaloneIncome.length > 0 ? (
+              <View style={[styles.standaloneExpensesContainer, { backgroundColor: colors.surface }]}>
+                {standaloneIncome.map((income) => (
+                <View key={income.id} style={[styles.standaloneExpenseItem, { borderBottomColor: colors.border }]}>
+                  <View style={styles.standaloneExpenseInfo}>
+                    <View style={styles.standaloneExpenseHeader}>
+                      <Text style={[styles.standaloneExpenseDescription, { color: colors.text }]}>
+                        {income.description}
+                      </Text>
+                      <Text style={[styles.standaloneExpenseValue, { color: colors.success }]}>
+                        {formatCurrency(Math.abs(income.value))}
+                      </Text>
+                    </View>
+                    
+                    <View style={styles.standaloneExpenseMeta}>
+                      <View style={[styles.categoryBadge, { backgroundColor: colors.success + '20' }]}>
+                        <Text style={[styles.categoryText, { color: colors.success }]}>
+                          {income.category === 'show' ? '🎤 Show' :
+                           income.category === 'cache_extra' ? '💵 Cachê Extra' :
+                           income.category === 'streaming' ? '📺 Streaming' :
+                           income.category === 'direitos' ? '📄 Direitos' :
+                           income.category === 'patrocinio' ? '🎗️ Patrocínio' :
+                           '⚙️ Outros'}
+                        </Text>
+                      </View>
+                      <Text style={[styles.standaloneExpenseDate, { color: colors.textSecondary }]}>
+                        {income.date ? new Date(income.date).toLocaleDateString('pt-BR') : ''}
+                      </Text>
+                    </View>
+                    
+                    {income.notes && (
+                      <Text style={[styles.standaloneExpenseNotes, { color: colors.textSecondary }]} numberOfLines={2}>
+                        {income.notes}
+                      </Text>
+                    )}
+                  </View>
+                  
+                  <TouchableOpacity
+                    style={styles.deleteExpenseButton}
+                    onPress={() => handleDeleteStandaloneExpense(income.id)}
+                  >
+                    <Ionicons name="trash-outline" size={20} color={colors.error} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+              </View>
+            ) : (
+              <View style={[styles.emptyExpensesContainer, { backgroundColor: colors.surface }]}>
+                <Ionicons name="cash-outline" size={32} color={colors.textSecondary} />
+                <Text style={[styles.emptyExpensesText, { color: colors.textSecondary }]}>
+                  Nenhuma receita avulsa neste mês
+                </Text>
+                <Text style={[styles.emptyExpensesHint, { color: colors.textSecondary }]}>
+                  Clique no botão + para adicionar
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Despesas Avulsas */}
+        {hasAccess && (
+          <View style={styles.eventsSection}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              💸 Despesas Avulsas ({standaloneExpensesOnly.length})
+            </Text>
+            
+            {standaloneExpensesOnly.length > 0 ? (
+              <View style={[styles.standaloneExpensesContainer, { backgroundColor: colors.surface }]}>
+                {standaloneExpensesOnly.map((expense) => (
+                  <View key={expense.id} style={[styles.standaloneExpenseItem, { borderBottomColor: colors.border }]}>
+                    <View style={styles.standaloneExpenseInfo}>
+                      <View style={styles.standaloneExpenseHeader}>
+                        <Text style={[styles.standaloneExpenseDescription, { color: colors.text }]}>
+                          {expense.description}
+                        </Text>
+                        <Text style={[styles.standaloneExpenseValue, { color: colors.error }]}>
+                          {formatCurrency(expense.value)}
+                        </Text>
+                      </View>
+                      
+                      <View style={styles.standaloneExpenseMeta}>
+                        <View style={[styles.categoryBadge, { backgroundColor: colors.primary + '20' }]}>
+                          <Text style={[styles.categoryText, { color: colors.primary }]}>
+                            {expense.category === 'equipamento' ? '🔧 Equipamento' :
+                             expense.category === 'manutencao' ? '🛠️ Manutenção' :
+                             expense.category === 'transporte' ? '🚗 Transporte' :
+                             expense.category === 'software' ? '💻 Software' :
+                             expense.category === 'marketing' ? '📢 Marketing' :
+                             '⚙️ Outros'}
+                          </Text>
+                        </View>
+                        <Text style={[styles.standaloneExpenseDate, { color: colors.textSecondary }]}>
+                          {expense.date ? new Date(expense.date).toLocaleDateString('pt-BR') : ''}
+                        </Text>
+                      </View>
+                      
+                      {expense.notes && (
+                        <Text style={[styles.standaloneExpenseNotes, { color: colors.textSecondary }]} numberOfLines={2}>
+                          {expense.notes}
+                        </Text>
+                      )}
+                    </View>
+                    
+                    <TouchableOpacity
+                      style={styles.deleteExpenseButton}
+                      onPress={() => handleDeleteStandaloneExpense(expense.id)}
+                    >
+                      <Ionicons name="trash-outline" size={20} color={colors.error} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={[styles.emptyExpensesContainer, { backgroundColor: colors.surface }]}>
+                <Ionicons name="wallet-outline" size={32} color={colors.textSecondary} />
+                <Text style={[styles.emptyExpensesText, { color: colors.textSecondary }]}>
+                  Nenhuma despesa avulsa neste mês
+                </Text>
+                <Text style={[styles.emptyExpensesHint, { color: colors.textSecondary }]}>
+                  Clique no botão + para adicionar
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
       </ScrollView>
+
+      {/* Modal de Seleção: Despesa ou Receita */}
+      <Modal
+        visible={showAddModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAddModal(false)}
+      >
+        <TouchableOpacity 
+          style={styles.addModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowAddModal(false)}
+        >
+          <View style={[styles.addModalContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.addModalTitle, { color: colors.text }]}>
+              O que deseja adicionar?
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.addModalOption, { borderColor: colors.border }]}
+              onPress={() => {
+                setShowAddModal(false);
+                router.push('/adicionar-despesa');
+              }}
+            >
+              <View style={[styles.addModalIconContainer, { backgroundColor: colors.error + '20' }]}>
+                <Ionicons name="remove-circle" size={32} color={colors.error} />
+              </View>
+              <View style={styles.addModalOptionText}>
+                <Text style={[styles.addModalOptionTitle, { color: colors.text }]}>
+                  Despesa
+                </Text>
+                <Text style={[styles.addModalOptionDescription, { color: colors.textSecondary }]}>
+                  Gastos gerais, equipamentos, etc.
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.addModalOption, { borderColor: colors.border }]}
+              onPress={() => {
+                setShowAddModal(false);
+                router.push('/adicionar-receita');
+              }}
+            >
+              <View style={[styles.addModalIconContainer, { backgroundColor: colors.success + '20' }]}>
+                <Ionicons name="add-circle" size={32} color={colors.success} />
+              </View>
+              <View style={styles.addModalOptionText}>
+                <Text style={[styles.addModalOptionTitle, { color: colors.text }]}>
+                  Receita
+                </Text>
+                <Text style={[styles.addModalOptionDescription, { color: colors.textSecondary }]}>
+                  Ganhos extras, cachês avulsos, etc.
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.addModalCancelButton, { backgroundColor: colors.background }]}
+              onPress={() => setShowAddModal(false)}
+            >
+              <Text style={[styles.addModalCancelText, { color: colors.text }]}>
+                Cancelar
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Modal de Permissão */}
       <PermissionModal
@@ -854,6 +1127,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 15,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerIconButton: {
+    padding: 8,
   },
   title: {
     fontSize: 24,
@@ -1348,6 +1629,135 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
+  },
+  standaloneExpensesContainer: {
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 12,
+  },
+  standaloneExpenseItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  standaloneExpenseInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  standaloneExpenseHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  standaloneExpenseDescription: {
+    fontSize: 15,
+    fontWeight: '600',
+    flex: 1,
+    marginRight: 12,
+  },
+  standaloneExpenseValue: {
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  standaloneExpenseMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 4,
+  },
+  categoryBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  categoryText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  standaloneExpenseDate: {
+    fontSize: 12,
+  },
+  standaloneExpenseNotes: {
+    fontSize: 13,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  deleteExpenseButton: {
+    padding: 8,
+  },
+  emptyExpensesContainer: {
+    padding: 32,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  emptyExpensesText: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  emptyExpensesHint: {
+    fontSize: 13,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  addModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'flex-end',
+  },
+  addModalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  addModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  addModalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderWidth: 1,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  addModalIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  addModalOptionText: {
+    flex: 1,
+  },
+  addModalOptionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  addModalOptionDescription: {
+    fontSize: 13,
+  },
+  addModalCancelButton: {
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  addModalCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
