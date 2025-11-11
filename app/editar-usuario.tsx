@@ -19,6 +19,15 @@ import { getCurrentUser } from '../services/supabase/authService';
 import { deleteImageFromSupabase, extractFileNameFromUrl, uploadUserImage } from '../services/supabase/imageUploadService';
 import { getUserProfile, updateUserProfile, UserProfile } from '../services/supabase/userService';
 
+const estadosBrasil = [
+  'Acre', 'Alagoas', 'Amapá', 'Amazonas', 'Bahia', 'Ceará',
+  'Distrito Federal', 'Espírito Santo', 'Goiás', 'Maranhão',
+  'Mato Grosso', 'Mato Grosso do Sul', 'Minas Gerais', 'Pará',
+  'Paraíba', 'Paraná', 'Pernambuco', 'Piauí', 'Rio de Janeiro',
+  'Rio Grande do Norte', 'Rio Grande do Sul', 'Rondônia',
+  'Roraima', 'Santa Catarina', 'São Paulo', 'Sergipe', 'Tocantins'
+];
+
 export default function EditarUsuarioScreen() {
   const { colors } = useTheme();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -26,6 +35,7 @@ export default function EditarUsuarioScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [imageLoadError, setImageLoadError] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [showEstados, setShowEstados] = useState(false);
   
   // Campos do formulário
   const [name, setName] = useState('');
@@ -368,12 +378,49 @@ export default function EditarUsuarioScreen() {
             'Digite sua cidade'
           )}
 
-          {renderInput(
-            'Estado',
-            state,
-            setState,
-            'Digite seu estado'
-          )}
+          {/* Estado - Seletor */}
+          <View style={styles.inputContainer}>
+            <Text style={[styles.inputLabel, { color: colors.text }]}>
+              Estado <Text style={styles.required}>*</Text>
+            </Text>
+            <TouchableOpacity
+              style={[styles.estadoSelector, { 
+                borderColor: colors.border, 
+                backgroundColor: colors.surface,
+              }]}
+              onPress={() => setShowEstados(!showEstados)}
+            >
+              <Text style={[styles.estadoText, { color: state ? colors.text : colors.textSecondary }]}>
+                {state || 'Selecione seu estado'}
+              </Text>
+              <Ionicons
+                name={showEstados ? 'chevron-up' : 'chevron-down'}
+                size={20}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+
+            {showEstados && (
+              <View style={[styles.estadosList, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <ScrollView style={styles.estadosScroll} nestedScrollEnabled>
+                  {estadosBrasil.map((estadoItem) => (
+                    <TouchableOpacity
+                      key={estadoItem}
+                      style={[styles.estadoItem, { borderBottomColor: colors.border }]}
+                      onPress={() => {
+                        setState(estadoItem);
+                        setShowEstados(false);
+                      }}
+                    >
+                      <Text style={[styles.estadoItemText, { color: colors.text }]}>
+                        {estadoItem}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </View>
         </View>
 
         {/* Informações adicionais */}
@@ -540,5 +587,37 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     fontSize: 14,
     lineHeight: 20,
+  },
+  estadoSelector: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  estadoText: {
+    fontSize: 16,
+    flex: 1,
+  },
+  estadosList: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderRadius: 8,
+    maxHeight: 200,
+    overflow: 'hidden',
+  },
+  estadosScroll: {
+    maxHeight: 200,
+  },
+  estadoItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+  },
+  estadoItemText: {
+    fontSize: 16,
   },
 });
