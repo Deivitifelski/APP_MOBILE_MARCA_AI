@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "APP_MOBILE_MARCA_AI",
+    "name": "Marca AI",
     "slug": "APP_MOBILE_MARCA_AI",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -8,6 +8,11 @@
     "scheme": "marcaai",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/LOGO_MARCA_IPHONE_1024.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.marcaai.app",
