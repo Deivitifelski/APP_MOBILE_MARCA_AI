@@ -81,7 +81,7 @@ export default function RegisterScreen() {
           // Navegar para tela de confirmação de email
           router.push({
             pathname: '/email-confirmation',
-            params: { email: email, password: password }
+            params: { email: email }
           });
          }
       }
