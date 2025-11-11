@@ -552,7 +552,7 @@ export default function ConfiguracoesScreen() {
                    currentArtist.role === 'editor' ? 'Editor' : 'Visualizador'}
                 </Text>
               </View>
-              {userPermissions?.permissions?.canManageArtist && (
+              {(currentArtist.role === 'owner' || currentArtist.role === 'admin') && (
                 <TouchableOpacity 
                   style={dynamicStyles.editButton} 
                   onPress={handleArtistSettings}
