@@ -3,18 +3,18 @@ import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import UpgradeModal from '../../../components/UpgradeModal';
@@ -99,7 +99,7 @@ export default function ArtistProfileScreen() {
     }
 
     if (name.trim().length > 30) {
-      Alert.alert('Erro', 'O nome do artista deve ter no máximo 30 caracteres');
+      Alert.alert('Atenção', 'O nome do artista deve ter no máximo 30 caracteres');
       return;
     }
 
