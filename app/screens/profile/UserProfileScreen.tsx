@@ -99,8 +99,8 @@ export default function UserProfileScreen() {
       return;
     }
 
-    if (name.trim().length > 30) {
-      Alert.alert('Atenção', 'O nome deve ter no máximo 30 caracteres');
+    if (name.trim().length > 50) {
+      Alert.alert('Atenção', 'O nome deve ter no máximo 50 caracteres');
       return;
     }
 
@@ -233,7 +233,7 @@ export default function UserProfileScreen() {
                     placeholder="Digite seu nome completo"
                     placeholderTextColor={colors.textSecondary}
                     autoCapitalize="words"
-                    maxLength={30}
+                    maxLength={50}
                   />
                 </View>
               </View>

@@ -149,8 +149,8 @@ export default function EditarUsuarioScreen() {
       return;
     }
 
-    if (name.trim().length > 30) {
-      Alert.alert('Atenção', 'O nome deve ter no máximo 30 caracteres');
+    if (name.trim().length > 50) {
+      Alert.alert('Atenção', 'O nome deve ter no máximo 50 caracteres');
       return;
     }
 
@@ -341,7 +341,7 @@ export default function EditarUsuarioScreen() {
             'Digite seu nome completo',
             'default',
             true,
-            30
+            50
           )}
 
           {renderInput(

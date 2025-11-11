@@ -181,8 +181,8 @@ export default function EditarArtistaScreen() {
       return;
     }
 
-    if (name.trim().length > 30) {
-      Alert.alert('Atenção', 'O nome do artista deve ter no máximo 30 caracteres');
+    if (name.trim().length > 50) {
+      Alert.alert('Atenção', 'O nome do artista deve ter no máximo 50 caracteres');
       return;
     }
 
@@ -388,7 +388,7 @@ export default function EditarArtistaScreen() {
             'Digite o nome do artista',
             'default',
             true,
-            30
+            50
           )}
         </View>
 
