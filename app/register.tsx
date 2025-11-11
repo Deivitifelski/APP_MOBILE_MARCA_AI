@@ -74,15 +74,15 @@ export default function RegisterScreen() {
            Alert.alert('Sucesso', 'Conta criada com sucesso!');
            router.push('/cadastro-usuario');
          } else {
-           Alert.alert(
-             'Confirmação de Email', 
-             'Um email de confirmação foi enviado para ' + email + '. Verifique sua caixa de entrada e clique no link para confirmar sua conta.'
-           );
-           // Navegar para tela de confirmação de email
-           router.push({
-             pathname: '/email-confirmation',
-             params: { email: email }
-           });
+          Alert.alert(
+            'Confirmação de Email', 
+            'Um email de confirmação foi enviado para ' + email + '. Verifique sua caixa de entrada e clique no link para confirmar sua conta.'
+          );
+          // Navegar para tela de confirmação de email
+          router.push({
+            pathname: '/email-confirmation',
+            params: { email: email, password: password }
+          });
          }
       }
     } catch (error) {
