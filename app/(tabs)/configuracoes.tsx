@@ -17,6 +17,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import OptimizedImage from '../../components/OptimizedImage';
 import UpgradeModal from '../../components/UpgradeModal';
+import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { artistImageUpdateService } from '../../services/artistImageUpdateService';
@@ -27,7 +28,6 @@ import { getCurrentUser, updatePassword } from '../../services/supabase/authServ
 import { createFeedback } from '../../services/supabase/feedbackService';
 import { getUserPermissions } from '../../services/supabase/permissionsService';
 import { getUserProfile, isPremiumUser, UserProfile } from '../../services/supabase/userService';
-import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
 
 export default function ConfiguracoesScreen() {
   const { isDarkMode, toggleDarkMode, colors } = useTheme();
@@ -547,7 +547,9 @@ export default function ConfiguracoesScreen() {
               <View style={dynamicStyles.artistInfo}>
                 <Text style={dynamicStyles.artistName}>{currentArtist.name}</Text>
                 <Text style={dynamicStyles.artistRole}>
-                  {currentArtist.role === 'owner' ? 'Gerente' : 'Colaborador'}
+                  {currentArtist.role === 'owner' ? 'Gerente' : 
+                   currentArtist.role === 'admin' ? 'Administrador' :
+                   currentArtist.role === 'editor' ? 'Editor' : 'Visualizador'}
                 </Text>
               </View>
               {userPermissions?.permissions?.canManageArtist && (
