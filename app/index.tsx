@@ -49,7 +49,7 @@ export default function Index() {
         }
 
         if (!userCheck.exists) {
-          router.replace('/cadastro-usuario');
+          router.replace('/login');
         } else {
           router.replace('/(tabs)/agenda');
         }
