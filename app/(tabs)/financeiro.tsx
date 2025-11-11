@@ -93,7 +93,7 @@ export default function FinanceiroScreen() {
 
       setHasAnyArtist(!error && data && data.length > 0);
     } catch (error) {
-      console.error('Erro ao verificar artistas:', error);
+      // Erro ao verificar artistas
     }
   };
 
@@ -101,11 +101,6 @@ export default function FinanceiroScreen() {
   useEffect(() => {
     checkUserAccess();
   }, [activeArtist]);
-
-  // Log quando hasAccess mudar
-  useEffect(() => {
-    console.log('🔄 Financeiro: Estado hasAccess MUDOU para:', hasAccess);
-  }, [hasAccess]);
 
   const checkUserAccess = async () => {
     if (!activeArtist) {
@@ -119,16 +114,10 @@ export default function FinanceiroScreen() {
       
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        console.log('🚫 Financeiro: Usuário não autenticado');
         setHasAccess(false);
         setIsCheckingAccess(false);
         return;
       }
-
-      console.log('🔍 Financeiro: Verificando acesso do usuário', {
-        userId: user.id,
-        artistId: activeArtist.id
-      });
 
       // Buscar role diretamente na tabela artist_members
       const { data: memberData, error } = await supabase
@@ -139,29 +128,21 @@ export default function FinanceiroScreen() {
         .single();
 
       if (error) {
-        console.error('❌ Financeiro: Erro ao verificar permissões:', error);
         setHasAccess(false);
         setIsCheckingAccess(false);
         return;
       }
 
       const userRole = memberData?.role;
-      console.log('📋 Financeiro: Role do usuário:', userRole);
 
       // ✅ Ocultar valores APENAS para viewers
       const isViewer = userRole === 'viewer';
       const hasPermission = !isViewer; // Todos menos viewer têm acesso
       
-      console.log('🔐 Financeiro: Verificação de acesso:', {
-        userRole,
-        isViewer,
-        hasPermission
-      });
-      
       setHasAccess(hasPermission);
       setIsCheckingAccess(false);
     } catch (error) {
-      console.error('❌ Financeiro: Erro ao verificar acesso:', error);
+      // Erro ao verificar acesso
       setHasAccess(false);
       setIsCheckingAccess(false);
     }
@@ -176,39 +157,24 @@ export default function FinanceiroScreen() {
 
   const loadFinancialData = async () => {
     if (!activeArtist) {
-      console.log('⚠️ Financeiro: Nenhum artista ativo');
       return;
     }
-    
-    console.log('💰 Financeiro: Carregando dados...', {
-      artistId: activeArtist.id,
-      hasAccess
-    });
     
     try {
       setIsLoading(true);
 
-      console.log('📅 Financeiro: Buscando eventos do mês:', { year: currentYear, month: currentMonth });
-      
       // Buscar eventos do mês usando o artista ativo
       const { events: monthEvents, error: eventsError } = await getEventsByMonth(activeArtist.id, currentYear, currentMonth);
       
       if (eventsError) {
-        console.error('❌ Financeiro: Erro ao carregar eventos:', eventsError);
         Alert.alert('Erro ao Carregar Eventos', eventsError || 'Não foi possível carregar os eventos do mês.');
         return;
       }
-
-      console.log(`✅ Financeiro: ${monthEvents?.length || 0} eventos encontrados`);
 
       // Para cada evento, buscar suas despesas
       const eventsWithExpenses = await Promise.all(
         (monthEvents || []).map(async (event) => {
           const { success, expenses, error: expensesError } = await getExpensesByEvent(event.id);
-          
-          if (!success || expensesError) {
-            console.error('❌ Financeiro: Erro ao carregar despesas do evento:', event.name, expensesError);
-          }
           
           const totalExpenses = expenses?.reduce((sum, expense) => sum + expense.value, 0) || 0;
           
@@ -220,10 +186,8 @@ export default function FinanceiroScreen() {
         })
       );
 
-      console.log('✅ Financeiro: Dados carregados com sucesso');
       setEvents(eventsWithExpenses);
     } catch (error: any) {
-      console.error('💥 Financeiro: Erro inesperado:', error);
       Alert.alert(
         'Erro ao Carregar Finanças', 
         error?.message || 'Ocorreu um erro inesperado ao carregar os dados financeiros. Tente novamente.'
@@ -271,12 +235,8 @@ export default function FinanceiroScreen() {
       return;
     }
     
-    console.log('🔍 Verificando permissões de exportação para usuário:', currentUserId);
-    
     // Verificar se o usuário pode exportar dados
     const { canExport, error: canExportError } = await canExportData(currentUserId);
-    
-    console.log('📊 Resultado da verificação:', { canExport, error: canExportError });
     
     if (canExportError) {
       Alert.alert('Erro', 'Erro ao verificar permissões: ' + canExportError);
@@ -284,12 +244,9 @@ export default function FinanceiroScreen() {
     }
 
     if (!canExport) {
-      console.log('🚫 Usuário não pode exportar - mostrando modal de upgrade');
       setShowUpgradeModal(true);
       return;
     }
-    
-    console.log('✅ Usuário pode exportar - continuando com exportação');
     
     // Abrir modal de exportação
     setShowExportModal(true);

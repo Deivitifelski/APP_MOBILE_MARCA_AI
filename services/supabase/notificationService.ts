@@ -160,18 +160,13 @@ export const getUnreadNotificationCount = async (userId: string): Promise<{ coun
       .eq('read', false);
 
     if (notifError) {
-      console.error('❌ [BADGE DEBUG] Erro ao buscar notificações:', notifError);
       return { count: 0, error: notifError.message };
     }
-
-    console.log('🔍 [BADGE DEBUG] Total de notificações não lidas no banco:', allNotifications?.length || 0);
 
     // Filtrar notificações de convites para verificar se o convite ainda está pendente
     let validNotifications = [];
     
     for (const notification of (allNotifications || [])) {
-      console.log(`   📬 Analisando: Tipo=${notification.type}, ID=${notification.id.substring(0, 8)}`);
-      
       if (notification.type === 'artist_invite' && notification.artist_id) {
         // Verificar se o convite ainda está pendente
         const { data: invites, error: inviteError } = await supabase
@@ -183,24 +178,18 @@ export const getUnreadNotificationCount = async (userId: string): Promise<{ coun
           .limit(1);
 
         if (!inviteError && invites && invites.length > 0) {
-          console.log(`      ✅ Convite ainda pendente - CONTAR`);
           validNotifications.push(notification);
-        } else {
-          console.log(`      ❌ Convite já processado - NÃO CONTAR (deve ser marcado como lido)`);
         }
       } else {
         // Outras notificações sempre contam
-        console.log(`      ✅ Notificação válida - CONTAR`);
         validNotifications.push(notification);
       }
     }
 
     const finalCount = validNotifications.length;
-    console.log('🔔 [BADGE DEBUG] Contagem final válida:', finalCount);
 
     return { count: finalCount, error: null };
   } catch (error) {
-    console.error('❌ [BADGE DEBUG] Erro de conexão:', error);
     return { count: 0, error: 'Erro de conexão' };
   }
 };

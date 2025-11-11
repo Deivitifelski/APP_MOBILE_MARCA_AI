@@ -63,9 +63,8 @@ export default function AgendaScreen() {
         .limit(1);
 
       setHasAnyArtist(!error && data && data.length > 0);
-      console.log('👤 Usuário tem artistas?', !error && data && data.length > 0);
     } catch (error) {
-      console.error('Erro ao verificar artistas:', error);
+      // Erro ao verificar artistas
     }
   };
 
@@ -87,16 +86,10 @@ export default function AgendaScreen() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        console.log('🚫 Agenda: Usuário não autenticado');
         setCurrentUserRole(null);
         setHasFinancialAccess(false);
         return;
       }
-
-      console.log('🔍 Agenda: Verificando role do usuário', {
-        userId: user.id,
-        artistId: activeArtist.id
-      });
 
       const { data: memberData, error } = await supabase
         .from('artist_members')
@@ -106,29 +99,21 @@ export default function AgendaScreen() {
         .single();
 
       if (error || !memberData) {
-        console.error('❌ Agenda: Erro ao verificar role:', error);
         setCurrentUserRole(null);
         setHasFinancialAccess(false);
         return;
       }
 
       const userRole = memberData.role;
-      console.log('📋 Agenda: ROLE DO USUÁRIO:', userRole);
 
       // ✅ Apenas viewer NÃO pode ver valores financeiros
       const isViewer = userRole === 'viewer';
       const canViewFinancials = !isViewer;
 
-      console.log('🔐 Agenda: Verificação de acesso:', {
-        userRole,
-        isViewer,
-        canViewFinancials
-      });
-
       setCurrentUserRole(userRole);
       setHasFinancialAccess(canViewFinancials);
     } catch (error) {
-      console.error('❌ Agenda: Erro ao verificar role:', error);
+      // Erro ao verificar role
       setCurrentUserRole(null);
       setHasFinancialAccess(false);
     }
@@ -177,7 +162,6 @@ export default function AgendaScreen() {
     React.useCallback(() => {
       // Apenas invalidar cache e recarregar eventos se houver artista
       if (activeArtist) {
-        console.log('🔄 Agenda: Tela em foco, recarregando eventos...');
         cacheService.invalidateEventsCache(activeArtist.id, currentYear, currentMonth);
         loadEvents(true);
       } else {
@@ -201,8 +185,6 @@ export default function AgendaScreen() {
       return;
     }
 
-    console.log('🔒 Agenda: Tentando abrir evento');
-
     // ✅ VERIFICAR PERMISSÃO ATUALIZADA DO BANCO (sempre que clicar)
     try {
       const { user } = await getCurrentUser();
@@ -220,28 +202,23 @@ export default function AgendaScreen() {
         .single();
 
       if (roleError || !memberData) {
-        console.log('❌ Erro ao buscar permissões:', roleError);
         Alert.alert('Erro', 'Você não tem acesso a este artista');
         return;
       }
 
       const userRole = memberData.role;
-      console.log('🔐 Role atual do usuário:', userRole);
 
       // Viewer não pode ver detalhes (apenas editor, admin, owner)
       const allowedRoles = ['editor', 'admin', 'owner'];
       const canViewDetails = allowedRoles.includes(userRole);
       
       if (!canViewDetails) {
-        console.log('🚫 Agenda: Sem permissão para ver detalhes - Role:', userRole);
         setShowPermissionModal(true);
         return;
       }
       
-      console.log('✅ Agenda: Acesso permitido - navegando para detalhes');
       router.push(`/detalhes-evento?eventId=${eventId}`);
     } catch (error) {
-      console.error('❌ Erro ao verificar permissões:', error);
       Alert.alert('Erro', 'Erro ao verificar permissões');
     }
   };
@@ -261,10 +238,6 @@ export default function AgendaScreen() {
       return;
     }
     
-    if (isInitialLoad) {
-      console.log('📅 Carregando eventos para artista:', activeArtist.id, 'Mês:', currentMonth, 'Ano:', currentYear);
-    }
-    
     try {
       // Verificar cache primeiro
       const cacheKey = `events_${activeArtist.id}_${currentYear}_${currentMonth}`;
@@ -273,7 +246,6 @@ export default function AgendaScreen() {
       if (cachedEvents && !isInitialLoad) {
         // Usar dados do cache para atualizações silenciosas
         setEvents(cachedEvents);
-        console.log('📅 Eventos carregados do cache:', cachedEvents.length);
         return;
       }
       
@@ -287,16 +259,10 @@ export default function AgendaScreen() {
         
         // Salvar no cache
         await cacheService.setEventsData(activeArtist.id, currentYear, currentMonth, eventsData);
-        
-        if (isInitialLoad) {
-          console.log('📅 Eventos carregados do servidor:', eventsData.length);
-        }
       } else {
-        console.error('❌ Erro ao carregar eventos:', result.error);
         setEvents([]);
       }
     } catch (error) {
-      console.error('❌ Erro ao carregar eventos:', error);
       setEvents([]);
     }
   };
@@ -317,8 +283,6 @@ export default function AgendaScreen() {
       return;
     }
 
-    console.log('➕ Agenda: Tentando adicionar evento');
-
     // ✅ VERIFICAR PERMISSÃO ATUALIZADA DO BANCO (sempre que clicar)
     try {
       const { user } = await getCurrentUser();
@@ -336,25 +300,20 @@ export default function AgendaScreen() {
         .single();
 
       if (roleError || !memberData) {
-        console.log('❌ Erro ao buscar permissões:', roleError);
         Alert.alert('Erro', 'Você não tem acesso a este artista');
         return;
       }
 
       const userRole = memberData.role;
-      console.log('🔐 Role atual do usuário:', userRole);
 
       // Verificar se pode criar eventos (admin, editor, owner)
       const allowedRoles = ['admin', 'editor', 'owner'];
       const canCreate = allowedRoles.includes(userRole);
       
       if (!canCreate) {
-        console.log('🚫 Agenda: Sem permissão para criar evento - Role:', userRole);
         setShowPermissionModal(true);
         return;
       }
-
-      console.log('✅ Agenda: Permissão concedida - navegando para criar evento');
 
       // Se tem permissão, navegar para tela de adicionar evento
       const selectedDate = new Date(currentYear, currentMonth, 1);
@@ -368,7 +327,6 @@ export default function AgendaScreen() {
         }
       });
     } catch (error) {
-      console.error('❌ Erro ao verificar permissões:', error);
       Alert.alert('Erro', 'Erro ao verificar permissões');
     }
   };
@@ -509,11 +467,9 @@ export default function AgendaScreen() {
                 fallbackIconColor={colors.primary}
                 showLoadingIndicator={false}
                 onLoadSuccess={() => {
-                  console.log('✅ Imagem do artista carregada na agenda:', activeArtist.profile_url);
                   setImageLoadError(false);
                 }}
                 onLoadError={(error) => {
-                  console.log('❌ Erro ao carregar imagem do artista na agenda:', activeArtist.profile_url);
                   setImageLoadError(true);
                 }}
               />

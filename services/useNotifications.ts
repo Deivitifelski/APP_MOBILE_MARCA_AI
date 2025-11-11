@@ -23,15 +23,11 @@ export const useNotifications = () => {
       const { count, error } = await getUnreadNotificationCount(user.id);
       
       if (error) {
-        console.error('❌ Erro ao carregar contador de notificações:', error);
         setUnreadCount(0);
       } else {
-        console.log('🔔 [BADGE DEBUG] Notificações não lidas contadas:', count);
-        console.log('🔔 [BADGE DEBUG] User ID:', user.id);
         setUnreadCount(count);
       }
     } catch (error) {
-      console.error('❌ Erro ao carregar contador de notificações:', error);
       setUnreadCount(0);
     } finally {
       setIsLoading(false);
@@ -58,8 +54,6 @@ export const useNotifications = () => {
       const notificationSubscription = subscribeToNotifications(
         user.id,
         (notification) => {
-          console.log('useNotifications: Nova notificação recebida:', notification);
-          
           // Para notificações de eventos, recarregar contador total
           if (notification.type === 'event_created' || notification.type === 'event_updated') {
             loadUnreadCount();
@@ -76,8 +70,6 @@ export const useNotifications = () => {
       const inviteSubscription = subscribeToArtistInvites(
         user.id,
         (invite) => {
-          console.log('useNotifications: Mudança em convite de artista:', invite);
-          
           // Recarregar contador total quando houver mudanças nos convites
           loadUnreadCount();
         }
@@ -86,7 +78,7 @@ export const useNotifications = () => {
       subscriptionsRef.current = [notificationSubscription, inviteSubscription];
       
     } catch (error) {
-      console.error('Erro ao configurar subscriptions em tempo real:', error);
+      // Erro ao configurar subscriptions em tempo real
     }
   };
 

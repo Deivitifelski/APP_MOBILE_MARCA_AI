@@ -75,12 +75,7 @@ export default function ConfiguracoesScreen() {
 
   // Sincronizar com o artista ativo quando mudar
   useEffect(() => {
-    console.log('🔄 Configurações: useEffect [activeArtist] disparado');
     if (activeArtist) {
-      console.log('✅ Configurações: Artista ativo mudou para:', activeArtist.name);
-      console.log('   ID:', activeArtist.id);
-      console.log('   Profile URL:', activeArtist.profile_url || '❌ VAZIO');
-      
       // Atualizar estado local com o artista ativo
       setCurrentArtist(activeArtist);
       setHasArtist(true);
@@ -88,7 +83,6 @@ export default function ConfiguracoesScreen() {
       // Recarregar permissões para o novo artista
       loadPermissionsForArtist(activeArtist.id);
     } else {
-      console.log('⚠️ Configurações: Nenhum artista ativo');
       setCurrentArtist(null);
       setHasArtist(false);
       setUserPermissions(null);
@@ -99,7 +93,6 @@ export default function ConfiguracoesScreen() {
   useEffect(() => {
     const handleArtistImageUpdated = (data: { artistId: string; newImageUrl: string }) => {
       if (activeArtist && data.artistId === activeArtist.id) {
-        console.log('🎨 Configurações: Imagem do artista atualizada');
         loadActiveArtist(); // Recarregar artista ativo global
       }
     };
@@ -114,22 +107,10 @@ export default function ConfiguracoesScreen() {
   // Recarregar dados quando a tela ganhar foco
   useFocusEffect(
     React.useCallback(() => {
-      console.log('🔄 Tela de configurações ganhou foco, recarregando dados...');
       loadArtistData(true);
       loadActiveArtist(); // Recarregar artista ativo também
     }, [])
   );
-
-
-
-  // Debug: Log da URL da imagem do usuário
-  useEffect(() => {
-    if (userProfile?.profile_url) {
-      console.log('🔍 DEBUG - URL da imagem do usuário nas configurações:', userProfile.profile_url);
-    } else {
-      console.log('🔍 DEBUG - Nenhuma URL de imagem encontrada para o usuário nas configurações');
-    }
-  }, [userProfile?.profile_url]);
 
   // Configurar subscriptions de realtime
   const setupRealtimeSubscriptions = async () => {
@@ -137,27 +118,21 @@ export default function ConfiguracoesScreen() {
       const { user } = await getCurrentUser();
       if (!user) return;
 
-      console.log('🔔 Configurando realtime para usuário:', user.id);
-
       // Subscription para mudanças na tabela users
       const userSubscription = subscribeToUsers(user.id, (payload) => {
-        console.log('👤 Mudança detectada no perfil do usuário:', payload);
-        
         // Recarregar dados do usuário quando houver mudanças
         loadUserProfile();
         checkUserPlan();
       });
 
       setRealtimeSubscriptions([userSubscription]);
-      console.log('✅ Realtime configurado com sucesso');
     } catch (error) {
-      console.error('❌ Erro ao configurar realtime:', error);
+      // Erro ao configurar realtime
     }
   };
 
   // Limpar subscriptions de realtime
   const cleanupRealtimeSubscriptions = () => {
-    console.log('🧹 Limpando subscriptions de realtime');
     realtimeSubscriptions.forEach(subscription => {
       subscription.unsubscribe();
     });
@@ -170,16 +145,14 @@ export default function ConfiguracoesScreen() {
       const { user } = await getCurrentUser();
       if (!user) return;
       
-      console.log('🔐 Carregando permissões para artista:', artistId);
       const permissions = await getUserPermissions(user.id, artistId);
       
       if (permissions) {
         setUserPermissions(permissions);
         await cacheService.setPermissionsData(user.id, artistId, permissions);
-        console.log('✅ Permissões carregadas');
       }
     } catch (error) {
-      console.error('❌ Erro ao carregar permissões:', error);
+      // Erro ao carregar permissões
     }
   };
 
@@ -190,7 +163,6 @@ export default function ConfiguracoesScreen() {
       const { user, error: userError } = await getCurrentUser();
       
       if (userError || !user) {
-        console.error('Erro ao obter usuário atual:', userError);
         return;
       }
 
@@ -201,17 +173,14 @@ export default function ConfiguracoesScreen() {
         if (cachedProfile) {
           setUserProfile(cachedProfile);
           setIsLoadingProfile(false);
-          console.log('👤 Perfil do usuário carregado do cache');
           return;
         }
       }
 
       // Carregar do servidor (sempre frescos)
-      console.log('👤 Carregando perfil do usuário do servidor...');
       const { profile, error: profileError } = await getUserProfile(user.id);
       
       if (profileError) {
-        console.error('Erro ao carregar perfil:', profileError);
         return;
       }
 
@@ -219,10 +188,9 @@ export default function ConfiguracoesScreen() {
         setUserProfile(profile);
         // Salvar no cache para próxima vez
         await cacheService.setUserData(user.id, profile);
-        console.log('👤 Perfil do usuário carregado do servidor:', profile.name);
       }
     } catch (error) {
-      console.error('❌ Erro ao carregar perfil do usuário:', error);
+      // Erro ao carregar perfil
     } finally {
       setIsLoadingProfile(false);
     }
@@ -230,27 +198,17 @@ export default function ConfiguracoesScreen() {
 
   const loadArtistData = async (forceRefresh = false) => {
     try {
-      console.log(`🔄 Configurações: loadArtistData (forceRefresh=${forceRefresh})`);
       const { user, error: userError } = await getCurrentUser();
       
       if (userError || !user) {
-        console.log('❌ Configurações: Usuário não encontrado');
         return;
       }
-
-      console.log('🔍 Configurações: Buscando artista do usuário:', user.id);
 
       // Carregar do servidor (sempre frescos quando forceRefresh=true)
       const { artists, error: artistsError } = await getArtists(user.id);
       
       if (!artistsError && artists && artists.length > 0) {
         const artistFromDb = artists[0];
-        
-        console.log('✅ Configurações: Artista recebido do servidor:', {
-          name: artistFromDb.name,
-          id: artistFromDb.id,
-          profile_url: artistFromDb.profile_url || '❌ VAZIO'
-        });
         
         // Não atualizar currentArtist aqui se já temos activeArtist
         // O useEffect de sincronização vai cuidar disso
@@ -261,7 +219,6 @@ export default function ConfiguracoesScreen() {
         
         // Salvar no cache para próxima vez (COM profile_url)
         await cacheService.setUserData(`artists_${user.id}`, artists);
-        console.log('💾 Artista salvo no cache (com profile_url)');
         
         // Carregar permissões
         const permissions = await getUserPermissions(user.id, artistFromDb.id);
@@ -270,13 +227,12 @@ export default function ConfiguracoesScreen() {
           await cacheService.setPermissionsData(user.id, artistFromDb.id, permissions);
         }
       } else {
-        console.log('⚠️ Configurações: Nenhum artista encontrado');
         setHasArtist(false);
         setCurrentArtist(null);
         setUserPermissions(null);
       }
     } catch (error) {
-      console.error('❌ Configurações: Erro ao carregar artista:', error);
+      // Erro ao carregar artista
       setHasArtist(false);
       setCurrentArtist(null);
       setUserPermissions(null);
@@ -323,7 +279,6 @@ export default function ConfiguracoesScreen() {
       // Redirecionar para login
       router.replace('/login');
     } catch (error) {
-      console.error('Erro ao fazer logout:', error);
       Alert.alert('Erro', 'Não foi possível sair. Tente novamente.');
     }
   };
@@ -412,7 +367,6 @@ export default function ConfiguracoesScreen() {
         );
       }
     } catch (error) {
-      console.error('Erro ao alterar senha:', error);
       Alert.alert(
         '❌ Erro de Conexão', 
         'Ocorreu um erro inesperado. Verifique sua conexão com a internet e tente novamente.',
@@ -445,7 +399,6 @@ export default function ConfiguracoesScreen() {
         Alert.alert('Erro', feedbackResult.error || 'Erro ao enviar feedback. Tente novamente.');
       }
     } catch (error) {
-      console.error('Erro ao enviar feedback:', error);
       Alert.alert('Erro', 'Erro ao processar seu feedback. Tente novamente.');
     }
   };
@@ -466,29 +419,19 @@ export default function ConfiguracoesScreen() {
       const { user } = await getCurrentUser();
       
       if (!user) {
-        console.log('❌ Nenhum usuário logado para verificar plano');
         setIsPremium(false);
         return;
       }
 
-      console.log('🔍 Verificando plano do usuário:', user.id);
-
       // Verificar se é premium
       const { isPremium: premiumStatus, error: premiumError } = await isPremiumUser(user.id);
       if (premiumError) {
-        console.log('❌ Erro ao verificar premium:', premiumError);
         setIsPremium(false);
       } else {
-        console.log('✅ Status premium:', premiumStatus);
         setIsPremium(premiumStatus);
       }
 
-      console.log('📊 Resumo do plano:', {
-        isPremium: premiumStatus
-      });
-
     } catch (error) {
-      console.log('💥 Erro ao verificar plano:', error);
       setIsPremium(false);
     } finally {
       setIsLoadingPlan(false);
@@ -549,13 +492,6 @@ export default function ConfiguracoesScreen() {
               fallbackIcon="person"
               fallbackIconSize={40}
               fallbackIconColor="#667eea"
-              onLoadSuccess={() => {
-                console.log('✅ Imagem do usuário carregada nas configurações:', userProfile?.profile_url);
-              }}
-              onLoadError={(error) => {
-                console.log('❌ Erro ao carregar imagem do usuário nas configurações:', userProfile?.profile_url);
-                console.log('❌ Detalhes:', error);
-              }}
             />
             <View style={dynamicStyles.profileInfo}>
               {isLoadingProfile ? (
@@ -607,13 +543,6 @@ export default function ConfiguracoesScreen() {
                 fallbackIconSize={40}
                 fallbackIconColor="#667eea"
                 showLoadingIndicator={false}
-                onLoadSuccess={() => {
-                  console.log('🖼️ Configurações: Imagem do artista carregada com sucesso!');
-                }}
-                onLoadError={(error) => {
-                  console.log('❌ Configurações: Erro ao carregar imagem do artista');
-                  console.log('   URL tentada:', currentArtist.profile_url);
-                }}
               />
               <View style={dynamicStyles.artistInfo}>
                 <Text style={dynamicStyles.artistName}>{currentArtist.name}</Text>
