@@ -158,14 +158,15 @@ export default function ArtistProfileScreen() {
       }
 
       // Automaticamente mudar para o novo artista criado
-      console.log('🔄 Definindo novo artista como ativo:', artist.name);
       await setActiveArtist({
         id: artist.id,
         name: artist.name,
         role: 'admin', // Criador sempre é admin
         profile_url: finalProfileUrl || undefined
       });
-      console.log('✅ Artista ativo atualizado com sucesso!');
+
+      // ✅ Recarregar o hook global para propagar mudanças
+      await loadActiveArtist();
 
       // Mostrar modal de sucesso personalizado
       setCreatedArtistName(artist.name);

@@ -73,6 +73,11 @@ export default function AgendaScreen() {
     // Limpar eventos imediatamente quando artista muda
     setEvents([]);
     checkUserRole();
+    
+    // Carregar eventos do novo artista
+    if (activeArtist) {
+      loadEvents(true);
+    }
   }, [activeArtist]);
 
   const checkUserRole = async () => {

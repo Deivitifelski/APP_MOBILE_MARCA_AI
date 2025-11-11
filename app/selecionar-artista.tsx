@@ -44,9 +44,6 @@ export default function SelecionarArtistaScreen() {
     loadActiveArtist();
   }, []);
 
-  useEffect(() => {
-    console.log('🎯 Artista ativo atual:', activeArtist);
-  }, [activeArtist]);
 
   const loadData = async () => {
     try {
@@ -70,9 +67,6 @@ export default function SelecionarArtistaScreen() {
 
       const artistsList = (userArtists || []) as ArtistCollaborator[];
       setArtists(artistsList);
-      
-      console.log('📋 Artistas carregados:', artistsList.map(a => ({ id: a.id, name: a.name })));
-      console.log('🎯 Artista ativo no loadData:', activeArtist);
     } catch (error) {
       Alert.alert('Erro', 'Erro ao carregar dados');
     } finally {
@@ -100,12 +94,6 @@ export default function SelecionarArtistaScreen() {
     try {
       setIsChanging(true);
       
-      console.log('🔄 Alterando artista para:', {
-        id: selectedArtist.id,
-        name: selectedArtist.name,
-        role: selectedArtist.role
-      });
-      
       await setActiveArtist({
         id: selectedArtist.id,
         name: selectedArtist.name,
@@ -113,7 +101,8 @@ export default function SelecionarArtistaScreen() {
         profile_url: selectedArtist.profile_url
       });
       
-      console.log('✅ Artista alterado com sucesso');
+      // ✅ Recarregar o hook global para propagar mudanças
+      await loadActiveArtist();
       
       setShowConfirmModal(false);
       setIsChanging(false);
@@ -123,7 +112,6 @@ export default function SelecionarArtistaScreen() {
         router.replace('/(tabs)/agenda');
       }, 500);
     } catch (error) {
-      console.error('❌ Erro ao alterar artista:', error);
       setIsChanging(false);
       setShowConfirmModal(false);
       Alert.alert('Erro', 'Não foi possível alterar o artista. Tente novamente.');
@@ -183,14 +171,6 @@ export default function SelecionarArtistaScreen() {
   const renderArtist = (artist: ArtistCollaborator) => {
     const isActive = activeArtist?.id === artist.id;
     
-    console.log('🔍 Comparando artista:', {
-      artistId: artist.id,
-      artistName: artist.name,
-      activeArtistId: activeArtist?.id,
-      activeArtistName: activeArtist?.name,
-      isActive
-    });
-    
     return (
       <TouchableOpacity
         key={artist.id}
@@ -214,7 +194,7 @@ export default function SelecionarArtistaScreen() {
               />
             ) : (
               <View style={styles.artistAvatarPlaceholder}>
-                <Ionicons name="musical-notes" size={24} color="#667eea" />
+                <Ionicons name="musical-notes" size={28} color="#fff" />
               </View>
             )}
             {isActive && (
@@ -505,6 +485,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#667eea',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#667eea',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   avatarText: {
     color: '#fff',

@@ -124,7 +124,10 @@ export const useActiveArtist = () => {
             filter: `user_id=eq.${user.id}`,
           },
           (payload) => {
-            if (payload.eventType === 'UPDATE') {
+            if (payload.eventType === 'INSERT') {
+              // Novo artista criado - recarregar para atualizar lista
+              loadActiveArtist();
+            } else if (payload.eventType === 'UPDATE') {
               const newData = payload.new as any;
               
               // Se é uma atualização do artista atual
@@ -136,6 +139,23 @@ export const useActiveArtist = () => {
               
               // Se o usuário foi removido do artista atual
               if (oldData.artist_id === activeArtist.id) {
+                loadActiveArtist();
+              }
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'artists',
+          },
+          (payload) => {
+            // Quando um artista é atualizado (ex: nome, imagem)
+            if (payload.eventType === 'UPDATE') {
+              const updatedArtist = payload.new as any;
+              if (activeArtist && updatedArtist.id === activeArtist.id) {
                 loadActiveArtist();
               }
             }

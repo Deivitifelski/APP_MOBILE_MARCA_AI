@@ -33,11 +33,13 @@ import {
   Notification
 } from '../services/supabase/notificationService';
 import { hasPermission } from '../services/supabase/permissionsService';
+import { useActiveArtist } from '../services/useActiveArtist';
 import { useNotifications } from '../services/useNotifications';
 
 export default function NotificacoesScreen() {
   const { colors, isDarkMode } = useTheme();
   const { loadUnreadCount } = useNotifications(); // ✅ Hook para atualizar badge
+  const { loadActiveArtist } = useActiveArtist(); // ✅ Hook para atualizar artista ativo
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -161,19 +163,11 @@ export default function NotificacoesScreen() {
   };
 
   const handleNotificationPress = async (notification: Notification) => {
-    console.log('📱 Notificação clicada:', {
-      id: notification.id.substring(0, 8),
-      type: notification.type,
-      hasEventId: !!notification.event_id,
-      read: notification.read
-    });
-
     // Marcar como lida se não estiver lida
     if (!notification.read) {
       const { success, error } = await markNotificationAsRead(notification.id);
       
       if (success) {
-        console.log('✅ Notificação marcada como lida');
         // Atualizar estado local
         setNotifications(prev => 
           prev.map(n => 
@@ -184,43 +178,33 @@ export default function NotificacoesScreen() {
         
         // ✅ Atualizar badge de notificações
         await loadUnreadCount();
-      } else {
-        console.error('❌ Erro ao marcar notificação como lida:', error);
       }
     }
 
     // Navegar baseado no tipo de notificação
-    console.log('🔀 Navegando para:', notification.type);
-    
     try {
       switch (notification.type) {
         case 'artist_invite':
-          console.log('→ Indo para convites recebidos');
           router.push('/convites-recebidos');
           break;
         case 'collaborator_added':
         case 'collaborator_removed':
-          console.log('→ Indo para colaboradores');
           router.push('/colaboradores-artista');
           break;
         case 'event_created':
         case 'event_updated':
           // Se a notificação tem event_id, verificar permissões antes de navegar
           if (notification.event_id) {
-            console.log('→ Indo para evento:', notification.event_id.substring(0, 8));
             await handleEventNotificationPress(notification.event_id);
           } else {
-            console.log('→ Sem event_id, indo para agenda');
             router.push('/(tabs)/agenda');
           }
           break;
         default:
-          console.log('⚠️ Tipo desconhecido, indo para agenda');
           router.push('/(tabs)/agenda');
           break;
       }
     } catch (error) {
-      console.error('❌ Erro ao navegar:', error);
       Alert.alert('Erro', 'Erro ao abrir notificação. Tente novamente.');
     }
   };
@@ -257,7 +241,6 @@ export default function NotificacoesScreen() {
       });
 
     } catch (error) {
-      console.error('Erro ao verificar permissões do evento:', error);
       Alert.alert('Erro', 'Erro ao verificar permissões. Redirecionando para a agenda.');
       router.push('/(tabs)/agenda');
     }
@@ -320,7 +303,7 @@ export default function NotificacoesScreen() {
                 Alert.alert('Erro', 'Erro ao deletar notificação');
               }
             } catch (error) {
-              console.error('Erro ao deletar notificação:', error);
+              // Erro ao deletar notificação
             }
           }
         }
@@ -354,11 +337,6 @@ export default function NotificacoesScreen() {
       const { artists: artistsBefore } = await getArtists(currentUserId);
       const isFirstArtist = !artistsBefore || artistsBefore.length === 0;
 
-      console.log('🔍 Verificando artistas antes de aceitar:', {
-        totalArtistas: artistsBefore?.length || 0,
-        isFirstArtist
-      });
-
       const { success, error } = await acceptArtistInvite(inviteId, currentUserId);
       
       if (success) {
@@ -381,7 +359,8 @@ export default function NotificacoesScreen() {
             role: inviteRole // ✅ Role do convite
           });
 
-          console.log('✅ Primeiro artista definido como ativo:', artistName);
+          // ✅ Recarregar o hook global para propagar mudanças
+          await loadActiveArtist();
           
           // Mostrar alerta simples e redirecionar
           Alert.alert(
@@ -396,7 +375,10 @@ export default function NotificacoesScreen() {
             }]
           );
         } else {
-          // Se já tem artistas, apenas mostrar alerta
+          // Se já tem artistas, recarregar o hook para atualizar lista
+          await loadActiveArtist();
+          
+          // Apenas mostrar alerta
           Alert.alert(
             '✅ Convite Aceito!',
             `Você foi adicionado ao artista "${artistName}". Para trabalhar com ele, troque nas Configurações → Selecionar Artista.`,
