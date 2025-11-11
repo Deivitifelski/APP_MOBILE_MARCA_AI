@@ -98,6 +98,11 @@ export default function ArtistProfileScreen() {
       return;
     }
 
+    if (name.trim().length > 30) {
+      Alert.alert('Erro', 'O nome do artista deve ter no máximo 30 caracteres');
+      return;
+    }
+
     setLoading(true);
     try {
       // Obter o usuário atual
@@ -264,6 +269,7 @@ export default function ArtistProfileScreen() {
                     placeholder="Digite o nome do artista"
                     placeholderTextColor={colors.textSecondary}
                     autoCapitalize="words"
+                    maxLength={30}
                   />
                 </View>
               </View>

@@ -52,7 +52,7 @@ export const createArtist = async (artistData: CreateArtistData): Promise<{ succ
     }
 
     return { success: true, error: null, artist: artistData_result };
-  } catch (error) {
+  } catch {
     return { success: false, error: 'Erro de conexão' };
   }
 };
@@ -60,8 +60,6 @@ export const createArtist = async (artistData: CreateArtistData): Promise<{ succ
 // Buscar artistas do usuário atual
 export const getArtists = async (userId: string): Promise<{ artists: Artist[] | null; error: string | null }> => {
   try {
-    console.log('🔍 getArtists: Buscando artistas para usuário:', userId);
-    
     // Primeiro, buscar os membros do usuário
     const { data: membersData, error: membersError } = await supabase
       .from('artist_members')
@@ -69,14 +67,10 @@ export const getArtists = async (userId: string): Promise<{ artists: Artist[] | 
       .eq('user_id', userId);
 
     if (membersError) {
-      console.error('❌ getArtists: Erro ao buscar membros:', membersError);
       return { artists: null, error: membersError.message };
     }
 
-    console.log('📋 getArtists: Membros encontrados:', membersData?.length || 0);
-
     if (!membersData || membersData.length === 0) {
-      console.log('❌ getArtists: Usuário não é membro de nenhum artista');
       return { artists: [], error: null };
     }
 
@@ -88,11 +82,8 @@ export const getArtists = async (userId: string): Promise<{ artists: Artist[] | 
       .in('id', artistIds);
 
     if (artistsError) {
-      console.error('❌ getArtists: Erro ao buscar artistas:', artistsError);
       return { artists: null, error: artistsError.message };
     }
-
-    console.log('🎭 getArtists: Artistas encontrados:', artistsData?.length || 0);
 
     // Combinar os dados
     const artists = artistsData?.map(artist => {
@@ -107,10 +98,8 @@ export const getArtists = async (userId: string): Promise<{ artists: Artist[] | 
       };
     }) || [];
 
-    console.log('✅ getArtists: Artistas finais:', artists);
     return { artists, error: null };
-  } catch (error) {
-    console.error('❌ getArtists: Erro inesperado:', error);
+  } catch {
     return { artists: null, error: 'Erro de conexão' };
   }
 };
@@ -129,28 +118,54 @@ export const getArtistById = async (artistId: string): Promise<{ artist: Artist 
     }
 
     return { artist: data, error: null };
-  } catch (error) {
+  } catch {
     return { artist: null, error: 'Erro de conexão' };
   }
 };
 
 // Atualizar artista
-export const updateArtist = async (artistId: string, artistData: Partial<CreateArtistData>): Promise<{ success: boolean; error: string | null }> => {
+export const updateArtist = async (artistId: string, artistData: Partial<CreateArtistData>): Promise<{ success: boolean; error: string | null; artist?: Artist }> => {
   try {
-    const { error } = await supabase
+    console.log('🔄 UPDATE ARTIST - Dados enviados:', {
+      artistId: artistId,
+      name: artistData.name,
+      profile_url: artistData.profile_url
+    });
+
+    const { data, error } = await supabase
       .from('artists')
       .update({
-        ...artistData,
+        name: artistData.name,
+        profile_url: artistData.profile_url,
         updated_at: new Date().toISOString()
       })
-      .eq('id', artistId);
+      .eq('id', artistId)
+      .select();
+
+    console.log('📊 UPDATE ARTIST - Resultado:', {
+      success: !error,
+      error: error?.message,
+      dataLength: data?.length,
+      updatedArtist: data?.[0]
+    });
 
     if (error) {
+      console.error('❌ UPDATE ARTIST - Erro:', error);
       return { success: false, error: error.message };
     }
 
-    return { success: true, error: null };
-  } catch (error) {
+    // Retornar o primeiro (e único) resultado
+    const updatedArtist = data && data.length > 0 ? data[0] : null;
+
+    console.log('✅ UPDATE ARTIST - Sucesso! Artista atualizado:', {
+      id: updatedArtist?.id,
+      name: updatedArtist?.name,
+      profile_url: updatedArtist?.profile_url
+    });
+
+    return { success: true, error: null, artist: updatedArtist || undefined };
+  } catch (err) {
+    console.error('💥 UPDATE ARTIST - Erro inesperado:', err);
     return { success: false, error: 'Erro de conexão' };
   }
 };
@@ -158,10 +173,7 @@ export const updateArtist = async (artistId: string, artistData: Partial<CreateA
 // Deletar artista (com todos os dados relacionados)
 export const deleteArtist = async (artistId: string): Promise<{ success: boolean; error: string | null }> => {
   try {
-    console.log('🗑️ Iniciando deleção do artista:', artistId);
-
     // 1️⃣ Deletar despesas dos eventos do artista
-    console.log('🗑️ Deletando despesas dos eventos...');
     const { data: events } = await supabase
       .from('events')
       .select('id')
@@ -175,83 +187,55 @@ export const deleteArtist = async (artistId: string): Promise<{ success: boolean
         .in('event_id', eventIds);
 
       if (expensesError) {
-        console.error('❌ Erro ao deletar despesas:', expensesError);
         return { success: false, error: 'Erro ao deletar despesas dos eventos: ' + expensesError.message };
       }
-      console.log('✅ Despesas deletadas');
     }
 
     // 2️⃣ Deletar eventos do artista
-    console.log('🗑️ Deletando eventos...');
     const { error: eventsError } = await supabase
       .from('events')
       .delete()
       .eq('artist_id', artistId);
 
     if (eventsError) {
-      console.error('❌ Erro ao deletar eventos:', eventsError);
       return { success: false, error: 'Erro ao deletar eventos: ' + eventsError.message };
     }
-    console.log('✅ Eventos deletados');
 
     // 3️⃣ Deletar convites pendentes do artista
-    console.log('🗑️ Deletando convites...');
-    const { error: invitesError } = await supabase
+    await supabase
       .from('artist_invites')
       .delete()
       .eq('artist_id', artistId);
 
-    if (invitesError) {
-      console.error('❌ Erro ao deletar convites:', invitesError);
-      // Não retornar erro, continuar a deleção
-    } else {
-      console.log('✅ Convites deletados');
-    }
-
     // 4️⃣ Deletar colaboradores (artist_members)
-    console.log('🗑️ Deletando colaboradores...');
     const { error: membersError } = await supabase
       .from('artist_members')
       .delete()
       .eq('artist_id', artistId);
 
     if (membersError) {
-      console.error('❌ Erro ao deletar colaboradores:', membersError);
       return { success: false, error: 'Erro ao deletar colaboradores: ' + membersError.message };
     }
-    console.log('✅ Colaboradores deletados');
 
     // 5️⃣ Deletar notificações relacionadas ao artista
-    console.log('🗑️ Deletando notificações...');
-    const { error: notificationsError } = await supabase
+    await supabase
       .from('notifications')
       .delete()
       .eq('artist_id', artistId);
 
-    if (notificationsError) {
-      console.error('❌ Erro ao deletar notificações:', notificationsError);
-      // Não retornar erro, continuar a deleção
-    } else {
-      console.log('✅ Notificações deletadas');
-    }
-
     // 6️⃣ Finalmente, deletar o artista
-    console.log('🗑️ Deletando artista...');
     const { error: artistError } = await supabase
       .from('artists')
       .delete()
       .eq('id', artistId);
 
     if (artistError) {
-      console.error('❌ Erro ao deletar artista:', artistError);
       return { success: false, error: 'Erro ao deletar artista: ' + artistError.message };
     }
 
-    console.log('✅ Artista deletado com sucesso!');
     return { success: true, error: null };
 
-  } catch (error) {
-    console.error('❌ Erro geral ao deletar artista:', error);
+  } catch {
     return { success: false, error: 'Erro de conexão ao deletar artista' };
   }
 };

@@ -181,6 +181,11 @@ export default function EditarArtistaScreen() {
       return;
     }
 
+    if (name.trim().length > 30) {
+      Alert.alert('Atenção', 'O nome do artista deve ter no máximo 30 caracteres');
+      return;
+    }
+
     try {
       setIsSaving(true);
       let finalProfileUrl = profileUrl;
@@ -208,28 +213,48 @@ export default function EditarArtistaScreen() {
         }
       }
 
-      const { success } = await updateArtist(artist.id, {
+      console.log('📤 EDITAR ARTISTA - Enviando update:', {
+        artistId: artist.id,
         name: name.trim(),
-        profile_url: finalProfileUrl.trim() || undefined,
+        profileUrl: finalProfileUrl,
+        originalProfileUrl: originalProfileUrl
       });
 
-      if (success) {
-        // 1. Atualizar AsyncStorage com os novos dados
-        const { setActiveArtist: saveToStorage } = await import('../services/artistContext');
-        await saveToStorage({
+      const updateResult = await updateArtist(artist.id, {
+        name: name.trim(),
+        profile_url: finalProfileUrl,
+      });
+
+      console.log('📥 EDITAR ARTISTA - Resultado do update:', updateResult);
+
+      if (updateResult.success) {
+        console.log('✅ EDITAR ARTISTA - Update bem-sucedido, atualizando estados...');
+
+        // Usar os dados do formulário (update funcionou, mas select pode estar bloqueado por RLS)
+        const updatedData = {
           id: artist.id,
           name: name.trim(),
           role: userPermissions?.role || 'owner',
-          profile_url: finalProfileUrl.trim() || undefined
-        });
+          profile_url: finalProfileUrl || undefined
+        };
+
+        console.log('💾 EDITAR ARTISTA - Salvando no AsyncStorage:', updatedData);
+
+        // 1. Atualizar AsyncStorage
+        const { setActiveArtist: saveToStorage } = await import('../services/artistContext');
+        await saveToStorage(updatedData);
 
         // 2. Notificar que a imagem foi atualizada
         if (finalProfileUrl !== originalProfileUrl) {
+          console.log('🖼️ EDITAR ARTISTA - Notificando mudança de imagem');
           artistImageUpdateService.notifyArtistImageUpdated(artist.id, finalProfileUrl);
         }
 
         // 3. Recarregar hook para propagar mudanças
+        console.log('🔄 EDITAR ARTISTA - Recarregando activeArtist...');
         await loadActiveArtist();
+        
+        console.log('🎉 EDITAR ARTISTA - Processo completo!');
         
         Alert.alert('Sucesso', 'Dados do artista atualizados com sucesso!', [
           {
@@ -238,7 +263,7 @@ export default function EditarArtistaScreen() {
           },
         ]);
       } else {
-        Alert.alert('Erro', 'Erro ao atualizar dados do artista');
+        Alert.alert('Erro', updateResult.error || 'Erro ao atualizar dados do artista');
       }
     } catch {
       Alert.alert('Erro', 'Erro ao salvar alterações');
@@ -254,7 +279,8 @@ export default function EditarArtistaScreen() {
     onChangeText: (text: string) => void,
     placeholder: string,
     keyboardType: 'default' | 'email-address' | 'phone-pad' = 'default',
-    required: boolean = false
+    required: boolean = false,
+    maxLength?: number
   ) => (
     <View style={styles.inputContainer}>
       <Text style={[styles.inputLabel, { color: colors.text }]}>
@@ -272,6 +298,7 @@ export default function EditarArtistaScreen() {
         placeholderTextColor={colors.textSecondary}
         keyboardType={keyboardType}
         autoCapitalize="none"
+        maxLength={maxLength}
       />
     </View>
   );
@@ -365,7 +392,8 @@ export default function EditarArtistaScreen() {
             setName,
             'Digite o nome do artista',
             'default',
-            true
+            true,
+            30
           )}
         </View>
 
