@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Alert } from 'react-native';
@@ -14,22 +14,48 @@ interface EventWithExpenses {
   city?: string;
 }
 
+interface StandaloneTransaction {
+  id: string;
+  description: string;
+  value: number;
+  date: string;
+  category?: string;
+}
+
 interface FinancialReportData {
   events: EventWithExpenses[];
   month: number;
   year: number;
   artistName?: string;
   includeFinancials?: boolean;
+  standaloneIncome?: StandaloneTransaction[];
+  standaloneExpenses?: StandaloneTransaction[];
 }
 
 export const generateFinancialReport = async (data: FinancialReportData): Promise<{ success: boolean; error?: string }> => {
   try {
-    const { events, month, year, artistName, includeFinancials = true } = data;
+    const { 
+      events, 
+      month, 
+      year, 
+      artistName, 
+      includeFinancials = true,
+      standaloneIncome = [],
+      standaloneExpenses = []
+    } = data;
     
-    // Calcular totais
+    // Calcular totais dos eventos
     const totalRevenue = events.reduce((sum, event) => sum + (event.value || 0), 0);
     const totalExpenses = events.reduce((sum, event) => sum + event.totalExpenses, 0);
-    const netProfit = totalRevenue - totalExpenses;
+    
+    // Calcular totais das transações avulsas
+    const standaloneIncomeTotal = standaloneIncome.reduce((sum, income) => sum + Math.abs(income.value), 0);
+    const standaloneExpensesTotal = standaloneExpenses.reduce((sum, expense) => sum + expense.value, 0);
+    
+    // Totais gerais
+    const totalRevenueWithIncome = totalRevenue + standaloneIncomeTotal;
+    const totalExpensesWithStandalone = totalExpenses + standaloneExpensesTotal;
+    const netProfit = totalRevenueWithIncome - totalExpensesWithStandalone;
     
     // Formatar data
     const formatDate = (dateString: string) => {
@@ -68,8 +94,22 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
     ];
     
     // Criar HTML formatado para o PDF
+    console.log('🎨 Criando HTML do relatório...');
     const now = new Date();
     const dataGeracao = `${now.toLocaleDateString('pt-BR')} às ${now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}hs`;
+    
+    console.log('📊 Dados do relatório:', {
+      eventos: events.length,
+      receitasAvulsas: standaloneIncome.length,
+      despesasAvulsas: standaloneExpenses.length,
+      includeFinancials
+    });
+    
+    // Avisar se há muitos dados
+    const totalItems = events.length + standaloneIncome.length + standaloneExpenses.length;
+    if (totalItems > 50) {
+      console.warn('⚠️ Grande quantidade de dados:', totalItems, 'itens - pode demorar mais');
+    }
     
     const htmlContent = `
     <!DOCTYPE html>
@@ -371,18 +411,72 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
           </table>
         `}
         
+        <!-- Receitas Avulsas -->
+        ${includeFinancials && standaloneIncome.length > 0 ? `
+        <h3 class="section-title">RECEITAS AVULSAS</h3>
+        <table class="event-table">
+          <thead>
+            <tr>
+              <th>Descrição</th>
+              <th style="text-align: center;">Data</th>
+              <th style="text-align: right;">Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${standaloneIncome.map(income => `
+            <tr>
+              <td class="event-label">${income.description}</td>
+              <td class="event-value" style="text-align: center;">${formatDate(income.date)}</td>
+              <td class="event-value">R$ ${formatNumber(Math.abs(income.value))}</td>
+            </tr>
+            `).join('')}
+            <tr class="total-row">
+              <td colspan="2" class="event-label">Total Receitas Avulsas</td>
+              <td class="event-value">R$ ${formatNumber(standaloneIncomeTotal)}</td>
+            </tr>
+          </tbody>
+        </table>
+        ` : ''}
+
+        <!-- Despesas Avulsas -->
+        ${includeFinancials && standaloneExpenses.length > 0 ? `
+        <h3 class="section-title">DESPESAS AVULSAS</h3>
+        <table class="event-table">
+          <thead>
+            <tr>
+              <th>Descrição</th>
+              <th style="text-align: center;">Data</th>
+              <th style="text-align: right;">Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${standaloneExpenses.map(expense => `
+            <tr>
+              <td class="event-label">${expense.description}</td>
+              <td class="event-value" style="text-align: center;">${formatDate(expense.date)}</td>
+              <td class="event-value">R$ ${formatNumber(expense.value)}</td>
+            </tr>
+            `).join('')}
+            <tr class="total-row">
+              <td colspan="2" class="event-label">Total Despesas Avulsas</td>
+              <td class="event-value">R$ ${formatNumber(standaloneExpensesTotal)}</td>
+            </tr>
+          </tbody>
+        </table>
+        ` : ''}
+        
         <!-- Resumo Financeiro -->
         ${includeFinancials ? `
         <div class="summary-section">
           <div class="summary-title">RESUMO FINANCEIRO</div>
           <div class="summary-grid">
             <div class="summary-item">
-              <div class="summary-label">Receitas</div>
-              <div class="summary-value">${formatCurrency(totalRevenue)}</div>
+              <div class="summary-label">Receitas Totais</div>
+              <div class="summary-value">${formatCurrency(totalRevenueWithIncome)}</div>
             </div>
             <div class="summary-item">
-              <div class="summary-label">Despesas</div>
-              <div class="summary-value">${formatCurrency(totalExpenses)}</div>
+              <div class="summary-label">Despesas Totais</div>
+              <div class="summary-value">${formatCurrency(totalExpensesWithStandalone)}</div>
             </div>
             <div class="summary-item">
               <div class="summary-label">Lucro Líquido</div>
@@ -406,42 +500,56 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
     </html>
     `;
 
+    console.log('📏 Tamanho do HTML:', (htmlContent.length / 1024).toFixed(2), 'KB');
+
     try {
+      console.log('🔄 Verificando disponibilidade de compartilhamento...');
       // Verificar se compartilhamento está disponível
       const isAvailable = await Sharing.isAvailableAsync();
       
       if (!isAvailable) {
+        console.error('❌ Compartilhamento não disponível');
         return { success: false, error: 'Compartilhamento não disponível neste dispositivo' };
       }
 
-      // Gerar PDF usando expo-print
+      console.log('📄 Gerando PDF...');
+      console.log('⏰ Iniciado em:', new Date().toISOString());
+      
+      // Gerar PDF usando expo-print com opções otimizadas
+      const printStart = Date.now();
       const { uri } = await Print.printToFileAsync({ 
         html: htmlContent,
-        base64: false 
+        base64: false,
+        // Otimizações para melhor performance
+        width: 612, // Largura padrão A4 em pontos
+        height: 792 // Altura padrão A4 em pontos
       });
       
+      const printTime = ((Date.now() - printStart) / 1000).toFixed(2);
+      console.log(`✅ PDF gerado em ${printTime}s`);
+      
       if (!uri) {
+        console.error('❌ URI do PDF vazio');
         return { success: false, error: 'Falha ao gerar arquivo PDF' };
       }
 
-      // Mover PDF para um local acessível
-      const fileName = `Relatorio_Financeiro_${months[month]}_${year}_${new Date().getTime()}.pdf`;
-      const newUri = FileSystem.documentDirectory + fileName;
-      
-      await FileSystem.moveAsync({
-        from: uri,
-        to: newUri
-      });
+      console.log('✅ PDF gerado, URI:', uri);
+      console.log('📤 Compartilhando PDF...');
 
-      // Compartilhar PDF via sistema nativo (WhatsApp, Email, etc)
-      await Sharing.shareAsync(newUri, {
+      // Compartilhar PDF diretamente sem mover (mais rápido)
+      const shareStart = Date.now();
+      await Sharing.shareAsync(uri, {
         mimeType: 'application/pdf',
         dialogTitle: 'Compartilhar Relatório Financeiro',
         UTI: 'com.adobe.pdf'
       });
-
+      
+      const shareTime = ((Date.now() - shareStart) / 1000).toFixed(2);
+      console.log(`✅ Compartilhamento concluído em ${shareTime}s`);
+      
       return { success: true };
     } catch (pdfError: any) {
+      console.error('❌ Erro ao gerar/compartilhar PDF:', pdfError);
       const errorMessage = pdfError?.message || 'Erro ao gerar documento';
       return { success: false, error: errorMessage };
     }

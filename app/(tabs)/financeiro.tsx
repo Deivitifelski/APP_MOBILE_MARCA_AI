@@ -45,6 +45,7 @@ export default function FinanceiroScreen() {
   const [standaloneExpenses, setStandaloneExpenses] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [reportProgress, setReportProgress] = useState('Iniciando geração do documento...');
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -274,60 +275,86 @@ export default function FinanceiroScreen() {
     setShowExportModal(false);
     setIsGeneratingReport(true);
     
+    // Separar despesas (valor > 0) e receitas (valor < 0)
+    const standaloneExpensesOnly = standaloneExpenses.filter(item => item.value > 0);
+    const standaloneIncome = standaloneExpenses.filter(item => item.value < 0);
+    
+    const totalItems = events.length + standaloneIncome.length + standaloneExpensesOnly.length;
+    
     console.log('🔄 Iniciando geração de relatório...');
     console.log('📊 Dados:', {
       eventos: events.length,
       receitas: standaloneIncome.length,
       despesas: standaloneExpensesOnly.length,
+      totalItems,
       includeFinancials
     });
     
+    // Mensagem de progresso baseada na quantidade de dados
+    if (totalItems > 50) {
+      setReportProgress(`Processando ${totalItems} itens... Isso pode levar até 1 minuto.`);
+    } else if (totalItems > 20) {
+      setReportProgress(`Processando ${totalItems} itens... Aguarde alguns segundos.`);
+    } else {
+      setReportProgress('Gerando documento PDF...');
+    }
+    
     try {
-      // Criar promise com timeout de 15 segundos
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => {
-          console.log('⏱️ Timeout de 15s atingido!');
-          reject(new Error('timeout'));
-        }, 15000);
-      });
-
-      const generatePromise = generateFinancialReport({
+      const result = await generateFinancialReport({
         events,
         month: currentMonth,
         year: currentYear,
         artistName: activeArtist.name,
-        includeFinancials
+        includeFinancials,
+        standaloneIncome: standaloneIncome.map(item => ({
+          id: item.id,
+          description: item.description,
+          value: item.value,
+          date: item.date,
+          category: item.category
+        })),
+        standaloneExpenses: standaloneExpensesOnly.map(item => ({
+          id: item.id,
+          description: item.description,
+          value: item.value,
+          date: item.date,
+          category: item.category
+        }))
       });
-
-      // Race entre a geração e o timeout
-      const result = await Promise.race([generatePromise, timeoutPromise]) as any;
       
       console.log('📄 Resultado da geração:', result);
       
       if (!result.success) {
         console.error('❌ Erro retornado:', result.error);
         Alert.alert(
-          '❌ Erro ao Gerar Relatório', 
-          result.error || 'Não foi possível gerar o documento. Tente copiar como texto.'
+          '❌ Erro ao Gerar PDF', 
+          'Não foi possível gerar o documento PDF. Use a opção "Copiar como Texto" que funciona instantaneamente e pode ser enviada por WhatsApp, Email, etc.',
+          [
+            { text: 'Tentar Novamente', onPress: () => setShowExportModal(true) },
+            { text: 'OK', style: 'cancel' }
+          ]
         );
       } else {
         console.log('✅ Relatório gerado com sucesso!');
+        // Mostrar mensagem de sucesso
+        Alert.alert(
+          '✅ Sucesso',
+          'Documento gerado! Escolha o aplicativo para compartilhar.',
+          [{ text: 'OK' }]
+        );
       }
     } catch (error: any) {
       console.error('💥 Exceção capturada:', error);
-      
-      if (error.message === 'timeout') {
-        Alert.alert(
-          '⏱️ Tempo Esgotado', 
-          'A geração do documento demorou mais de 15 segundos. Tente copiar como texto ao invés de gerar PDF.',
-          [{ text: 'OK' }]
-        );
-      } else {
-        Alert.alert(
-          '❌ Erro ao Gerar Relatório', 
-          `Erro: ${error.message || 'Desconhecido'}. Use a opção "Copiar como Texto" como alternativa.`
-        );
-      }
+      Alert.alert(
+        '❌ Erro ao Gerar PDF', 
+        'Não foi possível gerar o documento PDF. Recomendamos usar a opção "Copiar como Texto" que é mais rápida e confiável.',
+        [
+          { text: 'Copiar como Texto', onPress: () => {
+            setTimeout(() => copyAsText(includeFinancials), 300);
+          }},
+          { text: 'OK', style: 'cancel' }
+        ]
+      );
     } finally {
       console.log('🏁 Finalizando processo de geração');
       setIsGeneratingReport(false);
@@ -1220,7 +1247,7 @@ export default function FinanceiroScreen() {
       {/* Modal de Loading durante geração do PDF */}
       <LoadingModal
         visible={isGeneratingReport}
-        message="Gerando documento..."
+        message={reportProgress}
       />
     </View>
   );
