@@ -16,8 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { getCurrentUser } from '../services/supabase/authService';
 import { getArtists } from '../services/supabase/artistService';
-import { setActiveArtist } from '../services/artistContext';
-import { useActiveArtist } from '../services/useActiveArtist';
+import { useActiveArtistContext } from '../contexts/ActiveArtistContext';
 import { useTheme } from '../contexts/ThemeContext';
 
 interface ArtistCollaborator {
@@ -36,12 +35,11 @@ export default function SelecionarArtistaScreen() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [selectedArtist, setSelectedArtist] = useState<ArtistCollaborator | null>(null);
   const [isChanging, setIsChanging] = useState(false);
-  const { activeArtist, loadActiveArtist } = useActiveArtist();
+  const { activeArtist, setActiveArtist } = useActiveArtistContext();
   const { colors } = useTheme();
 
   useEffect(() => {
     loadData();
-    loadActiveArtist();
   }, []);
 
 
@@ -76,10 +74,7 @@ export default function SelecionarArtistaScreen() {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await Promise.all([
-      loadData(),
-      loadActiveArtist()
-    ]);
+    await loadData();
     setIsRefreshing(false);
   };
 
@@ -94,6 +89,7 @@ export default function SelecionarArtistaScreen() {
     try {
       setIsChanging(true);
       
+      // Atualizar Context (propaga automaticamente para todas as telas)
       await setActiveArtist({
         id: selectedArtist.id,
         name: selectedArtist.name,
@@ -101,16 +97,11 @@ export default function SelecionarArtistaScreen() {
         profile_url: selectedArtist.profile_url
       });
       
-      // ✅ Recarregar o hook global para propagar mudanças
-      await loadActiveArtist();
-      
       setShowConfirmModal(false);
       setIsChanging(false);
       
-      // Dar tempo para as permissões serem recarregadas
-      setTimeout(() => {
-        router.replace('/(tabs)/agenda');
-      }, 500);
+      // Redirecionar imediatamente
+      router.replace('/(tabs)/agenda');
     } catch (error) {
       setIsChanging(false);
       setShowConfirmModal(false);

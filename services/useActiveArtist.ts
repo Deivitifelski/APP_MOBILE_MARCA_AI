@@ -9,7 +9,7 @@ export const useActiveArtist = () => {
   const [isLoading, setIsLoading] = useState(true);
   const channelRef = useRef<any>(null);
 
-  const loadActiveArtist = async () => {
+  const loadActiveArtist = async (forceReload: boolean = false) => {
     try {
       setIsLoading(true);
       
@@ -21,58 +21,62 @@ export const useActiveArtist = () => {
         return;
       }
       
-      // Buscar artistas do usuário atual
-      const { artists, error: artistsError } = await getArtists(user.id);
-      
-      if (artistsError) {
-        setActiveArtistState(null);
-        return;
-      }
-      
-      // Se não há artistas, limpar artista ativo
-      if (!artists || artists.length === 0) {
-        await clearActiveArtist();
-        setActiveArtistState(null);
-        return;
-      }
-      
-      // Verificar se o artista salvo ainda é válido para este usuário
+      // Pegar o artista salvo no AsyncStorage primeiro
       const savedActiveArtist = await getActiveArtist();
-      let validActiveArtist = null;
       
-      if (savedActiveArtist) {
-        // Verificar se o artista salvo ainda pertence ao usuário atual
-        const currentArtistData = artists.find(artist => artist.id === savedActiveArtist.id);
+      // Se não há artista salvo ou se forçar reload, buscar do banco
+      if (!savedActiveArtist || forceReload) {
+        // Buscar artistas do usuário atual
+        const { artists, error: artistsError } = await getArtists(user.id);
         
-        if (currentArtistData) {
-          validActiveArtist = {
-            id: currentArtistData.id,
-            name: currentArtistData.name,
-            role: currentArtistData.role || 'owner',
-            profile_url: currentArtistData.profile_url
-          };
-          
-          // Atualizar os dados salvos com as informações mais recentes
-          await saveActiveArtist(validActiveArtist);
-        } else {
+        if (artistsError) {
+          setActiveArtistState(null);
+          return;
+        }
+        
+        // Se não há artistas, limpar artista ativo
+        if (!artists || artists.length === 0) {
           await clearActiveArtist();
-        }
-      }
-      
-      // Se não há artista válido salvo, NÃO selecionar automaticamente
-      // Deixar null para que o usuário escolha ou seja direcionado para criar
-      if (!validActiveArtist) {
-        // Se houver artistas mas nenhum selecionado, usuário precisa escolher
-        if (artists.length > 0) {
-          // Não definir nenhum automaticamente
           setActiveArtistState(null);
+          return;
+        }
+        
+        // Se há artista salvo, usar esse, senão deixar null
+        if (savedActiveArtist) {
+          const currentArtistData = artists.find(artist => artist.id === savedActiveArtist.id);
+          
+          if (currentArtistData) {
+            const validActiveArtist = {
+              id: currentArtistData.id,
+              name: currentArtistData.name,
+              role: currentArtistData.role || 'owner',
+              profile_url: currentArtistData.profile_url
+            };
+            
+            await saveActiveArtist(validActiveArtist);
+            setActiveArtistState(validActiveArtist);
+          } else {
+            await clearActiveArtist();
+            setActiveArtistState(null);
+          }
         } else {
           setActiveArtistState(null);
         }
-        return;
+      } else {
+        // ✅ Respeitar o artista salvo no AsyncStorage
+        // Apenas atualizar o estado se for diferente
+        if (!activeArtist || activeArtist.id !== savedActiveArtist.id) {
+          setActiveArtistState(savedActiveArtist);
+        } else {
+          // Mesmo artista, apenas atualizar campos (nome, imagem) mantendo o ID
+          setActiveArtistState({
+            ...activeArtist,
+            name: savedActiveArtist.name,
+            profile_url: savedActiveArtist.profile_url,
+            role: savedActiveArtist.role
+          });
+        }
       }
-      
-      setActiveArtistState(validActiveArtist);
     } catch (error) {
       setActiveArtistState(null);
     } finally {
@@ -82,11 +86,22 @@ export const useActiveArtist = () => {
 
   const setActiveArtist = async (artist: ActiveArtist) => {
     try {
+      // Salvar no AsyncStorage primeiro
       await saveActiveArtist(artist);
+      // Atualizar estado imediatamente
       setActiveArtistState(artist);
     } catch (error) {
       // Erro ao definir artista ativo
     }
+  };
+
+  const updateActiveArtistFields = async (fields: Partial<ActiveArtist>) => {
+    const currentArtist = await getActiveArtist();
+    if (!currentArtist) return;
+
+    const updatedArtist = { ...currentArtist, ...fields };
+    await saveActiveArtist(updatedArtist);
+    setActiveArtistState(updatedArtist);
   };
 
   useEffect(() => {
@@ -111,7 +126,7 @@ export const useActiveArtist = () => {
         return;
       }
 
-      const channelName = `active-artist:${user.id}:${activeArtist.id}`;
+      const channelName = `active-artist-${user.id}-${activeArtist.id}`;
 
       channelRef.current = supabase
         .channel(channelName)
@@ -125,21 +140,25 @@ export const useActiveArtist = () => {
           },
           (payload) => {
             if (payload.eventType === 'INSERT') {
-              // Novo artista criado - recarregar para atualizar lista
-              loadActiveArtist();
+              // Novo artista criado - apenas se não temos artista ativo
+              if (!activeArtist) {
+                loadActiveArtist(true);
+              }
             } else if (payload.eventType === 'UPDATE') {
               const newData = payload.new as any;
               
-              // Se é uma atualização do artista atual
-              if (newData.artist_id === activeArtist.id) {
-                loadActiveArtist();
+              // Se é uma atualização do role do artista atual
+              if (newData.artist_id === activeArtist.id && newData.role !== activeArtist.role) {
+                // Apenas atualizar role, manter nome e imagem
+                updateActiveArtistFields({ role: newData.role });
               }
             } else if (payload.eventType === 'DELETE') {
               const oldData = payload.old as any;
               
               // Se o usuário foi removido do artista atual
               if (oldData.artist_id === activeArtist.id) {
-                loadActiveArtist();
+                clearActiveArtist();
+                setActiveArtistState(null);
               }
             }
           }
@@ -147,18 +166,18 @@ export const useActiveArtist = () => {
         .on(
           'postgres_changes',
           {
-            event: '*',
+            event: 'UPDATE',
             schema: 'public',
             table: 'artists',
+            filter: `id=eq.${activeArtist.id}`,
           },
           (payload) => {
-            // Quando um artista é atualizado (ex: nome, imagem)
-            if (payload.eventType === 'UPDATE') {
-              const updatedArtist = payload.new as any;
-              if (activeArtist && updatedArtist.id === activeArtist.id) {
-                loadActiveArtist();
-              }
-            }
+            // Quando o artista atual é atualizado, atualizar apenas os campos mudados
+            const updatedArtist = payload.new as any;
+            updateActiveArtistFields({
+              name: updatedArtist.name,
+              profile_url: updatedArtist.profile_url
+            });
           }
         )
         .subscribe();
@@ -176,6 +195,7 @@ export const useActiveArtist = () => {
     activeArtist,
     setActiveArtist,
     loadActiveArtist,
+    updateActiveArtistFields,
     isLoading
   };
 };

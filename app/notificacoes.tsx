@@ -33,13 +33,13 @@ import {
   Notification
 } from '../services/supabase/notificationService';
 import { hasPermission } from '../services/supabase/permissionsService';
-import { useActiveArtist } from '../services/useActiveArtist';
+import { useActiveArtistContext } from '../contexts/ActiveArtistContext';
 import { useNotifications } from '../services/useNotifications';
 
 export default function NotificacoesScreen() {
   const { colors, isDarkMode } = useTheme();
   const { loadUnreadCount } = useNotifications(); // ✅ Hook para atualizar badge
-  const { loadActiveArtist } = useActiveArtist(); // ✅ Hook para atualizar artista ativo
+  const { setActiveArtist } = useActiveArtistContext(); // ✅ Context para atualizar artista ativo
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -350,17 +350,12 @@ export default function NotificacoesScreen() {
         await loadUnreadCount();
 
         if (isFirstArtist) {
-          // Se é o primeiro artista, setar automaticamente como ativo
-          const { setActiveArtist } = await import('../services/artistContext');
-          
+          // Se é o primeiro artista, setar automaticamente como ativo (Context API)
           await setActiveArtist({
             id: artistId,
             name: artistName,
             role: inviteRole // ✅ Role do convite
           });
-
-          // ✅ Recarregar o hook global para propagar mudanças
-          await loadActiveArtist();
           
           // Mostrar alerta simples e redirecionar
           Alert.alert(
@@ -375,9 +370,6 @@ export default function NotificacoesScreen() {
             }]
           );
         } else {
-          // Se já tem artistas, recarregar o hook para atualizar lista
-          await loadActiveArtist();
-          
           // Apenas mostrar alerta
           Alert.alert(
             '✅ Convite Aceito!',

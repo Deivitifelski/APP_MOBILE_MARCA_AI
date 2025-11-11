@@ -6,6 +6,7 @@ import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import AuthDeepLinkHandler from '../components/AuthDeepLinkHandler';
+import { ActiveArtistProvider } from '../contexts/ActiveArtistContext';
 import { PermissionsProvider } from '../contexts/PermissionsContext';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { useColorScheme } from '../hooks/use-color-scheme';
@@ -20,10 +21,11 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <PermissionsProvider>
-          <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-            <AuthDeepLinkHandler />
-            <Stack>
+        <ActiveArtistProvider>
+          <PermissionsProvider>
+            <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+              <AuthDeepLinkHandler />
+              <Stack>
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="login" options={{ headerShown: false }} />
             <Stack.Screen name="register" options={{ headerShown: false }} />
@@ -52,10 +54,11 @@ export default function RootLayout() {
             <Stack.Screen name="screens/profile/ArtistProfileScreen" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-            </Stack>
-            <StatusBar style="auto" />
-          </NavigationThemeProvider>
-        </PermissionsProvider>
+              </Stack>
+              <StatusBar style="auto" />
+            </NavigationThemeProvider>
+          </PermissionsProvider>
+        </ActiveArtistProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

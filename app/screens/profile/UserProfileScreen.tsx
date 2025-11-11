@@ -3,17 +3,17 @@ import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../../contexts/ThemeContext';
@@ -96,6 +96,11 @@ export default function UserProfileScreen() {
   const handleFinalizarCadastro = async () => {
     if (!name.trim() || !phone.trim() || !city.trim() || !state) {
       Alert.alert('Erro', 'Por favor, preencha todos os campos obrigatórios');
+      return;
+    }
+
+    if (name.trim().length > 30) {
+      Alert.alert('Atenção', 'O nome deve ter no máximo 30 caracteres');
       return;
     }
 
@@ -228,6 +233,7 @@ export default function UserProfileScreen() {
                     placeholder="Digite seu nome completo"
                     placeholderTextColor={colors.textSecondary}
                     autoCapitalize="words"
+                    maxLength={30}
                   />
                 </View>
               </View>

@@ -27,12 +27,12 @@ import { getCurrentUser, updatePassword } from '../../services/supabase/authServ
 import { createFeedback } from '../../services/supabase/feedbackService';
 import { getUserPermissions } from '../../services/supabase/permissionsService';
 import { getUserProfile, isPremiumUser, UserProfile } from '../../services/supabase/userService';
-import { useActiveArtist } from '../../services/useActiveArtist';
+import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
 
 export default function ConfiguracoesScreen() {
   const { isDarkMode, toggleDarkMode, colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const { activeArtist, loadActiveArtist } = useActiveArtist();
+  const { activeArtist, refreshActiveArtist } = useActiveArtistContext();
   const [notifications, setNotifications] = useState(true);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
@@ -93,7 +93,7 @@ export default function ConfiguracoesScreen() {
   useEffect(() => {
     const handleArtistImageUpdated = (data: { artistId: string; newImageUrl: string }) => {
       if (activeArtist && data.artistId === activeArtist.id) {
-        loadActiveArtist(); // Recarregar artista ativo global
+        refreshActiveArtist(); // Recarregar artista ativo global
       }
     };
 
@@ -108,7 +108,7 @@ export default function ConfiguracoesScreen() {
   useFocusEffect(
     React.useCallback(() => {
       loadArtistData(true);
-      loadActiveArtist(); // Recarregar artista ativo também
+      refreshActiveArtist(); // Recarregar artista ativo também
     }, [])
   );
 

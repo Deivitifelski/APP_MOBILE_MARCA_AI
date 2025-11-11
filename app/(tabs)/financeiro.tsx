@@ -22,7 +22,7 @@ import { generateFinancialReport } from '../../services/financialReportService';
 import { getEventsByMonth } from '../../services/supabase/eventService';
 import { getExpensesByEvent } from '../../services/supabase/expenseService';
 import { canExportData } from '../../services/supabase/userService';
-import { useActiveArtist } from '../../services/useActiveArtist';
+import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
 // import * as FileSystem from 'expo-file-system';
 // import * as Sharing from 'expo-sharing';
 
@@ -48,7 +48,7 @@ export default function FinanceiroScreen() {
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const { activeArtist, loadActiveArtist } = useActiveArtist();
+  const { activeArtist, refreshActiveArtist } = useActiveArtistContext();
   const [hasAnyArtist, setHasAnyArtist] = useState(false);
   
   // Estados para controle de acesso

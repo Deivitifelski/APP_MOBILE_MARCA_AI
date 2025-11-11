@@ -18,19 +18,18 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import UpgradeModal from '../../../components/UpgradeModal';
+import { useActiveArtistContext } from '../../../contexts/ActiveArtistContext';
 import { useTheme } from '../../../contexts/ThemeContext';
-import { setActiveArtist } from '../../../services/artistContext';
 import { createArtist } from '../../../services/supabase/artistService';
 import { getCurrentUser } from '../../../services/supabase/authService';
 import { uploadImageToSupabase } from '../../../services/supabase/imageUploadService';
 import { canCreateArtist } from '../../../services/supabase/userService';
-import { useActiveArtist } from '../../../services/useActiveArtist';
 
 export default function ArtistProfileScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
   const fromSettings = params.fromSettings === 'true';
-  const { loadActiveArtist } = useActiveArtist();
+  const { setActiveArtist } = useActiveArtistContext();
   
   const [name, setName] = useState('');
   const [profileUrl, setProfileUrl] = useState<string | null>(null);
@@ -153,7 +152,7 @@ export default function ArtistProfileScreen() {
       // Criar o perfil do artista
       const { success, error, artist } = await createArtist({
         name: name.trim(),
-        profile_url: finalProfileUrl,
+        profile_url: finalProfileUrl || undefined,
         user_id: user.id
       });
 
@@ -162,16 +161,13 @@ export default function ArtistProfileScreen() {
         return;
       }
 
-      // Automaticamente mudar para o novo artista criado
+      // Automaticamente mudar para o novo artista criado (Context API)
       await setActiveArtist({
         id: artist.id,
         name: artist.name,
         role: 'admin', // Criador sempre é admin
         profile_url: finalProfileUrl || undefined
       });
-
-      // ✅ Recarregar o hook global para propagar mudanças
-      await loadActiveArtist();
 
       // Mostrar modal de sucesso personalizado
       setCreatedArtistName(artist.name);

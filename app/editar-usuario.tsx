@@ -149,6 +149,11 @@ export default function EditarUsuarioScreen() {
       return;
     }
 
+    if (name.trim().length > 30) {
+      Alert.alert('Atenção', 'O nome deve ter no máximo 30 caracteres');
+      return;
+    }
+
     if (!email.trim()) {
       Alert.alert('Erro', 'Email é obrigatório');
       return;
@@ -215,7 +220,8 @@ export default function EditarUsuarioScreen() {
     onChangeText: (text: string) => void,
     placeholder: string,
     keyboardType: 'default' | 'email-address' | 'phone-pad' = 'default',
-    required: boolean = false
+    required: boolean = false,
+    maxLength?: number
   ) => (
     <View style={styles.inputContainer}>
       <Text style={[styles.inputLabel, { color: colors.text }]}>
@@ -233,6 +239,7 @@ export default function EditarUsuarioScreen() {
         placeholderTextColor={colors.textSecondary}
         keyboardType={keyboardType}
         autoCapitalize="none"
+        maxLength={maxLength}
       />
     </View>
   );
@@ -333,7 +340,8 @@ export default function EditarUsuarioScreen() {
             setName,
             'Digite seu nome completo',
             'default',
-            true
+            true,
+            30
           )}
 
           {renderInput(

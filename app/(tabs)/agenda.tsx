@@ -20,7 +20,7 @@ import { artistImageUpdateService } from '../../services/artistImageUpdateServic
 import { cacheService } from '../../services/cacheService';
 import { getCurrentUser } from '../../services/supabase/authService';
 import { getEventsByMonthWithRole } from '../../services/supabase/eventService';
-import { useActiveArtist } from '../../services/useActiveArtist';
+import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
 import { useNotifications } from '../../services/useNotifications';
 
 const months = [
@@ -37,7 +37,7 @@ export default function AgendaScreen() {
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [imageLoadError, setImageLoadError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const { activeArtist, loadActiveArtist, isLoading } = useActiveArtist();
+  const { activeArtist, refreshActiveArtist, isLoading } = useActiveArtistContext();
   const [artistImageUpdated, setArtistImageUpdated] = useState<boolean>(false);
   const { unreadCount, loadUnreadCount } = useNotifications();
   const [hasAnyArtist, setHasAnyArtist] = useState(false);
@@ -128,7 +128,7 @@ export default function AgendaScreen() {
   const currentYear = currentDate.getFullYear();
 
   useEffect(() => {
-    loadActiveArtist();
+    refreshActiveArtist();
     loadUnreadCount();
   }, []);
 
@@ -180,7 +180,7 @@ export default function AgendaScreen() {
   useEffect(() => {
     if (artistImageUpdated && activeArtist) {
       setArtistImageUpdated(false);
-      loadActiveArtist();
+      refreshActiveArtist();
     }
   }, [artistImageUpdated]);
 

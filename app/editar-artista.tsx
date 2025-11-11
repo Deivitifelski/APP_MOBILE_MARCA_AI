@@ -15,17 +15,17 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import PermissionModal from '../components/PermissionModal';
+import { useActiveArtistContext } from '../contexts/ActiveArtistContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { artistImageUpdateService } from '../services/artistImageUpdateService';
 import { getArtistById, updateArtist } from '../services/supabase/artistService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { deleteImageFromSupabase, extractFileNameFromUrl, uploadImageToSupabase } from '../services/supabase/imageUploadService';
 import { getUserPermissions } from '../services/supabase/permissionsService';
-import { useActiveArtist } from '../services/useActiveArtist';
 
 export default function EditarArtistaScreen() {
   const { colors } = useTheme();
-  const { activeArtist, loadActiveArtist } = useActiveArtist();
+  const { activeArtist, setActiveArtist: setActiveArtistContext } = useActiveArtistContext();
   const [artist, setArtist] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -238,21 +238,16 @@ export default function EditarArtistaScreen() {
           profile_url: finalProfileUrl || undefined
         };
 
-        console.log('💾 EDITAR ARTISTA - Salvando no AsyncStorage:', updatedData);
+        console.log('💾 EDITAR ARTISTA - Atualizando Context:', updatedData);
 
-        // 1. Atualizar AsyncStorage
-        const { setActiveArtist: saveToStorage } = await import('../services/artistContext');
-        await saveToStorage(updatedData);
+        // 1. Atualizar Context (salva no AsyncStorage e propaga para todas as telas)
+        await setActiveArtistContext(updatedData);
 
         // 2. Notificar que a imagem foi atualizada
         if (finalProfileUrl !== originalProfileUrl) {
           console.log('🖼️ EDITAR ARTISTA - Notificando mudança de imagem');
           artistImageUpdateService.notifyArtistImageUpdated(artist.id, finalProfileUrl);
         }
-
-        // 3. Recarregar hook para propagar mudanças
-        console.log('🔄 EDITAR ARTISTA - Recarregando activeArtist...');
-        await loadActiveArtist();
         
         console.log('🎉 EDITAR ARTISTA - Processo completo!');
         
