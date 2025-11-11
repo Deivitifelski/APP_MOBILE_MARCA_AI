@@ -17,7 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import PermissionModal from '../components/PermissionModal';
 import { useTheme } from '../contexts/ThemeContext';
 import { artistImageUpdateService } from '../services/artistImageUpdateService';
-import { getArtists, updateArtist } from '../services/supabase/artistService';
+import { getArtistById, updateArtist } from '../services/supabase/artistService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { deleteImageFromSupabase, extractFileNameFromUrl, uploadImageToSupabase } from '../services/supabase/imageUploadService';
 import { getUserPermissions } from '../services/supabase/permissionsService';
@@ -25,7 +25,7 @@ import { useActiveArtist } from '../services/useActiveArtist';
 
 export default function EditarArtistaScreen() {
   const { colors } = useTheme();
-  const { loadActiveArtist } = useActiveArtist();
+  const { activeArtist, loadActiveArtist } = useActiveArtist();
   const [artist, setArtist] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -40,8 +40,11 @@ export default function EditarArtistaScreen() {
   const [originalProfileUrl, setOriginalProfileUrl] = useState('');
 
   useEffect(() => {
-    loadArtistData();
-  }, []);
+    if (activeArtist) {
+      loadArtistData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeArtist]);
 
   const loadArtistData = async () => {
     try {
@@ -55,18 +58,23 @@ export default function EditarArtistaScreen() {
         return;
       }
 
-      const { artists, error: artistsError } = await getArtists(user.id);
-      
-      if (artistsError || !artists || artists.length === 0) {
-        Alert.alert('Erro', 'Nenhum artista encontrado');
+      // Verificar se há artista ativo
+      if (!activeArtist) {
+        Alert.alert('Erro', 'Nenhum artista ativo selecionado');
         router.back();
         return;
       }
 
-      // Usar o primeiro artista (artista ativo)
-      const currentArtist = artists[0];
+      // Buscar dados atualizados do artista diretamente pelo ID
+      const { artist: currentArtist, error: artistError } = await getArtistById(activeArtist.id);
       
-      // Carregar permissões primeiro
+      if (artistError || !currentArtist) {
+        Alert.alert('Erro', 'Erro ao carregar dados do artista');
+        router.back();
+        return;
+      }
+      
+      // Carregar permissões
       const permissions = await getUserPermissions(
         user.id,
         currentArtist.id
@@ -80,11 +88,14 @@ export default function EditarArtistaScreen() {
 
       setUserPermissions(permissions);
 
-      // Verificar se o usuário tem permissão para gerenciar o artista
-      if (!permissions.permissions.canManageArtist) {
+      // Verificar se o usuário tem permissão para editar (apenas owner ou admin)
+      const userRole = permissions.role;
+      const canEdit = userRole === 'owner' || userRole === 'admin';
+      
+      if (!canEdit || !permissions.permissions.canManageArtist) {
         Alert.alert(
           'Acesso Negado', 
-          'Você não possui permissão para editar as informações deste artista. Entre em contato com um administrador para solicitar acesso.',
+          'Apenas gerentes e administradores podem editar as informações do artista.',
           [
             {
               text: 'Entendi',
@@ -101,7 +112,7 @@ export default function EditarArtistaScreen() {
       setProfileUrl(currentArtist.profile_url || '');
       setOriginalProfileUrl(currentArtist.profile_url || '');
 
-    } catch (error) {
+    } catch {
       Alert.alert('Erro', 'Erro ao carregar dados do artista');
       router.back();
     } finally {
@@ -141,10 +152,10 @@ export default function EditarArtistaScreen() {
             `Erro ao selecionar imagem: ${error instanceof Error ? error.message : 'Erro desconhecido'}. Tente novamente.`
           );
         }
-      } catch (permError) {
+      } catch (err) {
         Alert.alert(
           'Erro', 
-          `Erro ao acessar galeria: ${error instanceof Error ? error.message : 'Erro desconhecido'}. Tente novamente.`
+          `Erro ao acessar galeria: ${err instanceof Error ? err.message : 'Erro desconhecido'}. Tente novamente.`
         );
       }
     }
@@ -153,9 +164,15 @@ export default function EditarArtistaScreen() {
   const handleSave = async () => {
     if (!artist) return;
 
-    // Verificar permissões
-    if (!userPermissions?.permissions.canManageArtist) {
-      setShowPermissionModal(true);
+    // Verificar permissões - apenas owner ou admin
+    const userRole = userPermissions?.role;
+    const canEdit = userRole === 'owner' || userRole === 'admin';
+    
+    if (!canEdit || !userPermissions?.permissions.canManageArtist) {
+      Alert.alert(
+        'Acesso Negado',
+        'Apenas gerentes e administradores podem editar as informações do artista.'
+      );
       return;
     }
 
@@ -191,19 +208,28 @@ export default function EditarArtistaScreen() {
         }
       }
 
-      const { success, error } = await updateArtist(artist.id, {
+      const { success } = await updateArtist(artist.id, {
         name: name.trim(),
         profile_url: finalProfileUrl.trim() || undefined,
       });
 
       if (success) {
-        // Recarregar os dados do artista ativo para atualizar as outras telas
-        await loadActiveArtist();
-        
-        // Notificar que a imagem do artista foi atualizada
+        // 1. Atualizar AsyncStorage com os novos dados
+        const { setActiveArtist: saveToStorage } = await import('../services/artistContext');
+        await saveToStorage({
+          id: artist.id,
+          name: name.trim(),
+          role: userPermissions?.role || 'owner',
+          profile_url: finalProfileUrl.trim() || undefined
+        });
+
+        // 2. Notificar que a imagem foi atualizada
         if (finalProfileUrl !== originalProfileUrl) {
           artistImageUpdateService.notifyArtistImageUpdated(artist.id, finalProfileUrl);
         }
+
+        // 3. Recarregar hook para propagar mudanças
+        await loadActiveArtist();
         
         Alert.alert('Sucesso', 'Dados do artista atualizados com sucesso!', [
           {
@@ -212,9 +238,9 @@ export default function EditarArtistaScreen() {
           },
         ]);
       } else {
-        Alert.alert('Erro', error || 'Erro ao atualizar dados do artista');
+        Alert.alert('Erro', 'Erro ao atualizar dados do artista');
       }
-    } catch (error) {
+    } catch {
       Alert.alert('Erro', 'Erro ao salvar alterações');
     } finally {
       setIsSaving(false);
