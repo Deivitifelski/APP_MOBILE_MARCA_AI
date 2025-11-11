@@ -275,6 +275,20 @@ export default function FinanceiroScreen() {
     setShowExportModal(false);
     setIsGeneratingReport(true);
     
+    // Timeout de segurança: fechar modal após 30 segundos
+    const safetyTimeout = setTimeout(() => {
+      console.log('⏱️ Timeout de 30s atingido - fechando modal');
+      setIsGeneratingReport(false);
+      Alert.alert(
+        '⏱️ Tempo Esgotado',
+        'A geração do PDF está demorando muito. Tente usar a opção "Copiar como Texto" que é mais rápida.',
+        [
+          { text: 'Copiar como Texto', onPress: () => copyAsText(includeFinancials) },
+          { text: 'OK', style: 'cancel' }
+        ]
+      );
+    }, 30000); // 30 segundos
+    
     // Separar despesas (valor > 0) e receitas (valor < 0)
     const standaloneExpensesOnly = standaloneExpenses.filter(item => item.value > 0);
     const standaloneIncome = standaloneExpenses.filter(item => item.value < 0);
@@ -292,7 +306,7 @@ export default function FinanceiroScreen() {
     
     // Mensagem de progresso baseada na quantidade de dados
     if (totalItems > 50) {
-      setReportProgress(`Processando ${totalItems} itens... Isso pode levar até 1 minuto.`);
+      setReportProgress(`Processando ${totalItems} itens... Isso pode levar até 30 segundos.`);
     } else if (totalItems > 20) {
       setReportProgress(`Processando ${totalItems} itens... Aguarde alguns segundos.`);
     } else {
@@ -325,13 +339,16 @@ export default function FinanceiroScreen() {
       
       console.log('📄 Resultado da geração:', result);
       
+      // Limpar timeout de segurança
+      clearTimeout(safetyTimeout);
+      
       if (!result.success) {
         console.error('❌ Erro retornado:', result.error);
         Alert.alert(
           '❌ Erro ao Gerar PDF', 
           result.error || 'Não foi possível gerar o documento PDF. Use a opção "Copiar como Texto" que funciona instantaneamente e pode ser enviada por WhatsApp, Email, etc.',
           [
-            { text: 'Tentar Novamente', onPress: () => setShowExportModal(true) },
+            { text: 'Copiar como Texto', onPress: () => copyAsText(includeFinancials) },
             { text: 'OK', style: 'cancel' }
           ]
         );
@@ -346,6 +363,9 @@ export default function FinanceiroScreen() {
       }
     } catch (error: any) {
       console.error('💥 Exceção capturada:', error);
+      
+      // Limpar timeout de segurança
+      clearTimeout(safetyTimeout);
       
       Alert.alert(
         '❌ Erro ao Gerar PDF', 
@@ -454,6 +474,7 @@ export default function FinanceiroScreen() {
         });
       }
     } else {
+      // Sem valores financeiros - apenas lista de eventos
       text += `📅 EVENTOS DO MÊS (${events.length})\n\n`;
       events.forEach((event, index) => {
         text += `${index + 1}. ${event.name}\n`;
@@ -461,38 +482,6 @@ export default function FinanceiroScreen() {
         if (event.city) text += `   📍 ${event.city}\n`;
         if (index < events.length - 1) text += `   ───────────────────────\n`;
       });
-
-      // Adicionar receitas avulsas (sem valores)
-      if (standaloneIncome.length > 0) {
-        text += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-        text += `💵 RECEITAS AVULSAS (${standaloneIncome.length})\n\n`;
-        standaloneIncome.forEach((income, index) => {
-          text += `${index + 1}. ${income.description}\n`;
-          text += `   ${getDayOfWeek(income.date)}, ${formatDate(income.date)}\n`;
-          text += `   Categoria: ${income.category === 'show' ? 'Show/Apresentação' :
-                     income.category === 'cache_extra' ? 'Cachê Extra' :
-                     income.category === 'streaming' ? 'Streaming' :
-                     income.category === 'direitos' ? 'Direitos Autorais' :
-                     income.category === 'patrocinio' ? 'Patrocínio' : 'Outros'}\n`;
-          if (index < standaloneIncome.length - 1) text += `   ───────────────────────\n`;
-        });
-      }
-
-      // Adicionar despesas avulsas (sem valores)
-      if (standaloneExpensesOnly.length > 0) {
-        text += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-        text += `💸 DESPESAS AVULSAS (${standaloneExpensesOnly.length})\n\n`;
-        standaloneExpensesOnly.forEach((expense, index) => {
-          text += `${index + 1}. ${expense.description}\n`;
-          text += `   ${getDayOfWeek(expense.date)}, ${formatDate(expense.date)}\n`;
-          text += `   Categoria: ${expense.category === 'equipamento' ? 'Equipamento' :
-                     expense.category === 'manutencao' ? 'Manutenção' :
-                     expense.category === 'transporte' ? 'Transporte' :
-                     expense.category === 'software' ? 'Software/Assinaturas' :
-                     expense.category === 'marketing' ? 'Marketing' : 'Outros'}\n`;
-          if (index < standaloneExpensesOnly.length - 1) text += `   ───────────────────────\n`;
-        });
-      }
     }
 
     text += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
