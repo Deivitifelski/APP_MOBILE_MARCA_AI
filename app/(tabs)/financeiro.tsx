@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
@@ -13,17 +14,15 @@ import {
   View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import LoadingModal from '../../components/LoadingModal';
 import PermissionModal from '../../components/PermissionModal';
 import UpgradeModal from '../../components/UpgradeModal';
+import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { generateFinancialReport } from '../../services/financialReportService';
 import { getEventsByMonth } from '../../services/supabase/eventService';
-import { getExpensesByEvent, getStandaloneExpensesByArtist, deleteStandaloneExpense } from '../../services/supabase/expenseService';
+import { deleteStandaloneExpense, getExpensesByEvent, getStandaloneExpensesByArtist } from '../../services/supabase/expenseService';
 import { canExportData } from '../../services/supabase/userService';
-import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
-import * as Sharing from 'expo-sharing';
 // import * as FileSystem from 'expo-file-system';
 
 interface EventWithExpenses {
@@ -44,8 +43,6 @@ export default function FinanceiroScreen() {
   const [events, setEvents] = useState<EventWithExpenses[]>([]);
   const [standaloneExpenses, setStandaloneExpenses] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
-  const [reportProgress, setReportProgress] = useState('Iniciando geração do documento...');
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -72,6 +69,7 @@ export default function FinanceiroScreen() {
     };
     getCurrentUser();
   }, []);
+
 
   const months = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -273,48 +271,12 @@ export default function FinanceiroScreen() {
     if (!activeArtist) return;
     
     setShowExportModal(false);
-    setIsGeneratingReport(true);
-    
-    // Timeout de segurança: fechar modal após 30 segundos
-    const safetyTimeout = setTimeout(() => {
-      console.log('⏱️ Timeout de 30s atingido - fechando modal');
-      setIsGeneratingReport(false);
-      Alert.alert(
-        '⏱️ Tempo Esgotado',
-        'A geração do PDF está demorando muito. Tente usar a opção "Copiar como Texto" que é mais rápida.',
-        [
-          { text: 'Copiar como Texto', onPress: () => copyAsText(includeFinancials) },
-          { text: 'OK', style: 'cancel' }
-        ]
-      );
-    }, 30000); // 30 segundos
     
     // Separar despesas (valor > 0) e receitas (valor < 0)
     const standaloneExpensesOnly = standaloneExpenses.filter(item => item.value > 0);
     const standaloneIncome = standaloneExpenses.filter(item => item.value < 0);
     
-    const totalItems = events.length + standaloneIncome.length + standaloneExpensesOnly.length;
-    
-    console.log('🔄 Iniciando geração de relatório...');
-    console.log('📊 Dados:', {
-      eventos: events.length,
-      receitas: standaloneIncome.length,
-      despesas: standaloneExpensesOnly.length,
-      totalItems,
-      includeFinancials
-    });
-    
-    // Mensagem de progresso baseada na quantidade de dados
-    if (totalItems > 50) {
-      setReportProgress(`Processando ${totalItems} itens... Isso pode levar até 30 segundos.`);
-    } else if (totalItems > 20) {
-      setReportProgress(`Processando ${totalItems} itens... Aguarde alguns segundos.`);
-    } else {
-      setReportProgress('Gerando documento PDF...');
-    }
-    
     try {
-      console.log('⏰ Chamando generateFinancialReport...');
       const result = await generateFinancialReport({
         events,
         month: currentMonth,
@@ -337,68 +299,17 @@ export default function FinanceiroScreen() {
         }))
       });
       
-      console.log('📄 Resultado da geração:', result);
-      
-      // Limpar timeout de segurança
-      clearTimeout(safetyTimeout);
-      
-      // FECHAR MODAL ANTES DE COMPARTILHAR (importante!)
-      setIsGeneratingReport(false);
-      
-      if (!result.success) {
-        console.error('❌ Erro retornado:', result.error);
-        Alert.alert(
-          '❌ Erro ao Gerar PDF', 
-          result.error || 'Não foi possível gerar o documento PDF. Use a opção "Copiar como Texto" que funciona instantaneamente e pode ser enviada por WhatsApp, Email, etc.',
-          [
-            { text: 'Copiar como Texto', onPress: () => copyAsText(includeFinancials) },
-            { text: 'OK', style: 'cancel' }
-          ]
-        );
+      if (result.success && result.uri) {
+        await Sharing.shareAsync(result.uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: 'Compartilhar Relatório Financeiro',
+          UTI: 'com.adobe.pdf'
+        });
       } else {
-        console.log('✅ Relatório gerado com sucesso!');
-        
-        // Aguardar um pouco para garantir que o modal fechou completamente
-        setTimeout(async () => {
-          if (result.uri) {
-            console.log('📤 Compartilhando PDF:', result.uri);
-            try {
-              await Sharing.shareAsync(result.uri, {
-                mimeType: 'application/pdf',
-                dialogTitle: 'Compartilhar Relatório Financeiro',
-                UTI: 'com.adobe.pdf'
-              });
-              console.log('✅ PDF compartilhado com sucesso!');
-            } catch (shareError: any) {
-              console.error('❌ Erro ao compartilhar:', shareError);
-              Alert.alert(
-                '⚠️ Erro ao Compartilhar',
-                'O PDF foi gerado mas não foi possível abrir o compartilhamento. Tente novamente.',
-                [{ text: 'OK' }]
-              );
-            }
-          }
-        }, 300); // 300ms para garantir que modal fechou
+        Alert.alert('Erro', result.error || 'Não foi possível gerar o PDF');
       }
     } catch (error: any) {
-      console.error('💥 Exceção capturada:', error);
-      
-      // Limpar timeout de segurança
-      clearTimeout(safetyTimeout);
-      
-      Alert.alert(
-        '❌ Erro ao Gerar PDF', 
-        error?.message || 'Não foi possível gerar o documento PDF. Recomendamos usar a opção "Copiar como Texto" que é mais rápida e confiável.',
-        [
-          { text: 'Copiar como Texto', onPress: () => {
-            setTimeout(() => copyAsText(includeFinancials), 300);
-          }},
-          { text: 'OK', style: 'cancel' }
-        ]
-      );
-    } finally {
-      console.log('🏁 Finalizando processo de geração');
-      setIsGeneratingReport(false);
+      Alert.alert('Erro', error?.message || 'Erro ao gerar o documento');
     }
   };
 
@@ -767,10 +678,9 @@ export default function FinanceiroScreen() {
               <TouchableOpacity
                 style={styles.headerIconButton}
                 onPress={handleExportFinancialReport}
-                disabled={isGeneratingReport}
               >
                 <Ionicons 
-                  name={isGeneratingReport ? "hourglass" : "share-outline"} 
+                  name="share-outline" 
                   size={26} 
                   color={colors.text} 
                 />
@@ -1252,12 +1162,6 @@ export default function FinanceiroScreen() {
         title="Seja Premium"
         message="Desbloqueie recursos avançados, usuários ilimitados, relatórios detalhados e suporte prioritário para sua banda."
         feature="finances"
-      />
-
-      {/* Modal de Loading durante geração do PDF */}
-      <LoadingModal
-        visible={isGeneratingReport}
-        message={reportProgress}
       />
     </View>
   );

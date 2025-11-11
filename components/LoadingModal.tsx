@@ -20,14 +20,20 @@ export default function LoadingModal({
 }: LoadingModalProps) {
   const { colors } = useTheme();
 
+  if (!visible) {
+    return null; // Não renderizar nada se não estiver visível
+  }
+
   return (
     <Modal
       visible={visible}
       transparent
       animationType="fade"
+      onRequestClose={() => {}} // Previne fechamento acidental
+      statusBarTranslucent
     >
-      <View style={styles.overlay}>
-        <View style={[styles.container, { backgroundColor: colors.surface }]}>
+      <View style={styles.overlay} pointerEvents="box-none">
+        <View style={[styles.container, { backgroundColor: colors.surface }]} pointerEvents="auto">
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.message, { color: colors.text }]}>
             {message}
