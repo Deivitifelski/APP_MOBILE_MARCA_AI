@@ -545,23 +545,17 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
       // Gerar PDF usando expo-print com timeout de 30 segundos
       const printStart = Date.now();
       
-      const generatePDFWithTimeout = async () => {
-        const pdfPromise = Print.printToFileAsync({ 
-          html: htmlContent,
-          base64: false,
-          // Otimizações para melhor performance
-          width: 612, // Largura padrão A4 em pontos
-          height: 792 // Altura padrão A4 em pontos
-        });
-        
-        const timeoutPromise = new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout: A geração do relatório excedeu 30 segundos e foi cancelada. Tente reduzir o período ou gerar sem valores financeiros.')), 30000)
-        );
-        
-        return Promise.race([pdfPromise, timeoutPromise]);
-      };
+      // Gerar PDF com timeout
+      const pdfPromise = Print.printToFileAsync({ 
+        html: htmlContent,
+        base64: false
+      });
       
-      const result = await generatePDFWithTimeout();
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout: A geração do relatório excedeu 30 segundos. Tente reduzir o período ou gerar sem valores financeiros.')), 30000)
+      );
+      
+      const result = await Promise.race([pdfPromise, timeoutPromise]);
       const uri = result.uri;
       
       const printTime = ((Date.now() - printStart) / 1000).toFixed(2);
@@ -572,74 +566,31 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
         return { success: false, error: 'Falha ao gerar arquivo PDF' };
       }
 
-      console.log('✅ PDF gerado, URI original:', uri);
+      console.log('✅ PDF gerado com sucesso!');
+      console.log('📄 URI:', uri);
       
-      // SEMPRE copiar para documentDirectory (necessário no iOS)
-      console.log('📦 Copiando PDF para documentDirectory (obrigatório no iOS)...');
-      const fileName = `Relatorio_Financeiro_${months[month]}_${year}_${new Date().getTime()}.pdf`;
-      const newUri = FileSystem.documentDirectory + fileName;
+      // Ler PDF e salvar em local compartilhável
+      const fileName = `Relatorio_Financeiro_${months[month]}_${year}_${Date.now()}.pdf`;
+      const shareableUri = FileSystem.cacheDirectory + fileName;
       
-      try {
-        // Verificar se o arquivo original existe
-        const fileInfo = await FileSystem.getInfoAsync(uri);
-        console.log('📄 Arquivo original:', {
-          exists: fileInfo.exists,
-          size: fileInfo.size,
-          isDirectory: fileInfo.isDirectory,
-          uri: uri
-        });
-        
-        if (!fileInfo.exists) {
-          throw new Error('Arquivo PDF original não foi gerado corretamente');
-        }
-        
-        // Tentar copiar
-        console.log('📋 Copiando de:', uri);
-        console.log('📋 Copiando para:', newUri);
-        
-        await FileSystem.copyAsync({
-          from: uri,
-          to: newUri
-        });
-        
-        // Verificar se a cópia funcionou
-        const newFileInfo = await FileSystem.getInfoAsync(newUri);
-        console.log('📄 Arquivo copiado:', {
-          exists: newFileInfo.exists,
-          size: newFileInfo.size,
-          uri: newUri
-        });
-        
-        if (!newFileInfo.exists) {
-          throw new Error('Falha ao copiar PDF para documentDirectory');
-        }
-        
-        console.log('✅ PDF copiado com sucesso!');
-        
-        // Usar o arquivo copiado para compartilhar
-        console.log('📤 Compartilhando PDF de:', newUri);
-        const shareStart = Date.now();
-        await Sharing.shareAsync(newUri, {
-          mimeType: 'application/pdf',
-          dialogTitle: 'Compartilhar Relatório Financeiro',
-          UTI: 'com.adobe.pdf'
-        });
-        
-        const shareTime = ((Date.now() - shareStart) / 1000).toFixed(2);
-        console.log(`✅ Compartilhamento concluído em ${shareTime}s`);
-        
-      } catch (copyError: any) {
-        console.error('❌ ERRO AO COPIAR/COMPARTILHAR PDF:', copyError);
-        console.error('Detalhes do erro:', {
-          message: copyError?.message,
-          code: copyError?.code,
-          stack: copyError?.stack
-        });
-        throw new Error(`Falha ao processar PDF: ${copyError?.message || 'Erro desconhecido'}`);
-      }
+      // Ler como base64 e reescrever
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64
+      });
       
-      const shareTime = ((Date.now() - shareStart) / 1000).toFixed(2);
-      console.log(`✅ Compartilhamento concluído em ${shareTime}s`);
+      await FileSystem.writeAsStringAsync(shareableUri, base64, {
+        encoding: FileSystem.EncodingType.Base64
+      });
+      
+      console.log('📤 Compartilhando PDF...');
+      
+      // Compartilhar
+      await Sharing.shareAsync(shareableUri, {
+        mimeType: 'application/pdf',
+        dialogTitle: 'Compartilhar Relatório Financeiro'
+      });
+      
+      console.log('✅ PDF compartilhado com sucesso!');
       
       return { success: true };
     } catch (pdfError: any) {
