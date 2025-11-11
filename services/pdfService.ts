@@ -257,12 +257,25 @@ export const generateEventPDF = async (data: EventPDFData): Promise<{ success: b
     `;
 
     try {
-      // Gerar PDF usando expo-print
+      // Gerar PDF usando expo-print com timeout
       console.log('📄 Gerando PDF...');
-      const { uri } = await Print.printToFileAsync({ 
-        html: htmlContent,
-        base64: false 
-      });
+      
+      // Promise com timeout de 30 segundos
+      const generatePDFWithTimeout = () => {
+        return Promise.race([
+          Print.printToFileAsync({ 
+            html: htmlContent,
+            base64: false,
+            width: 612, // Letter size width in points
+            height: 792 // Letter size height in points
+          }),
+          new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout: PDF generation took too long')), 30000)
+          )
+        ]);
+      };
+      
+      const { uri } = await generatePDFWithTimeout();
       
       console.log('✅ PDF gerado:', uri);
 
@@ -334,10 +347,15 @@ ${event.description ? `📝 DESCRIÇÃO\n${event.description}` : ''}
     } catch (pdfError) {
       console.error('Erro ao gerar/compartilhar PDF:', pdfError);
       
+      // Verificar tipo de erro
+      const errorMessage = pdfError instanceof Error && pdfError.message.includes('Timeout')
+        ? 'A geração do PDF excedeu o tempo limite (30s). O documento pode estar muito grande. Deseja copiar o relatório em texto?'
+        : 'Não foi possível gerar o PDF. Deseja copiar o relatório em texto?';
+      
       // Fallback: oferecer copiar texto
       Alert.alert(
         'Erro ao gerar PDF',
-        'Não foi possível gerar o PDF. Deseja copiar o relatório em texto?',
+        errorMessage,
         [
           {
             text: 'Copiar Texto',
@@ -862,12 +880,25 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
     `;
 
     try {
-      // Gerar PDF usando expo-print
+      // Gerar PDF usando expo-print com timeout
       console.log('📄 Gerando agenda em PDF...');
-      const { uri } = await Print.printToFileAsync({ 
-        html: htmlContent,
-        base64: false 
-      });
+      
+      // Promise com timeout de 30 segundos
+      const generateAgendaPDFWithTimeout = () => {
+        return Promise.race([
+          Print.printToFileAsync({ 
+            html: htmlContent,
+            base64: false,
+            width: 612, // Letter size width in points
+            height: 792 // Letter size height in points
+          }),
+          new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout: Agenda PDF generation took too long')), 30000)
+          )
+        ]);
+      };
+      
+      const { uri } = await generateAgendaPDFWithTimeout();
       
       console.log('✅ PDF da agenda gerado:', uri);
 
@@ -903,7 +934,12 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
       return { success: true };
     } catch (pdfError) {
       console.error('Erro ao gerar/compartilhar PDF da agenda:', pdfError);
-      return { success: false, error: 'Erro ao gerar PDF da agenda' };
+      
+      const errorMessage = pdfError instanceof Error && pdfError.message.includes('Timeout')
+        ? 'A geração do PDF da agenda excedeu o tempo limite (30s). Tente gerar com menos eventos ou sem valores financeiros.'
+        : 'Erro ao gerar PDF da agenda';
+      
+      return { success: false, error: errorMessage };
     }
   } catch (error) {
     console.error('Erro ao gerar agenda:', error);

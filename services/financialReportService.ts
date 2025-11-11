@@ -1,7 +1,7 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 
 interface EventWithExpenses {
   id: string;
@@ -33,6 +33,17 @@ interface FinancialReportData {
 }
 
 export const generateFinancialReport = async (data: FinancialReportData): Promise<{ success: boolean; error?: string }> => {
+  console.log('🚀 === INÍCIO DA GERAÇÃO DO RELATÓRIO FINANCEIRO ===');
+  console.log('📊 Dados recebidos:', {
+    eventos: data.events?.length || 0,
+    mes: data.month,
+    ano: data.year,
+    artista: data.artistName,
+    incluirFinanceiro: data.includeFinancials,
+    receitasAvulsas: data.standaloneIncome?.length || 0,
+    despesasAvulsas: data.standaloneExpenses?.length || 0
+  });
+  
   try {
     const { 
       events, 
@@ -44,18 +55,29 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
       standaloneExpenses = []
     } = data;
     
+    console.log('✅ Dados extraídos com sucesso');
+    
     // Calcular totais dos eventos
+    console.log('💰 Calculando totais dos eventos...');
     const totalRevenue = events.reduce((sum, event) => sum + (event.value || 0), 0);
     const totalExpenses = events.reduce((sum, event) => sum + event.totalExpenses, 0);
+    console.log('Receitas eventos:', totalRevenue, 'Despesas eventos:', totalExpenses);
     
     // Calcular totais das transações avulsas
+    console.log('💰 Calculando totais das transações avulsas...');
     const standaloneIncomeTotal = standaloneIncome.reduce((sum, income) => sum + Math.abs(income.value), 0);
     const standaloneExpensesTotal = standaloneExpenses.reduce((sum, expense) => sum + expense.value, 0);
+    console.log('Receitas avulsas:', standaloneIncomeTotal, 'Despesas avulsas:', standaloneExpensesTotal);
     
     // Totais gerais
     const totalRevenueWithIncome = totalRevenue + standaloneIncomeTotal;
     const totalExpensesWithStandalone = totalExpenses + standaloneExpensesTotal;
     const netProfit = totalRevenueWithIncome - totalExpensesWithStandalone;
+    console.log('💵 TOTAIS GERAIS:', {
+      receitaTotal: totalRevenueWithIncome,
+      despesaTotal: totalExpensesWithStandalone,
+      lucroLiquido: netProfit
+    });
     
     // Formatar data
     const formatDate = (dateString: string) => {
@@ -95,8 +117,10 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
     
     // Criar HTML formatado para o PDF
     console.log('🎨 Criando HTML do relatório...');
+    console.log('📅 Mês/Ano:', months[month], year);
     const now = new Date();
     const dataGeracao = `${now.toLocaleDateString('pt-BR')} às ${now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}hs`;
+    console.log('📅 Data de geração:', dataGeracao);
     
     console.log('📊 Dados do relatório:', {
       eventos: events.length,
@@ -505,25 +529,40 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
     try {
       console.log('🔄 Verificando disponibilidade de compartilhamento...');
       // Verificar se compartilhamento está disponível
+      console.log('🔍 Verificando disponibilidade de compartilhamento...');
       const isAvailable = await Sharing.isAvailableAsync();
+      console.log('📱 Compartilhamento disponível:', isAvailable);
       
       if (!isAvailable) {
         console.error('❌ Compartilhamento não disponível');
         return { success: false, error: 'Compartilhamento não disponível neste dispositivo' };
       }
 
-      console.log('📄 Gerando PDF...');
-      console.log('⏰ Iniciado em:', new Date().toISOString());
+      console.log('📄 Iniciando geração do PDF...');
+      console.log('⏰ Hora de início:', new Date().toISOString());
+      console.log('📏 Tamanho do HTML:', htmlContent.length, 'caracteres');
       
-      // Gerar PDF usando expo-print com opções otimizadas
+      // Gerar PDF usando expo-print com timeout de 30 segundos
       const printStart = Date.now();
-      const { uri } = await Print.printToFileAsync({ 
-        html: htmlContent,
-        base64: false,
-        // Otimizações para melhor performance
-        width: 612, // Largura padrão A4 em pontos
-        height: 792 // Altura padrão A4 em pontos
-      });
+      
+      const generatePDFWithTimeout = async () => {
+        const pdfPromise = Print.printToFileAsync({ 
+          html: htmlContent,
+          base64: false,
+          // Otimizações para melhor performance
+          width: 612, // Largura padrão A4 em pontos
+          height: 792 // Altura padrão A4 em pontos
+        });
+        
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout: A geração do relatório excedeu 30 segundos e foi cancelada. Tente reduzir o período ou gerar sem valores financeiros.')), 30000)
+        );
+        
+        return Promise.race([pdfPromise, timeoutPromise]);
+      };
+      
+      const result = await generatePDFWithTimeout();
+      const uri = result.uri;
       
       const printTime = ((Date.now() - printStart) / 1000).toFixed(2);
       console.log(`✅ PDF gerado em ${printTime}s`);
@@ -533,16 +572,71 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
         return { success: false, error: 'Falha ao gerar arquivo PDF' };
       }
 
-      console.log('✅ PDF gerado, URI:', uri);
-      console.log('📤 Compartilhando PDF...');
-
-      // Compartilhar PDF diretamente sem mover (mais rápido)
-      const shareStart = Date.now();
-      await Sharing.shareAsync(uri, {
-        mimeType: 'application/pdf',
-        dialogTitle: 'Compartilhar Relatório Financeiro',
-        UTI: 'com.adobe.pdf'
-      });
+      console.log('✅ PDF gerado, URI original:', uri);
+      
+      // SEMPRE copiar para documentDirectory (necessário no iOS)
+      console.log('📦 Copiando PDF para documentDirectory (obrigatório no iOS)...');
+      const fileName = `Relatorio_Financeiro_${months[month]}_${year}_${new Date().getTime()}.pdf`;
+      const newUri = FileSystem.documentDirectory + fileName;
+      
+      try {
+        // Verificar se o arquivo original existe
+        const fileInfo = await FileSystem.getInfoAsync(uri);
+        console.log('📄 Arquivo original:', {
+          exists: fileInfo.exists,
+          size: fileInfo.size,
+          isDirectory: fileInfo.isDirectory,
+          uri: uri
+        });
+        
+        if (!fileInfo.exists) {
+          throw new Error('Arquivo PDF original não foi gerado corretamente');
+        }
+        
+        // Tentar copiar
+        console.log('📋 Copiando de:', uri);
+        console.log('📋 Copiando para:', newUri);
+        
+        await FileSystem.copyAsync({
+          from: uri,
+          to: newUri
+        });
+        
+        // Verificar se a cópia funcionou
+        const newFileInfo = await FileSystem.getInfoAsync(newUri);
+        console.log('📄 Arquivo copiado:', {
+          exists: newFileInfo.exists,
+          size: newFileInfo.size,
+          uri: newUri
+        });
+        
+        if (!newFileInfo.exists) {
+          throw new Error('Falha ao copiar PDF para documentDirectory');
+        }
+        
+        console.log('✅ PDF copiado com sucesso!');
+        
+        // Usar o arquivo copiado para compartilhar
+        console.log('📤 Compartilhando PDF de:', newUri);
+        const shareStart = Date.now();
+        await Sharing.shareAsync(newUri, {
+          mimeType: 'application/pdf',
+          dialogTitle: 'Compartilhar Relatório Financeiro',
+          UTI: 'com.adobe.pdf'
+        });
+        
+        const shareTime = ((Date.now() - shareStart) / 1000).toFixed(2);
+        console.log(`✅ Compartilhamento concluído em ${shareTime}s`);
+        
+      } catch (copyError: any) {
+        console.error('❌ ERRO AO COPIAR/COMPARTILHAR PDF:', copyError);
+        console.error('Detalhes do erro:', {
+          message: copyError?.message,
+          code: copyError?.code,
+          stack: copyError?.stack
+        });
+        throw new Error(`Falha ao processar PDF: ${copyError?.message || 'Erro desconhecido'}`);
+      }
       
       const shareTime = ((Date.now() - shareStart) / 1000).toFixed(2);
       console.log(`✅ Compartilhamento concluído em ${shareTime}s`);
@@ -550,7 +644,15 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
       return { success: true };
     } catch (pdfError: any) {
       console.error('❌ Erro ao gerar/compartilhar PDF:', pdfError);
-      const errorMessage = pdfError?.message || 'Erro ao gerar documento';
+      console.error('Stack trace:', pdfError?.stack);
+      
+      let errorMessage = 'Erro ao gerar documento';
+      if (pdfError?.message?.includes('Timeout')) {
+        errorMessage = pdfError.message;
+      } else if (pdfError?.message) {
+        errorMessage = pdfError.message;
+      }
+      
       return { success: false, error: errorMessage };
     }
   } catch (error: any) {

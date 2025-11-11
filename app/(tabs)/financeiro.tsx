@@ -300,6 +300,7 @@ export default function FinanceiroScreen() {
     }
     
     try {
+      console.log('⏰ Chamando generateFinancialReport...');
       const result = await generateFinancialReport({
         events,
         month: currentMonth,
@@ -328,7 +329,7 @@ export default function FinanceiroScreen() {
         console.error('❌ Erro retornado:', result.error);
         Alert.alert(
           '❌ Erro ao Gerar PDF', 
-          'Não foi possível gerar o documento PDF. Use a opção "Copiar como Texto" que funciona instantaneamente e pode ser enviada por WhatsApp, Email, etc.',
+          result.error || 'Não foi possível gerar o documento PDF. Use a opção "Copiar como Texto" que funciona instantaneamente e pode ser enviada por WhatsApp, Email, etc.',
           [
             { text: 'Tentar Novamente', onPress: () => setShowExportModal(true) },
             { text: 'OK', style: 'cancel' }
@@ -345,9 +346,10 @@ export default function FinanceiroScreen() {
       }
     } catch (error: any) {
       console.error('💥 Exceção capturada:', error);
+      
       Alert.alert(
         '❌ Erro ao Gerar PDF', 
-        'Não foi possível gerar o documento PDF. Recomendamos usar a opção "Copiar como Texto" que é mais rápida e confiável.',
+        error?.message || 'Não foi possível gerar o documento PDF. Recomendamos usar a opção "Copiar como Texto" que é mais rápida e confiável.',
         [
           { text: 'Copiar como Texto', onPress: () => {
             setTimeout(() => copyAsText(includeFinancials), 300);
