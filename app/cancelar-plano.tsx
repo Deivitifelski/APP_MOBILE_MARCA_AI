@@ -46,19 +46,20 @@ export default function CancelarPlanoScreen() {
   const dynamicStyles = createDynamicStyles(colors);
 
   return (
-    <View style={dynamicStyles.container}>
-      <SafeAreaView style={dynamicStyles.safeArea}>
-        {/* Header */}
-        <View style={[dynamicStyles.header, { paddingTop: insets.top + 20 }]}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={dynamicStyles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={dynamicStyles.headerTitle}>Cancelar Plano Premium</Text>
-          <View style={dynamicStyles.headerPlaceholder} />
-        </View>
+    <SafeAreaView style={dynamicStyles.container} edges={['top']}>
+      {/* Header */}
+      <View style={[dynamicStyles.header, { 
+        paddingTop: insets.top > 0 ? 16 : 20
+      }]}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={dynamicStyles.backButton}
+        >
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={dynamicStyles.headerTitle}>Cancelar Plano Premium</Text>
+        <View style={dynamicStyles.headerPlaceholder} />
+      </View>
 
         <ScrollView style={dynamicStyles.content} showsVerticalScrollIndicator={false}>
           {/* Aviso Importante */}
@@ -192,8 +193,7 @@ export default function CancelarPlanoScreen() {
             <Text style={dynamicStyles.cancelButtonText}>Como Cancelar</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -202,15 +202,12 @@ const createDynamicStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  safeArea: {
-    flex: 1,
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingBottom: 15,
+    paddingBottom: 16,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,

@@ -661,13 +661,6 @@ export default function ConfiguracoesScreen() {
                     </Text>
                   </View>
                 )}
-                
-                {renderSettingItem(
-                  'card',
-                  'Alterar Cartão',
-                  'Atualizar método de pagamento',
-                  () => router.push('/planos-pagamentos')
-                )}
 
                 {renderSettingItem(
                   'close-circle',
