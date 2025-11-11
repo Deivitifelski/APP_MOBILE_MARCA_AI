@@ -1,18 +1,15 @@
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
-import { useTheme } from '../contexts/ThemeContext';
+import { StatusBar } from 'expo-status-bar';
+import React, { useEffect } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { checkUserExists } from '../services/supabase/userService';
 
 export default function Index() {
-  const { colors } = useTheme();
-  const [isChecking, setIsChecking] = useState(true);
-
   useEffect(() => {
     // Listener para mudanças no estado de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      console.log('🔄 Estado de autenticação mudou:', _event, !!session);
+      // Estado de autenticação mudou
     });
 
     // Pequeno delay para garantir que o AsyncStorage está pronto
@@ -28,31 +25,17 @@ export default function Index() {
 
   const checkAuthStatus = async () => {
     try {
-      console.log('🔍 Verificando status de autenticação...');
-      
       // Verificar se existe uma sessão ativa
       const { data: { session }, error } = await supabase.auth.getSession();
       
-      console.log('📊 Resultado da verificação:', {
-        temSessao: !!session,
-        temUser: !!session?.user,
-        email: session?.user?.email,
-        emailConfirmado: !!session?.user?.email_confirmed_at,
-        erro: error?.message
-      });
-      
       if (error) {
-        console.error('❌ Erro ao verificar sessão:', error);
         router.replace('/login');
         return;
       }
 
       if (session?.user) {
-        console.log('✅ Sessão encontrada para usuário:', session.user.email);
-        
         // Verificar se o email foi confirmado
         if (!session.user.email_confirmed_at) {
-          console.log('📧 Email não confirmado, redirecionando...');
           router.replace('/email-confirmation');
           return;
         }
@@ -61,36 +44,80 @@ export default function Index() {
         const userCheck = await checkUserExists(session.user.id);
         
         if (userCheck.error) {
-          console.error('❌ Erro ao verificar perfil:', userCheck.error);
           router.replace('/login');
           return;
         }
 
         if (!userCheck.exists) {
-          console.log('👤 Perfil incompleto, redirecionando para cadastro...');
           router.replace('/cadastro-usuario');
         } else {
-          console.log('🎉 Login automático bem-sucedido! Redirecionando para agenda...');
           router.replace('/(tabs)/agenda');
         }
       } else {
-        console.log('🔐 Nenhuma sessão encontrada, redirecionando para login...');
         router.replace('/login');
       }
     } catch (error) {
-      console.error('❌ Erro ao verificar autenticação:', error);
       router.replace('/login');
-    } finally {
-      setIsChecking(false);
     }
   };
 
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary }}>
-      <ActivityIndicator size="large" color="#fff" />
-      <Text style={{ color: 'white', fontSize: 18, marginTop: 16 }}>
-        {isChecking ? 'Carregando...' : 'Redirecionando...'}
-      </Text>
+    <View style={styles.container}>
+      <StatusBar style="light" />
+      {/* Logo M */}
+      <View style={styles.logoContainer}>
+        <Text style={styles.logoText}>M</Text>
+      </View>
+      
+      {/* Texto e Loading */}
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#fff" />
+        <Text style={styles.loadingText}>Carregando informações...</Text>
+      </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#667eea',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 60,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  logoText: {
+    fontSize: 72,
+    fontWeight: 'bold',
+    color: '#fff',
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 18,
+    color: '#fff',
+    fontWeight: '500',
+    opacity: 0.9,
+  },
+});

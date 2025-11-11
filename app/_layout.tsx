@@ -24,6 +24,7 @@ export default function RootLayout() {
           <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
             <AuthDeepLinkHandler />
             <Stack>
+            <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="login" options={{ headerShown: false }} />
             <Stack.Screen name="register" options={{ headerShown: false }} />
             <Stack.Screen name="email-confirmation" options={{ headerShown: false }} />
@@ -45,6 +46,10 @@ export default function RootLayout() {
             <Stack.Screen name="sair-artista" options={{ headerShown: false }} />
             <Stack.Screen name="transferir-propriedade" options={{ headerShown: false }} />
             <Stack.Screen name="planos-pagamentos" options={{ headerShown: false }} />
+            <Stack.Screen name="cancelar-plano" options={{ headerShown: false }} />
+            <Stack.Screen name="screens/auth/LoginScreen" options={{ headerShown: false }} />
+            <Stack.Screen name="screens/profile/UserProfileScreen" options={{ headerShown: false }} />
+            <Stack.Screen name="screens/profile/ArtistProfileScreen" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
             </Stack>
