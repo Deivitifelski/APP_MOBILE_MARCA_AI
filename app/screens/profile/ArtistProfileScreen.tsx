@@ -25,6 +25,18 @@ import { getCurrentUser } from '../../../services/supabase/authService';
 import { uploadImageToSupabase } from '../../../services/supabase/imageUploadService';
 import { canCreateArtist } from '../../../services/supabase/userService';
 
+const estilosMusicais = [
+  'Sertanejo', 'Sertanejo Universitário', 'Sertanejo Raiz', 'Forró', 'Forró Eletrônico',
+  'Pagode', 'Samba', 'Samba Rock', 'Axé', 'Arrocha', 'Brega', 'Piseiro',
+  'Funk', 'Funk Carioca', 'Funk Melody', 'MPB', 'Rock', 'Rock Nacional',
+  'Pop', 'Pop Rock', 'Eletrônica', 'House', 'Techno', 'Trap', 'Hip Hop',
+  'Rap', 'R&B', 'Soul', 'Blues', 'Jazz', 'Reggae', 'Reggaeton',
+  'Gospel', 'Gospel Contemporâneo', 'Música Clássica', 'Instrumental',
+  'Country', 'Folk', 'Indie', 'Alternative', 'Metal', 'Hard Rock',
+  'Punk', 'Emo', 'Ska', 'Choro', 'Bossa Nova', 'Música Gaúcha',
+  'Vanera', 'Xote', 'Baião', 'Frevo', 'Maracatu', 'Outros'
+];
+
 export default function ArtistProfileScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
@@ -32,13 +44,32 @@ export default function ArtistProfileScreen() {
   const { setActiveArtist } = useActiveArtistContext();
   
   const [name, setName] = useState('');
+  const [musicalStyle, setMusicalStyle] = useState('');
   const [profileUrl, setProfileUrl] = useState<string | null>(null);
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showEstilos, setShowEstilos] = useState(false);
   const [createdArtistName, setCreatedArtistName] = useState('');
+
+  const handleSkipArtistCreation = () => {
+    Alert.alert(
+      'Pular Criação de Artista',
+      'Você pode criar seu perfil de artista mais tarde nas configurações.\n\nEnquanto isso, você poderá:\n\n• Receber convites de outros artistas\n• Se tornar colaborador de um artista existente\n• Gerenciar eventos como membro de uma equipe',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel'
+        },
+        {
+          text: 'Continuar',
+          onPress: () => router.replace('/(tabs)/agenda')
+        }
+      ]
+    );
+  };
 
   const pickImage = async () => {
     try {
@@ -97,6 +128,11 @@ export default function ArtistProfileScreen() {
       return;
     }
 
+    if (!musicalStyle) {
+      Alert.alert('Atenção', 'Por favor, selecione o estilo musical');
+      return;
+    }
+
     if (name.trim().length > 50) {
       Alert.alert('Atenção', 'O nome do artista deve ter no máximo 50 caracteres');
       return;
@@ -152,12 +188,13 @@ export default function ArtistProfileScreen() {
       // Criar o perfil do artista
       const { success, error, artist } = await createArtist({
         name: name.trim(),
+        musical_style: musicalStyle,
         profile_url: finalProfileUrl || undefined,
         user_id: user.id
       });
 
       if (!success || !artist) {
-        Alert.alert('Erro', 'Erro ao criar perfil do artista: ' + error);
+        Alert.alert('Atenção', 'Erro ao criar perfil do artista: ' + error);
         return;
       }
 
@@ -208,16 +245,11 @@ export default function ArtistProfileScreen() {
                   <Ionicons name="arrow-back" size={24} color={colors.primary} />
                 </TouchableOpacity>
               )}
-              <View style={[styles.logoContainer, { backgroundColor: colors.surface }]}>
-                <Ionicons name="musical-notes" size={50} color={colors.primary} />
-              </View>
-              <Text style={[styles.title, { color: colors.text }]}>
-                {fromSettings ? 'Criar Novo Artista' : 'Criar Perfil do Artista'}
-              </Text>
+              <Text style={[styles.brandName, { color: colors.primary }]}>MarcaAi</Text>
               <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                 {fromSettings 
-                  ? 'Adicione um novo perfil de artista para gerenciar' 
-                  : 'Configure o perfil do artista que você irá gerenciar'}
+                  ? 'Adicione um novo perfil de artista' 
+                  : 'Configure o perfil do artista'}
               </Text>
             </View>
 
@@ -270,6 +302,24 @@ export default function ArtistProfileScreen() {
                 </View>
               </View>
 
+              {/* Estilo Musical */}
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: colors.text }]}>Estilo Musical *</Text>
+                <TouchableOpacity
+                  style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}
+                  onPress={() => setShowEstilos(true)}
+                >
+                  <Ionicons name="musical-note-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                  <Text style={[
+                    styles.input, 
+                    { color: musicalStyle ? colors.text : colors.textSecondary }
+                  ]}>
+                    {musicalStyle || 'Selecione o estilo musical'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
               <TouchableOpacity
                 style={[
                   styles.finalizarButton, 
@@ -295,16 +345,9 @@ export default function ArtistProfileScreen() {
 
                   <TouchableOpacity
                     style={[styles.skipButton, { backgroundColor: colors.background, borderColor: colors.border }]}
-                    onPress={() => router.replace('/(tabs)/agenda')}
+                    onPress={handleSkipArtistCreation}
                   >
                     <Text style={[styles.skipButtonText, { color: colors.primary }]}>Criar Mais Tarde</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.inviteButton, { backgroundColor: colors.success }]}
-                    onPress={() => router.replace('/(tabs)/agenda')}
-                  >
-                    <Text style={styles.inviteButtonText}>Aguardar Convite</Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -320,6 +363,58 @@ export default function ArtistProfileScreen() {
         message="Desbloqueie recursos avançados, usuários ilimitados, relatórios detalhados e suporte prioritário para sua banda."
         feature="artists"
       />
+
+      {/* Modal de Seleção de Estilo Musical */}
+      <Modal
+        visible={showEstilos}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowEstilos(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowEstilos(false)}
+        >
+          <View 
+            style={[styles.modalContent, { backgroundColor: colors.surface }]} 
+            onStartShouldSetResponder={() => true}
+          >
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Selecione o Estilo Musical</Text>
+              <TouchableOpacity onPress={() => setShowEstilos(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalList}>
+              {estilosMusicais.map((estilo) => (
+                <TouchableOpacity
+                  key={estilo}
+                  style={[
+                    styles.modalItem,
+                    { borderBottomColor: colors.border },
+                    musicalStyle === estilo && { backgroundColor: colors.primary + '20' }
+                  ]}
+                  onPress={() => {
+                    setMusicalStyle(estilo);
+                    setShowEstilos(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.modalItemText, 
+                    { color: musicalStyle === estilo ? colors.primary : colors.text }
+                  ]}>
+                    {estilo}
+                  </Text>
+                  {musicalStyle === estilo && (
+                    <Ionicons name="checkmark" size={24} color={colors.primary} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Modal de Sucesso */}
       <Modal
@@ -414,40 +509,28 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 24,
+    marginTop: 10,
     position: 'relative',
   },
   backButton: {
     position: 'absolute',
-    top: 0,
-    left: 0,
+    top: -10,
+    left: -10,
     padding: 8,
     zIndex: 10,
   },
-  logoContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  title: {
-    fontSize: 24,
+  brandName: {
+    fontSize: 32,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: 6,
+    letterSpacing: 0.5,
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     textAlign: 'center',
+    opacity: 0.7,
   },
   form: {
     borderRadius: 16,
@@ -559,16 +642,41 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  inviteButton: {
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginBottom: 20,
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
   },
-  inviteButtonText: {
+  modalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '70%',
+    paddingBottom: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  modalList: {
+    maxHeight: 400,
+  },
+  modalItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+  },
+  modalItemText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
   },
   successModalOverlay: {
     flex: 1,
