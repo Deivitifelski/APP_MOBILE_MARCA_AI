@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 export interface Artist {
   id: string;
   name: string;
+  musical_style?: string;
   profile_url?: string;
   role?: string;
   created_at: string;
@@ -11,6 +12,7 @@ export interface Artist {
 
 export interface CreateArtistData {
   name: string;
+  musical_style?: string;
   profile_url?: string;
   user_id: string;
 }
@@ -23,6 +25,7 @@ export const createArtist = async (artistData: CreateArtistData): Promise<{ succ
       .from('artists')
       .insert({
         name: artistData.name,
+        musical_style: artistData.musical_style || null,
         profile_url: artistData.profile_url || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
