@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useEffect } from 'react';
 import { Linking } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { createOrUpdateUserFromGoogle } from '../services/supabase/userService';
 
 export default function AuthDeepLinkHandler() {
   useEffect(() => {
@@ -49,28 +50,28 @@ export default function AuthDeepLinkHandler() {
             console.log('🔍 Sessão verificada após setSession:', session);
             
             if (session && session.user) {
-              // Verificar se o usuário existe na tabela users antes de redirecionar
-              const { checkUserExists } = await import('../services/supabase/userService');
-              const userCheck = await checkUserExists(data.user.id);
+              // Criar ou atualizar usuário com dados do Google OAuth
+              const userMetadata = session.user.user_metadata;
               
-              if (userCheck.error) {
-                console.error('❌ Erro ao verificar usuário:', userCheck.error);
-                return;
+              if (userMetadata && session.user.email) {
+                console.log('🔵 [OAuth Callback] Criando usuário com dados do Google...');
+                console.log('📋 [OAuth Callback] Metadata:', userMetadata);
+                
+                await createOrUpdateUserFromGoogle(
+                  session.user.id,
+                  {
+                    name: userMetadata.full_name || userMetadata.name || session.user.email,
+                    email: session.user.email,
+                    photo: userMetadata.avatar_url || userMetadata.picture || undefined,
+                  }
+                );
+                
+                console.log('✅ [OAuth Callback] Usuário criado/atualizado!');
               }
               
-              // Navegar baseado no status do usuário
-              if (data.user?.email_confirmed_at) {
-                if (userCheck.exists) {
-                  console.log('🎯 Usuário com email confirmado e perfil completo, redirecionando para agenda');
-                  router.replace('/(tabs)/agenda');
-                } else {
-                  console.log('👤 Usuário com email confirmado mas sem perfil, redirecionando para cadastro');
-                  router.replace('/cadastro-usuario');
-                }
-              } else {
-                console.log('📧 Email não confirmado, redirecionando para confirmação');
-                router.replace('/email-confirmation');
-              }
+              // Redirecionar para agenda
+              console.log('🎯 Redirecionando para agenda...');
+              router.replace('/(tabs)/agenda');
             } else {
               console.error('❌ Sessão OAuth não foi salva corretamente');
             }

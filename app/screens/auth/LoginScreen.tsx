@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -19,7 +20,12 @@ import LogoMarcaAi from '../../../components/LogoMarcaAi';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { supabase } from '../../../lib/supabase';
 import { loginUser, resendConfirmationEmail } from '../../../services/supabase/authService';
-import { checkUserExists } from '../../../services/supabase/userService';
+import { checkUserExists, createOrUpdateUserFromGoogle } from '../../../services/supabase/userService';
+
+// Configurar Google Sign-In (conforme documentação)
+GoogleSignin.configure({
+  webClientId: '169304206053-1dnv4bsqrdbci79ktes1p0eqcfboctjb.apps.googleusercontent.com',
+});
 
 // Ignorar erros de rede no console
 LogBox.ignoreLogs([
@@ -93,30 +99,63 @@ export default function LoginScreen() {
   const handleGoogleLogin = async () => {
     try {
       setLoading(true);
+      console.log('🔵 [Google Login] Verificando Google Play Services...');
+      await GoogleSignin.hasPlayServices();
       
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location?.origin || 'exp://192.168.1.100:8081',
-        },
-      });
+      console.log('🔵 [Google Login] Abrindo Google Sign-In...');
+      const response = await GoogleSignin.signIn();
+      console.log('✅ [Google Login] Resposta:', response.type);
       
-      if (error) {
-        // Verificar se é erro de rede
-        const errorMsg = error.message?.toLowerCase() || '';
-        if (errorMsg.includes('network') || errorMsg.includes('fetch') || errorMsg.includes('failed')) {
-          setShowNoInternetModal(true);
-        } else {
-          Alert.alert('Erro no Login Google', error.message);
+      if (response.type === 'success') {
+        console.log('✅ [Google Login] Login bem-sucedido!');
+        console.log('📧 [Google Login] Email:', response.data.user.email);
+        
+        if (!response.data.idToken) {
+          console.error('❌ [Google Login] idToken não encontrado');
+          Alert.alert('Erro', 'Não foi possível obter o token de autenticação');
+          return;
+        }
+        
+        const { data, error } = await supabase.auth.signInWithIdToken({
+          provider: 'google',
+          token: response.data.idToken,
+        });
+        
+        console.log('📋 [Google Login] Resposta Supabase:', { error, data: data?.user?.email });
+        
+        if (error) {
+          console.error('❌ [Google Login] Erro no Supabase:', error);
+          Alert.alert('Erro', error.message);
+          return;
+        }
+        
+        if (data?.user) {
+          console.log('✅ [Google Login] Autenticado no Supabase!');
+          console.log('🔵 [Google Login] Criando usuário...');
+          
+          // Criar ou atualizar usuário
+          await createOrUpdateUserFromGoogle(
+            data.user.id,
+            {
+              name: response.data.user.name || response.data.user.email,
+              email: response.data.user.email,
+              photo: response.data.user.photo || undefined,
+            }
+          );
+          
+          console.log('✅ [Google Login] Usuário criado! Redirecionando...');
+          router.replace('/(tabs)/agenda');
         }
       }
     } catch (error: any) {
-      // Verificar se é erro de rede
-      const errorMsg = error?.message?.toLowerCase() || '';
-      if (errorMsg.includes('network') || errorMsg.includes('fetch') || errorMsg.includes('failed')) {
-        setShowNoInternetModal(true);
+      console.error('❌ [Google Login] Erro:', error);
+      
+      if (error.code === statusCodes.IN_PROGRESS) {
+        Alert.alert('Atenção', 'Login já em andamento');
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        Alert.alert('Erro', 'Google Play Services não disponível');
       } else {
-        Alert.alert('Erro Inesperado', error?.message || 'Erro desconhecido');
+        Alert.alert('Erro', error?.message || 'Erro ao fazer login com Google');
       }
     } finally {
       setLoading(false);
