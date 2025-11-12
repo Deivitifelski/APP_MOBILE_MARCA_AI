@@ -217,7 +217,6 @@ export default function LoginScreen() {
                     const response = await GoogleSignin.signIn();
                     
                     if (response.type === 'success') {
-                      Alert.alert('Sucesso', JSON.stringify(response.data.user, null, 2));
                       console.log('📦 [Response Completo]:', response);
                       console.log('👤 [User Completo]:', response.data.user);
                       console.log('📋 [Data Completo]:', response.data);
