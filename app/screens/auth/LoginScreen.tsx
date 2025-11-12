@@ -46,6 +46,8 @@ export default function LoginScreen() {
   const [showEmailConfirmationModal, setShowEmailConfirmationModal] = useState(false);
   const [emailConfirmationError, setEmailConfirmationError] = useState<string>('');
   const [resendingEmail, setResendingEmail] = useState(false);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [userName, setUserName] = useState('');
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -248,7 +250,9 @@ export default function LoginScreen() {
                           }
                         );
                         
-                        router.replace('/(tabs)/agenda');
+                        // Mostrar modal de boas-vindas
+                        setUserName(response.data.user.name || response.data.user.email);
+                        setShowWelcomeModal(true);
                       }
                     }
                   } catch (error: any) {
@@ -434,6 +438,97 @@ export default function LoginScreen() {
                   <Text style={styles.modalContinueText}>
                     {resendingEmail ? 'Enviando...' : 'Reenviar Email'}
                   </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Boas-Vindas após Login com Google */}
+      <Modal
+        visible={showWelcomeModal}
+        transparent
+        animationType="slide"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { backgroundColor: colors.surface, maxWidth: 450 }]}>
+            <View style={styles.modalHeader}>
+              <View style={[styles.modalIcon, { backgroundColor: isDarkMode ? 'rgba(102, 126, 234, 0.15)' : 'rgba(102, 126, 234, 0.1)' }]}>
+                <Ionicons name="sparkles" size={40} color={colors.primary} />
+              </View>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Bem-vindo, {userName}! 🎉
+              </Text>
+              <Text style={[styles.modalSubtitle, { color: colors.textSecondary, marginTop: 8 }]}>
+                Você está conectado com sua conta Google
+              </Text>
+            </View>
+
+            {/* Informação sobre o app */}
+            <View style={styles.welcomeInfoContainer}>
+              <Text style={[styles.welcomeTitle, { color: colors.text }]}>
+                Como funciona o Marca AI
+              </Text>
+              
+              <View style={styles.welcomeFeature}>
+                <View style={[styles.welcomeFeatureIcon, { backgroundColor: isDarkMode ? 'rgba(102, 126, 234, 0.15)' : 'rgba(102, 126, 234, 0.1)' }]}>
+                  <Ionicons name="person-outline" size={24} color={colors.primary} />
+                </View>
+                <View style={styles.welcomeFeatureContent}>
+                  <Text style={[styles.welcomeFeatureTitle, { color: colors.text }]}>Crie seu Perfil Artista</Text>
+                  <Text style={[styles.welcomeFeatureText, { color: colors.textSecondary }]}>
+                    Configure seu nome artístico e foto de perfil
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.welcomeFeature}>
+                <View style={[styles.welcomeFeatureIcon, { backgroundColor: isDarkMode ? 'rgba(102, 126, 234, 0.15)' : 'rgba(102, 126, 234, 0.1)' }]}>
+                  <Ionicons name="calendar-outline" size={24} color={colors.primary} />
+                </View>
+                <View style={styles.welcomeFeatureContent}>
+                  <Text style={[styles.welcomeFeatureTitle, { color: colors.text }]}>Gerencie Eventos</Text>
+                  <Text style={[styles.welcomeFeatureText, { color: colors.textSecondary }]}>
+                    Organize shows, ensaios e compromissos
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.welcomeFeature}>
+                <View style={[styles.welcomeFeatureIcon, { backgroundColor: isDarkMode ? 'rgba(102, 126, 234, 0.15)' : 'rgba(102, 126, 234, 0.1)' }]}>
+                  <Ionicons name="cash-outline" size={24} color={colors.primary} />
+                </View>
+                <View style={styles.welcomeFeatureContent}>
+                  <Text style={[styles.welcomeFeatureTitle, { color: colors.text }]}>Controle Financeiro</Text>
+                  <Text style={[styles.welcomeFeatureText, { color: colors.textSecondary }]}>
+                    Acompanhe receitas, despesas e lucros
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalCancelButton, { backgroundColor: colors.background, borderColor: colors.border }]}
+                onPress={() => {
+                  setShowWelcomeModal(false);
+                  router.replace('/(tabs)/agenda');
+                }}
+              >
+                <Text style={[styles.modalCancelText, { color: colors.textSecondary }]}>Pular</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.modalContinueButton, { backgroundColor: colors.primary }]}
+                onPress={() => {
+                  setShowWelcomeModal(false);
+                  router.replace('/cadastro-artista');
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="musical-notes" size={18} color="#FFFFFF" />
+                  <Text style={styles.modalContinueText}>Criar Artista</Text>
                 </View>
               </TouchableOpacity>
             </View>
@@ -676,6 +771,40 @@ const styles = StyleSheet.create({
   },
   emailInfoText: {
     flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  welcomeInfoContainer: {
+    marginBottom: 24,
+  },
+  welcomeTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  welcomeFeature: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+    gap: 12,
+  },
+  welcomeFeatureIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  welcomeFeatureContent: {
+    flex: 1,
+  },
+  welcomeFeatureTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  welcomeFeatureText: {
     fontSize: 14,
     lineHeight: 20,
   },
