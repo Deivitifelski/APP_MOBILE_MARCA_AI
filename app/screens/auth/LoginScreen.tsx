@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -20,6 +21,14 @@ import { useTheme } from '../../../contexts/ThemeContext';
 import { supabase } from '../../../lib/supabase';
 import { loginUser, resendConfirmationEmail } from '../../../services/supabase/authService';
 import { checkUserExists } from '../../../services/supabase/userService';
+
+GoogleSignin.configure({
+  webClientId: '169304206053-642isf3lub3ds2thkiupcje9r7lo7dh7.apps.googleusercontent.com',
+  iosClientId: '169304206053-642isf3lub3ds2thkiupcje9r7lo7dh7.apps.googleusercontent.com',
+  androidClientId: '169304206053-642isf3lub3ds2thkiupcje9r7lo7dh7.apps.googleusercontent.com',
+  scopes: ['profile', 'email'],
+  forceCodeForRefreshToken: true,
+});
 
 // Ignorar erros de rede no console
 LogBox.ignoreLogs([
