@@ -37,8 +37,8 @@ LogBox.ignoreAllLogs(true); // Remove TODOS os erros/warnings visuais
 
 export default function LoginScreen() {
   const { colors, isDarkMode } = useTheme();
-  const [email, setEmail] = useState('marcaaiapp@gmail.com');
-  const [password, setPassword] = useState('campobom209');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showCompleteProfileModal, setShowCompleteProfileModal] = useState(false);
@@ -219,14 +219,7 @@ export default function LoginScreen() {
                     const response = await GoogleSignin.signIn();
                     
                     if (response.type === 'success') {
-                      console.log('📦 [Response Completo]:', response);
-                      console.log('👤 [User Completo]:', response.data.user);
-                      console.log('📋 [Data Completo]:', response.data);
-                      console.log('🏷️ [Nome]:', response.data.user.name);
-                      console.log('📧 [Email]:', response.data.user.email);
-                      console.log('📸 [Photo]:', response.data.user.photo);
-                      console.log('🆔 [User ID]:', response.data.user.id);
-                      console.log('🔑 [idToken]:', response.data.idToken);
+        
                       const { data, error } = await supabase.auth.signInWithIdToken({
                         provider: 'google',
                         token: response.data.idToken || '',
