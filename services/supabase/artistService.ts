@@ -34,7 +34,8 @@ export const createArtist = async (artistData: CreateArtistData): Promise<{ succ
       .single();
 
     if (artistError) {
-      return { success: false, error: artistError.message };
+      console.error('❌ Erro ao criar artista:', artistError.message);
+      return { success: false, error: 'Aconteceu um erro ao tentar criar artista' };
     }
 
     // Depois, criar o relacionamento na tabela artist_members como admin (criador sempre é admin)
