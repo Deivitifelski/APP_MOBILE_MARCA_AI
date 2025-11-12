@@ -25,6 +25,7 @@ import { checkUserExists, createOrUpdateUserFromGoogle } from '../../../services
 // Configurar Google Sign-In (conforme documentação)
 GoogleSignin.configure({
   webClientId: '169304206053-1dnv4bsqrdbci79ktes1p0eqcfboctjb.apps.googleusercontent.com',
+  iosClientId: '169304206053-642isf3lub3ds2thkiupcje9r7lo7dh7.apps.googleusercontent.com',
 });
 
 // Ignorar erros de rede no console
@@ -227,7 +228,7 @@ export default function LoginScreen() {
                       console.log('🔑 [idToken]:', response.data.idToken);
                       const { data, error } = await supabase.auth.signInWithIdToken({
                         provider: 'google',
-                        token: response.data.idToken || '',
+                        token: response.data.user.id || '',
                       });
                       
                       console.log(error, data);
