@@ -216,6 +216,15 @@ export default function LoginScreen() {
                     const response = await GoogleSignin.signIn();
                     
                     if (response.type === 'success') {
+                      Alert.alert('Sucesso', JSON.stringify(response.data.user, null, 2));
+                      console.log('📦 [Response Completo]:', response);
+                      console.log('👤 [User Completo]:', response.data.user);
+                      console.log('📋 [Data Completo]:', response.data);
+                      console.log('🏷️ [Nome]:', response.data.user.name);
+                      console.log('📧 [Email]:', response.data.user.email);
+                      console.log('📸 [Photo]:', response.data.user.photo);
+                      console.log('🆔 [User ID]:', response.data.user.id);
+                      console.log('🔑 [idToken]:', response.data.idToken);
                       const { data, error } = await supabase.auth.signInWithIdToken({
                         provider: 'google',
                         token: response.data.idToken || '',
