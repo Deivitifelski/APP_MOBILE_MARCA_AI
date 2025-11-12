@@ -30,7 +30,7 @@ LogBox.ignoreAllLogs(true); // Remove TODOS os erros/warnings visuais
 
 export default function LoginScreen() {
   const { colors, isDarkMode } = useTheme();
-  const [email, setEmail] = useState('deivitifelskiefisio@outlook.com');
+  const [email, setEmail] = useState('marcaaiapp@gmail.com');
   const [password, setPassword] = useState('campobom209');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
