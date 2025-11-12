@@ -1,16 +1,5 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-
-// Simulação simples de AsyncStorage para modo escuro
-const AsyncStorage = {
-  getItem: async (key: string) => {
-    // Simulação - retorna null por padrão
-    return null;
-  },
-  setItem: async (key: string, value: string) => {
-    // Simulação - não faz nada
-    console.log(`Salvando ${key}: ${value}`);
-  }
-};
 
 interface ThemeContextType {
   isDarkMode: boolean;
@@ -74,21 +63,31 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const loadDarkModePreference = async () => {
     try {
       const savedDarkMode = await AsyncStorage.getItem('darkMode');
+      console.log('🌓 [Theme] Carregando preferência salva:', savedDarkMode);
+      
       if (savedDarkMode !== null) {
-        setIsDarkMode(JSON.parse(savedDarkMode));
+        const isDark = JSON.parse(savedDarkMode);
+        console.log('✅ [Theme] Aplicando tema salvo:', isDark ? 'escuro' : 'claro');
+        setIsDarkMode(isDark);
+      } else {
+        console.log('ℹ️ [Theme] Nenhuma preferência salva, usando padrão (claro)');
       }
     } catch (error) {
-      console.error('Erro ao carregar preferência do modo escuro:', error);
+      console.error('❌ [Theme] Erro ao carregar preferência:', error);
     }
   };
 
   const toggleDarkMode = async () => {
     try {
       const newDarkMode = !isDarkMode;
+      console.log('🌓 [Theme] Alternando tema para:', newDarkMode ? 'escuro' : 'claro');
+      
       setIsDarkMode(newDarkMode);
       await AsyncStorage.setItem('darkMode', JSON.stringify(newDarkMode));
+      
+      console.log('✅ [Theme] Tema salvo com sucesso!');
     } catch (error) {
-      console.error('Erro ao salvar preferência do modo escuro:', error);
+      console.error('❌ [Theme] Erro ao salvar tema:', error);
     }
   };
 
