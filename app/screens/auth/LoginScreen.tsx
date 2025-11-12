@@ -2,17 +2,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    LogBox,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  LogBox,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LogoMarcaAi from '../../../components/LogoMarcaAi';
@@ -53,14 +53,14 @@ export default function LoginScreen() {
         if (errorMsg.includes('network') || errorMsg.includes('fetch') || errorMsg.includes('failed')) {
           setShowNoInternetModal(true);
         } else {
-          Alert.alert('Erro', result.error.message);
+          Alert.alert('Atenção', result.error.message);
         }
       } else if (result.data?.user) {
         if (result.data.user.email_confirmed_at) {
           const userCheck = await checkUserExists(result.data.user.id);
           
           if (userCheck.error) {
-            Alert.alert('Erro', 'Erro ao verificar dados do usuário');
+            Alert.alert('Atenção', 'Erro ao verificar dados do usuário');
             return;
           }
           
@@ -79,7 +79,7 @@ export default function LoginScreen() {
       if (errorMsg.includes('network') || errorMsg.includes('fetch') || errorMsg.includes('failed')) {
         setShowNoInternetModal(true);
       } else {
-        Alert.alert('Erro', 'Ocorreu um erro inesperado');
+        Alert.alert('Atenção', 'Ocorreu um erro inesperado');
       }
     } finally {
       setLoading(false);

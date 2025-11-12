@@ -14,7 +14,6 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import LogoMarcaAi from '../components/LogoMarcaAi';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 
@@ -116,8 +115,7 @@ export default function RegisterScreen() {
               >
                 <Ionicons name="arrow-back" size={24} color={colors.text} />
               </TouchableOpacity>
-              <LogoMarcaAi size="medium" showTagline={false} />
-              <Text style={[dynamicStyles.title, { color: colors.text }]}>Criar Conta</Text>
+              <Text style={[dynamicStyles.brandName, { color: colors.primary }]}>MarcaAi</Text>
               <Text style={[dynamicStyles.subtitle, { color: colors.textSecondary }]}>
                 Preencha os dados para criar sua conta
               </Text>
@@ -300,30 +298,26 @@ const createDynamicStyles = (colors: any) => StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: 30,
+    marginTop: 10,
   },
   backButton: {
     position: 'absolute',
-    left: 0,
+    left: -10,
     top: 0,
     padding: 10,
+    zIndex: 10,
   },
-  logoContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 15,
-    marginTop: 20,
-  },
-  title: {
-    fontSize: 28,
+  brandName: {
+    fontSize: 32,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: 6,
+    letterSpacing: 0.5,
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     textAlign: 'center',
+    opacity: 0.7,
   },
   form: {
     width: '100%',
