@@ -18,7 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import LogoMarcaAi from '../../../components/LogoMarcaAi';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { supabase } from '../../../lib/supabase';
-import { loginUser } from '../../../services/supabase/authService';
+import { loginUser, resendConfirmationEmail } from '../../../services/supabase/authService';
 import { checkUserExists } from '../../../services/supabase/userService';
 
 // Ignorar erros de rede no console
@@ -36,6 +36,9 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [showCompleteProfileModal, setShowCompleteProfileModal] = useState(false);
   const [showNoInternetModal, setShowNoInternetModal] = useState(false);
+  const [showEmailConfirmationModal, setShowEmailConfirmationModal] = useState(false);
+  const [emailConfirmationError, setEmailConfirmationError] = useState<string>('');
+  const [resendingEmail, setResendingEmail] = useState(false);
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -53,7 +56,8 @@ export default function LoginScreen() {
         if (errorMsg.includes('network') || errorMsg.includes('fetch') || errorMsg.includes('failed')) {
           setShowNoInternetModal(true);
         } else {
-          Alert.alert('Atenção', result.error.message);
+          setEmailConfirmationError(result.error.message);
+          setShowEmailConfirmationModal(true);
         }
       } else if (result.data?.user) {
         if (result.data.user.email_confirmed_at) {
@@ -70,7 +74,7 @@ export default function LoginScreen() {
             router.replace('/(tabs)/agenda');
           }
         } else {
-          router.replace('/email-confirmation');
+          Alert.alert('Atenção', 'Erro ao verificar dados do usuário');
         }
       }
     } catch (error: any) {
@@ -119,8 +123,36 @@ export default function LoginScreen() {
     }
   };
 
-  // Estilos dinâmicos baseados no tema
-  const dynamicStyles = createDynamicStyles(isDarkMode, colors);
+  const handleResendEmail = async () => {
+    if (!email.trim()) {
+      Alert.alert('Erro', 'Por favor, preencha o campo de email');
+      return;
+    }
+
+    setResendingEmail(true);
+    try {
+      const result = await resendConfirmationEmail(email);
+      
+      if (result.error) {
+        Alert.alert('Erro', result.error);
+      } else {
+        Alert.alert(
+          'Sucesso',
+          'Email de confirmação reenviado! Verifique sua caixa de entrada.',
+          [
+            {
+              text: 'OK',
+              onPress: () => setShowEmailConfirmationModal(false),
+            },
+          ]
+        );
+      }
+    } catch {
+      Alert.alert('Erro', 'Ocorreu um erro ao reenviar o email');
+    } finally {
+      setResendingEmail(false);
+    }
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -328,14 +360,66 @@ export default function LoginScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Modal de Confirmação de Email */}
+      <Modal
+        visible={showEmailConfirmationModal}
+        transparent
+        animationType="fade"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
+            <View style={styles.modalHeader}>
+              <View style={[styles.modalIcon, { backgroundColor: isDarkMode ? 'rgba(244, 67, 54, 0.15)' : 'rgba(244, 67, 54, 0.1)' }]}>
+                <Ionicons name="mail-unread-outline" size={40} color="#F44336" />
+              </View>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Email não confirmado
+              </Text>
+              <Text style={[styles.modalSubtitle, { color: colors.textSecondary, marginTop: 8 }]}>
+                {emailConfirmationError}
+              </Text>
+            </View>
+
+            {/* Informação adicional */}
+            <View style={[styles.emailInfoContainer, { backgroundColor: isDarkMode ? 'rgba(102, 126, 234, 0.1)' : 'rgba(102, 126, 234, 0.05)' }]}>
+              <Ionicons name="information-circle-outline" size={20} color={colors.primary} />
+              <Text style={[styles.emailInfoText, { color: colors.textSecondary }]}>
+                Verifique sua caixa de entrada e spam. Caso não tenha recebido, você pode solicitar um novo email.
+              </Text>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalCancelButton, { backgroundColor: colors.background, borderColor: colors.border }]}
+                onPress={() => setShowEmailConfirmationModal(false)}
+                disabled={resendingEmail}
+              >
+                <Text style={[styles.modalCancelText, { color: colors.textSecondary }]}>Fechar</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[
+                  styles.modalContinueButton, 
+                  { backgroundColor: resendingEmail ? colors.border : colors.primary },
+                ]}
+                onPress={handleResendEmail}
+                disabled={resendingEmail}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="mail-outline" size={18} color="#FFFFFF" />
+                  <Text style={styles.modalContinueText}>
+                    {resendingEmail ? 'Enviando...' : 'Reenviar Email'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
-
-// Função auxiliar para criar estilos dinâmicos (não usada atualmente, mas mantida para consistência)
-const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create({
-  // Estilos dinâmicos podem ser adicionados aqui no futuro
-});
 
 const styles = StyleSheet.create({
   container: {
@@ -569,5 +653,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
+  },
+  emailInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+  },
+  emailInfoText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
   },
 });

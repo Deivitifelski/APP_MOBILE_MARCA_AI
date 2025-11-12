@@ -131,6 +131,34 @@ export const updatePassword = async (newPassword: string): Promise<{ success: bo
   }
 };
 
+export const resendConfirmationEmail = async (email: string): Promise<{ success: boolean; error?: string }> => {
+  try {
+    console.log('resendConfirmationEmail: Reenviando email de confirmação');
+    
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email.trim().toLowerCase(),
+    });
+
+    if (error) {
+      console.log('resendConfirmationEmail: Erro do Supabase:', error.message);
+      return {
+        success: false,
+        error: getErrorMessage(error.message)
+      };
+    }
+
+    console.log('resendConfirmationEmail: Email reenviado com sucesso');
+    return { success: true };
+  } catch (error) {
+    console.log('resendConfirmationEmail: Erro inesperado:', error);
+    return {
+      success: false,
+      error: 'Erro de conexão. Tente novamente.'
+    };
+  }
+};
+
 // Função para traduzir mensagens de erro do Supabase
 const getErrorMessage = (errorMessage: string): string => {
   const errorMap: { [key: string]: string } = {
