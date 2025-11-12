@@ -40,12 +40,32 @@ export default function EmailConfirmationScreen() {
       });
 
       if (error) {
-        Alert.alert('Erro', error.message);
+        // Traduzir mensagem de erro do Supabase
+        let errorMessage = error.message;
+        
+        if (error.message.toLowerCase().includes('security purposes') || 
+            error.message.toLowerCase().includes('once every') ||
+            error.message.toLowerCase().includes('seconds')) {
+          
+          // Tentar extrair o número de segundos da mensagem
+          const secondsMatch = error.message.match(/(\d+)\s*seconds?/i);
+          
+          if (secondsMatch) {
+            const seconds = secondsMatch[1];
+            errorMessage = `Por motivos de segurança, aguarde ${seconds} segundos antes de reenviar o email novamente.`;
+          } else {
+            errorMessage = 'Por motivos de segurança, você só pode reenviar o email a cada 60 segundos. Aguarde um momento e tente novamente.';
+          }
+        } else if (error.message.toLowerCase().includes('rate limit')) {
+          errorMessage = 'Muitas tentativas. Por favor, aguarde alguns segundos e tente novamente.';
+        }
+        
+        Alert.alert('Atenção', errorMessage);
       } else {
-        Alert.alert('Sucesso', 'Email de confirmação reenviado!');
+        Alert.alert('Sucesso', 'Email de confirmação reenviado! Verifique sua caixa de entrada.');
       }
     } catch {
-      Alert.alert('Erro', 'Erro ao reenviar email');
+      Alert.alert('Erro', 'Erro ao reenviar email. Tente novamente.');
     } finally {
       setIsResending(false);
     }
