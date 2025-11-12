@@ -159,6 +159,36 @@ export const resendConfirmationEmail = async (email: string): Promise<{ success:
   }
 };
 
+export const sendPasswordResetEmail = async (email: string): Promise<{ success: boolean; error?: string }> => {
+  try {
+    console.log('🔵 [Reset Password] Enviando email de recuperação para:', email);
+    
+    const { error } = await supabase.auth.resetPasswordForEmail(
+      email.trim().toLowerCase(),
+      {
+        redirectTo: 'marcaai://reset-password',
+      }
+    );
+
+    if (error) {
+      console.log('❌ [Reset Password] Erro do Supabase:', error.message);
+      return {
+        success: false,
+        error: getErrorMessage(error.message)
+      };
+    }
+
+    console.log('✅ [Reset Password] Email de recuperação enviado com sucesso');
+    return { success: true };
+  } catch (error) {
+    console.log('❌ [Reset Password] Erro inesperado:', error);
+    return {
+      success: false,
+      error: 'Erro de conexão. Tente novamente.'
+    };
+  }
+};
+
 // Função para traduzir mensagens de erro do Supabase
 const getErrorMessage = (errorMessage: string): string => {
   const errorMap: { [key: string]: string } = {

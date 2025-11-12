@@ -19,7 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import LogoMarcaAi from '../../../components/LogoMarcaAi';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { supabase } from '../../../lib/supabase';
-import { loginUser, resendConfirmationEmail } from '../../../services/supabase/authService';
+import { loginUser, resendConfirmationEmail, sendPasswordResetEmail } from '../../../services/supabase/authService';
 import { checkUserExists, createOrUpdateUserFromGoogle } from '../../../services/supabase/userService';
 
 // Configurar Google Sign-In (conforme documentação)
@@ -48,6 +48,9 @@ export default function LoginScreen() {
   const [resendingEmail, setResendingEmail] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [userName, setUserName] = useState('');
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [sendingResetEmail, setSendingResetEmail] = useState(false);
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -130,6 +133,40 @@ export default function LoginScreen() {
     }
   };
 
+  const handleForgotPassword = async () => {
+    if (!resetEmail.trim()) {
+      Alert.alert('Erro', 'Por favor, preencha o campo de email');
+      return;
+    }
+
+    setSendingResetEmail(true);
+    try {
+      const result = await sendPasswordResetEmail(resetEmail);
+      
+      if (result.error) {
+        Alert.alert('Erro', result.error);
+      } else {
+        Alert.alert(
+          'Email Enviado',
+          'Enviamos um link de recuperação para seu email. Verifique sua caixa de entrada e spam.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setShowForgotPasswordModal(false);
+                setResetEmail('');
+              },
+            },
+          ]
+        );
+      }
+    } catch {
+      Alert.alert('Erro', 'Ocorreu um erro ao enviar o email');
+    } finally {
+      setSendingResetEmail(false);
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
@@ -189,7 +226,13 @@ export default function LoginScreen() {
                 </View>
               </View>
 
-              <TouchableOpacity style={styles.forgotPassword}>
+              <TouchableOpacity 
+                style={styles.forgotPassword}
+                onPress={() => {
+                  setResetEmail(email); // Preencher com o email digitado
+                  setShowForgotPasswordModal(true);
+                }}
+              >
                 <Text style={[styles.forgotPasswordText, { color: colors.primary }]}>Esqueceu sua senha?</Text>
               </TouchableOpacity>
 
@@ -536,6 +579,77 @@ export default function LoginScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Modal de Esqueceu a Senha */}
+      <Modal
+        visible={showForgotPasswordModal}
+        transparent
+        animationType="fade"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
+            <View style={styles.modalHeader}>
+              <View style={[styles.modalIcon, { backgroundColor: isDarkMode ? 'rgba(102, 126, 234, 0.15)' : 'rgba(102, 126, 234, 0.1)' }]}>
+                <Ionicons name="key-outline" size={40} color={colors.primary} />
+              </View>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Esqueceu sua senha?
+              </Text>
+              <Text style={[styles.modalSubtitle, { color: colors.textSecondary, marginTop: 8 }]}>
+                Digite seu email e enviaremos um link para redefinir sua senha
+              </Text>
+            </View>
+
+            {/* Campo de email */}
+            <View style={styles.forgotPasswordEmailContainer}>
+              <Text style={[styles.label, { color: colors.text, marginBottom: 8 }]}>Email</Text>
+              <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <Ionicons name="mail-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  style={[styles.input, { color: colors.text }]}
+                  value={resetEmail}
+                  onChangeText={setResetEmail}
+                  placeholder="Digite seu email"
+                  placeholderTextColor={colors.textSecondary}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!sendingResetEmail}
+                />
+              </View>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalCancelButton, { backgroundColor: colors.background, borderColor: colors.border }]}
+                onPress={() => {
+                  setShowForgotPasswordModal(false);
+                  setResetEmail('');
+                }}
+                disabled={sendingResetEmail}
+              >
+                <Text style={[styles.modalCancelText, { color: colors.textSecondary }]}>Cancelar</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[
+                  styles.modalContinueButton, 
+                  { backgroundColor: sendingResetEmail ? colors.border : colors.primary },
+                ]}
+                onPress={handleForgotPassword}
+                disabled={sendingResetEmail}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="send-outline" size={18} color="#FFFFFF" />
+                  <Text style={styles.modalContinueText}>
+                    {sendingResetEmail ? 'Enviando...' : 'Enviar Link'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -819,5 +933,8 @@ const styles = StyleSheet.create({
   welcomeFeatureText: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  forgotPasswordEmailContainer: {
+    marginBottom: 24,
   },
 });

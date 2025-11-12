@@ -30,6 +30,7 @@ export default function RootLayout() {
             <Stack.Screen name="login" options={{ headerShown: false }} />
             <Stack.Screen name="register" options={{ headerShown: false }} />
             <Stack.Screen name="email-confirmation" options={{ headerShown: false }} />
+            <Stack.Screen name="reset-password" options={{ headerShown: false }} />
             <Stack.Screen name="cadastro-usuario" options={{ headerShown: false }} />
             <Stack.Screen name="cadastro-artista" options={{ headerShown: false }} />
             <Stack.Screen name="adicionar-evento" options={{ headerShown: false }} />

@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useEffect } from 'react';
-import { Linking } from 'react-native';
+import { Alert, Linking } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { createOrUpdateUserFromGoogle } from '../services/supabase/userService';
 
@@ -9,6 +9,41 @@ export default function AuthDeepLinkHandler() {
     // Listener para deep links quando o app está aberto
     const handleDeepLink = (url: string) => {
       console.log('🔗 Deep link recebido:', url);
+      
+      // Verificar se é callback de reset de senha
+      if (url.includes('reset-password') || url.includes('type=recovery')) {
+        console.log('🔑 [Reset Password] Link de recuperação detectado');
+        
+        // Extrair tokens da URL
+        const urlObj = new URL(url);
+        const accessToken = urlObj.searchParams.get('access_token');
+        const refreshToken = urlObj.searchParams.get('refresh_token');
+        
+        if (accessToken && refreshToken) {
+          console.log('🔵 [Reset Password] Definindo sessão temporária...');
+          
+          supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          }).then(({ data, error }) => {
+            if (error) {
+              console.error('❌ [Reset Password] Erro ao definir sessão:', error);
+              Alert.alert('Erro', 'Link de recuperação inválido ou expirado');
+              router.replace('/login');
+              return;
+            }
+            
+            console.log('✅ [Reset Password] Sessão definida! Redirecionando para tela de reset...');
+            router.replace('/reset-password');
+          });
+        } else {
+          console.error('❌ [Reset Password] Tokens não encontrados na URL');
+          Alert.alert('Erro', 'Link de recuperação inválido');
+          router.replace('/login');
+        }
+        
+        return;
+      }
       
       // Verificar se é callback do Google OAuth (redirect do Supabase)
       if (url.includes('access_token') && url.includes('refresh_token')) {
