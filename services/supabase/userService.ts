@@ -249,31 +249,67 @@ export const isPremiumUser = async (userId: string): Promise<{ isPremium: boolea
 // Verificar se o usuário pode criar mais artistas (limitação do plano free)
 export const canCreateArtist = async (userId: string): Promise<{ canCreate: boolean; error: string | null }> => {
   try {
+    console.log('🔍 [canCreateArtist] Verificando se usuário pode criar artista:', userId);
+    
     const { plan, error } = await getUserPlan(userId);
+    console.log('📋 [canCreateArtist] Plano do usuário:', plan);
     
     if (error) {
+      console.error('❌ [canCreateArtist] Erro ao obter plano:', error);
       return { canCreate: false, error };
     }
 
-    // Se for premium, pode criar ilimitados
+    // Se for premium, pode criar até 50 artistas
     if (plan === 'premium') {
-      return { canCreate: true, error: null };
+      console.log('✅ [canCreateArtist] Usuário premium - verificando limite de 50...');
+      
+      // Verificar quantos artistas o usuário premium já possui
+      const { data, error: countError } = await supabase
+        .from('artist_members')
+        .select('artist_id', { count: 'exact' })
+        .eq('user_id', userId)
+        .eq('role', 'admin'); // Apenas artistas onde o usuário é admin (criador)
+
+      if (countError) {
+        console.error('❌ [canCreateArtist] Erro ao contar artistas:', countError);
+        return { canCreate: false, error: countError.message };
+      }
+
+      const artistCount = data?.length || 0;
+      const canCreate = artistCount < 50;
+      
+      console.log(`📊 [canCreateArtist] Usuário premium tem ${artistCount} artista(s). Pode criar? ${canCreate} (limite: 50)`);
+      
+      return { canCreate, error: null };
     }
 
-    // Se for free, verificar quantos artistas já possui
+    // Se for free, verificar quantos artistas já possui através de artist_members
+    console.log('🔵 [canCreateArtist] Plano free - verificando quantidade de artistas...');
     const { data, error: countError } = await supabase
-      .from('artists')
-      .select('id', { count: 'exact' })
-      .eq('user_id', userId);
+      .from('artist_members')
+      .select('artist_id', { count: 'exact' })
+      .eq('user_id', userId)
+      .eq('role', 'admin'); // Apenas artistas onde o usuário é admin (criador)
+
+    console.log('📊 [canCreateArtist] Resultado da consulta:', {
+      count: data?.length,
+      error: countError?.message
+    });
 
     if (countError) {
+      console.error('❌ [canCreateArtist] Erro ao contar artistas:', countError);
       return { canCreate: false, error: countError.message };
     }
 
-    // Plano free permite apenas 1 artista
-    const canCreate = (data?.length || 0) < 1;
+    // Plano free permite até 2 artistas
+    const artistCount = data?.length || 0;
+    const canCreate = artistCount < 2;
+    
+    console.log(`📊 [canCreateArtist] Usuário free tem ${artistCount} artista(s). Pode criar? ${canCreate} (limite: 2)`);
+    
     return { canCreate, error: null };
   } catch (error) {
+    console.error('❌ [canCreateArtist] Erro de conexão:', error);
     return { canCreate: false, error: 'Erro de conexão' };
   }
 };

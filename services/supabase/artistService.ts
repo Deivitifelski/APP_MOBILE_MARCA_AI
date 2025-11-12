@@ -21,6 +21,14 @@ export interface CreateArtistData {
 export const createArtist = async (artistData: CreateArtistData): Promise<{ success: boolean; error: string | null; artist?: Artist }> => {
   try {
     // Primeiro, criar o artista
+    console.log('📊 [createArtist] Dados enviados:', artistData);
+    console.log('📊 [createArtist] Nome:', artistData.name);
+    console.log('📊 [createArtist] Musical Style:', artistData.musical_style);
+    console.log('📊 [createArtist] Profile URL:', artistData.profile_url);
+    console.log('📊 [createArtist] User ID:', artistData.user_id);
+    console.log('📊 [createArtist] Created At:', new Date().toISOString());
+    console.log('📊 [createArtist] Updated At:', new Date().toISOString());
+
     const { data: artistData_result, error: artistError } = await supabase
       .from('artists')
       .insert({

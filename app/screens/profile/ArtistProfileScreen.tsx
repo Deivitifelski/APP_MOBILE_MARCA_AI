@@ -149,19 +149,24 @@ export default function ArtistProfileScreen() {
       }
 
       // Verificar se o usuário pode criar mais artistas
+      console.log('🔍 [ArtistProfileScreen] Verificando se pode criar artista...');
       const { canCreate, error: canCreateError } = await canCreateArtist(user.id);
       
       if (canCreateError) {
+        console.error('❌ [ArtistProfileScreen] Erro ao verificar permissões:', canCreateError);
         Alert.alert('Erro', 'Erro ao verificar permissões: ' + canCreateError);
         setLoading(false);
         return;
       }
 
       if (!canCreate) {
+        console.log('⚠️ [ArtistProfileScreen] Usuário atingiu o limite de artistas');
         setLoading(false);
         setShowUpgradeModal(true);
         return;
       }
+
+      console.log('✅ [ArtistProfileScreen] Usuário pode criar artista!');
 
       let finalProfileUrl = null;
 
@@ -185,7 +190,6 @@ export default function ArtistProfileScreen() {
         setIsUploadingImage(false);
       }
 
-      // Criar o perfil do artista
       const { success, error, artist } = await createArtist({
         name: name.trim(),
         musical_style: musicalStyle,
@@ -193,10 +197,20 @@ export default function ArtistProfileScreen() {
         user_id: user.id
       });
 
+      console.log('📊 [ArtistProfileScreen] Resposta do createArtist:', {
+        success,
+        error,
+        artist
+      });
+
       if (!success || !artist) {
+        console.error('❌ [ArtistProfileScreen] Falha ao criar artista:', error);
         Alert.alert('Atenção', 'Erro ao criar perfil do artista: ' + error);
         return;
       }
+
+      console.log('✅ [ArtistProfileScreen] Artista criado com sucesso!');
+      console.log('🔵 [ArtistProfileScreen] Setando artista ativo...');
 
       // Automaticamente mudar para o novo artista criado (Context API)
       await setActiveArtist({
@@ -206,10 +220,14 @@ export default function ArtistProfileScreen() {
         profile_url: finalProfileUrl || undefined
       });
 
+      console.log('✅ [ArtistProfileScreen] Artista ativo definido!');
+      console.log('🎉 [ArtistProfileScreen] Mostrando modal de sucesso...');
+
       // Mostrar modal de sucesso personalizado
       setCreatedArtistName(artist.name);
       setShowSuccessModal(true);
     } catch (error) {
+      console.error('❌ [ArtistProfileScreen] Erro inesperado:', error);
       Alert.alert('Erro', 'Ocorreu um erro ao criar o perfil do artista');
     } finally {
       setLoading(false);
