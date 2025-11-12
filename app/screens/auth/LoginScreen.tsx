@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -21,14 +20,6 @@ import { useTheme } from '../../../contexts/ThemeContext';
 import { supabase } from '../../../lib/supabase';
 import { loginUser, resendConfirmationEmail } from '../../../services/supabase/authService';
 import { checkUserExists } from '../../../services/supabase/userService';
-
-GoogleSignin.configure({
-  webClientId: '169304206053-642isf3lub3ds2thkiupcje9r7lo7dh7.apps.googleusercontent.com',
-  iosClientId: '169304206053-642isf3lub3ds2thkiupcje9r7lo7dh7.apps.googleusercontent.com',
-  androidClientId: '169304206053-642isf3lub3ds2thkiupcje9r7lo7dh7.apps.googleusercontent.com',
-  scopes: ['profile', 'email'],
-  forceCodeForRefreshToken: true,
-});
 
 // Ignorar erros de rede no console
 LogBox.ignoreLogs([
@@ -102,32 +93,50 @@ export default function LoginScreen() {
   const handleGoogleLogin = async () => {
     try {
       setLoading(true);
+      console.log('🔵 [Google Login] Iniciando login com Google...');
       
-      const { error } = await supabase.auth.signInWithOAuth({
+      // Fazer login com Google usando OAuth do Supabase
+      console.log('🔵 [Google Login] Chamando signInWithOAuth...');
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location?.origin || 'exp://192.168.1.100:8081',
+          redirectTo: 'marcaai://google-callback',
+          skipBrowserRedirect: false,
         },
       });
       
+      console.log('✅ [Google Login] Resposta do signInWithOAuth:', JSON.stringify({ data, error }, null, 2));
+      
       if (error) {
-        // Verificar se é erro de rede
+        console.error('❌ [Google Login] Erro no OAuth:', error);
         const errorMsg = error.message?.toLowerCase() || '';
         if (errorMsg.includes('network') || errorMsg.includes('fetch') || errorMsg.includes('failed')) {
           setShowNoInternetModal(true);
         } else {
           Alert.alert('Erro no Login Google', error.message);
         }
+        return;
       }
+
+      console.log('✅ [Google Login] OAuth iniciado com sucesso!');
+      console.log('🔵 [Google Login] URL de autenticação:', data?.url);
+      
+      // O fluxo OAuth abrirá o navegador e retornará via deep link
+      // O listener de auth state no app vai detectar quando o login completar
+      
     } catch (error: any) {
+      console.error('❌ [Google Login] Erro capturado:', error);
+      console.error('❌ [Google Login] Stack trace:', error.stack);
+      
       // Verificar se é erro de rede
       const errorMsg = error?.message?.toLowerCase() || '';
       if (errorMsg.includes('network') || errorMsg.includes('fetch') || errorMsg.includes('failed')) {
         setShowNoInternetModal(true);
       } else {
-        Alert.alert('Erro Inesperado', error?.message || 'Erro desconhecido');
+        Alert.alert('Erro Inesperado', error?.message || 'Erro ao fazer login com Google');
       }
     } finally {
+      console.log('🔵 [Google Login] Finalizando processo de login');
       setLoading(false);
     }
   };

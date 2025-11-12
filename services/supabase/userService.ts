@@ -77,6 +77,75 @@ export const createUserProfile = async (userData: CreateUserProfileData): Promis
   }
 };
 
+// Criar ou atualizar usuário com dados do Google
+export const createOrUpdateUserFromGoogle = async (
+  userId: string,
+  googleData: {
+    name: string;
+    email: string;
+    photo?: string;
+  }
+): Promise<{ success: boolean; error: string | null }> => {
+  try {
+    console.log('🔵 [Google User] Criando/atualizando usuário com dados do Google:', googleData);
+
+    // Verificar se o usuário já existe
+    const { exists, error: checkError } = await checkUserExists(userId);
+
+    if (checkError) {
+      console.error('❌ [Google User] Erro ao verificar usuário:', checkError);
+      return { success: false, error: checkError };
+    }
+
+    if (exists) {
+      // Atualizar dados do usuário existente
+      console.log('⚠️ [Google User] Usuário já existe, atualizando dados...');
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({
+          name: googleData.name,
+          email: googleData.email,
+          profile_url: googleData.photo || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId);
+
+      if (updateError) {
+        console.error('❌ [Google User] Erro ao atualizar usuário:', updateError);
+        return { success: false, error: updateError.message };
+      }
+
+      console.log('✅ [Google User] Usuário atualizado com sucesso!');
+      return { success: true, error: null };
+    } else {
+      // Criar novo usuário
+      console.log('🆕 [Google User] Criando novo usuário...');
+      const { error: insertError } = await supabase
+        .from('users')
+        .insert({
+          id: userId,
+          name: googleData.name,
+          email: googleData.email,
+          profile_url: googleData.photo || null,
+          plan: 'free',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+
+      if (insertError) {
+        console.error('❌ [Google User] Erro ao criar usuário:', insertError);
+        return { success: false, error: insertError.message };
+      }
+
+      console.log('✅ [Google User] Usuário criado com sucesso!');
+      return { success: true, error: null };
+    }
+  } catch (error) {
+    console.error('❌ [Google User] Erro inesperado:', error);
+    return { success: false, error: 'Erro de conexão' };
+  }
+};
+
 // Buscar perfil do usuário
 export const getUserProfile = async (userId: string): Promise<{ profile: UserProfile | null; error: string | null }> => {
   try {

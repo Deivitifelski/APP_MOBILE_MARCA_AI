@@ -3,13 +3,42 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { checkUserExists } from '../services/supabase/userService';
+import { checkUserExists, createOrUpdateUserFromGoogle } from '../services/supabase/userService';
 
 export default function Index() {
   useEffect(() => {
     // Listener para mudanças no estado de autenticação
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      // Estado de autenticação mudou
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔵 [Auth State Change] Evento:', event);
+      console.log('🔵 [Auth State Change] Session:', JSON.stringify(session?.user, null, 2));
+      
+      // Quando o login OAuth completar (SIGNED_IN)
+      if (event === 'SIGNED_IN' && session?.user) {
+        console.log('✅ [Auth State Change] Usuário autenticado via OAuth');
+        
+        // Verificar se é login via Google (OAuth)
+        const userMetadata = session.user.user_metadata;
+        const identities = session.user.identities;
+        
+        console.log('🔵 [Auth State Change] User metadata:', JSON.stringify(userMetadata, null, 2));
+        console.log('🔵 [Auth State Change] Identities:', JSON.stringify(identities, null, 2));
+        
+        // Se tem dados do Google no metadata, criar/atualizar usuário
+        if (userMetadata?.full_name || userMetadata?.name) {
+          console.log('🔵 [Auth State Change] Criando usuário com dados do Google...');
+          
+          await createOrUpdateUserFromGoogle(
+            session.user.id,
+            {
+              name: userMetadata.full_name || userMetadata.name || session.user.email || 'Usuário',
+              email: session.user.email || '',
+              photo: userMetadata.avatar_url || userMetadata.picture || undefined,
+            }
+          );
+          
+          console.log('✅ [Auth State Change] Usuário criado/atualizado!');
+        }
+      }
     });
 
     // Pequeno delay para garantir que o AsyncStorage está pronto
