@@ -228,7 +228,7 @@ export default function LoginScreen() {
                       console.log('🔑 [idToken]:', response.data.idToken);
                       const { data, error } = await supabase.auth.signInWithIdToken({
                         provider: 'google',
-                        token: response.data.user.id || '',
+                        token: response.data.idToken || '',
                       });
                       
                       console.log(error, data);
