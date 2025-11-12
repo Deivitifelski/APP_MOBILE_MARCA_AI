@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import { GoogleSignin, GoogleSigninButton, statusCodes } from '@react-native-google-signin/google-signin';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -90,72 +90,6 @@ export default function LoginScreen() {
         setShowNoInternetModal(true);
       } else {
         Alert.alert('Atenção', 'Ocorreu um erro inesperado');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    try {
-      setLoading(true);
-      console.log('🔵 [Google Login] Verificando Google Play Services...');
-      await GoogleSignin.hasPlayServices();
-      
-      console.log('🔵 [Google Login] Abrindo Google Sign-In...');
-      const response = await GoogleSignin.signIn();
-      console.log('✅ [Google Login] Resposta:', response.type);
-      
-      if (response.type === 'success') {
-        console.log('✅ [Google Login] Login bem-sucedido!');
-        console.log('📧 [Google Login] Email:', response.data.user.email);
-        
-        if (!response.data.idToken) {
-          console.error('❌ [Google Login] idToken não encontrado');
-          Alert.alert('Erro', 'Não foi possível obter o token de autenticação');
-          return;
-        }
-        
-        const { data, error } = await supabase.auth.signInWithIdToken({
-          provider: 'google',
-          token: response.data.idToken,
-        });
-        
-        console.log('📋 [Google Login] Resposta Supabase:', { error, data: data?.user?.email });
-        
-        if (error) {
-          console.error('❌ [Google Login] Erro no Supabase:', error);
-          Alert.alert('Erro', error.message);
-          return;
-        }
-        
-        if (data?.user) {
-          console.log('✅ [Google Login] Autenticado no Supabase!');
-          console.log('🔵 [Google Login] Criando usuário...');
-          
-          // Criar ou atualizar usuário
-          await createOrUpdateUserFromGoogle(
-            data.user.id,
-            {
-              name: response.data.user.name || response.data.user.email,
-              email: response.data.user.email,
-              photo: response.data.user.photo || undefined,
-            }
-          );
-          
-          console.log('✅ [Google Login] Usuário criado! Redirecionando...');
-          router.replace('/(tabs)/agenda');
-        }
-      }
-    } catch (error: any) {
-      console.error('❌ [Google Login] Erro:', error);
-      
-      if (error.code === statusCodes.IN_PROGRESS) {
-        Alert.alert('Atenção', 'Login já em andamento');
-      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-        Alert.alert('Erro', 'Google Play Services não disponível');
-      } else {
-        Alert.alert('Erro', error?.message || 'Erro ao fazer login com Google');
       }
     } finally {
       setLoading(false);
@@ -272,16 +206,57 @@ export default function LoginScreen() {
                 <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
               </View>
 
-              <TouchableOpacity 
-                style={[styles.googleButton, loading && styles.loginButtonDisabled]}
-                onPress={handleGoogleLogin}
+              <GoogleSigninButton
+                size={GoogleSigninButton.Size.Wide}
+                color={GoogleSigninButton.Color.Dark}
+                onPress={async () => {
+                  try {
+                    setLoading(true);
+                    await GoogleSignin.hasPlayServices();
+                    const response = await GoogleSignin.signIn();
+                    
+                    if (response.type === 'success') {
+                      const { data, error } = await supabase.auth.signInWithIdToken({
+                        provider: 'google',
+                        token: response.data.idToken || '',
+                      });
+                      
+                      console.log(error, data);
+                      
+                      if (error) {
+                        Alert.alert('Erro', error.message);
+                        return;
+                      }
+                      
+                      if (data?.user) {
+                        // Criar usuário automaticamente
+                        await createOrUpdateUserFromGoogle(
+                          data.user.id,
+                          {
+                            name: response.data.user.name || response.data.user.email,
+                            email: response.data.user.email,
+                            photo: response.data.user.photo || undefined,
+                          }
+                        );
+                        
+                        router.replace('/(tabs)/agenda');
+                      }
+                    }
+                  } catch (error: any) {
+                    if (error.code === statusCodes.IN_PROGRESS) {
+                      Alert.alert('Atenção', 'Login já em andamento');
+                    } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+                      Alert.alert('Erro', 'Google Play Services não disponível');
+                    } else {
+                      Alert.alert('Erro', error?.message || 'Erro ao fazer login');
+                    }
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
                 disabled={loading}
-              >
-                <Ionicons name="logo-google" size={20} color="#fff" />
-                <Text style={styles.googleButtonText}>
-                  {loading ? 'Entrando...' : 'Entrar com Google'}
-                </Text>
-              </TouchableOpacity>
+                style={styles.googleButton}
+              />
 
               <View style={styles.signupContainer}>
                 <Text style={[styles.signupText, { color: colors.textSecondary }]}>Não tem uma conta? </Text>
@@ -555,19 +530,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   googleButton: {
-    backgroundColor: '#db4437',
-    borderRadius: 12,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: '100%',
     marginBottom: 24,
-  },
-  googleButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-    marginLeft: 8,
   },
   signupContainer: {
     flexDirection: 'row',

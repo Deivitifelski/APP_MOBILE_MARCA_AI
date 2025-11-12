@@ -80,10 +80,12 @@
       "favicon": "./assets/images/LOGO_MARCA_IPHONE_1024.png"
     },
     "plugins": [
+      [
         "@react-native-google-signin/google-signin",
         {
           "iosUrlScheme": "com.googleusercontent.apps.169304206053-642isf3lub3ds2thkiupcje9r7lo7dh7"
-        },
+        }
+      ],
       "expo-router",
       [
         "expo-splash-screen",
