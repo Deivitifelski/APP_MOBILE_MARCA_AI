@@ -85,7 +85,7 @@ export const createOrUpdateUserFromGoogle = async (
     email: string;
     photo?: string;
   }
-): Promise<{ success: boolean; error: string | null }> => {
+): Promise<{ success: boolean; error: string | null; isNewUser?: boolean }> => {
   try {
     console.log('🔵 [Google User] Criando/atualizando usuário com dados do Google:', googleData);
 
@@ -116,7 +116,7 @@ export const createOrUpdateUserFromGoogle = async (
       }
 
       console.log('✅ [Google User] Usuário atualizado com sucesso!');
-      return { success: true, error: null };
+      return { success: true, error: null, isNewUser: false };
     } else {
       // Criar novo usuário
       console.log('🆕 [Google User] Criando novo usuário...');
@@ -138,7 +138,7 @@ export const createOrUpdateUserFromGoogle = async (
       }
 
       console.log('✅ [Google User] Usuário criado com sucesso!');
-      return { success: true, error: null };
+      return { success: true, error: null, isNewUser: true };
     }
   } catch (error) {
     console.error('❌ [Google User] Erro inesperado:', error);

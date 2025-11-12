@@ -54,10 +54,10 @@ export default function AuthDeepLinkHandler() {
               const userMetadata = session.user.user_metadata;
               
               if (userMetadata && session.user.email) {
-                console.log('🔵 [OAuth Callback] Criando usuário com dados do Google...');
+                console.log('🔵 [OAuth Callback] Criando/atualizando usuário com dados do Google...');
                 console.log('📋 [OAuth Callback] Metadata:', userMetadata);
                 
-                await createOrUpdateUserFromGoogle(
+                const result = await createOrUpdateUserFromGoogle(
                   session.user.id,
                   {
                     name: userMetadata.full_name || userMetadata.name || session.user.email,
@@ -66,7 +66,11 @@ export default function AuthDeepLinkHandler() {
                   }
                 );
                 
-                console.log('✅ [OAuth Callback] Usuário criado/atualizado!');
+                if (result.isNewUser) {
+                  console.log('🆕 [OAuth Callback] Novo usuário criado!');
+                } else {
+                  console.log('👤 [OAuth Callback] Usuário existente atualizado!');
+                }
               }
               
               // Redirecionar para agenda

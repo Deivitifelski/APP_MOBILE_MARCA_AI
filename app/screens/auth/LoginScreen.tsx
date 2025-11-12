@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { GoogleSignin, GoogleSigninButton, statusCodes } from '@react-native-google-signin/google-signin';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -209,9 +209,8 @@ export default function LoginScreen() {
                 <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
               </View>
 
-              <GoogleSigninButton
-                size={GoogleSigninButton.Size.Wide}
-                color={GoogleSigninButton.Color.Dark}
+              <TouchableOpacity 
+                style={[styles.googleButton, loading && styles.loginButtonDisabled]}
                 onPress={async () => {
                   try {
                     setLoading(true);
@@ -219,13 +218,12 @@ export default function LoginScreen() {
                     const response = await GoogleSignin.signIn();
                     
                     if (response.type === 'success') {
-        
+                      console.log('✅ [Google Login] Login bem-sucedido:', response.data.user.email);
+                      
                       const { data, error } = await supabase.auth.signInWithIdToken({
                         provider: 'google',
                         token: response.data.idToken || '',
                       });
-                      
-                      console.log(error, data);
                       
                       if (error) {
                         Alert.alert('Erro', error.message);
@@ -233,8 +231,8 @@ export default function LoginScreen() {
                       }
                       
                       if (data?.user) {
-                        // Criar usuário automaticamente
-                        await createOrUpdateUserFromGoogle(
+                        // Criar ou atualizar usuário automaticamente
+                        const result = await createOrUpdateUserFromGoogle(
                           data.user.id,
                           {
                             name: response.data.user.name || response.data.user.email,
@@ -243,9 +241,15 @@ export default function LoginScreen() {
                           }
                         );
                         
-                        // Mostrar modal de boas-vindas
-                        setUserName(response.data.user.name || response.data.user.email);
-                        setShowWelcomeModal(true);
+                        // Mostrar modal de boas-vindas APENAS para novos usuários
+                        if (result.isNewUser) {
+                          console.log('🆕 [Google Login] Novo usuário! Mostrando boas-vindas...');
+                          setUserName(response.data.user.name || response.data.user.email);
+                          setShowWelcomeModal(true);
+                        } else {
+                          console.log('👤 [Google Login] Usuário existente! Redirecionando para agenda...');
+                          router.replace('/(tabs)/agenda');
+                        }
                       }
                     }
                   } catch (error: any) {
@@ -261,8 +265,12 @@ export default function LoginScreen() {
                   }
                 }}
                 disabled={loading}
-                style={styles.googleButton}
-              />
+              >
+                <Ionicons name="logo-google" size={20} color="#fff" />
+                <Text style={styles.googleButtonText}>
+                  {loading ? 'Entrando...' : 'Entrar com Google'}
+                </Text>
+              </TouchableOpacity>
 
               <View style={styles.signupContainer}>
                 <Text style={[styles.signupText, { color: colors.textSecondary }]}>Não tem uma conta? </Text>
@@ -627,8 +635,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   googleButton: {
-    width: '100%',
+    backgroundColor: '#db4437',
+    borderRadius: 12,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 24,
+    gap: 8,
+  },
+  googleButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
   signupContainer: {
     flexDirection: 'row',
