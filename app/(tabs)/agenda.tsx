@@ -46,6 +46,7 @@ export default function AgendaScreen() {
   const [selectedDayEvents, setSelectedDayEvents] = useState<any[]>([]);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [showDayModal, setShowDayModal] = useState(false);
+  const [isCalendarVisible, setIsCalendarVisible] = useState(false);
   
   // ✅ VERIFICAR ROLE DIRETAMENTE NO BANCO
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
@@ -685,67 +686,87 @@ export default function AgendaScreen() {
           </View>
         ) : (
           <>
-            <View style={[
-              styles.calendarContainer,
-              { backgroundColor: colors.surface, borderColor: colors.border }
-            ]}>
-              <View style={styles.calendarHeaderRow}>
-                {weekdayLabels.map(label => (
-                  <Text
-                    key={label}
-                    style={[styles.calendarHeaderText, { color: colors.textSecondary }]}
-                  >
-                    {label}
-                  </Text>
+            <TouchableOpacity
+              style={[
+                styles.calendarToggleButton,
+                { backgroundColor: colors.surface, borderColor: colors.border }
+              ]}
+              onPress={() => setIsCalendarVisible(prev => !prev)}
+              activeOpacity={0.85}
+            >
+              <Ionicons
+                name={isCalendarVisible ? 'chevron-up' : 'calendar-outline'}
+                size={18}
+                color={colors.primary}
+              />
+              <Text style={[styles.calendarToggleText, { color: colors.text }]}>
+                {isCalendarVisible ? 'Ocultar calendário' : 'Mostrar calendário'}
+              </Text>
+            </TouchableOpacity>
+
+            {isCalendarVisible && (
+              <View style={[
+                styles.calendarContainer,
+                { backgroundColor: colors.surface, borderColor: colors.border }
+              ]}>
+                <View style={styles.calendarHeaderRow}>
+                  {weekdayLabels.map(label => (
+                    <Text
+                      key={label}
+                      style={[styles.calendarHeaderText, { color: colors.textSecondary }]}
+                    >
+                      {label}
+                    </Text>
+                  ))}
+                </View>
+
+                {calendarMatrix.map((week, weekIndex) => (
+                  <View key={`week-${weekIndex}`} style={styles.calendarWeekRow}>
+                    {week.map((day, dayIndex) => {
+                      if (!day) {
+                        return <View key={`empty-${weekIndex}-${dayIndex}`} style={styles.calendarDayCell} />;
+                      }
+
+                      const dayEvents = eventsByDate[day.dateString] || [];
+                      const hasEvents = dayEvents.length > 0;
+                      const isToday = day.dateString === todayString;
+
+                      return (
+                        <TouchableOpacity
+                          key={day.dateString}
+                          style={[
+                            styles.calendarDayCell,
+                            isToday && { borderColor: colors.primary, borderWidth: 1.5 },
+                            hasEvents && { backgroundColor: colors.secondary }
+                          ]}
+                          onPress={() => handleDayPress(day.dateString)}
+                          activeOpacity={hasEvents ? 0.8 : 1}
+                          disabled={!hasEvents}
+                        >
+                          <Text
+                            style={[
+                              styles.calendarDayText,
+                              { color: hasEvents ? colors.text : colors.textSecondary },
+                              isToday && styles.calendarDayTodayText
+                            ]}
+                          >
+                            {day.dayNumber}
+                          </Text>
+                          {hasEvents && (
+                            <View
+                              style={[
+                                styles.eventIndicator,
+                                { backgroundColor: colors.primary }
+                              ]}
+                            />
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
                 ))}
               </View>
-
-              {calendarMatrix.map((week, weekIndex) => (
-                <View key={`week-${weekIndex}`} style={styles.calendarWeekRow}>
-                  {week.map((day, dayIndex) => {
-                    if (!day) {
-                      return <View key={`empty-${weekIndex}-${dayIndex}`} style={styles.calendarDayCell} />;
-                    }
-
-                    const dayEvents = eventsByDate[day.dateString] || [];
-                    const hasEvents = dayEvents.length > 0;
-                    const isToday = day.dateString === todayString;
-
-                    return (
-                      <TouchableOpacity
-                        key={day.dateString}
-                        style={[
-                          styles.calendarDayCell,
-                          isToday && { borderColor: colors.primary, borderWidth: 1.5 },
-                          hasEvents && { backgroundColor: colors.secondary }
-                        ]}
-                        onPress={() => handleDayPress(day.dateString)}
-                        activeOpacity={hasEvents ? 0.8 : 1}
-                        disabled={!hasEvents}
-                      >
-                        <Text
-                          style={[
-                            styles.calendarDayText,
-                            { color: hasEvents ? colors.text : colors.textSecondary },
-                            isToday && styles.calendarDayTodayText
-                          ]}
-                        >
-                          {day.dayNumber}
-                        </Text>
-                        {hasEvents && (
-                          <View
-                            style={[
-                              styles.eventIndicator,
-                              { backgroundColor: colors.primary }
-                            ]}
-                          />
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              ))}
-            </View>
+            )}
 
             <View style={styles.showsSection}>
               {events.length > 0 ? (
@@ -924,7 +945,7 @@ const styles = StyleSheet.create({
   },
   calendarContainer: {
     marginHorizontal: 20,
-    marginTop: 20,
+    marginTop: 12,
     borderRadius: 16,
     paddingVertical: 12,
     paddingHorizontal: 12,
@@ -1206,6 +1227,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  calendarToggleButton: {
+    marginHorizontal: 20,
+    marginTop: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  calendarToggleText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
   dayModalOverlay: {
     flex: 1,
