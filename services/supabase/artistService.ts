@@ -90,7 +90,7 @@ export const getArtists = async (userId: string): Promise<{ artists: Artist[] | 
     const artistIds = membersData.map(member => member.artist_id);
     const { data: artistsData, error: artistsError } = await supabase
       .from('artists')
-      .select('id, name, profile_url, created_at, updated_at')
+      .select('id, name, profile_url, musical_style, created_at, updated_at')
       .in('id', artistIds);
 
     if (artistsError) {
@@ -104,6 +104,7 @@ export const getArtists = async (userId: string): Promise<{ artists: Artist[] | 
         id: artist.id,
         name: artist.name,
         profile_url: artist.profile_url,
+        musical_style: artist.musical_style,
         role: member?.role || 'viewer',
         created_at: artist.created_at,
         updated_at: artist.updated_at

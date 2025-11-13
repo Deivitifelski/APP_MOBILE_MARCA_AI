@@ -5,6 +5,8 @@ export interface ActiveArtist {
   name: string;
   role: string;
   profile_url?: string;
+  musical_style?: string;
+  created_at?: string;
 }
 
 const ACTIVE_ARTIST_KEY = '@marca_ai:active_artist';

@@ -24,6 +24,7 @@ interface ArtistCollaborator {
   name: string;
   profile_url?: string;
   role: 'owner' | 'admin' | 'editor' | 'viewer';
+  musical_style?: string;
   created_at: string;
   updated_at: string;
 }
@@ -94,7 +95,9 @@ export default function SelecionarArtistaScreen() {
         id: selectedArtist.id,
         name: selectedArtist.name,
         role: selectedArtist.role,
-        profile_url: selectedArtist.profile_url
+        profile_url: selectedArtist.profile_url,
+        musical_style: selectedArtist.musical_style,
+        created_at: selectedArtist.created_at
       });
       
       setShowConfirmModal(false);

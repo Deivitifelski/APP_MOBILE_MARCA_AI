@@ -217,7 +217,8 @@ export default function ArtistProfileScreen() {
         id: artist.id,
         name: artist.name,
         role: 'admin', // Criador sempre é admin
-        profile_url: finalProfileUrl || undefined
+        profile_url: finalProfileUrl || undefined,
+        musical_style: artist.musical_style || musicalStyle || undefined
       });
 
       console.log('✅ [ArtistProfileScreen] Artista ativo definido!');

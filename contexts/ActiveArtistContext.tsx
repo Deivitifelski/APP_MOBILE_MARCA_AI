@@ -9,6 +9,8 @@ export interface ActiveArtist {
   name: string;
   role: string;
   profile_url?: string;
+  musical_style?: string;
+  created_at?: string;
 }
 
 interface ActiveArtistContextData {
@@ -57,8 +59,17 @@ export const ActiveArtistProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const { artist, error } = await getArtistById(saved.id);
         
         if (!error && artist) {
-          // Artista válido, usar dados do AsyncStorage (mais recentes)
-          setActiveArtistState(saved);
+          const normalizedArtist: ActiveArtist = {
+            id: artist.id,
+            name: artist.name,
+            role: saved.role,
+            profile_url: artist.profile_url || saved.profile_url,
+            musical_style: artist.musical_style || saved.musical_style,
+            created_at: artist.created_at || saved.created_at,
+          };
+
+          await saveToStorage(normalizedArtist);
+          setActiveArtistState(normalizedArtist);
         } else {
           // Artista não existe mais, limpar
           await clearActiveArtist();
@@ -94,7 +105,7 @@ export const ActiveArtistProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
       // Buscar dados atualizados do banco
       const { artist, error } = await getArtistById(saved.id);
-      
+
       if (!error && artist) {
         // Atualizar apenas se o ID for o mesmo (garantir que não troca)
         if (artistIdRef.current === artist.id) {
@@ -102,11 +113,14 @@ export const ActiveArtistProvider: React.FC<{ children: React.ReactNode }> = ({ 
             id: artist.id,
             name: artist.name,
             role: saved.role, // Manter role do AsyncStorage
-            profile_url: artist.profile_url
+            profile_url: artist.profile_url,
+              musical_style: artist.musical_style || saved.musical_style,
+              created_at: artist.created_at || saved.created_at,
           };
           
           await saveToStorage(updatedArtist);
           setActiveArtistState(updatedArtist);
+          artistIdRef.current = updatedArtist.id;
         }
       }
     } catch (error) {
@@ -157,7 +171,9 @@ export const ActiveArtistProvider: React.FC<{ children: React.ReactNode }> = ({ 
                   id: updated.id,
                   name: updated.name,
                   role: saved.role,
-                  profile_url: updated.profile_url
+                  profile_url: updated.profile_url,
+                  musical_style: updated.musical_style || saved.musical_style,
+                  created_at: updated.created_at || saved.created_at,
                 };
                 
                 await saveToStorage(updatedArtist);

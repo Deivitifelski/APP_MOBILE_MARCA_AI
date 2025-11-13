@@ -29,6 +29,19 @@ import { createFeedback } from '../../services/supabase/feedbackService';
 import { getUserPermissions } from '../../services/supabase/permissionsService';
 import { getUserProfile, isPremiumUser, UserProfile } from '../../services/supabase/userService';
 
+const getRoleLabel = (role?: string) => {
+  switch (role) {
+    case 'owner':
+      return 'Gerente';
+    case 'admin':
+      return 'Administrador';
+    case 'editor':
+      return 'Editor';
+    default:
+      return 'Visualizador';
+  }
+};
+
 export default function ConfiguracoesScreen() {
   const { isDarkMode, toggleDarkMode, colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -61,6 +74,21 @@ export default function ConfiguracoesScreen() {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [artistImageUpdated, setArtistImageUpdated] = useState<boolean>(false);
   const [imageLoadError, setImageLoadError] = useState(false);
+  const [showUserProfileModal, setShowUserProfileModal] = useState(false);
+  const [showArtistProfileModal, setShowArtistProfileModal] = useState(false);
+
+  const formatDate = (value?: string) => {
+    if (!value) return 'Não informado';
+    try {
+      return new Date(value).toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      });
+    } catch (error) {
+      return 'Não informado';
+    }
+  };
 
   useEffect(() => {
     loadUserProfile();
@@ -86,6 +114,7 @@ export default function ConfiguracoesScreen() {
       setCurrentArtist(null);
       setHasArtist(false);
       setUserPermissions(null);
+      setShowArtistProfileModal(false);
     }
   }, [activeArtist]);
 
@@ -163,6 +192,7 @@ export default function ConfiguracoesScreen() {
       const { user, error: userError } = await getCurrentUser();
       
       if (userError || !user) {
+        setShowUserProfileModal(false);
         return;
       }
 
@@ -181,6 +211,7 @@ export default function ConfiguracoesScreen() {
       const { profile, error: profileError } = await getUserProfile(user.id);
       
       if (profileError) {
+        setShowUserProfileModal(false);
         return;
       }
 
@@ -485,14 +516,21 @@ export default function ConfiguracoesScreen() {
           <Text style={dynamicStyles.sectionTitle}>Usuário</Text>
           
           <View style={dynamicStyles.profileCard}>
-            <OptimizedImage
-              imageUrl={userProfile?.profile_url || ''}
-              style={dynamicStyles.profileAvatarImage}
-              cacheKey={`user_${userProfile?.id || 'current'}`}
-              fallbackIcon="person"
-              fallbackIconSize={40}
-              fallbackIconColor="#667eea"
-            />
+            <TouchableOpacity
+              style={dynamicStyles.profileAvatarWrapper}
+              onPress={() => userProfile && setShowUserProfileModal(true)}
+              activeOpacity={0.85}
+              disabled={!userProfile}
+            >
+              <OptimizedImage
+                imageUrl={userProfile?.profile_url || ''}
+                style={dynamicStyles.profileAvatarImage}
+                cacheKey={`user_${userProfile?.id || 'current'}`}
+                fallbackIcon="person"
+                fallbackIconSize={40}
+                fallbackIconColor="#667eea"
+              />
+            </TouchableOpacity>
             <View style={dynamicStyles.profileInfo}>
               {isLoadingProfile ? (
                 <ActivityIndicator size="small" color="#667eea" />
@@ -535,21 +573,25 @@ export default function ConfiguracoesScreen() {
             <Text style={dynamicStyles.sectionTitle}>Artista</Text>
             
             <View style={dynamicStyles.artistCard}>
-              <OptimizedImage
-                imageUrl={currentArtist.profile_url || ''}
-                style={dynamicStyles.artistAvatarImage}
-                cacheKey={`artist_config_${currentArtist.id}`}
-                fallbackIcon="musical-notes"
-                fallbackIconSize={40}
-                fallbackIconColor="#667eea"
-                showLoadingIndicator={false}
-              />
+              <TouchableOpacity
+                style={dynamicStyles.profileAvatarWrapper}
+                onPress={() => setShowArtistProfileModal(true)}
+                activeOpacity={0.85}
+              >
+                <OptimizedImage
+                  imageUrl={currentArtist.profile_url || ''}
+                  style={dynamicStyles.artistAvatarImage}
+                  cacheKey={`artist_config_${currentArtist.id}`}
+                  fallbackIcon="musical-notes"
+                  fallbackIconSize={40}
+                  fallbackIconColor="#667eea"
+                  showLoadingIndicator={false}
+                />
+              </TouchableOpacity>
               <View style={dynamicStyles.artistInfo}>
                 <Text style={dynamicStyles.artistName}>{currentArtist.name}</Text>
                 <Text style={dynamicStyles.artistRole}>
-                  {currentArtist.role === 'owner' ? 'Gerente' : 
-                   currentArtist.role === 'admin' ? 'Administrador' :
-                   currentArtist.role === 'editor' ? 'Editor' : 'Visualizador'}
+                  {getRoleLabel(currentArtist.role)}
                 </Text>
               </View>
               {(currentArtist.role === 'owner' || currentArtist.role === 'admin') && (
@@ -737,6 +779,151 @@ export default function ConfiguracoesScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Modal Detalhes do Usuário */}
+      <Modal
+        visible={showUserProfileModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowUserProfileModal(false)}
+      >
+        <View style={dynamicStyles.profileModalOverlay}>
+          <View style={[dynamicStyles.profileModalContainer, { backgroundColor: colors.surface }]}>
+            <TouchableOpacity
+              style={dynamicStyles.profileModalClose}
+              onPress={() => setShowUserProfileModal(false)}
+            >
+              <Ionicons name="close" size={22} color={colors.text} />
+            </TouchableOpacity>
+
+            {userProfile ? (
+              <>
+                <OptimizedImage
+                  imageUrl={userProfile.profile_url || ''}
+                  cacheKey={`user_modal_${userProfile.id}`}
+                  style={dynamicStyles.profileModalImage}
+                  fallbackIcon="person"
+                  fallbackIconSize={64}
+                  fallbackIconColor={colors.primary}
+                  showLoadingIndicator={false}
+                />
+                <Text style={[dynamicStyles.profileModalTitle, { color: colors.text }]}>
+                  {userProfile.name || 'Usuário Marca AI'}
+                </Text>
+                <Text style={[dynamicStyles.profileModalSubtitle, { color: colors.textSecondary }]}>
+                  {userProfile.email}
+                </Text>
+
+                <View style={dynamicStyles.profileModalInfo}>
+                  <View style={dynamicStyles.profileModalInfoRow}>
+                    <Text style={[dynamicStyles.profileModalInfoLabel, { color: colors.textSecondary }]}>
+                      Telefone
+                    </Text>
+                    <Text style={[dynamicStyles.profileModalInfoValue, { color: colors.text }]}>
+                      {userProfile.phone?.trim() || 'Não informado'}
+                    </Text>
+                  </View>
+
+                  <View style={dynamicStyles.profileModalInfoRow}>
+                    <Text style={[dynamicStyles.profileModalInfoLabel, { color: colors.textSecondary }]}>
+                      Localização
+                    </Text>
+                    <Text style={[dynamicStyles.profileModalInfoValue, { color: colors.text }]}>
+                      {[userProfile.city, userProfile.state].filter(Boolean).join(' - ') || 'Não informado'}
+                    </Text>
+                  </View>
+
+                  <View style={dynamicStyles.profileModalInfoRow}>
+                    <Text style={[dynamicStyles.profileModalInfoLabel, { color: colors.textSecondary }]}>
+                      Plano
+                    </Text>
+                    <Text style={[dynamicStyles.profileModalInfoValueHighlight, { color: colors.primary }]}>
+                      {userProfile.plan === 'premium' ? 'Premium' : 'Free'}
+                    </Text>
+                  </View>
+
+                  <View style={dynamicStyles.profileModalInfoRow}>
+                    <Text style={[dynamicStyles.profileModalInfoLabel, { color: colors.textSecondary }]}>
+                      Atualizado em
+                    </Text>
+                    <Text style={[dynamicStyles.profileModalInfoValue, { color: colors.text }]}>
+                      {formatDate(userProfile.updated_at)}
+                    </Text>
+                  </View>
+                </View>
+              </>
+            ) : (
+              <ActivityIndicator size="small" color={colors.primary} />
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal Detalhes do Artista */}
+      <Modal
+        visible={showArtistProfileModal && !!currentArtist}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowArtistProfileModal(false)}
+      >
+        <View style={dynamicStyles.profileModalOverlay}>
+          <View style={[dynamicStyles.profileModalContainer, { backgroundColor: colors.surface }]}>
+            <TouchableOpacity
+              style={dynamicStyles.profileModalClose}
+              onPress={() => setShowArtistProfileModal(false)}
+            >
+              <Ionicons name="close" size={22} color={colors.text} />
+            </TouchableOpacity>
+
+            {currentArtist ? (
+              <>
+                <OptimizedImage
+                  imageUrl={currentArtist.profile_url || ''}
+                  cacheKey={`artist_modal_${currentArtist.id}`}
+                  style={dynamicStyles.profileModalImage}
+                  fallbackIcon="musical-notes"
+                  fallbackIconSize={64}
+                  fallbackIconColor={colors.primary}
+                  showLoadingIndicator={false}
+                />
+                <Text style={[dynamicStyles.profileModalTitle, { color: colors.text }]}>
+                  {currentArtist.name}
+                </Text>
+                <View style={dynamicStyles.profileModalInfo}>
+                  <View style={dynamicStyles.profileModalInfoRow}>
+                    <Text style={[dynamicStyles.profileModalInfoLabel, { color: colors.textSecondary }]}>
+                      Papel
+                    </Text>
+                    <Text style={[dynamicStyles.profileModalInfoValue, { color: colors.text }]}>
+                      {getRoleLabel(currentArtist.role)}
+                    </Text>
+                  </View>
+
+                  <View style={dynamicStyles.profileModalInfoRow}>
+                    <Text style={[dynamicStyles.profileModalInfoLabel, { color: colors.textSecondary }]}>
+                      Estilo musical
+                    </Text>
+                    <Text style={[dynamicStyles.profileModalInfoValue, { color: colors.text }]}>
+                      {currentArtist.musical_style || 'Não informado'}
+                    </Text>
+                  </View>
+
+                  <View style={dynamicStyles.profileModalInfoRow}>
+                    <Text style={[dynamicStyles.profileModalInfoLabel, { color: colors.textSecondary }]}>
+                      Criado em
+                    </Text>
+                    <Text style={[dynamicStyles.profileModalInfoValue, { color: colors.text }]}>
+                      {formatDate(currentArtist.created_at)}
+                    </Text>
+                  </View>
+                </View>
+              </>
+            ) : (
+              <ActivityIndicator size="small" color={colors.primary} />
+            )}
+          </View>
+        </View>
+      </Modal>
 
       {/* Modal de Ajuda e Suporte */}
       <Modal
@@ -1366,11 +1553,15 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
     alignItems: 'center',
     marginRight: 15,
   },
+  profileAvatarWrapper: {
+    marginRight: 15,
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
   profileAvatarImage: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    marginRight: 15,
   },
   profileInfo: {
     flex: 1,
@@ -1420,7 +1611,6 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
     width: 50,
     height: 50,
     borderRadius: 25,
-    marginRight: 15,
     borderWidth: 2,
     borderColor: colors.border,
   },
@@ -1437,6 +1627,69 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
     fontSize: 12,
     color: colors.primary,
     fontWeight: '600',
+  },
+  profileModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  profileModalContainer: {
+    width: '90%',
+    maxWidth: 420,
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+  },
+  profileModalClose: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    padding: 8,
+    borderRadius: 999,
+  },
+  profileModalImage: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  profileModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  profileModalSubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  profileModalInfo: {
+    width: '100%',
+    marginTop: 4,
+  },
+  profileModalInfoRow: {
+    marginBottom: 12,
+  },
+  profileModalInfoLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 2,
+  },
+  profileModalInfoValue: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  profileModalInfoValueHighlight: {
+    fontSize: 16,
+    fontWeight: '700',
   },
   settingItem: {
     backgroundColor: colors.surface,
