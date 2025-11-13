@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -47,6 +48,11 @@ export default function AgendaScreen() {
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [showDayModal, setShowDayModal] = useState(false);
   const [isCalendarVisible, setIsCalendarVisible] = useState(false);
+  const closeDayModal = () => {
+    setShowDayModal(false);
+    setSelectedDay(null);
+    setSelectedDayEvents([]);
+  };
   
   // ✅ VERIFICAR ROLE DIRETAMENTE NO BANCO
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
@@ -803,61 +809,67 @@ export default function AgendaScreen() {
       <Modal
         visible={showDayModal}
         transparent
-        animationType="fade"
-        onRequestClose={() => setShowDayModal(false)}
+        animationType="none"
+        onRequestClose={closeDayModal}
       >
-        <View style={styles.dayModalOverlay}>
-          <View style={[styles.dayModalContent, { backgroundColor: colors.surface }]}>
-            <TouchableOpacity
-              style={styles.dayModalCloseButton}
-              onPress={() => setShowDayModal(false)}
-            >
-              <Ionicons name="close" size={22} color={colors.text} />
-            </TouchableOpacity>
-            <Text style={[styles.dayModalTitle, { color: colors.text }]}>
-              {formatDisplayDate(selectedDay)}
-            </Text>
-
-            {selectedDayEvents.map(event => (
+        <TouchableOpacity
+          style={styles.dayModalOverlay}
+          activeOpacity={1}
+          onPress={closeDayModal}
+        >
+          <TouchableWithoutFeedback onPress={() => {}}>
+            <View style={[styles.dayModalContent, { backgroundColor: colors.surface }]}>
               <TouchableOpacity
-                key={event.id}
-                style={[styles.dayEventCard, { borderColor: colors.border }]}
-                activeOpacity={0.8}
-                onPress={() => {
-                  setShowDayModal(false);
-                  handleEventPress(event.id);
-                }}
+                style={styles.dayModalCloseButton}
+                onPress={closeDayModal}
               >
-                <View style={styles.dayEventHeader}>
-                  <Ionicons
-                    name="musical-notes"
-                    size={18}
-                    color={colors.primary}
-                  />
-                  <Text style={[styles.dayEventName, { color: colors.text }]}>
-                    {event.name}
-                  </Text>
-                </View>
-                <View style={styles.dayEventMeta}>
-                  <Ionicons
-                    name="time-outline"
-                    size={16}
-                    color={colors.textSecondary}
-                  />
-                  <Text style={[styles.dayEventTime, { color: colors.textSecondary }]}>
-                    {event.start_time}
-                  </Text>
-                </View>
+                <Ionicons name="close" size={22} color={colors.text} />
               </TouchableOpacity>
-            ))}
-
-            {selectedDayEvents.length === 0 && (
-              <Text style={[styles.dayEventEmptyText, { color: colors.textSecondary }]}>
-                Nenhum evento para este dia.
+              <Text style={[styles.dayModalTitle, { color: colors.text }]}>
+                {formatDisplayDate(selectedDay)}
               </Text>
-            )}
-          </View>
-        </View>
+
+              {selectedDayEvents.map(event => (
+                <TouchableOpacity
+                  key={event.id}
+                  style={[styles.dayEventCard, { borderColor: colors.border }]}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    closeDayModal();
+                    handleEventPress(event.id);
+                  }}
+                >
+                  <View style={styles.dayEventHeader}>
+                    <Ionicons
+                      name="musical-notes"
+                      size={18}
+                      color={colors.primary}
+                    />
+                    <Text style={[styles.dayEventName, { color: colors.text }]}>
+                      {event.name}
+                    </Text>
+                  </View>
+                  <View style={styles.dayEventMeta}>
+                    <Ionicons
+                      name="time-outline"
+                      size={16}
+                      color={colors.textSecondary}
+                    />
+                    <Text style={[styles.dayEventTime, { color: colors.textSecondary }]}>
+                      {event.start_time}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+
+              {selectedDayEvents.length === 0 && (
+                <Text style={[styles.dayEventEmptyText, { color: colors.textSecondary }]}>
+                  Nenhum evento para este dia.
+                </Text>
+              )}
+            </View>
+          </TouchableWithoutFeedback>
+        </TouchableOpacity>
       </Modal>
 
       <PermissionModal
