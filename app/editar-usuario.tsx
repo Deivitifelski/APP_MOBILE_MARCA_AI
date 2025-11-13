@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { getCurrentUser } from '../services/supabase/authService';
+import { cacheService } from '../services/cacheService';
 import { deleteImageFromSupabase, extractFileNameFromUrl, uploadUserImage } from '../services/supabase/imageUploadService';
 import { getUserProfile, updateUserProfile, UserProfile } from '../services/supabase/userService';
 
@@ -207,6 +208,19 @@ export default function EditarUsuarioScreen() {
       });
 
       if (success) {
+        await cacheService.invalidateUserData(userProfile.id);
+        await cacheService.invalidateImageData(`user_${userProfile.id}`);
+
+        await cacheService.setUserData(userProfile.id, {
+          ...userProfile,
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone.trim() || null,
+          city: city.trim() || null,
+          state: state.trim() || null,
+          profile_url: finalProfileUrl.trim() || null,
+        });
+
         Alert.alert('Sucesso', 'Perfil atualizado com sucesso!', [
           {
             text: 'OK',

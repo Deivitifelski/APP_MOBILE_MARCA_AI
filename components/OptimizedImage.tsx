@@ -57,7 +57,12 @@ export default function OptimizedImage({
     // Verificar se já temos esta imagem em cache
     const cachedData = await cacheService.getImageData<ImageCacheData>(finalCacheKey);
     
-    if (cachedData && !forceReload && !cacheUtils.shouldReloadImage(cachedData.url, cachedData.lastLoaded)) {
+    const cachedBaseUrl = cachedData?.url?.split('?')[0];
+    const requestedBaseUrl = imageUrl.split('?')[0];
+
+    if (cachedData && cachedBaseUrl !== requestedBaseUrl) {
+      await cacheService.invalidateImageData(finalCacheKey);
+    } else if (cachedData && !forceReload && !cacheUtils.shouldReloadImage(cachedData.url, cachedData.lastLoaded)) {
       setCurrentImageUrl(cachedData.url);
       setImageLoadError(false);
       setIsLoading(false);
