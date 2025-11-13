@@ -448,16 +448,6 @@ export default function FinanceiroScreen() {
   const netProfit = totalRevenueWithIncome - totalExpenses;
 
 
-  const handleEventPress = (eventId: string) => {
-    if (!hasAccess) {
-      setShowPermissionModal(true);
-      return;
-    }
-    
-    // Navegar para detalhes do evento
-    router.push(`/detalhes-evento?id=${eventId}`);
-  };
-
   const handleDeleteStandaloneExpense = async (expenseId: string) => {
     if (!hasAccess) {
       setShowPermissionModal(true);
@@ -498,10 +488,8 @@ export default function FinanceiroScreen() {
 
 
   const renderEvent = ({ item }: { item: EventWithExpenses }) => (
-    <TouchableOpacity 
+    <View 
       style={[styles.eventCard, { backgroundColor: colors.surface }]}
-      onPress={() => handleEventPress(item.id)}
-      activeOpacity={hasAccess ? 0.7 : 1}
     >
       <View style={styles.eventHeader}>
         <View style={styles.eventInfo}>
@@ -557,7 +545,7 @@ export default function FinanceiroScreen() {
           />
         </View>
       )}
-    </TouchableOpacity>
+    </View>
   );
 
   // Se ainda está verificando acesso, mostrar loading
