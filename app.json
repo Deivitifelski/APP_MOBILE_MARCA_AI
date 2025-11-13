@@ -28,12 +28,6 @@
             "CFBundleURLSchemes": [
               "marcaai"
             ]
-          },
-          {
-            "CFBundleURLName": "marcaai",
-            "CFBundleURLSchemes": [
-              "marcaai"
-            ]
           }
         ],
         "ITSAppUsesNonExemptEncryption": false

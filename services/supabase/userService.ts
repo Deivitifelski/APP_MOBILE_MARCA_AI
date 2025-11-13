@@ -29,8 +29,6 @@ export interface CreateUserProfileData {
 // Verificar se o usuário existe na tabela users
 export const checkUserExists = async (userId: string): Promise<{ exists: boolean; error: string | null }> => {
   try {
-    console.log('🔍 checkUserExists: Verificando usuário:', userId);
-    
     const { data, error } = await supabase
       .from('users')
       .select('id')
@@ -87,8 +85,6 @@ export const createOrUpdateUserFromGoogle = async (
   }
 ): Promise<{ success: boolean; error: string | null; isNewUser?: boolean }> => {
   try {
-    console.log('🔵 [Google User] Criando/atualizando usuário com dados do Google:', googleData);
-
     // Verificar se o usuário já existe
     const { exists, error: checkError } = await checkUserExists(userId);
 
@@ -99,7 +95,6 @@ export const createOrUpdateUserFromGoogle = async (
 
     if (exists) {
       // Atualizar dados do usuário existente
-      console.log('⚠️ [Google User] Usuário já existe, atualizando dados...');
       const { error: updateError } = await supabase
         .from('users')
         .update({
@@ -115,11 +110,9 @@ export const createOrUpdateUserFromGoogle = async (
         return { success: false, error: updateError.message };
       }
 
-      console.log('✅ [Google User] Usuário atualizado com sucesso!');
       return { success: true, error: null, isNewUser: false };
     } else {
       // Criar novo usuário
-      console.log('🆕 [Google User] Criando novo usuário...');
       const { error: insertError } = await supabase
         .from('users')
         .insert({
@@ -137,7 +130,6 @@ export const createOrUpdateUserFromGoogle = async (
         return { success: false, error: insertError.message };
       }
 
-      console.log('✅ [Google User] Usuário criado com sucesso!');
       return { success: true, error: null, isNewUser: true };
     }
   } catch (error) {
@@ -149,8 +141,6 @@ export const createOrUpdateUserFromGoogle = async (
 // Buscar perfil do usuário
 export const getUserProfile = async (userId: string): Promise<{ profile: UserProfile | null; error: string | null }> => {
   try {
-    console.log('👤 Buscando perfil do usuário:', userId);
-    
     const { data, error } = await supabase
       .from('users')
       .select('*')
@@ -163,7 +153,6 @@ export const getUserProfile = async (userId: string): Promise<{ profile: UserPro
     }
 
     if (!data) {
-      console.warn('⚠️ Nenhum perfil encontrado para o usuário:', userId);
       return { profile: null, error: 'Perfil não encontrado' };
     }
 
@@ -199,22 +188,15 @@ export const updateUserProfile = async (userId: string, userData: Partial<Create
 // Verificar o plano do usuário
 export const getUserPlan = async (userId: string): Promise<{ plan: UserPlan | null; error: string | null }> => {
   try {
-    console.log('🔍 getUserPlan: Buscando plano para usuário:', userId);
-    
     const { data, error } = await supabase
       .from('users')
       .select('plan')
       .eq('id', userId)
       .single();
 
-    console.log('📋 getUserPlan: Dados obtidos:', { data, error });
-
     if (error) {
-      console.log('❌ getUserPlan: Erro na consulta:', error.message);
-      
       // Se a coluna não existir, retornar 'free' como padrão
       if (error.message.includes('column') && error.message.includes('plan')) {
-        console.log('⚠️ getUserPlan: Coluna plan não existe, retornando free como padrão');
         return { plan: 'free', error: null };
       }
       
@@ -223,10 +205,8 @@ export const getUserPlan = async (userId: string): Promise<{ plan: UserPlan | nu
 
     // Se o plano for null ou undefined, retornar 'free' como padrão
     const plan = data?.plan || 'free';
-    console.log('✅ getUserPlan: Plano encontrado:', plan);
     return { plan: plan as UserPlan, error: null };
   } catch (error) {
-    console.log('💥 getUserPlan: Erro de conexão:', error);
     return { plan: null, error: 'Erro de conexão' };
   }
 };
@@ -249,11 +229,7 @@ export const isPremiumUser = async (userId: string): Promise<{ isPremium: boolea
 // Verificar se o usuário pode criar mais artistas (limitação do plano free)
 export const canCreateArtist = async (userId: string): Promise<{ canCreate: boolean; error: string | null }> => {
   try {
-    console.log('🔍 [canCreateArtist] Verificando se usuário pode criar artista:', userId);
-    
     const { plan, error } = await getUserPlan(userId);
-    console.log('📋 [canCreateArtist] Plano do usuário:', plan);
-    
     if (error) {
       console.error('❌ [canCreateArtist] Erro ao obter plano:', error);
       return { canCreate: false, error };
@@ -261,8 +237,6 @@ export const canCreateArtist = async (userId: string): Promise<{ canCreate: bool
 
     // Se for premium, pode criar até 50 artistas
     if (plan === 'premium') {
-      console.log('✅ [canCreateArtist] Usuário premium - verificando limite de 50...');
-      
       // Verificar quantos artistas o usuário premium já possui
       const { data, error: countError } = await supabase
         .from('artist_members')
@@ -278,23 +252,15 @@ export const canCreateArtist = async (userId: string): Promise<{ canCreate: bool
       const artistCount = data?.length || 0;
       const canCreate = artistCount < 50;
       
-      console.log(`📊 [canCreateArtist] Usuário premium tem ${artistCount} artista(s). Pode criar? ${canCreate} (limite: 50)`);
-      
       return { canCreate, error: null };
     }
 
     // Se for free, verificar quantos artistas já possui através de artist_members
-    console.log('🔵 [canCreateArtist] Plano free - verificando quantidade de artistas...');
     const { data, error: countError } = await supabase
       .from('artist_members')
       .select('artist_id', { count: 'exact' })
       .eq('user_id', userId)
       .eq('role', 'admin'); // Apenas artistas onde o usuário é admin (criador)
-
-    console.log('📊 [canCreateArtist] Resultado da consulta:', {
-      count: data?.length,
-      error: countError?.message
-    });
 
     if (countError) {
       console.error('❌ [canCreateArtist] Erro ao contar artistas:', countError);
@@ -304,9 +270,7 @@ export const canCreateArtist = async (userId: string): Promise<{ canCreate: bool
     // Plano free permite até 2 artistas
     const artistCount = data?.length || 0;
     const canCreate = artistCount < 2;
-    
-    console.log(`📊 [canCreateArtist] Usuário free tem ${artistCount} artista(s). Pode criar? ${canCreate} (limite: 2)`);
-    
+
     return { canCreate, error: null };
   } catch (error) {
     console.error('❌ [canCreateArtist] Erro de conexão:', error);
@@ -317,24 +281,16 @@ export const canCreateArtist = async (userId: string): Promise<{ canCreate: bool
 // Verificar se o usuário pode exportar dados (limitação do plano free)
 export const canExportData = async (userId: string): Promise<{ canExport: boolean; error: string | null }> => {
   try {
-    console.log('🔍 canExportData: Verificando plano para usuário:', userId);
-    
     const { plan, error } = await getUserPlan(userId);
-    
-    console.log('📋 canExportData: Plano obtido:', { plan, error });
-    
     if (error) {
-      console.log('❌ canExportData: Erro ao obter plano:', error);
       return { canExport: false, error };
     }
 
     // Apenas usuários premium podem exportar dados
     const canExport = plan === 'premium';
-    console.log('🎯 canExportData: Resultado final:', { plan, canExport });
-    
+
     return { canExport, error: null };
   } catch (error) {
-    console.log('💥 canExportData: Erro de conexão:', error);
     return { canExport: false, error: 'Erro de conexão' };
   }
 };

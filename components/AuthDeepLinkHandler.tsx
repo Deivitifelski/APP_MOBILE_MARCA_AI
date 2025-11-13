@@ -8,20 +8,14 @@ export default function AuthDeepLinkHandler() {
   useEffect(() => {
     // Listener para deep links quando o app está aberto
     const handleDeepLink = (url: string) => {
-      console.log('🔗 Deep link recebido:', url);
-      
       // Verificar se é callback de reset de senha
       if (url.includes('reset-password') || url.includes('type=recovery')) {
-        console.log('🔑 [Reset Password] Link de recuperação detectado');
-        
         // Extrair tokens da URL
         const urlObj = new URL(url);
         const accessToken = urlObj.searchParams.get('access_token');
         const refreshToken = urlObj.searchParams.get('refresh_token');
         
         if (accessToken && refreshToken) {
-          console.log('🔵 [Reset Password] Definindo sessão temporária...');
-          
           supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
@@ -32,8 +26,6 @@ export default function AuthDeepLinkHandler() {
               router.replace('/login');
               return;
             }
-            
-            console.log('✅ [Reset Password] Sessão definida! Redirecionando para tela de reset...');
             router.replace('/reset-password');
           });
         } else {
@@ -47,25 +39,14 @@ export default function AuthDeepLinkHandler() {
       
       // Verificar se é callback do Google OAuth (redirect do Supabase)
       if (url.includes('access_token') && url.includes('refresh_token')) {
-        console.log('🔄 Processando callback do Google OAuth...');
-        
         // Extrair parâmetros da URL
         const urlObj = new URL(url);
         const accessToken = urlObj.searchParams.get('access_token');
         const refreshToken = urlObj.searchParams.get('refresh_token');
         const type = urlObj.searchParams.get('type');
         const expiresIn = urlObj.searchParams.get('expires_in');
-        
-        console.log('📋 Parâmetros OAuth extraídos:', { 
-          accessToken: accessToken ? 'presente' : 'ausente',
-          refreshToken: refreshToken ? 'presente' : 'ausente', 
-          type,
-          expiresIn 
-        });
-        
+
         if (accessToken && refreshToken) {
-          console.log('🔐 Definindo sessão OAuth...');
-          
           // Definir a sessão com os tokens do OAuth
           supabase.auth.setSession({
             access_token: accessToken,
@@ -75,23 +56,15 @@ export default function AuthDeepLinkHandler() {
               console.error('❌ Erro ao definir sessão OAuth:', error);
               return;
             }
-            
-            console.log('✅ Sessão OAuth definida com sucesso:', data);
-            console.log('👤 Usuário OAuth:', data.user);
-            console.log('📧 Email confirmado?', data.user?.email_confirmed_at);
-            
+
             // Verificar se a sessão foi realmente salva
             const { data: { session } } = await supabase.auth.getSession();
-            console.log('🔍 Sessão verificada após setSession:', session);
-            
+
             if (session && session.user) {
               // Criar ou atualizar usuário com dados do Google OAuth
               const userMetadata = session.user.user_metadata;
               
               if (userMetadata && session.user.email) {
-                console.log('🔵 [OAuth Callback] Criando/atualizando usuário com dados do Google...');
-                console.log('📋 [OAuth Callback] Metadata:', userMetadata);
-                
                 const result = await createOrUpdateUserFromGoogle(
                   session.user.id,
                   {
@@ -100,16 +73,9 @@ export default function AuthDeepLinkHandler() {
                     photo: userMetadata.avatar_url || userMetadata.picture || undefined,
                   }
                 );
-                
-                if (result.isNewUser) {
-                  console.log('🆕 [OAuth Callback] Novo usuário criado!');
-                } else {
-                  console.log('👤 [OAuth Callback] Usuário existente atualizado!');
-                }
               }
               
               // Redirecionar para agenda
-              console.log('🎯 Redirecionando para agenda...');
               router.replace('/(tabs)/agenda');
             } else {
               console.error('❌ Sessão OAuth não foi salva corretamente');
@@ -124,12 +90,8 @@ export default function AuthDeepLinkHandler() {
         const accessToken = urlObj.searchParams.get('access_token');
         const refreshToken = urlObj.searchParams.get('refresh_token');
         const type = urlObj.searchParams.get('type');
-        
-        console.log('Parâmetros extraídos:', { accessToken, refreshToken, type });
-        
+
         if (accessToken && refreshToken && type === 'signup') {
-          console.log('Definindo sessão com tokens...');
-          
           // Trocar o código pela sessão
           supabase.auth.setSession({
             access_token: accessToken,
@@ -139,15 +101,10 @@ export default function AuthDeepLinkHandler() {
               console.error('Erro ao definir sessão:', error);
               return;
             }
-            
-            console.log('Sessão definida com sucesso:', data);
-            console.log('Usuário na sessão:', data.user);
-            console.log('Email confirmado?', data.user?.email_confirmed_at);
-            
+
             // Verificar se a sessão foi realmente salva
             const { data: { session } } = await supabase.auth.getSession();
-            console.log('Sessão verificada após setSession:', session);
-            
+
             if (session && session.user) {
               // Verificar se o usuário existe na tabela users antes de redirecionar
               const { checkUserExists } = await import('../services/supabase/userService');
@@ -161,14 +118,11 @@ export default function AuthDeepLinkHandler() {
               // Navegar baseado no status do usuário
               if (session.user.email_confirmed_at) {
                 if (userCheck.exists) {
-                  console.log('🎯 Usuário com email confirmado e perfil completo, redirecionando para agenda');
                   router.replace('/(tabs)/agenda');
                 } else {
-                  console.log('👤 Usuário com email confirmado mas sem perfil, redirecionando para cadastro');
                   router.replace('/cadastro-usuario');
                 }
               } else {
-                console.log('📧 Email não confirmado, redirecionando para confirmação');
                 router.replace('/email-confirmation');
               }
             } else {

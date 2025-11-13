@@ -261,8 +261,6 @@ export default function LoginScreen() {
                     const response = await GoogleSignin.signIn();
                     
                     if (response.type === 'success') {
-                      console.log('✅ [Google Login] Login bem-sucedido:', response.data.user.email);
-                      
                       const { data, error } = await supabase.auth.signInWithIdToken({
                         provider: 'google',
                         token: response.data.idToken || '',
@@ -286,11 +284,9 @@ export default function LoginScreen() {
                         
                         // Mostrar modal de boas-vindas APENAS para novos usuários
                         if (result.isNewUser) {
-                          console.log('🆕 [Google Login] Novo usuário! Mostrando boas-vindas...');
                           setUserName(response.data.user.name || response.data.user.email);
                           setShowWelcomeModal(true);
                         } else {
-                          console.log('👤 [Google Login] Usuário existente! Redirecionando para agenda...');
                           router.replace('/(tabs)/agenda');
                         }
                       }
