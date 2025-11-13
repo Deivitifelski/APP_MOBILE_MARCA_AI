@@ -1,15 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-    Alert,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
@@ -61,7 +61,7 @@ const DatePickerComponent = ({
   const firstDayOfMonth = new Date(year, month, 1);
   const firstDayWeekday = firstDayOfMonth.getDay();
   
-  const calendarDays: Array<{ day: number | null; weekday: null; date: Date | null }> = [];
+  const calendarDays: { day: number | null; weekday: null; date: Date | null }[] = [];
   
   for (let i = 0; i < firstDayWeekday; i++) {
     calendarDays.push({ day: null, weekday: null, date: null });
@@ -238,12 +238,7 @@ export default function EditarEventoScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingEvent, setIsLoadingEvent] = useState(true);
 
-  // Carregar dados do evento
-  useEffect(() => {
-    loadEventData();
-  }, [eventId]);
-
-  const loadEventData = async () => {
+  const loadEventData = useCallback(async () => {
     try {
       const result = await getEventById(eventId);
       
@@ -278,13 +273,21 @@ export default function EditarEventoScreen() {
         Alert.alert('Erro', result.error || 'Erro ao carregar evento');
         router.back();
       }
-    } catch (error) {
-      Alert.alert('Erro', 'Erro ao carregar dados do evento');
+    } catch (error: any) {
+      Alert.alert(
+        'Erro',
+        `Erro ao carregar dados do evento.${error?.message ? ` Detalhes: ${error.message}` : ''}`
+      );
       router.back();
     } finally {
       setIsLoadingEvent(false);
     }
-  };
+  }, [eventId]);
+
+  // Carregar dados do evento
+  useEffect(() => {
+    loadEventData();
+  }, [loadEventData]);
 
   const handleSave = async () => {
     if (!form.nome.trim()) {
@@ -312,8 +315,8 @@ export default function EditarEventoScreen() {
         city: form.cidade.trim() || undefined,
         contractor_phone: form.telefoneContratante.trim() || undefined,
         event_date: form.data.toISOString().split('T')[0],
-        start_time: form.horarioInicio.toTimeString().split(' ')[0].substring(0, 5),
-        end_time: form.horarioFim.toTimeString().split(' ')[0].substring(0, 5),
+        start_time: form.horarioInicio.toISOString().substring(11, 19),
+        end_time: form.horarioFim.toISOString().substring(11, 19),
         confirmed: form.status === 'confirmado',
         tag: form.tag,
       };
@@ -332,10 +335,23 @@ export default function EditarEventoScreen() {
           ]
         );
       } else {
-        Alert.alert('Erro', result.error || 'Erro ao atualizar evento');
+        const errorDetail =
+          typeof result.error === 'string'
+            ? result.error
+            : result.error && typeof (result.error as any)?.message === 'string'
+              ? (result.error as any).message
+              : null;
+
+        Alert.alert(
+          'Ops! Desculpe',
+          `Não foi possível atualizar o evento. Por favor, tente novamente.`
+        );
       }
-    } catch (error) {
-      Alert.alert('Erro', 'Erro ao atualizar evento');
+    } catch (error: any) {
+      Alert.alert(
+        'Erro',
+        `Ocorreu um erro ao tentar editar o evento.${error?.message ? ` Detalhes: ${error.message}` : ''}`
+      );
     } finally {
       setIsLoading(false);
     }
