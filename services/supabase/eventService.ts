@@ -128,7 +128,7 @@ export const createEvent = async (eventData: CreateEventData): Promise<{ success
     }
 
     return { success: true, error: null, event };
-  } catch (error) {
+  } catch {
     return { success: false, error: 'Erro de conexão' };
   }
 };
@@ -147,7 +147,7 @@ export const getEventsByArtist = async (artistId: string): Promise<{ success: bo
     }
 
     return { success: true, error: null, events: data || [] };
-  } catch (error) {
+  } catch {
     return { success: false, error: 'Erro de conexão' };
   }
 };
@@ -175,7 +175,7 @@ export const getEventsByMonth = async (artistId: string, year: number, month: nu
     }
 
     return { success: true, error: null, events: data || [] };
-  } catch (error) {
+  } catch {
     return { success: false, error: 'Erro de conexão' };
   }
 };
@@ -194,7 +194,7 @@ export const getEventById = async (eventId: string): Promise<{ success: boolean;
     }
 
     return { success: true, error: null, event: data };
-  } catch (error) {
+  } catch {
     return { success: false, error: 'Erro de conexão' };
   }
 };
@@ -204,17 +204,26 @@ export const updateEvent = async (eventId: string, eventData: UpdateEventData): 
   try {
     const { data, error } = await supabase
       .from('events')
-      .update(eventData)
+      .update({
+        ...eventData,
+        updated_at: new Date().toISOString()
+      })
       .eq('id', eventId)
-      .select()
-      .single();
+      .select('id');
 
     if (error) {
+      if (error.message?.includes('JSON object')) {
+        return { success: false, error: 'Não foi possível atualizar o evento. Verifique suas permissões ou se o evento existe.' };
+      }
       return { success: false, error: error.message };
     }
 
-    return { success: true, error: null, event: data };
-  } catch (error) {
+    if (!data || data.length === 0) {
+      return { success: false, error: 'Evento não encontrado ou você não possui permissão para editá-lo.' };
+    }
+
+    return { success: true, error: null };
+  } catch {
     return { success: false, error: 'Erro de conexão' };
   }
 };
@@ -232,7 +241,7 @@ export const deleteEvent = async (eventId: string): Promise<{ success: boolean; 
     }
 
     return { success: true, error: null };
-  } catch (error) {
+  } catch {
     return { success: false, error: 'Erro de conexão' };
   }
 };

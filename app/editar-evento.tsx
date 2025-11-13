@@ -343,14 +343,19 @@ export default function EditarEventoScreen() {
               : null;
 
         Alert.alert(
-          'Ops! Desculpe',
-          `Não foi possível atualizar o evento. Por favor, tente novamente.`
+          'Ops, Desculpe!',
+          `Não foi possível atualizar o evento.${errorDetail ? ` Detalhes: ${errorDetail}` : ' Por favor, tente novamente.'}`
         );
       }
     } catch (error: any) {
+      const errorDetail =
+        typeof error === 'string'
+          ? error
+          : error?.message || null;
+
       Alert.alert(
         'Erro',
-        `Ocorreu um erro ao tentar editar o evento.${error?.message ? ` Detalhes: ${error.message}` : ''}`
+        `Ocorreu um erro ao tentar editar o evento.${errorDetail ? ` Detalhes: ${errorDetail}` : ''}`
       );
     } finally {
       setIsLoading(false);
