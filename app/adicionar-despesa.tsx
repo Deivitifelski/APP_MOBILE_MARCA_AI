@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import React, { useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -17,7 +17,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useActiveArtistContext } from '../contexts/ActiveArtistContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { createStandaloneExpense } from '../services/supabase/expenseService';
+import { createExpense, createStandaloneExpense } from '../services/supabase/expenseService';
 
 const CATEGORIAS = [
   { value: 'equipamento', label: 'Equipamento', icon: 'hardware-chip' },
@@ -32,6 +32,18 @@ export default function AdicionarDespesaScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { activeArtist } = useActiveArtistContext();
+  const params = useLocalSearchParams();
+  const eventId = useMemo(() => {
+    const value = params?.eventId;
+    if (Array.isArray(value)) return value[0];
+    return value ?? undefined;
+  }, [params]);
+  const eventName = useMemo(() => {
+    const value = params?.eventName;
+    if (Array.isArray(value)) return value[0];
+    return value ?? undefined;
+  }, [params]);
+  const isEventExpense = !!eventId;
   const [descricao, setDescricao] = useState('');
   const [valor, setValor] = useState('');
   const [categoria, setCategoria] = useState('');
@@ -77,7 +89,7 @@ export default function AdicionarDespesaScreen() {
       return;
     }
 
-    if (!categoria) {
+    if (!isEventExpense && !categoria) {
       Alert.alert('Atenção', 'Selecione uma categoria');
       return;
     }
@@ -88,14 +100,28 @@ export default function AdicionarDespesaScreen() {
       // Converter valor de string formatada para número
       const valorNumerico = parseFloat(valor.replace('.', '').replace(',', '.'));
 
-      const { success, error } = await createStandaloneExpense({
-        artist_id: activeArtist.id,
-        description: descricao.trim(),
-        value: valorNumerico,
-        category: categoria,
-        notes: observacoes.trim() || undefined,
-        date: data.toISOString().split('T')[0],
-      });
+      let success = false;
+      let error: string | null = null;
+
+      if (isEventExpense && eventId) {
+        const response = await createExpense(eventId, {
+          name: descricao.trim(),
+          value: valorNumerico,
+        });
+        success = response.success;
+        error = response.error;
+      } else {
+        const response = await createStandaloneExpense({
+          artist_id: activeArtist.id,
+          description: descricao.trim(),
+          value: valorNumerico,
+          category: categoria,
+          notes: observacoes.trim() || undefined,
+          date: data.toISOString().split('T')[0],
+        });
+        success = response.success;
+        error = response.error;
+      }
 
       if (success) {
         Alert.alert('Sucesso', 'Despesa adicionada com sucesso!', [
@@ -138,7 +164,9 @@ export default function AdicionarDespesaScreen() {
           <View style={[styles.infoCard, { backgroundColor: colors.primary + '20' }]}>
             <Ionicons name="information-circle" size={20} color={colors.primary} />
             <Text style={[styles.infoText, { color: colors.primary }]}>
-              Despesas avulsas não estão vinculadas a eventos específicos. Use para gastos gerais como equipamentos, manutenção, etc.
+              {isEventExpense
+                ? `Esta despesa será vinculada ao evento${eventName ? ` "${eventName}"` : ''}. Use para registrar gastos específicos deste evento.`
+                : 'Despesas avulsas não estão vinculadas a eventos específicos. Use para gastos gerais como equipamentos, manutenção, etc.'}
             </Text>
           </View>
 
@@ -147,11 +175,11 @@ export default function AdicionarDespesaScreen() {
             {/* Descrição */}
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: colors.text }]}>
-                Descrição * <Text style={styles.required}>*</Text>
+                {isEventExpense ? 'Nome da Despesa *' : 'Descrição *'} <Text style={styles.required}>*</Text>
               </Text>
               <TextInput
                 style={[styles.input, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
-                placeholder="Ex: Parcela do violão"
+                placeholder={isEventExpense ? 'Ex: Locação de som' : 'Ex: Parcela do violão'}
                 placeholderTextColor={colors.textSecondary}
                 value={descricao}
                 onChangeText={setDescricao}
@@ -177,71 +205,78 @@ export default function AdicionarDespesaScreen() {
               </View>
             </View>
 
-            {/* Categoria */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                Categoria * <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={styles.categoriasContainer}>
-                {CATEGORIAS.map((cat) => (
+            {!isEventExpense && (
+              <>
+                {/* Categoria */}
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.label, { color: colors.text }]}>
+                    Categoria * <Text style={styles.required}>*</Text>
+                  </Text>
+                  <View style={styles.categoriasContainer}>
+                    {CATEGORIAS.map((cat) => (
+                      <TouchableOpacity
+                        key={cat.value}
+                        style={[
+                          styles.categoriaButton,
+                          {
+                            backgroundColor: categoria === cat.value ? colors.primary : colors.background,
+                            borderColor: categoria === cat.value ? colors.primary : colors.border,
+                          },
+                        ]}
+                        onPress={() => setCategoria(cat.value)}
+                      >
+                        <Ionicons
+                          name={cat.icon as any}
+                          size={20}
+                          color={categoria === cat.value ? '#fff' : colors.text}
+                        />
+                        <Text
+                          style={[
+                            styles.categoriaText,
+                            { color: categoria === cat.value ? '#fff' : colors.text },
+                          ]}
+                        >
+                          {cat.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Data */}
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.label, { color: colors.text }]}>Data</Text>
                   <TouchableOpacity
-                    key={cat.value}
-                    style={[
-                      styles.categoriaButton,
-                      {
-                        backgroundColor: categoria === cat.value ? colors.primary : colors.background,
-                        borderColor: categoria === cat.value ? colors.primary : colors.border,
-                      },
-                    ]}
-                    onPress={() => setCategoria(cat.value)}
+                    style={[styles.dateButton, { borderColor: colors.border, backgroundColor: colors.background }]}
+                    onPress={() => setShowDatePicker(true)}
                   >
-                    <Ionicons
-                      name={cat.icon as any}
-                      size={20}
-                      color={categoria === cat.value ? '#fff' : colors.text}
-                    />
-                    <Text
-                      style={[
-                        styles.categoriaText,
-                        { color: categoria === cat.value ? '#fff' : colors.text },
-                      ]}
-                    >
-                      {cat.label}
+                    <Ionicons name="calendar" size={20} color={colors.primary} />
+                    <Text style={[styles.dateText, { color: colors.text }]}>
+                      {data.toLocaleDateString('pt-BR')}
                     </Text>
                   </TouchableOpacity>
-                ))}
-              </View>
-            </View>
+                </View>
 
-            {/* Data */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.text }]}>Data</Text>
-              <TouchableOpacity
-                style={[styles.dateButton, { borderColor: colors.border, backgroundColor: colors.background }]}
-                onPress={() => setShowDatePicker(true)}
-              >
-                <Ionicons name="calendar" size={20} color={colors.primary} />
-                <Text style={[styles.dateText, { color: colors.text }]}>
-                  {data.toLocaleDateString('pt-BR')}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Observações */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.text }]}>Observações (opcional)</Text>
-              <TextInput
-                style={[styles.textArea, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
-                placeholder="Adicione detalhes extras sobre esta despesa..."
-                placeholderTextColor={colors.textSecondary}
-                value={observacoes}
-                onChangeText={setObservacoes}
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-                maxLength={500}
-              />
-            </View>
+                {/* Observações */}
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.label, { color: colors.text }]}>Observações (opcional)</Text>
+                  <TextInput
+                    style={[
+                      styles.textArea,
+                      { borderColor: colors.border, backgroundColor: colors.background, color: colors.text },
+                    ]}
+                    placeholder="Adicione detalhes extras sobre esta despesa..."
+                    placeholderTextColor={colors.textSecondary}
+                    value={observacoes}
+                    onChangeText={setObservacoes}
+                    multiline
+                    numberOfLines={4}
+                    textAlignVertical="top"
+                    maxLength={500}
+                  />
+                </View>
+              </>
+            )}
           </View>
 
           {/* Botão Salvar */}
@@ -264,84 +299,85 @@ export default function AdicionarDespesaScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Modal de Calendário */}
-      <Modal
-        visible={showDatePicker}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowDatePicker(false)}
-      >
-        <TouchableOpacity 
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowDatePicker(false)}
+      {!isEventExpense && (
+        <Modal
+          visible={showDatePicker}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowDatePicker(false)}
         >
-          <View style={[styles.calendarModal, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.calendarTitle, { color: colors.text }]}>
-              {data.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-            </Text>
-
-            {/* Grid de Dias */}
-            <View style={styles.calendarGrid}>
-              {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day) => (
-                <Text key={day} style={[styles.calendarWeekday, { color: colors.textSecondary }]}>
-                  {day}
-                </Text>
-              ))}
-              
-              {(() => {
-                const year = data.getFullYear();
-                const month = data.getMonth();
-                const firstDay = new Date(year, month, 1).getDay();
-                const daysInMonth = new Date(year, month + 1, 0).getDate();
-                const days = [];
-                
-                // Dias vazios antes do primeiro dia
-                for (let i = 0; i < firstDay; i++) {
-                  days.push(<View key={`empty-${i}`} style={styles.calendarDay} />);
-                }
-                
-                // Dias do mês
-                for (let day = 1; day <= daysInMonth; day++) {
-                  const isSelected = data.getDate() === day;
-                  days.push(
-                    <TouchableOpacity
-                      key={day}
-                      style={[
-                        styles.calendarDay,
-                        isSelected && { backgroundColor: colors.primary, borderRadius: 20 }
-                      ]}
-                      onPress={() => {
-                        const newDate = new Date(year, month, day);
-                        setData(newDate);
-                        setShowDatePicker(false);
-                      }}
-                    >
-                      <Text style={[
-                        styles.calendarDayText,
-                        { color: isSelected ? '#fff' : colors.text }
-                      ]}>
-                        {day}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                }
-                
-                return days;
-              })()}
-            </View>
-
-            <TouchableOpacity
-              style={[styles.calendarCloseButton, { backgroundColor: colors.background }]}
-              onPress={() => setShowDatePicker(false)}
-            >
-              <Text style={[styles.calendarCloseText, { color: colors.text }]}>
-                Fechar
+          <TouchableOpacity 
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowDatePicker(false)}
+          >
+            <View style={[styles.calendarModal, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.calendarTitle, { color: colors.text }]}>
+                {data.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
               </Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+
+              {/* Grid de Dias */}
+              <View style={styles.calendarGrid}>
+                {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day) => (
+                  <Text key={day} style={[styles.calendarWeekday, { color: colors.textSecondary }]}>
+                    {day}
+                  </Text>
+                ))}
+                
+                {(() => {
+                  const year = data.getFullYear();
+                  const month = data.getMonth();
+                  const firstDay = new Date(year, month, 1).getDay();
+                  const daysInMonth = new Date(year, month + 1, 0).getDate();
+                  const days = [];
+                  
+                  // Dias vazios antes do primeiro dia
+                  for (let i = 0; i < firstDay; i++) {
+                    days.push(<View key={`empty-${i}`} style={styles.calendarDay} />);
+                  }
+                  
+                  // Dias do mês
+                  for (let day = 1; day <= daysInMonth; day++) {
+                    const isSelected = data.getDate() === day;
+                    days.push(
+                      <TouchableOpacity
+                        key={day}
+                        style={[
+                          styles.calendarDay,
+                          isSelected && { backgroundColor: colors.primary, borderRadius: 20 }
+                        ]}
+                        onPress={() => {
+                          const newDate = new Date(year, month, day);
+                          setData(newDate);
+                          setShowDatePicker(false);
+                        }}
+                      >
+                        <Text style={[
+                          styles.calendarDayText,
+                          { color: isSelected ? '#fff' : colors.text }
+                        ]}>
+                          {day}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  }
+                  
+                  return days;
+                })()}
+              </View>
+
+              <TouchableOpacity
+                style={[styles.calendarCloseButton, { backgroundColor: colors.background }]}
+                onPress={() => setShowDatePicker(false)}
+              >
+                <Text style={[styles.calendarCloseText, { color: colors.text }]}>
+                  Fechar
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 }
