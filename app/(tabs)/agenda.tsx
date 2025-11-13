@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -27,6 +28,7 @@ const months = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ];
+const weekdayLabels = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 export default function AgendaScreen() {
   const { colors, isDarkMode } = useTheme();
@@ -41,6 +43,9 @@ export default function AgendaScreen() {
   const [artistImageUpdated, setArtistImageUpdated] = useState<boolean>(false);
   const { unreadCount, loadUnreadCount } = useNotifications();
   const [hasAnyArtist, setHasAnyArtist] = useState(false);
+  const [selectedDayEvents, setSelectedDayEvents] = useState<any[]>([]);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [showDayModal, setShowDayModal] = useState(false);
   
   // ✅ VERIFICAR ROLE DIRETAMENTE NO BANCO
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
@@ -126,6 +131,47 @@ export default function AgendaScreen() {
 
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
+  const eventsByDate = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    events.forEach(event => {
+      if (!event.event_date) {
+        return;
+      }
+      if (!map[event.event_date]) {
+        map[event.event_date] = [];
+      }
+      map[event.event_date].push(event);
+    });
+    return map;
+  }, [events]);
+  const calendarMatrix = useMemo(() => {
+    const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
+    const firstWeekDay = firstDayOfMonth.getDay();
+    const totalDays = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const weeks: Array<Array<{ dayNumber: number; dateString: string } | null>> = [];
+
+    let dayCounter = 1 - firstWeekDay;
+    while (dayCounter <= totalDays) {
+      const week: Array<{ dayNumber: number; dateString: string } | null> = [];
+      for (let i = 0; i < 7; i++) {
+        const currentDay = dayCounter + i;
+        if (currentDay < 1 || currentDay > totalDays) {
+          week.push(null);
+        } else {
+          const dateString = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(currentDay).padStart(2, '0')}`;
+          week.push({ dayNumber: currentDay, dateString });
+        }
+      }
+      weeks.push(week);
+      dayCounter += 7;
+    }
+
+    return weeks;
+  }, [currentMonth, currentYear]);
+  const todayString = useMemo(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  }, []);
 
   useEffect(() => {
     refreshActiveArtist();
@@ -451,6 +497,26 @@ export default function AgendaScreen() {
       </TouchableOpacity>
     );
   };
+  const formatDisplayDate = (dateString: string | null) => {
+    if (!dateString) return '';
+    const [year, month, day] = dateString.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    return date.toLocaleDateString('pt-BR', {
+      weekday: 'long',
+      day: '2-digit',
+      month: 'long'
+    });
+  };
+  const handleDayPress = (dateString: string | null) => {
+    if (!dateString) return;
+    const dayEvents = eventsByDate[dateString];
+    if (!dayEvents || dayEvents.length === 0) {
+      return;
+    }
+    setSelectedDay(dateString);
+    setSelectedDayEvents(dayEvents);
+    setShowDayModal(true);
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -618,24 +684,87 @@ export default function AgendaScreen() {
             )}
           </View>
         ) : (
-          /* Lista de shows do mês */
-          <View style={styles.showsSection}>
-            {events.length > 0 ? (
-              <FlatList
-                data={events}
-                renderItem={renderShow}
-                keyExtractor={(item) => item.id}
-                scrollEnabled={false}
-              />
-            ) : (
-              <View style={styles.noShowsContainer}>
-                <Ionicons name="calendar-outline" size={48} color={colors.textSecondary} />
-                <Text style={[styles.noShowsText, { color: colors.textSecondary }]}>
-                  Nenhum show agendado para este mês
-                </Text>
+          <>
+            <View style={[
+              styles.calendarContainer,
+              { backgroundColor: colors.surface, borderColor: colors.border }
+            ]}>
+              <View style={styles.calendarHeaderRow}>
+                {weekdayLabels.map(label => (
+                  <Text
+                    key={label}
+                    style={[styles.calendarHeaderText, { color: colors.textSecondary }]}
+                  >
+                    {label}
+                  </Text>
+                ))}
               </View>
-            )}
-          </View>
+
+              {calendarMatrix.map((week, weekIndex) => (
+                <View key={`week-${weekIndex}`} style={styles.calendarWeekRow}>
+                  {week.map((day, dayIndex) => {
+                    if (!day) {
+                      return <View key={`empty-${weekIndex}-${dayIndex}`} style={styles.calendarDayCell} />;
+                    }
+
+                    const dayEvents = eventsByDate[day.dateString] || [];
+                    const hasEvents = dayEvents.length > 0;
+                    const isToday = day.dateString === todayString;
+
+                    return (
+                      <TouchableOpacity
+                        key={day.dateString}
+                        style={[
+                          styles.calendarDayCell,
+                          isToday && { borderColor: colors.primary, borderWidth: 1.5 },
+                          hasEvents && { backgroundColor: colors.secondary }
+                        ]}
+                        onPress={() => handleDayPress(day.dateString)}
+                        activeOpacity={hasEvents ? 0.8 : 1}
+                        disabled={!hasEvents}
+                      >
+                        <Text
+                          style={[
+                            styles.calendarDayText,
+                            { color: hasEvents ? colors.text : colors.textSecondary },
+                            isToday && styles.calendarDayTodayText
+                          ]}
+                        >
+                          {day.dayNumber}
+                        </Text>
+                        {hasEvents && (
+                          <View
+                            style={[
+                              styles.eventIndicator,
+                              { backgroundColor: colors.primary }
+                            ]}
+                          />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.showsSection}>
+              {events.length > 0 ? (
+                <FlatList
+                  data={events}
+                  renderItem={renderShow}
+                  keyExtractor={(item) => item.id}
+                  scrollEnabled={false}
+                />
+              ) : (
+                <View style={styles.noShowsContainer}>
+                  <Ionicons name="calendar-outline" size={48} color={colors.textSecondary} />
+                  <Text style={[styles.noShowsText, { color: colors.textSecondary }]}>
+                    Nenhum show agendado para este mês
+                  </Text>
+                </View>
+              )}
+            </View>
+          </>
         )}
       </ScrollView>
 
@@ -650,6 +779,66 @@ export default function AgendaScreen() {
       )}
 
       {/* Modal de Permissão */}
+      <Modal
+        visible={showDayModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDayModal(false)}
+      >
+        <View style={styles.dayModalOverlay}>
+          <View style={[styles.dayModalContent, { backgroundColor: colors.surface }]}>
+            <TouchableOpacity
+              style={styles.dayModalCloseButton}
+              onPress={() => setShowDayModal(false)}
+            >
+              <Ionicons name="close" size={22} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={[styles.dayModalTitle, { color: colors.text }]}>
+              {formatDisplayDate(selectedDay)}
+            </Text>
+
+            {selectedDayEvents.map(event => (
+              <TouchableOpacity
+                key={event.id}
+                style={[styles.dayEventCard, { borderColor: colors.border }]}
+                activeOpacity={0.8}
+                onPress={() => {
+                  setShowDayModal(false);
+                  handleEventPress(event.id);
+                }}
+              >
+                <View style={styles.dayEventHeader}>
+                  <Ionicons
+                    name="musical-notes"
+                    size={18}
+                    color={colors.primary}
+                  />
+                  <Text style={[styles.dayEventName, { color: colors.text }]}>
+                    {event.name}
+                  </Text>
+                </View>
+                <View style={styles.dayEventMeta}>
+                  <Ionicons
+                    name="time-outline"
+                    size={16}
+                    color={colors.textSecondary}
+                  />
+                  <Text style={[styles.dayEventTime, { color: colors.textSecondary }]}>
+                    {event.start_time}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+
+            {selectedDayEvents.length === 0 && (
+              <Text style={[styles.dayEventEmptyText, { color: colors.textSecondary }]}>
+                Nenhum evento para este dia.
+              </Text>
+            )}
+          </View>
+        </View>
+      </Modal>
+
       <PermissionModal
         visible={showPermissionModal}
         onClose={() => setShowPermissionModal(false)}
@@ -732,6 +921,61 @@ const styles = StyleSheet.create({
   },
   showsSection: {
     padding: 20,
+  },
+  calendarContainer: {
+    marginHorizontal: 20,
+    marginTop: 20,
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  calendarHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  calendarHeaderText: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  calendarWeekRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  calendarDayCell: {
+    flex: 1,
+    aspectRatio: 1,
+    maxWidth: 48,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 2,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  calendarDayText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  calendarDayTodayText: {
+    fontWeight: '700',
+  },
+  eventIndicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginTop: 4,
   },
   showCard: {
     borderRadius: 16,
@@ -962,5 +1206,68 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  dayModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  dayModalContent: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 12,
+  },
+  dayModalCloseButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    padding: 8,
+    borderRadius: 999,
+  },
+  dayModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    textTransform: 'capitalize',
+    marginBottom: 20,
+    paddingRight: 32,
+  },
+  dayEventCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+  },
+  dayEventHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  dayEventName: {
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
+  },
+  dayEventMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  dayEventTime: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  dayEventEmptyText: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 12,
   },
 });

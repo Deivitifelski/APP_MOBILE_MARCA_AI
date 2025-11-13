@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { setStringAsync } from 'expo-clipboard';
+import Constants from 'expo-constants';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -76,6 +77,7 @@ export default function ConfiguracoesScreen() {
   const [imageLoadError, setImageLoadError] = useState(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
   const [showArtistProfileModal, setShowArtistProfileModal] = useState(false);
+  const appVersion = Constants.expoConfig?.version ?? Constants.manifest?.version ?? '1.0.1';
 
   const formatDate = (value?: string) => {
     if (!value) return 'Não informado';
@@ -1323,9 +1325,7 @@ export default function ConfiguracoesScreen() {
                   <Text style={[dynamicStyles.aboutInfoLabel, { color: colors.textSecondary }]}>
                     Versão
                   </Text>
-                  <Text style={[dynamicStyles.aboutInfoValue, { color: colors.text }]}>
-                    1.0.0
-                  </Text>
+                  <Text style={[dynamicStyles.aboutInfoValue, { color: colors.text }]}>{appVersion}</Text>
                 </View>
               </View>
 
