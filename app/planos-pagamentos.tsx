@@ -201,21 +201,14 @@ export default function PlanosPagamentosScreen() {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }] }>
       <SafeAreaView style={{ flex: 1 }}>
-        {/* Header */}
-        <View style={[styles.header, { 
-          backgroundColor: colors.surface, 
-          borderBottomColor: colors.border,
-          paddingTop: insets.top + 20
-        }]}>
-          <View style={styles.headerContent}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={colors.text} />
-            </TouchableOpacity>
-            <Text style={[styles.title, { color: colors.text }]}>Planos e Pagamentos</Text>
-            <View style={styles.placeholder} />
-          </View>
+        <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border, paddingTop: 12 }] }>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={[styles.title, { color: colors.text }]}>Planos e Pagamentos</Text>
+          <View style={styles.placeholder} />
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -302,11 +295,9 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#fff',
     paddingHorizontal: 20,
-    paddingBottom: 15,
+    paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
-  },
-  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -328,37 +319,37 @@ const styles = StyleSheet.create({
   },
   heroSection: {
     alignItems: 'center',
-    marginBottom: 32,
-    paddingHorizontal: 20,
+    marginBottom: 20,
+    paddingHorizontal: 16,
   },
   heroTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   heroSubtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#666',
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 20,
   },
   plansContainer: {
-    gap: 16,
-    marginBottom: 32,
+    gap: 12,
+    marginBottom: 24,
   },
   planCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 20,
+    padding: 16,
     borderWidth: 1,
     borderColor: '#e9ecef',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 2,
     position: 'relative',
   },
   premiumBadge: {
@@ -377,24 +368,24 @@ const styles = StyleSheet.create({
   },
   planHeader: {
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  planIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
     marginBottom: 12,
   },
+  planIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   planName: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   planDescription: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#666',
     textAlign: 'center',
   },
@@ -402,48 +393,48 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 14,
   },
   price: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: 'bold',
   },
   period: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#666',
     marginLeft: 4,
   },
   featuresContainer: {
-    gap: 12,
-    marginBottom: 20,
+    gap: 10,
+    marginBottom: 16,
   },
   featureRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   featureText: {
-    fontSize: 14,
+    fontSize: 13,
     flex: 1,
   },
   subscribeButton: {
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
   },
   buttonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
   },
   infoCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 32,
+    padding: 14,
+    marginBottom: 24,
     borderWidth: 1,
   },
   infoText: {
@@ -453,20 +444,20 @@ const styles = StyleSheet.create({
   },
   comparisonSection: {
     backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 32,
+    borderRadius: 14,
+    padding: 18,
+    marginBottom: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
   },
   comparisonTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 20,
+    marginBottom: 16,
     textAlign: 'center',
   },
   comparisonTable: {
@@ -478,23 +469,23 @@ const styles = StyleSheet.create({
   tableHeader: {
     flexDirection: 'row',
     backgroundColor: '#f8f9fa',
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   tableHeaderText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: '#666',
     textAlign: 'center',
   },
   tableRow: {
     flexDirection: 'row',
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
   },
   tableCell: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
     color: '#333',
     textAlign: 'center',
   },
