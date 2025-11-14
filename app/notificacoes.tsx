@@ -36,11 +36,15 @@ import { hasPermission } from '../services/supabase/permissionsService';
 import { useActiveArtistContext } from '../contexts/ActiveArtistContext';
 import { useNotifications } from '../services/useNotifications';
 
+type NotificationWithInvite = Notification & {
+  isInvitePending?: boolean;
+};
+
 export default function NotificacoesScreen() {
   const { colors, isDarkMode } = useTheme();
   const { loadUnreadCount } = useNotifications(); // ✅ Hook para atualizar badge
   const { setActiveArtist } = useActiveArtistContext(); // ✅ Context para atualizar artista ativo
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<NotificationWithInvite[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -94,20 +98,6 @@ export default function NotificacoesScreen() {
             loadUnreadCount();
           }
         )
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'artist_invites',
-            filter: `to_user_id=eq.${user.id}`,
-          },
-          (payload) => {
-            // Recarregar notificações e badge quando houver mudanças nos convites
-            loadNotifications();
-            loadUnreadCount();
-          }
-        )
         .subscribe();
 
       subscriptionRef.current = channel;
@@ -137,17 +127,63 @@ export default function NotificacoesScreen() {
       setCurrentUserId(user.id);
 
       // Carregar notificações
-      const { notifications, error } = await getUserNotifications(user.id);
+      const { notifications: fetchedNotifications, error } = await getUserNotifications(user.id);
       
       if (error) {
         Alert.alert('Erro', 'Erro ao carregar notificações');
         return;
       }
+      
+      let enhancedNotifications: NotificationWithInvite[] = (fetchedNotifications || []).map(notification => 
+        notification.type === 'artist_invite'
+          ? { ...notification, isInvitePending: true }
+          : notification
+      );
 
-      setNotifications(notifications || []);
+      const inviteNotifications = enhancedNotifications.filter(
+        (notification) => notification.type === 'artist_invite' && notification.artist_id
+      );
+
+      if (inviteNotifications.length > 0) {
+        const artistIds = Array.from(
+          new Set(
+            inviteNotifications
+              .map((notification) => notification.artist_id)
+              .filter((id): id is string => typeof id === 'string' && id.length > 0)
+          )
+        );
+
+        if (artistIds.length > 0) {
+          const { data: invitesData, error: invitesError } = await supabase
+            .from('artist_invites')
+            .select('artist_id, status')
+            .eq('to_user_id', user.id)
+            .in('artist_id', artistIds);
+
+          if (!invitesError && invitesData) {
+            const pendingArtists = new Set(
+              invitesData
+                .filter((invite) => invite.status === 'pending')
+                .map((invite) => invite.artist_id)
+            );
+
+            enhancedNotifications = enhancedNotifications.map((notification) => {
+              if (notification.type === 'artist_invite' && notification.artist_id) {
+                return {
+                  ...notification,
+                  isInvitePending: pendingArtists.has(notification.artist_id),
+                };
+              }
+              return notification;
+            });
+          }
+        }
+      }
+
+      setNotifications(enhancedNotifications);
       
       // Contar APENAS notificações não lidas do usuário (read === false)
-      const unreadNotifications = (notifications || []).filter(n => !n.read && n.user_id === user.id).length;
+      const unreadNotifications = (enhancedNotifications || []).filter(n => !n.read && n.user_id === user.id).length;
       setUnreadCount(unreadNotifications);
     } catch (error) {
       Alert.alert('Erro', 'Erro ao carregar notificações');
@@ -641,7 +677,7 @@ export default function NotificacoesScreen() {
                       <View style={styles.notificationHeader}>
                         <Text style={[
                           dynamicStyles.notificationTitle,
-                          !notification.read && styles.unreadTitle
+                          !notification.read && dynamicStyles.unreadTitle
                         ]}>
                           {formatNotificationTitle(notification.title, notification.type)}
                         </Text>
@@ -671,7 +707,7 @@ export default function NotificacoesScreen() {
                       {/* Botões de Aceitar/Recusar para convites de artista (só se não foi lido) */}
                       {notification.type === 'artist_invite' && notification.artist_id && (
                         <>
-                          {!notification.read ? (
+                          {notification.isInvitePending ? (
                             <View style={dynamicStyles.inviteActions}>
                               <TouchableOpacity
                                 style={dynamicStyles.acceptButton}
@@ -1032,6 +1068,10 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
     fontWeight: 'bold',
     color: colors.text,
     flex: 1,
+  },
+  unreadTitle: {
+    fontWeight: '700',
+    color: isDark ? colors.text : '#111827',
   },
   notificationTime: {
     fontSize: 12,

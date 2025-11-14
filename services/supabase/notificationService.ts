@@ -152,43 +152,17 @@ export const deleteNotification = async (notificationId: string): Promise<{ succ
 // Contar notificações não lidas (apenas RECEBIDAS)
 export const getUnreadNotificationCount = async (userId: string): Promise<{ count: number; error: string | null }> => {
   try {
-    // Buscar todas as notificações não lidas
-    const { data: allNotifications, error: notifError } = await supabase
+    const { count, error } = await supabase
       .from('notifications')
-      .select('id, type, read, user_id, created_at, artist_id')
+      .select('id', { count: 'exact', head: true })
       .eq('user_id', userId)
       .eq('read', false);
 
-    if (notifError) {
-      return { count: 0, error: notifError.message };
+    if (error) {
+      return { count: 0, error: error.message };
     }
 
-    // Filtrar notificações de convites para verificar se o convite ainda está pendente
-    let validNotifications = [];
-    
-    for (const notification of (allNotifications || [])) {
-      if (notification.type === 'artist_invite' && notification.artist_id) {
-        // Verificar se o convite ainda está pendente
-        const { data: invites, error: inviteError } = await supabase
-          .from('artist_invites')
-          .select('status')
-          .eq('to_user_id', userId)
-          .eq('artist_id', notification.artist_id)
-          .eq('status', 'pending')
-          .limit(1);
-
-        if (!inviteError && invites && invites.length > 0) {
-          validNotifications.push(notification);
-        }
-      } else {
-        // Outras notificações sempre contam
-        validNotifications.push(notification);
-      }
-    }
-
-    const finalCount = validNotifications.length;
-
-    return { count: finalCount, error: null };
+    return { count: count ?? 0, error: null };
   } catch (error) {
     return { count: 0, error: 'Erro de conexão' };
   }
