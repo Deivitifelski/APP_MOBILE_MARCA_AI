@@ -205,6 +205,21 @@ export const acceptArtistInvite = async (inviteId: string, userId: string): Prom
 
     console.log('✅ Convite marcado como aceito');
 
+    // Marcar convite como lido
+    await supabase
+      .from('artist_invites')
+      .update({ read: true })
+      .eq('id', inviteId)
+      .eq('to_user_id', userId);
+
+    // Marcar notificações relacionadas como lidas
+    await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('user_id', userId)
+      .eq('artist_id', invite.artist_id)
+      .eq('type', 'artist_invite');
+
     return { success: true };
   } catch (error) {
     console.error('❌ Erro ao aceitar convite:', error);
@@ -250,12 +265,25 @@ export const declineArtistInvite = async (inviteId: string, userId: string): Pro
       return { success: false, error: updateError.message };
     }
 
-    console.log('✅ Convite marcado como declined');
+    console.log('✅ Convite marcado como recusado');
 
-    // Notificação será marcada como lida pela função chamadora (não deletar)
+    // Marcar como lido após recusar
+    await supabase
+      .from('artist_invites')
+      .update({ read: true })
+      .eq('id', inviteId)
+      .eq('to_user_id', userId);
+
+    await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('user_id', userId)
+      .eq('artist_id', invite.artist_id)
+      .eq('type', 'artist_invite');
+
     return { success: true };
   } catch (error) {
-    console.error('❌ Erro ao recusar convite:', error);
+    console.error('Erro ao recusar convite:', error);
     return { success: false, error: 'Erro interno ao recusar convite' };
   }
 };

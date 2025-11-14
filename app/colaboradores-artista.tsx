@@ -1035,21 +1035,21 @@ export default function ColaboradoresArtistaScreen() {
         onRequestClose={() => setShowInviteSentModal(false)}
       >
         <View style={styles.inviteSentOverlay}>
-          <View style={styles.inviteSentContainer}>
+          <View style={[styles.inviteSentContainer, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }] }>
             {/* Header com ícone de sucesso */}
             <View style={styles.inviteSentHeader}>
-              <View style={styles.successIconCircle}>
-                <Ionicons name="checkmark-circle" size={64} color="#10B981" />
+              <View style={[styles.successIconCircle, { backgroundColor: colors.primary + '20' }] }>
+                <Ionicons name="checkmark-circle" size={64} color={colors.primary} />
               </View>
-              <Text style={styles.inviteSentTitle}>Convite Enviado!</Text>
-              <Text style={styles.inviteSentSubtitle}>
+              <Text style={[styles.inviteSentTitle, { color: colors.primary }]}>Convite Enviado!</Text>
+              <Text style={[styles.inviteSentSubtitle, { color: colors.textSecondary }] }>
                 O colaborador receberá uma notificação
               </Text>
             </View>
 
             {/* Card do usuário convidado */}
             {inviteSentData && (
-              <View style={styles.invitedUserCard}>
+              <View style={[styles.invitedUserCard, { backgroundColor: colors.card || colors.surface, borderColor: colors.border }] }>
                 <View style={styles.invitedUserHeader}>
                   <OptimizedImage
                     imageUrl={inviteSentData.userImage}
@@ -1057,13 +1057,13 @@ export default function ColaboradoresArtistaScreen() {
                     cacheKey={`invited_${inviteSentData.userEmail}`}
                     fallbackIcon="person"
                     fallbackIconSize={32}
-                    fallbackIconColor="#667eea"
+                    fallbackIconColor={colors.primary}
                   />
                   <View style={styles.invitedUserInfo}>
-                    <Text style={styles.invitedUserName}>
+                    <Text style={[styles.invitedUserName, { color: colors.text }]}>
                       {inviteSentData.userName}
                     </Text>
-                    <Text style={styles.invitedUserEmail}>
+                    <Text style={[styles.invitedUserEmail, { color: colors.textSecondary }] }>
                       {inviteSentData.userEmail}
                     </Text>
                   </View>
@@ -1071,7 +1071,7 @@ export default function ColaboradoresArtistaScreen() {
 
                 {/* Badge do cargo */}
                 <View style={styles.invitedRoleSection}>
-                  <Text style={styles.invitedRoleLabel}>Cargo atribuído:</Text>
+                  <Text style={[styles.invitedRoleLabel, { color: colors.textSecondary }]}>Cargo atribuído:</Text>
                   <View style={[
                     styles.invitedRoleBadge,
                     { backgroundColor: getRoleColor(inviteSentData.role) + '15' }
@@ -1091,15 +1091,15 @@ export default function ColaboradoresArtistaScreen() {
                 </View>
 
                 {/* Status pendente */}
-                <View style={styles.pendingStatusSection}>
-                  <View style={styles.pendingIcon}>
-                    <Ionicons name="time-outline" size={20} color="#F59E0B" />
+                <View style={[styles.pendingStatusSection, { backgroundColor: colors.secondary || colors.surface, borderColor: colors.border }] }>
+                  <View style={[styles.pendingIcon, { backgroundColor: colors.card || colors.surface }]}>
+                    <Ionicons name="time-outline" size={20} color={colors.primary} />
                   </View>
                   <View style={styles.pendingTextContainer}>
-                    <Text style={styles.pendingStatusTitle}>
+                    <Text style={[styles.pendingStatusTitle, { color: colors.text }] }>
                       Aguardando aceitação
                     </Text>
-                    <Text style={styles.pendingStatusDescription}>
+                    <Text style={[styles.pendingStatusDescription, { color: colors.textSecondary }] }>
                       {inviteSentData.userName} receberá uma notificação e poderá aceitar ou recusar o convite.
                     </Text>
                   </View>
@@ -1108,16 +1108,16 @@ export default function ColaboradoresArtistaScreen() {
             )}
 
             {/* Informações adicionais */}
-            <View style={styles.inviteSentInfo}>
+            <View style={[styles.inviteSentInfo, { backgroundColor: colors.card || colors.surface, borderColor: colors.border, borderWidth: 1 }] }>
               <View style={styles.infoItem}>
-                <Ionicons name="mail-outline" size={20} color="#667eea" />
-                <Text style={styles.infoText}>
+                <Ionicons name="mail-outline" size={20} color={colors.primary} />
+                <Text style={[styles.infoText, { color: colors.text }] }>
                   Notificação enviada
                 </Text>
               </View>
               <View style={styles.infoItem}>
-                <Ionicons name="shield-checkmark-outline" size={20} color="#667eea" />
-                <Text style={styles.infoText}>
+                <Ionicons name="shield-checkmark-outline" size={20} color={colors.primary} />
+                <Text style={[styles.infoText, { color: colors.text }] }>
                   Convite válido
                 </Text>
               </View>
@@ -1125,7 +1125,7 @@ export default function ColaboradoresArtistaScreen() {
 
             {/* Botão de fechar */}
             <TouchableOpacity
-              style={styles.inviteSentButton}
+              style={[styles.inviteSentButton, { backgroundColor: colors.primary }]}
               onPress={() => setShowInviteSentModal(false)}
             >
               <Text style={styles.inviteSentButtonText}>Entendi</Text>

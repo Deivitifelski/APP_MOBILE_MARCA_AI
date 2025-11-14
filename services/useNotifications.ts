@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { getUnreadNotificationCount } from './supabase/notificationService';
 import { getCurrentUser } from './supabase/authService';
-import { subscribeToNotifications, subscribeToArtistInvites, RealtimeSubscription } from './realtimeService';
+import { subscribeToNotifications, RealtimeSubscription } from './realtimeService';
 
 export const useNotifications = () => {
   const [unreadCount, setUnreadCount] = useState(0);
@@ -54,28 +54,12 @@ export const useNotifications = () => {
       const notificationSubscription = subscribeToNotifications(
         user.id,
         (notification) => {
-          // Para notificações de eventos, recarregar contador total
-          if (notification.type === 'event_created' || notification.type === 'event_updated') {
-            loadUnreadCount();
-          } else {
-            // Para outras notificações, incrementar contador
-            if (!notification.read) {
-              setUnreadCount(prev => prev + 1);
-            }
-          }
-        }
-      );
-
-      // Subscription para convites de artista
-      const inviteSubscription = subscribeToArtistInvites(
-        user.id,
-        (invite) => {
-          // Recarregar contador total quando houver mudanças nos convites
+          // Sempre recarregar contagem total ao receber mudanças
           loadUnreadCount();
         }
       );
 
-      subscriptionsRef.current = [notificationSubscription, inviteSubscription];
+      subscriptionsRef.current = [notificationSubscription];
       
     } catch (error) {
       // Erro ao configurar subscriptions em tempo real

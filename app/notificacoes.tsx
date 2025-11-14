@@ -784,36 +784,73 @@ export default function NotificacoesScreen() {
       {/* Modal de Convite Aceito */}
       {showAcceptedModal && acceptedInviteData && (
         <View style={dynamicStyles.modalOverlay}>
-          <View style={[styles.acceptedModalContainer, { backgroundColor: colors.surface }]}>
+          <View
+            style={[
+              styles.acceptedModalContainer,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                borderWidth: 1,
+                shadowColor: colors.shadow,
+              },
+            ]}
+          >
             {/* Header */}
             <View style={styles.acceptedModalHeader}>
-              <View style={styles.successIconCircle}>
-                <Ionicons name="checkmark-circle" size={64} color="#10B981" />
+              <View
+                style={[
+                  styles.successIconCircle,
+                  {
+                    backgroundColor: colors.primary + '20',
+                    borderColor: colors.primary + '40',
+                    borderWidth: 1,
+                    borderRadius: 40,
+                    padding: 8,
+                  },
+                ]}
+              >
+                <Ionicons name="checkmark-circle" size={64} color={colors.primary} />
               </View>
-              <Text style={[styles.acceptedModalTitle, { color: isDarkMode ? '#10B981' : '#10B981' }]}>
+              <Text style={[styles.acceptedModalTitle, { color: colors.primary }]}>
                 {acceptedInviteData.isFirstArtist ? 'Bem-vindo!' : 'Convite Aceito!'}
               </Text>
-              <Text style={[styles.acceptedModalSubtitle, { color: colors.textSecondary }]}>
+              <Text style={[styles.acceptedModalSubtitle, { color: colors.textSecondary }]}> 
                 {acceptedInviteData.isFirstArtist 
                   ? 'Você agora faz parte do time'
-                  : 'Você foi adicionado como colaborador'
+                  : 'Você foi adicionado ao artista'
                 }
               </Text>
             </View>
 
             {/* Info Card */}
-            <View style={[styles.acceptedInfoCard, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+            <View
+              style={[
+                styles.acceptedInfoCard,
+                {
+                  backgroundColor: colors.card || colors.surface,
+                  borderColor: colors.border,
+                },
+              ]}
+            >
               <View style={styles.acceptedInfoRow}>
                 <Ionicons name="musical-notes" size={20} color={colors.primary} />
                 <Text style={[styles.acceptedInfoLabel, { color: colors.textSecondary }]}>Artista:</Text>
               </View>
               <Text style={[styles.acceptedInfoValue, { color: colors.text }]}>{acceptedInviteData.artistName}</Text>
 
-              <View style={[styles.acceptedInfoRow, { marginTop: 16 }]}>
+              <View style={[styles.acceptedInfoRow, { marginTop: 16 }]}> 
                 <Ionicons name="shield-checkmark" size={20} color={colors.primary} />
                 <Text style={[styles.acceptedInfoLabel, { color: colors.textSecondary }]}>Cargo:</Text>
               </View>
-              <View style={[styles.acceptedRoleBadge, { backgroundColor: colors.secondary }]}>
+              <View
+                style={[
+                  styles.acceptedRoleBadge,
+                  {
+                    backgroundColor: colors.primary + '15',
+                    borderColor: colors.primary + '30',
+                  },
+                ]}
+              >
                 <Ionicons 
                   name={
                     acceptedInviteData.role === 'Administrador' ? 'shield-checkmark' :
@@ -822,50 +859,58 @@ export default function NotificacoesScreen() {
                     'eye'
                   } 
                   size={16} 
-                  color={colors.textSecondary} 
+                  color={colors.primary} 
                 />
-                <Text style={[styles.acceptedRoleText, { color: colors.textSecondary }]}>{acceptedInviteData.role}</Text>
+                <Text style={[styles.acceptedRoleText, { color: colors.primary }]}>{acceptedInviteData.role}</Text>
               </View>
             </View>
 
             {/* Permissions */}
-            <View style={styles.acceptedPermissionsBox}>
-              <Text style={styles.acceptedPermissionsTitle}>📋 Suas Permissões:</Text>
+            <View
+              style={[
+                styles.acceptedPermissionsBox,
+                {
+                  backgroundColor: colors.card || colors.surface,
+                  borderColor: colors.border,
+                },
+              ]}
+            >
+              <Text style={[styles.acceptedPermissionsTitle, { color: colors.text }]}>📋 Suas Permissões:</Text>
               <View style={styles.acceptedPermissionsList}>
                 {/* Permissões básicas para todos */}
                 <View style={styles.acceptedPermissionItem}>
-                  <Ionicons name="checkmark-circle" size={18} color="#10B981" />
-                  <Text style={styles.acceptedPermissionText}>Visualizar eventos e agenda</Text>
+                  <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                  <Text style={[styles.acceptedPermissionText, { color: colors.text }]}>Visualizar eventos e agenda</Text>
                 </View>
                 <View style={styles.acceptedPermissionItem}>
-                  <Ionicons name="checkmark-circle" size={18} color="#10B981" />
-                  <Text style={styles.acceptedPermissionText}>Ver dados do artista</Text>
+                  <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                  <Text style={[styles.acceptedPermissionText, { color: colors.text }]}>Ver dados do artista</Text>
                 </View>
-                
+                  
                 {/* Permissões para Editor/Admin */}
                 {(acceptedInviteData.role === 'Editor' || acceptedInviteData.role === 'Administrador') && (
                   <>
                     <View style={styles.acceptedPermissionItem}>
-                      <Ionicons name="checkmark-circle" size={18} color="#10B981" />
-                      <Text style={styles.acceptedPermissionText}>Criar e editar eventos</Text>
+                      <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                      <Text style={[styles.acceptedPermissionText, { color: colors.text }]}>Criar e editar eventos</Text>
                     </View>
                     <View style={styles.acceptedPermissionItem}>
-                      <Ionicons name="checkmark-circle" size={18} color="#10B981" />
-                      <Text style={styles.acceptedPermissionText}>Visualizar valores financeiros</Text>
+                      <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                      <Text style={[styles.acceptedPermissionText, { color: colors.text }]}>Visualizar valores financeiros</Text>
                     </View>
                   </>
                 )}
-                
+                  
                 {/* Permissões apenas para Admin */}
                 {acceptedInviteData.role === 'Administrador' && (
                   <>
                     <View style={styles.acceptedPermissionItem}>
-                      <Ionicons name="checkmark-circle" size={18} color="#10B981" />
-                      <Text style={styles.acceptedPermissionText}>Gerenciar colaboradores</Text>
+                      <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                      <Text style={[styles.acceptedPermissionText, { color: colors.text }]}>Gerenciar colaboradores</Text>
                     </View>
                     <View style={styles.acceptedPermissionItem}>
-                      <Ionicons name="checkmark-circle" size={18} color="#10B981" />
-                      <Text style={styles.acceptedPermissionText}>Deletar eventos e artista</Text>
+                      <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                      <Text style={[styles.acceptedPermissionText, { color: colors.text }]}>Deletar eventos e artista</Text>
                     </View>
                   </>
                 )}
@@ -874,9 +919,9 @@ export default function NotificacoesScreen() {
 
             {/* Status */}
             {acceptedInviteData.isFirstArtist && (
-              <View style={[styles.acceptedStatusBox, { backgroundColor: colors.primary + '20', borderColor: colors.primary + '40' }]}>
+              <View style={[styles.acceptedStatusBox, { backgroundColor: colors.primary + '20', borderColor: colors.primary + '40' }]}> 
                 <Ionicons name="information-circle" size={20} color={colors.primary} />
-                <Text style={[styles.acceptedStatusText, { color: colors.primary }]}>
+                <Text style={[styles.acceptedStatusText, { color: colors.primary }]}> 
                   Este artista foi definido como seu artista ativo. Você pode acessar a agenda, eventos e configurações agora mesmo!
                 </Text>
               </View>
@@ -1599,26 +1644,24 @@ const styles = StyleSheet.create({
   },
   successIconCircle: {
     marginBottom: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   acceptedModalTitle: {
     fontSize: 26,
     fontWeight: 'bold',
-    color: '#10B981',
     textAlign: 'center',
     marginBottom: 8,
   },
   acceptedModalSubtitle: {
     fontSize: 15,
-    color: '#6B7280',
     textAlign: 'center',
   },
   acceptedInfoCard: {
-    backgroundColor: '#F9FAFB',
     borderRadius: 16,
     padding: 16,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
   acceptedInfoRow: {
     flexDirection: 'row',
@@ -1629,44 +1672,36 @@ const styles = StyleSheet.create({
   acceptedInfoLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6B7280',
   },
   acceptedInfoValue: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#111827',
     marginLeft: 28,
   },
   acceptedRoleBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: '#F3F4F6',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
     gap: 6,
     marginLeft: 28,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
   acceptedRoleText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6B7280',
   },
   acceptedPermissionsBox: {
-    backgroundColor: '#ECFDF5',
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
   },
   acceptedPermissionsTitle: {
     fontSize: 15,
     fontWeight: 'bold',
-    color: '#065F46',
     marginBottom: 12,
   },
   acceptedPermissionsList: {
@@ -1679,11 +1714,9 @@ const styles = StyleSheet.create({
   },
   acceptedPermissionText: {
     fontSize: 14,
-    color: '#065F46',
     flex: 1,
   },
   acceptedStatusBox: {
-    backgroundColor: '#EFF6FF',
     borderRadius: 12,
     padding: 14,
     flexDirection: 'row',
@@ -1691,16 +1724,13 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
   },
   acceptedStatusText: {
     fontSize: 13,
-    color: '#1E40AF',
     flex: 1,
     lineHeight: 18,
   },
   acceptedModalButton: {
-    backgroundColor: '#667eea',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
