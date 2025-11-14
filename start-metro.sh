@@ -14,8 +14,8 @@ echo "🔄 Finalizando instâncias anteriores do Metro..."
 lsof -ti:8081 | xargs kill -9 2>/dev/null
 
 # Iniciar Metro em background
-echo "▶️  Iniciando Metro na porta 8081..."
-npx expo start --clear --port 8081 &
+echo "▶️  Iniciando Metro na porta 8081 com LAN habilitada..."
+npx expo start --clear --lan --port 8081 &
 
 # Aguardar Metro inicializar
 echo "⏳ Aguardando Metro inicializar..."
