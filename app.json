@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.marcaai.app",
-      "buildNumber": "2",
+      "buildNumber": "9",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Este app precisa acessar sua galeria de fotos para permitir que você selecione uma foto de perfil.",
         "NSCameraUsageDescription": "Este app precisa acessar sua câmera para permitir que você tire uma foto para o perfil.",
