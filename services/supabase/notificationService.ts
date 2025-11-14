@@ -79,7 +79,7 @@ export const getUserNotifications = async (userId: string, limit: number = 50): 
         from_user:users!from_user_id(id, name, email, profile_url),
         artist:artists(id, name)
       `)
-      .eq('user_id', userId) // Apenas notificações que o usuário RECEBEU
+      .eq('to_user_id', userId) // Apenas notificações que o usuário RECEBEU
       .order('created_at', { ascending: false })
       .limit(limit);
 
