@@ -817,14 +817,16 @@ export default function AgendaScreen() {
           activeOpacity={1}
           onPress={closeDayModal}
         >
-          <TouchableWithoutFeedback onPress={() => {}}>
+            <TouchableWithoutFeedback onPress={() => {}}>
             <View style={[styles.dayModalContent, { backgroundColor: colors.surface }]}>
-              <TouchableOpacity
-                style={styles.dayModalCloseButton}
-                onPress={closeDayModal}
-              >
-                <Ionicons name="close" size={22} color={colors.text} />
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.dayModalCloseButton}
+                  onPress={closeDayModal}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 24, bottom: 24, left: 24, right: 24 }}
+                >
+                  <Ionicons name="close" size={24} color="#FFFFFF" />
+                </TouchableOpacity>
               <Text style={[styles.dayModalTitle, { color: colors.text }]}>
                 {formatDisplayDate(selectedDay)}
               </Text>
@@ -1282,8 +1284,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 12,
     right: 12,
-    padding: 8,
-    borderRadius: 999,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   dayModalTitle: {
     fontSize: 18,
