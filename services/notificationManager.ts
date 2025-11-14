@@ -1,14 +1,14 @@
 import { createNotification } from './supabase/notificationService';
 import { supabase } from '../lib/supabase';
 
-// Criar notificação automática para convites de artista
+// Criar notificação automática para convites de artista (centralizado na tabela notifications)
 export const createArtistInviteNotification = async (
-  inviteId: string,
+  inviteId: string, // Não usado mais, mantido para compatibilidade
   toUserId: string,
   fromUserId: string,
   artistId: string,
   role?: 'viewer' | 'editor' | 'admin' | 'owner' // Role que será atribuída
-) => {
+): Promise<{ success: boolean; error: string | null; notification?: any }> => {
   try {
     // Buscar informações do artista e usuário remetente
     const { data: artistData } = await supabase
@@ -19,15 +19,15 @@ export const createArtistInviteNotification = async (
 
     const { data: fromUserData } = await supabase
       .from('users')
-      .select('name')
+      .select('name, email')
       .eq('id', fromUserId)
       .single();
 
     const artistName = artistData?.name || 'Artista';
     const fromUserName = fromUserData?.name || 'Alguém';
 
-    // Criar notificação
-    const { success, error } = await createNotification({
+    // Criar notificação diretamente na tabela notifications
+    const { success, error, notification } = await createNotification({
       user_id: toUserId,
       from_user_id: fromUserId,
       artist_id: artistId,
@@ -37,13 +37,16 @@ export const createArtistInviteNotification = async (
       type: 'artist_invite'
     });
 
-    if (success) {
+    if (success && notification) {
       console.log('notificationManager: Notificação de convite criada com sucesso');
+      return { success: true, error: null, notification };
     } else {
       console.error('notificationManager: Erro ao criar notificação de convite:', error);
+      return { success: false, error: error || 'Erro ao criar notificação' };
     }
   } catch (error) {
     console.error('notificationManager: Erro ao criar notificação de convite:', error);
+    return { success: false, error: 'Erro interno ao criar notificação' };
   }
 };
 

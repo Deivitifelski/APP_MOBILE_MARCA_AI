@@ -41,52 +41,39 @@ export interface InviteResponse {
   invites?: ArtistInvite[];
 }
 
-// Criar convite para colaborar
+// Criar convite para colaborar (agora apenas na tabela notifications)
 export const createArtistInvite = async (data: CreateInviteData): Promise<InviteResponse> => {
   try {
-    // Criar data no horário local do Brasil
-    const now = new Date();
-    const brazilTime = new Date(now.getTime() - (3 * 60 * 60 * 1000)); // Subtrai 3 horas para ajustar ao Brasil
-    
-    const { data: invite, error } = await supabase
-      .from('artist_invites')
-      .insert({
+    // Criar notificação diretamente na tabela notifications (tudo centralizado aqui)
+    const { success, error, notification } = await createArtistInviteNotification(
+      '', // Não precisa mais do inviteId
+      data.toUserId,
+      data.fromUserId,
+      data.artistId,
+      data.role || 'viewer' // ✅ Passar a role do convite
+    );
+
+    if (!success || !notification) {
+      console.error('Erro ao criar convite (notificação):', error);
+      return { success: false, error: error || 'Erro ao criar convite' };
+    }
+
+    // Retornar sucesso com a notificação criada
+    return { 
+      success: true, 
+      invite: {
+        id: notification.id,
         artist_id: data.artistId,
         from_user_id: data.fromUserId,
         to_user_id: data.toUserId,
-        role: data.role || 'viewer', // ✅ Salvar a role escolhida
+        role: data.role || 'viewer',
         status: 'pending',
         read: false,
-        created_at: brazilTime.toISOString()
-      })
-      .select(`
-        *,
-        artist:artists(id, name),
-        from_user:users!artist_invites_from_user_id_fkey(id, name, email),
-        to_user:users!artist_invites_to_user_id_fkey(id, name, email)
-      `)
-      .single();
-
-    if (error) {
-      console.error('Erro ao criar convite:', error);
-      return { success: false, error: error.message };
-    }
-
-    // Criar notificação para o usuário convidado
-    try {
-      await createArtistInviteNotification(
-        invite.id,
-        data.toUserId,
-        data.fromUserId,
-        data.artistId,
-        invite.role || data.role || 'viewer' // ✅ Passar a role do convite
-      );
-    } catch (notificationError) {
-      console.error('Erro ao criar notificação de convite:', notificationError);
-      // Não falhar o convite se a notificação falhar
-    }
-
-    return { success: true, invite };
+        created_at: notification.created_at,
+        artist: notification.artist,
+        from_user: notification.from_user
+      } as ArtistInvite
+    };
   } catch (error) {
     console.error('Erro ao criar convite:', error);
     return { success: false, error: 'Erro interno ao criar convite' };
