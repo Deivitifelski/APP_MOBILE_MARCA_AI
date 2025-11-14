@@ -231,43 +231,43 @@ export default function SelecionarArtistaScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#667eea" />
-          <Text style={styles.loadingText}>Carregando artistas...</Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Carregando artistas...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }] }>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Selecionar Artista</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Selecionar Artista</Text>
         <View style={styles.placeholder} />
       </View>
 
       <ScrollView
         style={styles.content}
         refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
+          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
         }
       >
-        <View style={styles.introSection}>
-          <Text style={styles.introTitle}>Seus Artistas</Text>
-          <Text style={styles.introSubtitle}>
+        <View style={[styles.introSection, { backgroundColor: colors.surface }] }>
+          <Text style={[styles.introTitle, { color: colors.text }]}>Seus Artistas</Text>
+          <Text style={[styles.introSubtitle, { color: colors.textSecondary }]}>
             Selecione um artista para alternar entre suas colaborações
           </Text>
         </View>
 
         {artists.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Ionicons name="musical-notes-outline" size={64} color="#ccc" />
-            <Text style={styles.emptyTitle}>Nenhum artista encontrado</Text>
-            <Text style={styles.emptySubtitle}>
+            <Ionicons name="musical-notes-outline" size={64} color={colors.textSecondary} />
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>Nenhum artista encontrado</Text>
+            <Text style={[styles.emptySubtitle, { color: colors.textSecondary }] }>
               Você ainda não é colaborador de nenhum artista
             </Text>
           </View>
@@ -286,7 +286,7 @@ export default function SelecionarArtistaScreen() {
         onRequestClose={handleCancelChange}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={[styles.modalIcon, { backgroundColor: colors.primary + '20' }]}>
               <Ionicons name="swap-horizontal" size={32} color={colors.primary} />
             </View>
@@ -358,15 +358,12 @@ export default function SelecionarArtistaScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
   },
   header: {
-    backgroundColor: '#fff',
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -377,7 +374,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
   },
   placeholder: {
     width: 40,
@@ -396,7 +392,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   introSection: {
-    backgroundColor: '#fff',
     margin: 20,
     padding: 20,
     borderRadius: 12,
@@ -410,12 +405,10 @@ const styles = StyleSheet.create({
   introTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
     marginBottom: 8,
   },
   introSubtitle: {
     fontSize: 14,
-    color: '#666',
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -424,7 +417,6 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   artistCard: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -536,13 +528,11 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#666',
     marginTop: 16,
     marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: '#999',
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -560,11 +550,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 24,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 10,
   },
   modalIcon: {
     width: 64,

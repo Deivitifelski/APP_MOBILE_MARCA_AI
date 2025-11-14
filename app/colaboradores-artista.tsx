@@ -648,15 +648,15 @@ export default function ColaboradoresArtistaScreen() {
         animationType="slide"
         presentationStyle="pageSheet"
       >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
+        <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          <View style={[styles.modalHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
             <TouchableOpacity 
               onPress={() => setShowAddModal(false)}
               style={styles.modalCloseButton}
             >
-              <Text style={styles.modalCloseText}>Cancelar</Text>
+              <Text style={[styles.modalCloseText, { color: colors.textSecondary }]}>Cancelar</Text>
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Buscar Usuário</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Buscar Usuário</Text>
             <TouchableOpacity 
               onPress={handleInviteCollaborator}
               style={[styles.modalSaveButton, !selectedUser && styles.disabledButton]}
@@ -668,27 +668,28 @@ export default function ColaboradoresArtistaScreen() {
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalContent}>
+          <ScrollView style={[styles.modalContent, { backgroundColor: colors.background }]}>
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Buscar usuário</Text>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Buscar usuário</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
                 value={searchTerm}
                 onChangeText={(text) => {
                   setSearchTerm(text);
                   handleSearchUsers(text);
                 }}
                 placeholder="Digite o nome do usuário"
+                placeholderTextColor={colors.textSecondary}
                 autoCapitalize="none"
               />
               
               {/* Resultados da busca */}
               {searchResults.length > 0 && (
-                <View style={styles.searchResults}>
+                <View style={[styles.searchResults, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                   {searchResults.map((user) => (
                     <TouchableOpacity
                       key={user.id}
-                      style={styles.searchResultItem}
+                      style={[styles.searchResultItem, { borderBottomColor: colors.border }]}
                       onPress={() => handleSelectUser(user)}
                     >
                       <OptimizedImage
@@ -700,8 +701,8 @@ export default function ColaboradoresArtistaScreen() {
                         fallbackIconColor="#667eea"
                       />
                       <View style={styles.userInfo}>
-                        <Text style={styles.userName}>{user.name}</Text>
-                        <Text style={styles.userEmail}>
+                        <Text style={[styles.userName, { color: colors.text }]}>{user.name}</Text>
+                        <Text style={[styles.userEmail, { color: colors.textSecondary }]}>
                           {user.city && user.state 
                             ? `${user.city}, ${user.state}`
                             : user.city || user.state || 'Localização não informada'}
@@ -715,12 +716,12 @@ export default function ColaboradoresArtistaScreen() {
               {isSearching && (
                 <View style={styles.searchLoading}>
                   <ActivityIndicator size="small" color="#667eea" />
-                  <Text style={styles.searchLoadingText}>Buscando usuários...</Text>
+                  <Text style={[styles.searchLoadingText, { color: colors.textSecondary }]}>Buscando usuários...</Text>
                 </View>
               )}
               
               {searchTerm.length >= 2 && searchResults.length === 0 && !isSearching && (
-                <Text style={styles.noResultsText}>Nenhum usuário encontrado</Text>
+                <Text style={[styles.noResultsText, { color: colors.textSecondary }]}>Nenhum usuário encontrado</Text>
               )}
             </View>
           </ScrollView>
@@ -734,15 +735,15 @@ export default function ColaboradoresArtistaScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setShowInviteModal(false)}
       >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
+        <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background }] }>
+          <View style={[styles.modalHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }] }>
             <TouchableOpacity 
               onPress={() => setShowInviteModal(false)}
               style={styles.modalCloseButton}
             >
-              <Text style={styles.modalCloseText}>Cancelar</Text>
+              <Text style={[styles.modalCloseText, { color: colors.textSecondary }]}>Cancelar</Text>
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Enviar Convite</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Enviar Convite</Text>
             <TouchableOpacity 
               onPress={handleConfirmInvite}
               style={styles.modalSaveButton}
@@ -751,21 +752,21 @@ export default function ColaboradoresArtistaScreen() {
               {isInviting ? (
                 <ActivityIndicator size="small" color="#667eea" />
               ) : (
-                <Text style={styles.modalSaveText}>Enviar</Text>
+                <Text style={[styles.modalSaveText, { color: colors.primary }]}>Enviar</Text>
               )}
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalContent}>
+          <ScrollView style={[styles.modalContent, { backgroundColor: colors.background }] }>
             <View style={styles.permissionSelection}>
-              <Text style={styles.permissionTitle}>Enviar Convite de Colaboração</Text>
+              <Text style={[styles.permissionTitle, { color: colors.text }]}>Enviar Convite de Colaboração</Text>
               
-              <Text style={styles.permissionDescription}>
+              <Text style={[styles.permissionDescription, { color: colors.textSecondary }] }>
                 Selecione a permissão para enviar o convite:
               </Text>
               
               {selectedUser && (
-                <View style={styles.permissionUserCard}>
+                <View style={[styles.permissionUserCard, { backgroundColor: colors.surface, borderColor: colors.border }] }>
                   <OptimizedImage
                     imageUrl={selectedUser.profile_url || ''}
                     style={styles.permissionUserAvatar}
@@ -775,14 +776,14 @@ export default function ColaboradoresArtistaScreen() {
                     fallbackIconColor="#FFFFFF"
                   />
                   <View style={styles.permissionUserInfo}>
-                    <Text style={styles.permissionUserName}>{selectedUser.name}</Text>
-                    <Text style={styles.permissionUserEmail}>{selectedUser.email}</Text>
+                    <Text style={[styles.permissionUserName, { color: colors.text }]}>{selectedUser.name}</Text>
+                    <Text style={[styles.permissionUserEmail, { color: colors.textSecondary }]}>{selectedUser.email}</Text>
                   </View>
                 </View>
               )}
               
-              <Text style={styles.permissionDetails}>
-                <Text style={styles.permissionDetailsLabel}>Artista:</Text> {activeArtist?.name}
+              <Text style={[styles.permissionDetails, { color: colors.textSecondary }]}>
+                <Text style={[styles.permissionDetailsLabel, { color: colors.primary }]}>Artista:</Text> {activeArtist?.name}
               </Text>
               
               <View style={styles.permissionOptions}>
@@ -796,19 +797,22 @@ export default function ColaboradoresArtistaScreen() {
                     key={role.value}
                     style={[
                       styles.permissionOption,
-                      newCollaboratorRole === role.value && styles.permissionOptionSelected
+                      { backgroundColor: colors.surface, borderColor: colors.border },
+                      newCollaboratorRole === role.value && [styles.permissionOptionSelected, { backgroundColor: colors.primary + '15', borderColor: colors.primary }]
                     ]}
                     onPress={() => setNewCollaboratorRole(role.value as any)}
                   >
                     <View style={styles.permissionOptionContent}>
                       <Text style={[
                         styles.permissionOptionLabel,
-                        newCollaboratorRole === role.value && styles.permissionOptionLabelSelected
+                        { color: colors.text },
+                        newCollaboratorRole === role.value && [styles.permissionOptionLabelSelected, { color: colors.primary }]
                       ]}>
                         {role.label}
                       </Text>
                       <Text style={[
                         styles.permissionOptionDescription,
+                        { color: colors.textSecondary },
                         newCollaboratorRole === role.value && styles.permissionOptionDescriptionSelected
                       ]}>
                         {role.description}
@@ -816,7 +820,8 @@ export default function ColaboradoresArtistaScreen() {
                     </View>
                     <View style={[
                       styles.permissionRadio,
-                      newCollaboratorRole === role.value && styles.permissionRadioSelected
+                      { borderColor: colors.border },
+                      newCollaboratorRole === role.value && [styles.permissionRadioSelected, { borderColor: colors.primary }]
                     ]}>
                       {newCollaboratorRole === role.value && (
                         <View style={styles.permissionRadioInner} />
@@ -826,9 +831,9 @@ export default function ColaboradoresArtistaScreen() {
                 ))}
               </View>
               
-              <View style={styles.permissionWarning}>
+              <View style={[styles.permissionWarning, { backgroundColor: colors.secondary, borderColor: colors.border }] }>
                 <Ionicons name="information-circle" size={20} color="#ff9800" />
-                <Text style={styles.permissionWarningText}>
+                <Text style={[styles.permissionWarningText, { color: colors.textSecondary }] }>
                   O usuário receberá uma notificação e poderá aceitar ou recusar o convite.
                 </Text>
               </View>
