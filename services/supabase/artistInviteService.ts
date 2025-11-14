@@ -130,36 +130,37 @@ export const getArtistInvitesSent = async (userId: string): Promise<InviteRespon
   }
 };
 
-// Aceitar convite
-export const acceptArtistInvite = async (inviteId: string, userId: string): Promise<InviteResponse> => {
+// Aceitar convite (agora usando apenas a tabela notifications)
+export const acceptArtistInvite = async (notificationId: string, userId: string): Promise<InviteResponse> => {
   try {
-    console.log('🔄 Aceitando convite:', { inviteId, userId });
+    console.log('🔄 Aceitando convite:', { notificationId, userId });
     
-    // Buscar o convite para obter os dados (artist_id e role)
-    const { data: invite, error: fetchError } = await supabase
-      .from('artist_invites')
+    // Buscar a notificação para obter os dados (artist_id e role)
+    const { data: notification, error: fetchError } = await supabase
+      .from('notifications')
       .select('id, artist_id, to_user_id, from_user_id, role, status')
-      .eq('id', inviteId)
+      .eq('id', notificationId)
       .eq('to_user_id', userId)
+      .eq('type', 'invite')
       .eq('status', 'pending')
       .single();
 
-    if (fetchError || !invite) {
-      console.error('❌ Convite não encontrado:', fetchError);
+    if (fetchError || !notification) {
+      console.error('❌ Notificação de convite não encontrada:', fetchError);
       return { success: false, error: 'Convite não encontrado ou já processado' };
     }
 
-    console.log('✅ Convite encontrado:', invite);
+    console.log('✅ Notificação de convite encontrada:', notification);
 
     // INSERIR DIRETAMENTE em artist_members com a role do convite
-    const roleToUse = invite.role || 'viewer';
+    const roleToUse = notification.role || 'viewer';
     console.log('🔐 Inserindo em artist_members com role:', roleToUse);
 
     const { error: insertError } = await supabase
       .from('artist_members')
       .insert({
-        user_id: invite.to_user_id,
-        artist_id: invite.artist_id,
+        user_id: notification.to_user_id || userId,
+        artist_id: notification.artist_id!,
         role: roleToUse, // ✅ Role do convite
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -178,34 +179,8 @@ export const acceptArtistInvite = async (inviteId: string, userId: string): Prom
 
     console.log('✅ Colaborador adicionado com role:', roleToUse);
 
-    // Marcar convite como aceito (opcional - para histórico)
-    const now = new Date();
-    const brazilTime = new Date(now.getTime() - (3 * 60 * 60 * 1000));
-    
-    await supabase
-      .from('artist_invites')
-      .update({
-        status: 'accepted',
-        responded_at: brazilTime.toISOString()
-      })
-      .eq('id', inviteId);
-
-    console.log('✅ Convite marcado como aceito');
-
-    // Marcar convite como lido
-    await supabase
-      .from('artist_invites')
-      .update({ read: true })
-      .eq('id', inviteId)
-      .eq('to_user_id', userId);
-
-    // Marcar notificações relacionadas como lidas
-    await supabase
-      .from('notifications')
-      .update({ read: true })
-      .eq('user_id', userId)
-      .eq('artist_id', invite.artist_id)
-      .eq('type', 'artist_invite');
+    // O status da notificação será atualizado pela função updateNotificationStatus
+    // chamada em handleAcceptInviteFromNotification
 
     return { success: true };
   } catch (error) {
@@ -214,59 +189,30 @@ export const acceptArtistInvite = async (inviteId: string, userId: string): Prom
   }
 };
 
-// Recusar convite
-export const declineArtistInvite = async (inviteId: string, userId: string): Promise<InviteResponse> => {
+// Recusar convite (agora usando apenas a tabela notifications)
+export const declineArtistInvite = async (notificationId: string, userId: string): Promise<InviteResponse> => {
   try {
-    console.log('🔄 Recusando convite:', { inviteId, userId });
+    console.log('🔄 Recusando convite:', { notificationId, userId });
     
-    // Buscar o convite para garantir que existe
-    const { data: invite, error: fetchError } = await supabase
-      .from('artist_invites')
+    // Buscar a notificação para garantir que existe
+    const { data: notification, error: fetchError } = await supabase
+      .from('notifications')
       .select('id, artist_id, to_user_id, from_user_id, status')
-      .eq('id', inviteId)
+      .eq('id', notificationId)
       .eq('to_user_id', userId)
+      .eq('type', 'invite')
       .eq('status', 'pending')
       .single();
 
-    if (fetchError || !invite) {
-      console.error('❌ Convite não encontrado:', fetchError);
+    if (fetchError || !notification) {
+      console.error('❌ Notificação de convite não encontrada:', fetchError);
       return { success: false, error: 'Convite não encontrado ou já processado' };
     }
 
-    console.log('✅ Convite encontrado:', invite);
+    console.log('✅ Notificação de convite encontrada:', notification);
 
-    // Marcar convite como recusado
-    const now = new Date();
-    const brazilTime = new Date(now.getTime() - (3 * 60 * 60 * 1000));
-    
-    const { error: updateError } = await supabase
-      .from('artist_invites')
-      .update({
-        status: 'declined', // ✅ Marcar como declined
-        responded_at: brazilTime.toISOString()
-      })
-      .eq('id', inviteId);
-
-    if (updateError) {
-      console.error('❌ Erro ao recusar convite:', updateError);
-      return { success: false, error: updateError.message };
-    }
-
-    console.log('✅ Convite marcado como recusado');
-
-    // Marcar como lido após recusar
-    await supabase
-      .from('artist_invites')
-      .update({ read: true })
-      .eq('id', inviteId)
-      .eq('to_user_id', userId);
-
-    await supabase
-      .from('notifications')
-      .update({ read: true })
-      .eq('user_id', userId)
-      .eq('artist_id', invite.artist_id)
-      .eq('type', 'artist_invite');
+    // O status da notificação será atualizado pela função updateNotificationStatus
+    // chamada em handleDeclineInviteFromNotification (status = 'rejected')
 
     return { success: true };
   } catch (error) {
