@@ -155,7 +155,7 @@ export const getUnreadNotificationCount = async (userId: string): Promise<{ coun
     const { count, error } = await supabase
       .from('notifications')
       .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
+      .eq('to_user_id', userId)
       .eq('read', false);
 
     if (error) {
