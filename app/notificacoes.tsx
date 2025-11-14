@@ -583,7 +583,7 @@ export default function NotificacoesScreen() {
                 key={notification.id}
                 style={[
                   dynamicStyles.notificationCard,
-                  !notification.read && styles.unreadNotification
+                  !notification.read && dynamicStyles.unreadNotification
                 ]}
               >
                 <TouchableOpacity
@@ -672,9 +672,9 @@ export default function NotificacoesScreen() {
                       {notification.type === 'artist_invite' && notification.artist_id && (
                         <>
                           {!notification.read ? (
-                            <View style={styles.inviteActions}>
+                            <View style={dynamicStyles.inviteActions}>
                               <TouchableOpacity
-                                style={styles.acceptButton}
+                                style={dynamicStyles.acceptButton}
                                 onPress={(e) => {
                                   e.stopPropagation();
                                   handleAcceptInviteFromNotification(
@@ -686,11 +686,11 @@ export default function NotificacoesScreen() {
                                 }}
                               >
                                 <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
-                                <Text style={styles.acceptButtonText}>Aceitar</Text>
+                                <Text style={dynamicStyles.acceptButtonText}>Aceitar</Text>
                               </TouchableOpacity>
 
                               <TouchableOpacity
-                                style={styles.declineButton}
+                                style={dynamicStyles.declineButton}
                                 onPress={(e) => {
                                   e.stopPropagation();
                                   handleDeclineInviteFromNotification(
@@ -699,14 +699,14 @@ export default function NotificacoesScreen() {
                                   );
                                 }}
                               >
-                                <Ionicons name="close-circle" size={16} color="#6B7280" />
-                                <Text style={styles.declineButtonText}>Recusar</Text>
+                                <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
+                                <Text style={dynamicStyles.declineButtonText}>Recusar</Text>
                               </TouchableOpacity>
                             </View>
                           ) : (
-                            <View style={styles.inviteProcessedBadge}>
-                              <Ionicons name="checkmark-done" size={14} color="#10B981" />
-                              <Text style={styles.inviteProcessedText}>Convite processado</Text>
+                            <View style={dynamicStyles.inviteProcessedBadge}>
+                              <Ionicons name="checkmark-done" size={14} color={colors.success} />
+                              <Text style={dynamicStyles.inviteProcessedText}>Convite processado</Text>
                             </View>
                           )}
                         </>
@@ -1009,6 +1009,10 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
     shadowRadius: 3.84,
     elevation: 5,
   },
+  unreadNotification: {
+    backgroundColor: isDark ? '#353535' : '#F9FAFB',
+    borderColor: isDark ? colors.border : '#E5E7EB',
+  },
   notificationHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1092,29 +1096,63 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
     color: colors.textSecondary,
   },
   inviteActions: {
-    padding: 12,
-    gap: 8,
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 16,
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
   acceptButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.success,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 6,
   },
   acceptButtonText: {
-    color: '#fff',
-    fontSize: 13,
+    color: '#FFFFFF',
+    fontSize: 14,
     fontWeight: '600',
   },
   declineButton: {
-    backgroundColor: colors.error,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: isDark ? colors.background : colors.secondary,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   declineButtonText: {
-    color: '#fff',
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  inviteProcessedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: `${colors.success}20`,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    gap: 6,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: `${colors.success}40`,
+  },
+  inviteProcessedText: {
     fontSize: 13,
+    color: colors.success,
     fontWeight: '600',
   },
   unreadDot: {
