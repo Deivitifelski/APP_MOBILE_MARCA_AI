@@ -105,16 +105,24 @@ export const getArtistInvitesReceived = async (userId: string): Promise<InviteRe
   }
 };
 
-// Buscar convites enviados por um usuário
+// Buscar convites enviados por um usuário (agora usando apenas a tabela notifications)
 export const getArtistInvitesSent = async (userId: string): Promise<InviteResponse> => {
   try {
-    const { data: invites, error } = await supabase
-      .from('artist_invites')
+    // Buscar notificações do tipo 'invite' onde o usuário é o remetente
+    const { data: notifications, error } = await supabase
+      .from('notifications')
       .select(`
-        *,
-        artist:artists(id, name),
-        to_user:users!artist_invites_to_user_id_fkey(id, name, email)
+        id,
+        artist_id,
+        from_user_id,
+        to_user_id,
+        role,
+        status,
+        read,
+        created_at,
+        artist:artists(id, name)
       `)
+      .eq('type', 'invite')
       .eq('from_user_id', userId)
       .order('created_at', { ascending: false });
 
@@ -123,7 +131,41 @@ export const getArtistInvitesSent = async (userId: string): Promise<InviteRespon
       return { success: false, error: error.message };
     }
 
-    return { success: true, invites: invites as ArtistInvite[] };
+    // Buscar dados dos usuários destinatários separadamente
+    const toUserIds = [...new Set((notifications || []).map(n => n.to_user_id))];
+    const { data: users } = await supabase
+      .from('users')
+      .select('id, name, email')
+      .in('id', toUserIds);
+
+    // Criar um mapa de usuários por ID
+    const usersMap = new Map((users || []).map(u => [u.id, u]));
+
+    // Converter notificações para o formato ArtistInvite
+    const invites: ArtistInvite[] = (notifications || []).map(notification => {
+      const toUser = usersMap.get(notification.to_user_id);
+      return {
+        id: notification.id,
+        artist_id: notification.artist_id!,
+        from_user_id: notification.from_user_id!,
+        to_user_id: notification.to_user_id,
+        role: notification.role || 'viewer',
+        status: (notification.status === 'pending' ? 'pending' : 
+                 notification.status === 'accepted' ? 'accepted' : 
+                 notification.status === 'rejected' ? 'declined' : 'pending') as 'pending' | 'accepted' | 'declined',
+        read: notification.read,
+        created_at: notification.created_at,
+        responded_at: undefined, // Campo não existe na tabela notifications
+        artist: notification.artist,
+        to_user: toUser ? {
+          id: toUser.id,
+          name: toUser.name,
+          email: toUser.email
+        } : undefined
+      };
+    });
+
+    return { success: true, invites };
   } catch (error) {
     console.error('Erro ao buscar convites enviados:', error);
     return { success: false, error: 'Erro interno ao buscar convites' };
@@ -245,23 +287,36 @@ export const markInviteAsRead = async (inviteId: string, userId: string): Promis
 };
 
 // Cancelar convite (apenas o remetente pode cancelar)
-export const cancelArtistInvite = async (inviteId: string, fromUserId: string): Promise<InviteResponse> => {
+// Cancelar convite (agora usando apenas a tabela notifications)
+export const cancelArtistInvite = async (notificationId: string, fromUserId: string): Promise<InviteResponse> => {
   try {
-    const { data: invite, error } = await supabase
-      .from('artist_invites')
-      .delete()
-      .eq('id', inviteId)
+    // Verificar se a notificação existe e é um convite pendente
+    const { data: notification, error: fetchError } = await supabase
+      .from('notifications')
+      .select('id, from_user_id, type, status')
+      .eq('id', notificationId)
       .eq('from_user_id', fromUserId)
+      .eq('type', 'invite')
       .eq('status', 'pending')
-      .select()
       .single();
 
-    if (error) {
-      console.error('Erro ao cancelar convite:', error);
-      return { success: false, error: error.message };
+    if (fetchError || !notification) {
+      console.error('Erro ao buscar notificação de convite:', fetchError);
+      return { success: false, error: 'Convite não encontrado ou já foi processado' };
     }
 
-    return { success: true, invite };
+    // Deletar a notificação (convite cancelado)
+    const { error: deleteError } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('id', notificationId);
+
+    if (deleteError) {
+      console.error('Erro ao cancelar convite:', deleteError);
+      return { success: false, error: deleteError.message };
+    }
+
+    return { success: true };
   } catch (error) {
     console.error('Erro ao cancelar convite:', error);
     return { success: false, error: 'Erro interno ao cancelar convite' };

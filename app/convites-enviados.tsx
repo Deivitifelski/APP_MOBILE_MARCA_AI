@@ -153,7 +153,8 @@ export default function ConvitesEnviadosScreen() {
   };
 
   const renderInvite = ({ item }: { item: ArtistInvite }) => (
-    <View style={[styles.inviteCard, { backgroundColor: colors.surface }]}>
+    <View style={[styles.inviteCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      {/* Header: Usuário e Status */}
       <View style={styles.inviteHeader}>
         <View style={styles.userInfo}>
           <View style={[styles.userAvatar, { backgroundColor: colors.primary }]}>
@@ -163,13 +164,15 @@ export default function ConvitesEnviadosScreen() {
           </View>
           <View style={styles.userDetails}>
             <Text style={[styles.userName, { color: colors.text }]}>{item.to_user?.name || 'Usuário'}</Text>
-            <Text style={[styles.userEmail, { color: colors.textSecondary }]}>{item.to_user?.email || 'Email não disponível'}</Text>
+            <Text style={[styles.userEmail, { color: colors.textSecondary }]} numberOfLines={1}>
+              {item.to_user?.email || 'Email não disponível'}
+            </Text>
           </View>
         </View>
-        <View style={styles.statusContainer}>
+        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
           <Ionicons 
             name={getStatusIcon(item.status) as any} 
-            size={20} 
+            size={16} 
             color={getStatusColor(item.status)} 
           />
           <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
@@ -178,30 +181,52 @@ export default function ConvitesEnviadosScreen() {
         </View>
       </View>
 
+      {/* Separador */}
+      <View style={[styles.separator, { backgroundColor: colors.border }]} />
+
+      {/* Detalhes do Convite */}
       <View style={styles.inviteDetails}>
-        <Text style={[styles.artistName, { color: colors.text }]}>
-          <Text style={[styles.label, { color: colors.primary }]}>Artista:</Text> {item.artist?.name || 'Artista não encontrado'}
-        </Text>
-        <Text style={[styles.inviteDate, { color: colors.text }]}>
-          <Text style={[styles.label, { color: colors.primary }]}>Enviado em:</Text> {formatDate(item.created_at)}
-        </Text>
-        {item.responded_at && (
-          <Text style={[styles.responseDate, { color: colors.text }]}>
-            <Text style={[styles.label, { color: colors.primary }]}>Respondido em:</Text> {formatDate(item.responded_at)}
+        <View style={styles.detailRow}>
+          <Ionicons name="musical-notes" size={16} color={colors.primary} />
+          <Text style={[styles.detailText, { color: colors.text }]}>
+            <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Artista: </Text>
+            {item.artist?.name || 'Artista não encontrado'}
           </Text>
+        </View>
+
+        <View style={styles.detailRow}>
+          <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
+          <Text style={[styles.detailText, { color: colors.text }]}>
+            <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Enviado em: </Text>
+            {formatDate(item.created_at)}
+          </Text>
+        </View>
+
+        {item.responded_at && (
+          <View style={styles.detailRow}>
+            <Ionicons name="checkmark-circle-outline" size={16} color={colors.textSecondary} />
+            <Text style={[styles.detailText, { color: colors.text }]}>
+              <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Respondido em: </Text>
+              {formatDate(item.responded_at)}
+            </Text>
+          </View>
         )}
       </View>
 
+      {/* Ações (apenas para pendentes) */}
       {item.status === 'pending' && (
-        <View style={styles.inviteActions}>
-          <TouchableOpacity
-            style={[styles.cancelButton, { backgroundColor: colors.error + '20', borderColor: colors.error + '40' }]}
-            onPress={() => handleCancelInvite(item.id, item.to_user?.name || 'Usuário')}
-          >
-            <Ionicons name="trash" size={16} color={colors.error} />
-            <Text style={[styles.cancelButtonText, { color: colors.error }]}>Cancelar Convite</Text>
-          </TouchableOpacity>
-        </View>
+        <>
+          <View style={[styles.separator, { backgroundColor: colors.border }]} />
+          <View style={styles.inviteActions}>
+            <TouchableOpacity
+              style={[styles.cancelButton, { backgroundColor: colors.error + '15', borderColor: colors.error + '30' }]}
+              onPress={() => handleCancelInvite(item.id, item.to_user?.name || 'Usuário')}
+            >
+              <Ionicons name="close-circle" size={18} color={colors.error} />
+              <Text style={[styles.cancelButtonText, { color: colors.error }]}>Cancelar Convite</Text>
+            </TouchableOpacity>
+          </View>
+        </>
       )}
     </View>
   );
@@ -340,6 +365,7 @@ const styles = StyleSheet.create({
   inviteCard: {
     borderRadius: 12,
     padding: 16,
+    borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -350,25 +376,26 @@ const styles = StyleSheet.create({
   inviteHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 12,
   },
   userInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    marginRight: 12,
   },
   userAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
   userAvatarText: {
     color: '#fff',
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
   },
   userDetails: {
@@ -377,53 +404,59 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   userEmail: {
-    fontSize: 14,
+    fontSize: 13,
   },
-  statusContainer: {
+  statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    gap: 4,
   },
   statusText: {
     fontSize: 12,
     fontWeight: '600',
-    marginLeft: 4,
+  },
+  separator: {
+    height: 1,
+    marginVertical: 12,
   },
   inviteDetails: {
-    marginBottom: 12,
+    gap: 10,
   },
-  artistName: {
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  detailText: {
     fontSize: 14,
-    marginBottom: 4,
+    flex: 1,
   },
-  inviteDate: {
+  detailLabel: {
     fontSize: 14,
-    marginBottom: 4,
-  },
-  responseDate: {
-    fontSize: 14,
-  },
-  label: {
-    fontWeight: '600',
   },
   inviteActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    marginTop: 4,
   },
   cancelButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
+    gap: 6,
   },
   cancelButtonText: {
     fontSize: 14,
-    marginLeft: 4,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   emptyContainer: {
     alignItems: 'center',
