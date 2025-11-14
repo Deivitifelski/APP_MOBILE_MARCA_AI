@@ -26,7 +26,7 @@ export const createArtistInviteNotification = async (
     const artistName = artistData?.name || 'Artista';
     const fromUserName = fromUserData?.name || 'Alguém';
 
-    // Criar notificação diretamente na tabela notifications
+    // Criar notificação diretamente na tabela notifications com status 'pending'
     const { success, error, notification } = await createNotification({
       to_user_id: toUserId,
       from_user_id: fromUserId,
@@ -34,7 +34,8 @@ export const createArtistInviteNotification = async (
       role: role || 'viewer', // ✅ Salvar a role do convite
       title: 'Novo Convite de Artista',
       message: `${fromUserName} te convidou para ser colaborador do artista "${artistName}"`,
-      type: 'invite'
+      type: 'invite',
+      status: 'pending' // ✅ Status inicial do convite
     });
 
     if (success && notification) {

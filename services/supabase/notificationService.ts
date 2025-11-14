@@ -11,6 +11,7 @@ export interface Notification {
   message: string;
   type: string;
   read: boolean;
+  status?: 'pending' | 'accepted' | 'rejected'; // Status para convites
   created_at: string;
   from_user?: {
     id: string;
@@ -33,6 +34,7 @@ export interface CreateNotificationData {
   title: string;
   message: string;
   type: string;
+  status?: 'pending' | 'accepted' | 'rejected'; // Status para convites
 }
 
 // Criar notificação
@@ -49,6 +51,7 @@ export const createNotification = async (notificationData: CreateNotificationDat
         title: notificationData.title,
         message: notificationData.message,
         type: notificationData.type,
+        status: notificationData.status || null, // ✅ Salvar status (pending, accepted, rejected)
         read: false,
         created_at: new Date().toISOString()
       })
@@ -99,6 +102,30 @@ export const markNotificationAsRead = async (notificationId: string): Promise<{ 
     const { error } = await supabase
       .from('notifications')
       .update({ read: true })
+      .eq('id', notificationId);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, error: null };
+  } catch (error) {
+    return { success: false, error: 'Erro de conexão' };
+  }
+};
+
+// Atualizar status e read de uma notificação (para convites)
+export const updateNotificationStatus = async (
+  notificationId: string, 
+  status: 'accepted' | 'rejected'
+): Promise<{ success: boolean; error: string | null }> => {
+  try {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ 
+        read: true,
+        status: status
+      })
       .eq('id', notificationId);
 
     if (error) {

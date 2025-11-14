@@ -31,7 +31,8 @@ import {
   getUserNotifications,
   markAllNotificationsAsRead,
   markNotificationAsRead,
-  Notification
+  Notification,
+  updateNotificationStatus
 } from '../services/supabase/notificationService';
 import { hasPermission } from '../services/supabase/permissionsService';
 import { useNotifications } from '../services/useNotifications';
@@ -136,9 +137,9 @@ export default function NotificacoesScreen() {
       }
       
       // Tudo está centralizado na tabela notifications agora
-      // Notificações do tipo 'artist_invite' com read == false são consideradas pendentes
+      // Notificações do tipo 'invite' com status == 'pending' são consideradas pendentes
       let enhancedNotifications: NotificationWithInvite[] = (fetchedNotifications || []).map(notification => {
-        if (notification.type === 'artist_invite' && !notification.read) {
+        if (notification.type === 'invite' && notification.status === 'pending') {
           return { ...notification, isInvitePending: true };
         }
         return notification;
@@ -315,17 +316,17 @@ export default function NotificacoesScreen() {
     if (!currentUserId) return;
 
     try {
-      // Buscar a notificação para verificar se ainda está pendente (read == false)
+      // Buscar a notificação para verificar se ainda está pendente (status == 'pending')
       const { data: notification, error: notificationError } = await supabase
         .from('notifications')
-        .select('id, read, role')
+        .select('id, read, role, status')
         .eq('id', notificationId)
         .eq('to_user_id', currentUserId)
-        .eq('type', 'artist_invite')
+        .eq('type', 'invite')
         .eq('artist_id', artistId)
         .single();
 
-      if (notificationError || !notification || notification.read) {
+      if (notificationError || !notification || notification.status !== 'pending') {
         Alert.alert('Erro', 'Convite não encontrado ou já foi processado');
         await loadNotifications(); // Recarregar para atualizar
         return;
@@ -342,8 +343,8 @@ export default function NotificacoesScreen() {
       const { success, error } = await acceptArtistInvite(notificationId, currentUserId);
       
       if (success) {
-        // Marcar notificação como lida (não deletar)
-        await markNotificationAsRead(notificationId);
+        // Atualizar notificação: read = true e status = 'accepted'
+        await updateNotificationStatus(notificationId, 'accepted');
         
         // Recarregar notificações
         await loadNotifications();
@@ -391,17 +392,17 @@ export default function NotificacoesScreen() {
     if (!currentUserId) return;
 
     try {
-      // Buscar a notificação para verificar se ainda está pendente (read == false)
+      // Buscar a notificação para verificar se ainda está pendente (status == 'pending')
       const { data: notification, error: notificationError } = await supabase
         .from('notifications')
-        .select('id, read')
+        .select('id, read, status')
         .eq('id', notificationId)
         .eq('to_user_id', currentUserId)
-        .eq('type', 'artist_invite')
+        .eq('type', 'invite')
         .eq('artist_id', artistId)
         .single();
 
-      if (notificationError || !notification || notification.read) {
+      if (notificationError || !notification || notification.status !== 'pending') {
         Alert.alert('Erro', 'Convite não encontrado ou já foi processado');
         await loadNotifications(); // Recarregar para atualizar
         return;
@@ -412,8 +413,8 @@ export default function NotificacoesScreen() {
       const { success, error } = await declineArtistInvite(notificationId, currentUserId);
       
       if (success) {
-        // Marcar notificação como lida (não deletar)
-        await markNotificationAsRead(notificationId);
+        // Atualizar notificação: read = true e status = 'rejected'
+        await updateNotificationStatus(notificationId, 'rejected');
         
         // Recarregar notificações
         await loadNotifications();
@@ -671,10 +672,10 @@ export default function NotificacoesScreen() {
                         )}
                       </View>
 
-                      {/* Botões de Aceitar/Recusar para convites de artista (só se não foi lido) */}
-                      {notification.type === 'artist_invite' && notification.artist_id && (
+                      {/* Botões de Aceitar/Recusar para convites (type == 'invite' e status == 'pending') */}
+                      {notification.type === 'invite' && notification.artist_id && (
                         <>
-                          {notification.isInvitePending ? (
+                          {notification.status === 'pending' ? (
                             <View style={dynamicStyles.inviteActions}>
                               <TouchableOpacity
                                 style={dynamicStyles.acceptButton}
@@ -720,7 +721,7 @@ export default function NotificacoesScreen() {
                   <View style={styles.notificationRight}>
                     {!notification.read && <View style={dynamicStyles.unreadDot} />}
                     {/* Esconder botão de deletar para convites - será deletado ao aceitar/recusar */}
-                    {notification.type !== 'artist_invite' && (
+                    {notification.type !== 'invite' && (
                       <TouchableOpacity
                         style={styles.deleteButton}
                         onPress={() => handleDeleteNotification(notification.id)}
