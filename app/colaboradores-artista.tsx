@@ -56,6 +56,12 @@ export default function ColaboradoresArtistaScreen() {
     role: 'owner' | 'admin' | 'editor' | 'viewer';
   } | null>(null);
   const [existingInviteIdToDelete, setExistingInviteIdToDelete] = useState<string | null>(null); // ID da notificação antiga para deletar ao reenviar
+  const [showPendingInviteModal, setShowPendingInviteModal] = useState(false);
+  const [pendingInviteData, setPendingInviteData] = useState<{
+    userName: string;
+    role: string;
+    createdAt: string;
+  } | null>(null);
 
   useEffect(() => {
     loadActiveArtist();
@@ -168,40 +174,53 @@ export default function ColaboradoresArtistaScreen() {
           artistId: existingInvite.artist_id,
           toUserId: existingInvite.to_user_id,
           role: existingInvite.role,
-          status: existingInvite.status
+          status: existingInvite.status,
+          createdAt: existingInvite.created_at
         });
         
-        // Se já existe convite pendente, perguntar se deseja reenviar
-        Alert.alert(
-          'Convite Já Enviado', 
-          `Já existe um convite pendente para ${user.name}. Deseja reenviar o convite?`,
-          [
-            { 
-              text: 'Cancelar', 
-              style: 'cancel'
-            },
-            {
-              text: 'Reenviar',
-              style: 'default',
-              onPress: () => {
-                console.log('🔄 Usuário escolheu reenviar. ID da notificação antiga:', existingInvite.id);
-                // Guardar o ID da notificação antiga para deletar depois
-                setExistingInviteIdToDelete(existingInvite.id);
-                // Definir o usuário e abrir modal para selecionar permissão
-                setSelectedUser(user);
-                setSearchResults([]);
-                setSearchTerm(user.name);
-                setShowAddModal(false);
-                // Usar a role do convite antigo como padrão
-                setNewCollaboratorRole(existingInvite.role || 'viewer');
-                // Abrir modal de seleção de permissão
-                setTimeout(() => {
-                  setShowInviteModal(true);
-                }, 100);
-              }
-            }
-          ]
-        );
+        // Formatar data do convite
+        const formatDate = (dateString: string) => {
+          const date = new Date(dateString);
+          return date.toLocaleDateString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: 'America/Sao_Paulo'
+          });
+        };
+
+        // Formatar role para exibição
+        const formatRole = (role: string) => {
+          const roles: Record<string, string> = {
+            'viewer': 'Visualizador',
+            'editor': 'Editor',
+            'admin': 'Administrador',
+            'owner': 'Proprietário'
+          };
+          return roles[role] || role;
+        };
+
+        // Fechar modal de busca primeiro
+        setShowAddModal(false);
+        setSearchResults([]);
+        setSearchTerm('');
+        
+        // Mostrar modal customizado com informações do convite pendente
+        setPendingInviteData({
+          userName: user.name,
+          role: formatRole(existingInvite.role || 'viewer'),
+          createdAt: formatDate(existingInvite.created_at)
+        });
+        setSelectedUser(user);
+        setExistingInviteIdToDelete(existingInvite.id);
+        setNewCollaboratorRole(existingInvite.role || 'viewer');
+        
+        // Abrir modal de convite pendente
+        console.log('🔔 Abrindo modal de convite pendente');
+        setShowPendingInviteModal(true);
+        
         // ✅ NÃO definir o usuário selecionado se já existe convite pendente (só se clicar em Reenviar)
         return;
       }
@@ -1118,6 +1137,75 @@ export default function ColaboradoresArtistaScreen() {
         </SafeAreaView>
       </Modal>
 
+      {/* Modal de Convite Pendente */}
+      <Modal
+        visible={showPendingInviteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPendingInviteModal(false)}
+      >
+        <View style={styles.inviteSentOverlay}>
+          <View style={[styles.inviteSentContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            {/* Header */}
+            <View style={styles.inviteSentHeader}>
+              <Ionicons name="time" size={48} color={colors.warning} />
+              <Text style={[styles.inviteSentTitle, { color: colors.text }]}>Convite Já Enviado</Text>
+            </View>
+
+            {/* Informações do convite */}
+            {pendingInviteData && (
+              <View style={styles.pendingInviteContent}>
+                <Text style={[styles.pendingInviteUserName, { color: colors.text }]}>
+                  {pendingInviteData.userName}
+                </Text>
+                
+                <View style={[styles.pendingInviteInfoRow, { borderBottomColor: colors.border }]}>
+                  <Ionicons name="shield-checkmark-outline" size={20} color={colors.primary} />
+                  <Text style={[styles.pendingInviteLabel, { color: colors.textSecondary }]}>Permissão: </Text>
+                  <Text style={[styles.pendingInviteValue, { color: colors.text }]}>{pendingInviteData.role}</Text>
+                </View>
+
+                <View style={styles.pendingInviteInfoRow}>
+                  <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+                  <Text style={[styles.pendingInviteLabel, { color: colors.textSecondary }]}>Enviado em: </Text>
+                  <Text style={[styles.pendingInviteValue, { color: colors.text }]}>{pendingInviteData.createdAt}</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Botões */}
+            <View style={styles.pendingInviteActions}>
+              <TouchableOpacity
+                style={[styles.pendingInviteCancelButton, { borderColor: colors.border }]}
+                onPress={() => {
+                  setShowPendingInviteModal(false);
+                  setPendingInviteData(null);
+                  setSelectedUser(null);
+                  setExistingInviteIdToDelete(null);
+                }}
+              >
+                <Text style={[styles.pendingInviteCancelText, { color: colors.text }]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.pendingInviteResendButton, { backgroundColor: colors.primary }]}
+                onPress={() => {
+                  setShowPendingInviteModal(false);
+                  setSearchResults([]);
+                  setSearchTerm(pendingInviteData?.userName || '');
+                  setShowAddModal(false);
+                  setTimeout(() => {
+                    setShowInviteModal(true);
+                  }, 100);
+                }}
+              >
+                <Ionicons name="refresh" size={18} color="#FFFFFF" />
+                <Text style={styles.pendingInviteResendText}>Reenviar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Modal de Convite Enviado */}
       <Modal
         visible={showInviteSentModal}
@@ -1140,7 +1228,7 @@ export default function ColaboradoresArtistaScreen() {
 
             {/* Card do usuário convidado */}
             {inviteSentData && (
-              <View style={[styles.invitedUserCard, { backgroundColor: colors.card || colors.surface, borderColor: colors.border }] }>
+              <View style={[styles.invitedUserCard, { backgroundColor: colors.surface, borderColor: colors.border }] }>
                 <View style={styles.invitedUserHeader}>
                   <OptimizedImage
                     imageUrl={inviteSentData.userImage}
@@ -1183,7 +1271,7 @@ export default function ColaboradoresArtistaScreen() {
 
                 {/* Status pendente */}
                 <View style={[styles.pendingStatusSection, { backgroundColor: colors.secondary || colors.surface, borderColor: colors.border }] }>
-                  <View style={[styles.pendingIcon, { backgroundColor: colors.card || colors.surface }]}>
+                  <View style={[styles.pendingIcon, { backgroundColor: colors.surface }]}>
                     <Ionicons name="time-outline" size={20} color={colors.primary} />
                   </View>
                   <View style={styles.pendingTextContainer}>
@@ -1199,7 +1287,7 @@ export default function ColaboradoresArtistaScreen() {
             )}
 
             {/* Informações adicionais */}
-            <View style={[styles.inviteSentInfo, { backgroundColor: colors.card || colors.surface, borderColor: colors.border, borderWidth: 1 }] }>
+            <View style={[styles.inviteSentInfo, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }] }>
               <View style={styles.infoItem}>
                 <Ionicons name="mail-outline" size={20} color={colors.primary} />
                 <Text style={[styles.infoText, { color: colors.text }] }>
@@ -2158,6 +2246,72 @@ const styles = StyleSheet.create({
   infoText: {
     fontSize: 14,
     color: '#1E40AF',
+    flex: 1,
+  },
+  invitedUserAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  infoLabel: {
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  pendingInviteActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+  },
+  pendingInviteCancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pendingInviteCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  pendingInviteResendButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 8,
+  },
+  pendingInviteResendText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  pendingInviteContent: {
+    marginVertical: 20,
+  },
+  pendingInviteUserName: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  pendingInviteInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    gap: 8,
+  },
+  pendingInviteLabel: {
+    fontSize: 14,
+  },
+  pendingInviteValue: {
+    fontSize: 14,
+    fontWeight: '600',
     flex: 1,
   },
   inviteSentButton: {
