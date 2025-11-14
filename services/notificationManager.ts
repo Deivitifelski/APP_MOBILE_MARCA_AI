@@ -1,5 +1,5 @@
-import { createNotification } from './supabase/notificationService';
 import { supabase } from '../lib/supabase';
+import { createNotification } from './supabase/notificationService';
 
 // Criar notificação automática para convites de artista (centralizado na tabela notifications)
 export const createArtistInviteNotification = async (
@@ -28,13 +28,13 @@ export const createArtistInviteNotification = async (
 
     // Criar notificação diretamente na tabela notifications
     const { success, error, notification } = await createNotification({
-      user_id: toUserId,
+      to_user_id: toUserId,
       from_user_id: fromUserId,
       artist_id: artistId,
       role: role || 'viewer', // ✅ Salvar a role do convite
       title: 'Novo Convite de Artista',
       message: `${fromUserName} te convidou para ser colaborador do artista "${artistName}"`,
-      type: 'artist_invite'
+      type: 'invite'
     });
 
     if (success && notification) {
@@ -73,7 +73,7 @@ export const createCollaboratorAddedNotification = async (
     const addedByName = addedByUserData?.name || 'Alguém';
 
     const { success, error } = await createNotification({
-      user_id: userId,
+      to_user_id: userId,
       from_user_id: addedByUserId,
       artist_id: artistId,
       title: 'Você foi adicionado como colaborador',
@@ -114,7 +114,7 @@ export const createCollaboratorRemovedNotification = async (
     const removedByName = removedByUserData?.name || 'Alguém';
 
     const { success, error } = await createNotification({
-      user_id: userId,
+      to_user_id: userId,
       from_user_id: removedByUserId,
       artist_id: artistId,
       title: 'Você foi removido do artista',
@@ -177,13 +177,13 @@ export const notifyCollaboratorsAboutEvent = async (
     // Criar notificação para cada colaborador
     const notificationPromises = members.map(member =>
       createNotification({
-        user_id: member.user_id,
+        to_user_id: member.user_id,
         from_user_id: createdByUserId,
         event_id: eventId,
         artist_id: artistId,
         title: `Evento ${type === 'created' ? 'criado' : 'atualizado'}`,
         message: `${creatorName} ${action} o evento "${eventName}" em "${artistName}"`,
-        type: `event_${type}`
+        type: `event`
       })
     );
 

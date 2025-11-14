@@ -25,7 +25,7 @@ export interface Notification {
 }
 
 export interface CreateNotificationData {
-  user_id: string;
+  to_user_id: string; // Campo renomeado para to_user_id (destinatário da notificação)
   from_user_id?: string;
   artist_id?: string;
   event_id?: string;
@@ -41,7 +41,7 @@ export const createNotification = async (notificationData: CreateNotificationDat
     const { data, error } = await supabase
       .from('notifications')
       .insert({
-        user_id: notificationData.user_id,
+        to_user_id: notificationData.to_user_id,
         from_user_id: notificationData.from_user_id || null,
         artist_id: notificationData.artist_id || null,
         event_id: notificationData.event_id || null,
@@ -117,7 +117,7 @@ export const markAllNotificationsAsRead = async (userId: string): Promise<{ succ
     const { data, error } = await supabase
       .from('notifications')
       .update({ read: true })
-      .eq('user_id', userId)
+      .eq('to_user_id', userId)
       .eq('read', false)
       .select();
 
