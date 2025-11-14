@@ -148,7 +148,7 @@ export default function NotificacoesScreen() {
       setNotifications(enhancedNotifications);
       
       // Contar APENAS notificações não lidas do usuário (read === false)
-      const unreadNotifications = (enhancedNotifications || []).filter(n => !n.read && n.user_id === user.id).length;
+      const unreadNotifications = (enhancedNotifications || []).filter(n => !n.read && n.to_user_id === user.id).length;
       setUnreadCount(unreadNotifications);
     } catch (error) {
       Alert.alert('Erro', 'Erro ao carregar notificações');

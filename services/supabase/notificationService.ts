@@ -2,7 +2,7 @@ import { supabase } from '../../lib/supabase';
 
 export interface Notification {
   id: string;
-  user_id: string;
+  to_user_id: string; // Campo renomeado para to_user_id (destinatário da notificação)
   from_user_id?: string;
   artist_id?: string;
   event_id?: string;
