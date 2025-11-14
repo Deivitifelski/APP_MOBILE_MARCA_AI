@@ -40,6 +40,12 @@ export interface CreateNotificationData {
 // Criar notificação
 export const createNotification = async (notificationData: CreateNotificationData): Promise<{ success: boolean; error: string | null; notification?: Notification }> => {
   try {
+    // Se for um convite (type === 'invite'), definir status como 'pending'
+    // Para outras notificações, status será null
+    const status = notificationData.type === 'invite' 
+      ? (notificationData.status || 'pending')
+      : null;
+
     const { data, error } = await supabase
       .from('notifications')
       .insert({
@@ -51,7 +57,7 @@ export const createNotification = async (notificationData: CreateNotificationDat
         title: notificationData.title,
         message: notificationData.message,
         type: notificationData.type,
-        status: notificationData.status || null, // ✅ Salvar status (pending, accepted, rejected)
+        status: status, // ✅ 'pending' para convites, null para outras notificações
         read: false,
         created_at: new Date().toISOString()
       })
