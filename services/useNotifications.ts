@@ -54,7 +54,8 @@ export const useNotifications = () => {
       const notificationSubscription = subscribeToNotifications(
         user.id,
         (notification) => {
-          // Sempre recarregar contagem total ao receber mudanças
+          // Sempre recarregar contagem total ao receber mudanças na tabela notifications
+          // Isso atualiza o badge quando read == false
           loadUnreadCount();
         }
       );

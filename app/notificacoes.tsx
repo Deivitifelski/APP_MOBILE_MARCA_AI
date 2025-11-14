@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import PermissionModal from '../components/PermissionModal';
+import { useActiveArtistContext } from '../contexts/ActiveArtistContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import {
@@ -33,7 +34,6 @@ import {
   Notification
 } from '../services/supabase/notificationService';
 import { hasPermission } from '../services/supabase/permissionsService';
-import { useActiveArtistContext } from '../contexts/ActiveArtistContext';
 import { useNotifications } from '../services/useNotifications';
 
 type NotificationWithInvite = Notification & {
@@ -81,19 +81,20 @@ export default function NotificacoesScreen() {
         await supabase.removeChannel(subscriptionRef.current);
       }
 
-      // Criar subscription para mudanças nas notificações e convites
+      // Criar subscription para mudanças nas notificações (centralizado na tabela notifications)
       const channel = supabase
         .channel('notifications-realtime')
         .on(
           'postgres_changes',
           {
-            event: '*',
+            event: '*', // INSERT, UPDATE, DELETE
             schema: 'public',
             table: 'notifications',
             filter: `user_id=eq.${user.id}`,
           },
           (payload) => {
             // Recarregar notificações e badge quando houver mudanças
+            // O badge será atualizado especialmente quando read == false
             loadNotifications();
             loadUnreadCount();
           }
@@ -134,51 +135,14 @@ export default function NotificacoesScreen() {
         return;
       }
       
-      let enhancedNotifications: NotificationWithInvite[] = (fetchedNotifications || []).map(notification => 
-        notification.type === 'artist_invite'
-          ? { ...notification, isInvitePending: true }
-          : notification
-      );
-
-      const inviteNotifications = enhancedNotifications.filter(
-        (notification) => notification.type === 'artist_invite' && notification.artist_id
-      );
-
-      if (inviteNotifications.length > 0) {
-        const artistIds = Array.from(
-          new Set(
-            inviteNotifications
-              .map((notification) => notification.artist_id)
-              .filter((id): id is string => typeof id === 'string' && id.length > 0)
-          )
-        );
-
-        if (artistIds.length > 0) {
-          const { data: invitesData, error: invitesError } = await supabase
-            .from('artist_invites')
-            .select('artist_id, status')
-            .eq('to_user_id', user.id)
-            .in('artist_id', artistIds);
-
-          if (!invitesError && invitesData) {
-            const pendingArtists = new Set(
-              invitesData
-                .filter((invite) => invite.status === 'pending')
-                .map((invite) => invite.artist_id)
-            );
-
-            enhancedNotifications = enhancedNotifications.map((notification) => {
-              if (notification.type === 'artist_invite' && notification.artist_id) {
-                return {
-                  ...notification,
-                  isInvitePending: pendingArtists.has(notification.artist_id),
-                };
-              }
-              return notification;
-            });
-          }
+      // Tudo está centralizado na tabela notifications agora
+      // Notificações do tipo 'artist_invite' com read == false são consideradas pendentes
+      let enhancedNotifications: NotificationWithInvite[] = (fetchedNotifications || []).map(notification => {
+        if (notification.type === 'artist_invite' && !notification.read) {
+          return { ...notification, isInvitePending: true };
         }
-      }
+        return notification;
+      });
 
       setNotifications(enhancedNotifications);
       
@@ -351,29 +315,31 @@ export default function NotificacoesScreen() {
     if (!currentUserId) return;
 
     try {
-      // Buscar o convite pendente para este usuário e artista
-      const { data: invites, error: inviteError } = await supabase
-        .from('artist_invites')
-        .select('id')
+      // Buscar a notificação para verificar se ainda está pendente (read == false)
+      const { data: notification, error: notificationError } = await supabase
+        .from('notifications')
+        .select('id, read, role')
+        .eq('id', notificationId)
         .eq('to_user_id', currentUserId)
+        .eq('type', 'artist_invite')
         .eq('artist_id', artistId)
-        .eq('status', 'pending')
-        .limit(1);
+        .single();
 
-      if (inviteError || !invites || invites.length === 0) {
+      if (notificationError || !notification || notification.read) {
         Alert.alert('Erro', 'Convite não encontrado ou já foi processado');
         await loadNotifications(); // Recarregar para atualizar
         return;
       }
 
-      const inviteId = invites[0].id;
-      const inviteRole = notificationRole || 'viewer'; // ✅ Role vem da notificação
+      const inviteRole = notificationRole || notification.role || 'viewer'; // ✅ Role vem da notificação
 
       // Verificar ANTES de aceitar se o usuário já tem artistas
       const { artists: artistsBefore } = await getArtists(currentUserId);
       const isFirstArtist = !artistsBefore || artistsBefore.length === 0;
 
-      const { success, error } = await acceptArtistInvite(inviteId, currentUserId);
+      // Aceitar convite diretamente usando a notificação (sem buscar em artist_invites)
+      // O backend deve processar isso através da notificação
+      const { success, error } = await acceptArtistInvite(notificationId, currentUserId);
       
       if (success) {
         // Marcar notificação como lida (não deletar)
@@ -425,24 +391,25 @@ export default function NotificacoesScreen() {
     if (!currentUserId) return;
 
     try {
-      // Buscar o convite pendente para este usuário e artista
-      const { data: invites, error: inviteError } = await supabase
-        .from('artist_invites')
-        .select('id')
+      // Buscar a notificação para verificar se ainda está pendente (read == false)
+      const { data: notification, error: notificationError } = await supabase
+        .from('notifications')
+        .select('id, read')
+        .eq('id', notificationId)
         .eq('to_user_id', currentUserId)
+        .eq('type', 'artist_invite')
         .eq('artist_id', artistId)
-        .eq('status', 'pending')
-        .limit(1);
+        .single();
 
-      if (inviteError || !invites || invites.length === 0) {
+      if (notificationError || !notification || notification.read) {
         Alert.alert('Erro', 'Convite não encontrado ou já foi processado');
         await loadNotifications(); // Recarregar para atualizar
         return;
       }
 
-      const inviteId = invites[0].id;
-
-      const { success, error } = await declineArtistInvite(inviteId, currentUserId);
+      // Recusar convite diretamente usando a notificação (sem buscar em artist_invites)
+      // O backend deve processar isso através da notificação
+      const { success, error } = await declineArtistInvite(notificationId, currentUserId);
       
       if (success) {
         // Marcar notificação como lida (não deletar)

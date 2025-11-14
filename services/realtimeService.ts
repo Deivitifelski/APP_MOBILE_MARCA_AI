@@ -72,26 +72,20 @@ export const subscribeToNotifications = (
       (payload) => {
         console.log('realtimeService: Mudança detectada em notifications (recebidas):', payload);
         
-        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+        // Atualizar badge quando houver INSERT ou UPDATE (especialmente quando read == false)
+        if (payload.eventType === 'INSERT') {
           const notification = payload.new as NotificationPayload;
-          onNotificationChange(notification);
-        }
-      }
-    )
-    .on(
-      'postgres_changes',
-      {
-        event: '*', // INSERT, UPDATE, DELETE
-        schema: 'public',
-        table: 'notifications',
-        filter: `from_user_id=eq.${userId}`,
-      },
-      (payload) => {
-        console.log('realtimeService: Mudança detectada em notifications (enviadas):', payload);
-        
-        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          // Se for uma nova notificação não lida, atualizar badge
+          if (!notification.read) {
+            onNotificationChange(notification);
+          }
+        } else if (payload.eventType === 'UPDATE') {
           const notification = payload.new as NotificationPayload;
+          // Atualizar badge sempre que houver mudança (pode ter sido marcada como lida ou não lida)
           onNotificationChange(notification);
+        } else if (payload.eventType === 'DELETE') {
+          // Se uma notificação foi deletada, atualizar badge
+          onNotificationChange(payload.old as NotificationPayload);
         }
       }
     )

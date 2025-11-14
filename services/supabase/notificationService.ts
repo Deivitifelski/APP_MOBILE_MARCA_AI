@@ -168,45 +168,9 @@ export const getUnreadNotificationCount = async (userId: string): Promise<{ coun
   }
 };
 
-// Contar convites de artista pendentes
-export const getPendingArtistInvitesCount = async (userId: string): Promise<{ count: number; error: string | null }> => {
-  try {
-    const { count, error } = await supabase
-      .from('artist_invites')
-      .select('*', { count: 'exact', head: true })
-      .eq('to_user_id', userId)
-      .eq('status', 'pending');
-
-    if (error) {
-      return { count: 0, error: error.message };
-    }
-
-    return { count: count || 0, error: null };
-  } catch (error) {
-    return { count: 0, error: 'Erro de conexão' };
-  }
-};
-
-// Contar total de notificações não lidas (incluindo convites pendentes)
+// Contar total de notificações não lidas (centralizado na tabela notifications)
+// Esta função é um alias para getUnreadNotificationCount para manter compatibilidade
 export const getTotalUnreadCount = async (userId: string): Promise<{ count: number; error: string | null }> => {
-  try {
-    // Buscar contagem de notificações
-    const { count: notificationCount, error: notificationError } = await getUnreadNotificationCount(userId);
-    
-    if (notificationError) {
-      return { count: 0, error: notificationError };
-    }
-
-    // Buscar contagem de convites pendentes
-    const { count: inviteCount, error: inviteError } = await getPendingArtistInvitesCount(userId);
-    
-    if (inviteError) {
-      return { count: notificationCount, error: inviteError };
-    }
-
-    const totalCount = notificationCount + inviteCount;
-    return { count: totalCount, error: null };
-  } catch (error) {
-    return { count: 0, error: 'Erro de conexão' };
-  }
+  // Tudo está centralizado na tabela notifications agora
+  return await getUnreadNotificationCount(userId);
 };
