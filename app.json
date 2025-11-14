@@ -7,7 +7,7 @@
     "icon": "./assets/images/LOGO_MARCA_IPHONE_1024.png",
     "scheme": "marcaai",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/images/LOGO_MARCA_IPHONE_1024.png",
       "resizeMode": "contain",
