@@ -323,25 +323,51 @@ export const cancelArtistInvite = async (notificationId: string, fromUserId: str
   }
 };
 
-// Verificar se já existe convite pendente
+// Verificar se já existe convite pendente (agora usando apenas a tabela notifications)
 export const checkPendingInvite = async (artistId: string, toUserId: string): Promise<InviteResponse> => {
   try {
-    const { data: invite, error } = await supabase
-      .from('artist_invites')
-      .select('*')
+    console.log('🔍 checkPendingInvite: Buscando convite pendente', { artistId, toUserId });
+    
+    // Buscar TODAS as notificações do tipo invite para este artista e usuário
+    const { data: notifications, error } = await supabase
+      .from('notifications')
+      .select('id, artist_id, from_user_id, to_user_id, role, status, read, created_at, type')
       .eq('artist_id', artistId)
       .eq('to_user_id', toUserId)
-      .eq('status', 'pending')
-      .single();
+      .eq('type', 'invite');
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
-      console.error('Erro ao verificar convite pendente:', error);
+    if (error) {
+      console.error('❌ Erro ao buscar notificações:', error);
       return { success: false, error: error.message };
     }
 
-    return { success: true, invite: invite || null };
+    console.log('📋 Notificações encontradas:', notifications?.length || 0, notifications);
+
+    // Filtrar apenas as que estão com status 'pending'
+    const pendingNotification = (notifications || []).find(n => n.status === 'pending');
+
+    if (!pendingNotification) {
+      console.log('✅ Nenhum convite pendente encontrado');
+      return { success: true, invite: null };
+    }
+
+    console.log('⚠️ Convite pendente encontrado:', pendingNotification);
+
+    // Converter notificação para o formato ArtistInvite
+    const invite: ArtistInvite = {
+      id: pendingNotification.id,
+      artist_id: pendingNotification.artist_id!,
+      from_user_id: pendingNotification.from_user_id!,
+      to_user_id: pendingNotification.to_user_id,
+      role: pendingNotification.role || 'viewer',
+      status: 'pending',
+      read: pendingNotification.read,
+      created_at: pendingNotification.created_at
+    };
+
+    return { success: true, invite };
   } catch (error) {
-    console.error('Erro ao verificar convite pendente:', error);
+    console.error('❌ Erro ao verificar convite pendente:', error);
     return { success: false, error: 'Erro interno ao verificar convite' };
   }
 };

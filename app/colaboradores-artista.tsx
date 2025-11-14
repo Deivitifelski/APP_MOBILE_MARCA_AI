@@ -20,6 +20,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { checkPendingInvite, createArtistInvite } from '../services/supabase/artistInviteService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { addCollaborator, Collaborator, getCollaborators, removeCollaborator, searchUsers, updateCollaboratorRole } from '../services/supabase/collaboratorService';
+import { deletePendingInviteNotifications } from '../services/supabase/notificationService';
 import { canExportData } from '../services/supabase/userService';
 import { useActiveArtist } from '../services/useActiveArtist';
 
@@ -54,6 +55,7 @@ export default function ColaboradoresArtistaScreen() {
     userImage: string;
     role: 'owner' | 'admin' | 'editor' | 'viewer';
   } | null>(null);
+  const [existingInviteIdToDelete, setExistingInviteIdToDelete] = useState<string | null>(null); // ID da notificação antiga para deletar ao reenviar
 
   useEffect(() => {
     loadActiveArtist();
@@ -143,14 +145,87 @@ export default function ColaboradoresArtistaScreen() {
     }
   };
 
-  const handleSelectUser = (user: any) => {
-    setSelectedUser(user);
-    setSearchResults([]);
-    setSearchTerm(user.name);
-    setShowAddModal(false);
-    setTimeout(() => {
-      setShowInviteModal(true);
-    }, 100);
+  const handleSelectUser = async (user: any) => {
+    if (!activeArtist || !currentUserId) {
+      Alert.alert('Erro', 'Dados insuficientes');
+      return;
+    }
+
+    // ✅ VERIFICAR PRIMEIRO se já existe convite pendente ANTES de definir o usuário
+    try {
+      console.log('🔍 Verificando convite pendente para:', { artistId: activeArtist.id, userId: user.id });
+      const { success: checkSuccess, invite: existingInvite } = await checkPendingInvite(
+        activeArtist.id, 
+        user.id
+      );
+
+      console.log('📋 Resultado da verificação:', { success: checkSuccess, hasInvite: !!existingInvite });
+
+      if (existingInvite) {
+        console.log('⚠️ Convite pendente encontrado! Bloqueando ação.');
+        console.log('📋 Detalhes do convite pendente:', {
+          id: existingInvite.id,
+          artistId: existingInvite.artist_id,
+          toUserId: existingInvite.to_user_id,
+          role: existingInvite.role,
+          status: existingInvite.status
+        });
+        
+        // Se já existe convite pendente, perguntar se deseja reenviar
+        Alert.alert(
+          'Convite Já Enviado', 
+          `Já existe um convite pendente para ${user.name}. Deseja reenviar o convite?`,
+          [
+            { 
+              text: 'Cancelar', 
+              style: 'cancel'
+            },
+            {
+              text: 'Reenviar',
+              style: 'default',
+              onPress: () => {
+                console.log('🔄 Usuário escolheu reenviar. ID da notificação antiga:', existingInvite.id);
+                // Guardar o ID da notificação antiga para deletar depois
+                setExistingInviteIdToDelete(existingInvite.id);
+                // Definir o usuário e abrir modal para selecionar permissão
+                setSelectedUser(user);
+                setSearchResults([]);
+                setSearchTerm(user.name);
+                setShowAddModal(false);
+                // Usar a role do convite antigo como padrão
+                setNewCollaboratorRole(existingInvite.role || 'viewer');
+                // Abrir modal de seleção de permissão
+                setTimeout(() => {
+                  setShowInviteModal(true);
+                }, 100);
+              }
+            }
+          ]
+        );
+        // ✅ NÃO definir o usuário selecionado se já existe convite pendente (só se clicar em Reenviar)
+        return;
+      }
+
+      // ✅ Só definir o usuário e abrir modal se NÃO existe convite pendente
+      setSelectedUser(user);
+      setSearchResults([]);
+      setSearchTerm(user.name);
+      setShowAddModal(false);
+      
+      setTimeout(() => {
+        setShowInviteModal(true);
+      }, 100);
+    } catch (error) {
+      // Em caso de erro na verificação, permitir prosseguir
+      setSelectedUser(user);
+      setSearchResults([]);
+      setSearchTerm(user.name);
+      setShowAddModal(false);
+      
+      setTimeout(() => {
+        setShowInviteModal(true);
+      }, 100);
+    }
   };
 
   const handleInviteCollaborator = () => {
@@ -189,22 +264,36 @@ export default function ColaboradoresArtistaScreen() {
         return;
       }
 
-      // Verificar se já existe convite pendente
-      const { success: checkSuccess, invite: existingInvite } = await checkPendingInvite(
-        activeArtist.id, 
-        selectedUser.id
-      );
-
-      if (existingInvite) {
-        Alert.alert(
-          'Convite Já Enviado', 
-          `Já existe um convite pendente para ${selectedUser.name}. Aguarde a resposta.`,
-          [{ text: 'OK', style: 'default' }]
+      // Se há uma notificação pendente para deletar (reenvio), deletar ela antes de criar a nova
+      if (existingInviteIdToDelete) {
+        console.log('🗑️ Deletando notificação pendente:', existingInviteIdToDelete);
+        
+        // Deletar a notificação pendente encontrada
+        const { success: deleteSuccess, error: deleteError } = await deletePendingInviteNotifications(
+          activeArtist.id,
+          selectedUser.id
         );
-        return;
+        
+        if (!deleteSuccess) {
+          console.error('❌ Erro ao deletar notificação pendente:', deleteError);
+          Alert.alert('Erro', deleteError || 'Erro ao remover convite antigo');
+          setIsInviting(false);
+          setExistingInviteIdToDelete(null);
+          return;
+        }
+        
+        console.log('✅ Notificação pendente deletada');
+        setExistingInviteIdToDelete(null);
       }
 
-      // Criar convite na tabela artist_invites
+      // Criar convite (primeira vez ou reenvio)
+      console.log('📝 Criando novo convite:', {
+        artistId: activeArtist.id,
+        toUserId: selectedUser.id,
+        fromUserId: currentUser.id,
+        role: newCollaboratorRole
+      });
+      
       const { success, error, invite } = await createArtistInvite({
         artistId: activeArtist.id,
         toUserId: selectedUser.id,
@@ -224,10 +313,11 @@ export default function ColaboradoresArtistaScreen() {
         setShowInviteModal(false);
         setShowAddModal(false);
         setShowInviteSentModal(true);
-        setSearchTerm('');
-        setSearchResults([]);
-        setSelectedUser(null);
-        setNewCollaboratorRole('viewer');
+                    setSearchTerm('');
+                    setSearchResults([]);
+                    setSelectedUser(null);
+                    setNewCollaboratorRole('viewer');
+                    setExistingInviteIdToDelete(null); // Limpar o ID da notificação antiga
       } else {
         Alert.alert('Erro', error || 'Erro ao enviar convite');
       }
@@ -257,10 +347,11 @@ export default function ColaboradoresArtistaScreen() {
       if (success) {
         Alert.alert('Sucesso', 'Colaborador adicionado com sucesso!');
         setShowAddModal(false);
-        setSearchTerm('');
-        setSearchResults([]);
-        setSelectedUser(null);
-        setNewCollaboratorRole('viewer');
+                    setSearchTerm('');
+                    setSearchResults([]);
+                    setSelectedUser(null);
+                    setNewCollaboratorRole('viewer');
+                    setExistingInviteIdToDelete(null); // Limpar o ID da notificação antiga
         loadData(); // Recarregar dados
       } else {
         Alert.alert('Erro', error || 'Erro ao adicionar colaborador');

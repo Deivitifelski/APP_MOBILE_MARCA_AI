@@ -167,18 +167,66 @@ export const markAllNotificationsAsRead = async (userId: string): Promise<{ succ
 // Deletar notificação
 export const deleteNotification = async (notificationId: string): Promise<{ success: boolean; error: string | null }> => {
   try {
+    console.log('🗑️ deleteNotification: Tentando deletar notificação:', notificationId);
+    
+    // Primeiro, verificar se a notificação existe
+    const { data: existingNotification, error: fetchError } = await supabase
+      .from('notifications')
+      .select('id, type, status, to_user_id')
+      .eq('id', notificationId)
+      .single();
+
+    if (fetchError || !existingNotification) {
+      console.error('❌ Notificação não encontrada:', fetchError);
+      return { success: false, error: 'Notificação não encontrada' };
+    }
+
+    console.log('📋 Notificação encontrada para deletar:', existingNotification);
+
+    // Deletar a notificação
+    const { data, error } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('id', notificationId)
+      .select();
+
+    if (error) {
+      console.error('❌ Erro ao deletar notificação:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('✅ Notificação deletada com sucesso:', data);
+    return { success: true, error: null };
+  } catch (error: any) {
+    console.error('❌ Erro ao deletar notificação:', error);
+    return { success: false, error: error?.message || 'Erro de conexão' };
+  }
+};
+
+// Deletar todas as notificações pendentes de convite para um usuário e artista específicos
+export const deletePendingInviteNotifications = async (
+  artistId: string, 
+  toUserId: string
+): Promise<{ success: boolean; error: string | null }> => {
+  try {
+    // Deletar todas as notificações pendentes de convite
     const { error } = await supabase
       .from('notifications')
       .delete()
-      .eq('id', notificationId);
+      .eq('artist_id', artistId)
+      .eq('to_user_id', toUserId)
+      .eq('type', 'invite')
+      .eq('status', 'pending');
 
     if (error) {
+      console.error('❌ Erro ao deletar notificações pendentes:', error);
       return { success: false, error: error.message };
     }
 
     return { success: true, error: null };
-  } catch (error) {
-    return { success: false, error: 'Erro de conexão' };
+  } catch (error: any) {
+    console.error('❌ Erro ao deletar notificações pendentes:', error);
+    return { success: false, error: error?.message || 'Erro de conexão' };
   }
 };
 
