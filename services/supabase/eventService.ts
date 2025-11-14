@@ -1,11 +1,10 @@
 import { supabase } from '../../lib/supabase';
 import { hasPermission } from './permissionsService';
-import { notifyCollaboratorsAboutEvent } from '../../notificationManager';
 
 export interface Event {
   id: string;
   artist_id: string;
-  to_user_id: string; // Mudado de created_by para to_user_id
+  created_by: string;
   name: string;
   description?: string;
   event_date: string;
@@ -79,7 +78,7 @@ export const createEvent = async (eventData: CreateEventData): Promise<{ success
       .from('events')
       .insert({
         artist_id: eventData.artist_id,
-        to_user_id: eventData.user_id, // Quem criou o evento (mudado de created_by para to_user_id)
+        created_by: eventData.user_id, // Quem criou o evento
         name: eventData.name,
         description: eventData.description || null,
         event_date: eventData.event_date,
@@ -103,14 +102,8 @@ export const createEvent = async (eventData: CreateEventData): Promise<{ success
 
     console.log('✅ Evento criado com sucesso:', event.id);
 
-    // Criar notificações para os colaboradores (exceto o criador)
-    await notifyCollaboratorsAboutEvent(
-      event.id,
-      eventData.artist_id,
-      eventData.name,
-      eventData.user_id,
-      'created'
-    );
+    // O trigger notify_event_created() no banco já cria as notificações
+    // automaticamente para todos os colaboradores (exceto o criador)
 
     // Se há despesas, criar elas
     if (eventData.expenses && eventData.expenses.length > 0) {
@@ -389,7 +382,7 @@ export const getEventByIdWithPermissions = async (eventId: string, userId: strin
 export interface EventWithRole {
   id: string;
   artist_id: string;
-  to_user_id: string; // Quem criou o evento (mudado de created_by para to_user_id)
+  created_by: string; // Quem criou o evento
   name: string;
   description?: string;
   event_date: string;

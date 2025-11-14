@@ -79,7 +79,7 @@ export const createCollaboratorAddedNotification = async (
       artist_id: artistId,
       title: 'Você foi adicionado como colaborador',
       message: `${addedByName} te adicionou como colaborador do artista "${artistName}"`,
-      type: 'collaborator_added'
+      type: 'update'
     });
 
     if (success) {
@@ -120,7 +120,7 @@ export const createCollaboratorRemovedNotification = async (
       artist_id: artistId,
       title: 'Você foi removido do artista',
       message: `${removedByName} te removeu do artista "${artistName}"`,
-      type: 'collaborator_removed'
+      type: 'delete'
     });
 
     if (success) {
@@ -184,7 +184,7 @@ export const notifyCollaboratorsAboutEvent = async (
         artist_id: artistId,
         title: `Evento ${type === 'created' ? 'criado' : 'atualizado'}`,
         message: `${creatorName} ${action} o evento "${eventName}" em "${artistName}"`,
-        type: `event`
+        type: 'event'
       })
     );
 

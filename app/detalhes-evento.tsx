@@ -132,8 +132,8 @@ export default function DetalhesEventoScreen() {
         setEvent(finalEvent);
         
         // Buscar nome do criador do evento
-        if (finalEvent.to_user_id) {
-          const creatorResult = await getEventCreatorName(finalEvent.to_user_id);
+        if (finalEvent.created_by) {
+          const creatorResult = await getEventCreatorName(finalEvent.created_by);
           if (creatorResult.name) {
             setCreatorName(creatorResult.name);
           }

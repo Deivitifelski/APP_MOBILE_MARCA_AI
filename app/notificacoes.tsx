@@ -185,15 +185,14 @@ export default function NotificacoesScreen() {
     // Navegar baseado no tipo de notificação
     try {
       switch (notification.type) {
-        case 'artist_invite':
+        case 'invite':
           router.push('/convites-recebidos');
           break;
-        case 'collaborator_added':
-        case 'collaborator_removed':
+        case 'update':
+        case 'delete':
           router.push('/colaboradores-artista');
           break;
-        case 'event_created':
-        case 'event_updated':
+        case 'event':
           // Se a notificação tem event_id, verificar permissões antes de navegar
           if (notification.event_id) {
             await handleEventNotificationPress(notification.event_id);
@@ -431,14 +430,13 @@ export default function NotificacoesScreen() {
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case 'artist_invite':
+      case 'invite':
         return 'mail';
-      case 'collaborator_added':
+      case 'update':
         return 'person-add';
-      case 'collaborator_removed':
+      case 'delete':
         return 'person-remove';
-      case 'event_created':
-      case 'event_updated':
+      case 'event':
         return 'calendar';
       default:
         return 'notifications';
@@ -446,7 +444,7 @@ export default function NotificacoesScreen() {
   };
 
   const formatNotificationTitle = (title: string, type: string) => {
-    if (type === 'event_created' && title.includes('adicionado')) {
+    if (type === 'event' && title.includes('adicionado')) {
       return title.replace('adicionado', '').trim();
     }
     return title;
@@ -454,14 +452,13 @@ export default function NotificacoesScreen() {
 
   const getNotificationColor = (type: string) => {
     switch (type) {
-      case 'artist_invite':
+      case 'invite':
         return '#3B82F6';
-      case 'collaborator_added':
+      case 'update':
         return '#10B981';
-      case 'collaborator_removed':
+      case 'delete':
         return '#EF4444';
-      case 'event_created':
-      case 'event_updated':
+      case 'event':
         return '#F59E0B';
       default:
         return '#6B7280';
