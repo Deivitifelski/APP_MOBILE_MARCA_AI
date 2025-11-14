@@ -5,7 +5,11 @@ import React from 'react';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+// Importar handler global de erros ANTES de qualquer outro código
+import './error-handler';
+
 import AuthDeepLinkHandler from '../components/AuthDeepLinkHandler';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { ActiveArtistProvider } from '../contexts/ActiveArtistContext';
 import { PermissionsProvider } from '../contexts/PermissionsContext';
 import { ThemeProvider } from '../contexts/ThemeContext';
@@ -19,13 +23,14 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
-    <SafeAreaProvider>
-      <ThemeProvider>
-        <ActiveArtistProvider>
-          <PermissionsProvider>
-            <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-              <AuthDeepLinkHandler />
-              <Stack>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <ActiveArtistProvider>
+            <PermissionsProvider>
+              <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+                <AuthDeepLinkHandler />
+                <Stack>
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="login" options={{ headerShown: false }} />
             <Stack.Screen name="register" options={{ headerShown: false }} />
@@ -56,12 +61,13 @@ export default function RootLayout() {
             <Stack.Screen name="screens/profile/ArtistProfileScreen" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-              </Stack>
-              <StatusBar style="auto" />
-            </NavigationThemeProvider>
-          </PermissionsProvider>
-        </ActiveArtistProvider>
-      </ThemeProvider>
-    </SafeAreaProvider>
+                </Stack>
+                <StatusBar style="auto" />
+              </NavigationThemeProvider>
+            </PermissionsProvider>
+          </ActiveArtistProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }
