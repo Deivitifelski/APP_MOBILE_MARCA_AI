@@ -1,5 +1,5 @@
-import { supabase } from '../lib/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
 
 export interface RealtimeSubscription {
   channel: RealtimeChannel;
@@ -67,7 +67,7 @@ export const subscribeToNotifications = (
         event: '*', // INSERT, UPDATE, DELETE
         schema: 'public',
         table: 'notifications',
-        filter: `user_id=eq.${userId}`,
+        filter: `to_user_id=eq.${userId}`, // ✅ Corrigido: usar to_user_id em vez de user_id
       },
       (payload) => {
         console.log('realtimeService: Mudança detectada em notifications (recebidas):', payload);

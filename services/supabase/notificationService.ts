@@ -185,18 +185,63 @@ export const deleteNotification = async (notificationId: string): Promise<{ succ
 // Contar notificações não lidas (apenas RECEBIDAS)
 export const getUnreadNotificationCount = async (userId: string): Promise<{ count: number; error: string | null }> => {
   try {
-    const { count, error } = await supabase
+    // Buscar TODAS as notificações do usuário para validação
+    const { data: allNotifications, error: fetchError } = await supabase
       .from('notifications')
-      .select('id', { count: 'exact', head: true })
-      .eq('to_user_id', userId)
-      .eq('read', false);
+      .select('id, read, to_user_id, type, status')
+      .eq('to_user_id', userId);
 
-    if (error) {
-      return { count: 0, error: error.message };
+    if (fetchError) {
+      console.error('❌ Erro ao buscar notificações:', fetchError);
+      return { count: 0, error: fetchError.message };
     }
 
-    return { count: count ?? 0, error: null };
+    // Filtrar manualmente apenas notificações com read === false (boolean)
+    // Isso garante que não há problema com tipos (string vs boolean)
+    const unreadNotifications = (allNotifications || []).filter(notification => {
+      // Verificar se read é exatamente false (boolean)
+      const isUnread = notification.read === false;
+      
+      // Log para debug se encontrar alguma inconsistência
+      if (notification.read !== true && notification.read !== false) {
+        console.warn('⚠️ Notificação com read inválido:', {
+          id: notification.id,
+          read: notification.read,
+          readType: typeof notification.read
+        });
+      }
+      
+      return isUnread;
+    });
+
+    const count = unreadNotifications.length;
+
+    // Log para debug
+    if (count > 0) {
+      console.log(`📊 Notificações não lidas encontradas: ${count}`);
+      console.log('📋 Detalhes das notificações não lidas:', unreadNotifications.map(n => ({
+        id: n.id,
+        read: n.read,
+        readType: typeof n.read,
+        type: n.type,
+        status: n.status
+      })));
+    } else {
+      console.log('✅ Nenhuma notificação não lida encontrada');
+      // Log de todas as notificações para debug
+      if (allNotifications && allNotifications.length > 0) {
+        console.log('📋 Todas as notificações (para debug):', allNotifications.map(n => ({
+          id: n.id,
+          read: n.read,
+          readType: typeof n.read,
+          type: n.type
+        })));
+      }
+    }
+
+    return { count, error: null };
   } catch (error) {
+    console.error('❌ Erro ao contar notificações:', error);
     return { count: 0, error: 'Erro de conexão' };
   }
 };
