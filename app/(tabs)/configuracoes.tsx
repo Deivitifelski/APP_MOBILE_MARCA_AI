@@ -25,7 +25,7 @@ import { artistImageUpdateService } from '../../services/artistImageUpdateServic
 import { cacheService } from '../../services/cacheService';
 import { RealtimeSubscription, subscribeToUsers } from '../../services/realtimeService';
 import { getArtists } from '../../services/supabase/artistService';
-import { getCurrentUser, updatePassword } from '../../services/supabase/authService';
+import { getCurrentUser, updatePassword, logoutUser } from '../../services/supabase/authService';
 import { createFeedback } from '../../services/supabase/feedbackService';
 import { getUserPermissions } from '../../services/supabase/permissionsService';
 import { getUserProfile, isPremiumUser, UserProfile } from '../../services/supabase/userService';
@@ -46,7 +46,7 @@ const getRoleLabel = (role?: string) => {
 export default function ConfiguracoesScreen() {
   const { isDarkMode, toggleDarkMode, colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const { activeArtist, refreshActiveArtist } = useActiveArtistContext();
+  const { activeArtist, refreshActiveArtist, clearArtist } = useActiveArtistContext();
   const [notifications, setNotifications] = useState(true);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
@@ -302,9 +302,16 @@ export default function ConfiguracoesScreen() {
       
       // Limpar cache
       await cacheService.clear();
-      
-      // Fazer logout no Supabase
-      await supabase.auth.signOut();
+
+      // Limpar artista ativo em memória e no AsyncStorage
+      await clearArtist();
+
+      // Fazer logout centralizado (inclui limpar artista ativo no storage)
+      const { error } = await logoutUser();
+      if (error) {
+        Alert.alert('Erro', error || 'Não foi possível sair. Tente novamente.');
+        return;
+      }
       
       // Fechar modal
       setShowLogoutModal(false);
