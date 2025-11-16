@@ -399,7 +399,7 @@ export interface EventWithRole {
 }
 
 // Buscar eventos de um artista com filtragem automática por role
-export const getEventsByArtistWithRole = async (artistId: string): Promise<{ events: EventWithRole[] | null; error: string | null }> => {
+export const getEventsByArtistWithRole = async (artistId: string): Promise<{ events: EventWithRole[] | null; error: string | null; errorCode?: string }> => {
   try {
     console.log('🔐 Buscando eventos com filtragem por role para artista:', artistId);
     
@@ -408,14 +408,22 @@ export const getEventsByArtistWithRole = async (artistId: string): Promise<{ eve
 
     if (error) {
       console.error('❌ Erro ao buscar eventos com role:', error);
-      return { events: null, error: error.message };
+      return { 
+        events: null, 
+        error: error.message,
+        errorCode: error.code || undefined
+      };
     }
 
     console.log('✅ Eventos carregados com filtragem:', data?.length || 0);
     return { events: data || [], error: null };
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Erro ao buscar eventos com role:', error);
-    return { events: null, error: 'Erro ao buscar eventos' };
+    return { 
+      events: null, 
+      error: error?.message || 'Erro ao buscar eventos',
+      errorCode: error?.code
+    };
   }
 };
 
@@ -424,7 +432,7 @@ export const getEventsByMonthWithRole = async (
   artistId: string, 
   year: number, 
   month: number
-): Promise<{ success: boolean; error: string | null; events?: EventWithRole[] }> => {
+): Promise<{ success: boolean; error: string | null; events?: EventWithRole[]; errorCode?: string }> => {
   try {
     const startDate = new Date(year, month, 1).toISOString().split('T')[0];
     const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
@@ -432,10 +440,10 @@ export const getEventsByMonthWithRole = async (
     console.log('🔐 getEventsByMonthWithRole:', { artistId, year, month, startDate, endDate });
 
     // Buscar todos os eventos do artista com filtragem por role
-    const { events, error } = await getEventsByArtistWithRole(artistId);
+    const { events, error, errorCode } = await getEventsByArtistWithRole(artistId);
 
     if (error) {
-      return { success: false, error };
+      return { success: false, error, errorCode };
     }
 
     // Filtrar por mês no cliente (já vem com value filtrado do banco)
@@ -445,9 +453,13 @@ export const getEventsByMonthWithRole = async (
 
     console.log('✅ Eventos filtrados por mês:', filteredEvents.length);
     return { success: true, error: null, events: filteredEvents };
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Erro ao buscar eventos por mês:', error);
-    return { success: false, error: 'Erro de conexão' };
+    return { 
+      success: false, 
+      error: error?.message || 'Erro de conexão',
+      errorCode: error?.code
+    };
   }
 };
 

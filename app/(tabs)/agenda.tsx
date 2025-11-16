@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   Modal,
@@ -22,6 +23,7 @@ import { artistImageUpdateService } from '../../services/artistImageUpdateServic
 import { cacheService } from '../../services/cacheService';
 import { getCurrentUser } from '../../services/supabase/authService';
 import { getEventsByMonthWithRole } from '../../services/supabase/eventService';
+import { getArtists } from '../../services/supabase/artistService';
 import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
 import { useNotifications } from '../../services/useNotifications';
 
@@ -40,7 +42,7 @@ export default function AgendaScreen() {
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [imageLoadError, setImageLoadError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const { activeArtist, refreshActiveArtist, isLoading } = useActiveArtistContext();
+  const { activeArtist, refreshActiveArtist, isLoading, setActiveArtist, clearArtist } = useActiveArtistContext();
   const [artistImageUpdated, setArtistImageUpdated] = useState<boolean>(false);
   const { unreadCount, loadUnreadCount } = useNotifications();
   const [hasAnyArtist, setHasAnyArtist] = useState(false);
@@ -48,6 +50,9 @@ export default function AgendaScreen() {
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [showDayModal, setShowDayModal] = useState(false);
   const [isCalendarVisible, setIsCalendarVisible] = useState(false);
+  const [showRemovedModal, setShowRemovedModal] = useState(false);
+  const [availableArtists, setAvailableArtists] = useState<any[]>([]);
+  const [isLoadingArtists, setIsLoadingArtists] = useState(false);
   const closeDayModal = () => {
     setShowDayModal(false);
     setSelectedDay(null);
@@ -318,11 +323,109 @@ export default function AgendaScreen() {
         // Salvar no cache
         await cacheService.setEventsData(activeArtist.id, currentYear, currentMonth, eventsData);
       } else {
+        // Verificar se é o erro de acesso negado (P0001)
+        const isAccessDenied = 
+          result.errorCode === 'P0001' || 
+          (result.error && (
+            result.error.includes('Usuário não tem acesso a este artista') ||
+            result.error.includes('não tem acesso')
+          ));
+        
+        if (isAccessDenied) {
+          // Usuário foi removido, mostrar modal
+          await handleUserRemovedFromArtist();
+        } else {
+          setEvents([]);
+        }
+      }
+    } catch (error: any) {
+      // Verificar se é erro do Supabase com código P0001
+      const isAccessDenied = 
+        error?.code === 'P0001' || 
+        (error?.message && (
+          error.message.includes('Usuário não tem acesso a este artista') ||
+          error.message.includes('não tem acesso')
+        ));
+      
+      if (isAccessDenied) {
+        await handleUserRemovedFromArtist();
+      } else {
         setEvents([]);
       }
-    } catch (error) {
-      setEvents([]);
     }
+  };
+
+  const handleUserRemovedFromArtist = async () => {
+    try {
+      setIsLoadingArtists(true);
+      
+      // Buscar usuário atual
+      const { user } = await getCurrentUser();
+      if (!user) {
+        setEvents([]);
+        return;
+      }
+
+      // Buscar todos os artistas do usuário
+      const { artists, error } = await getArtists(user.id);
+      
+      if (error) {
+        // Se der erro, limpar artista ativo e mostrar modal sem opções
+        await clearArtist();
+        setAvailableArtists([]);
+        setShowRemovedModal(true);
+        setIsLoadingArtists(false);
+        return;
+      }
+
+      // Filtrar artistas diferentes do atual (que foi removido)
+      const otherArtists = (artists || []).filter(artist => artist.id !== activeArtist?.id);
+      setAvailableArtists(otherArtists);
+
+      // Limpar artista atual
+      await clearArtist();
+      setEvents([]);
+
+      // Mostrar modal
+      setShowRemovedModal(true);
+    } catch (error) {
+      console.error('Erro ao verificar artistas:', error);
+      await clearArtist();
+      setAvailableArtists([]);
+      setShowRemovedModal(true);
+    } finally {
+      setIsLoadingArtists(false);
+    }
+  };
+
+  const handleSelectOtherArtist = async (artist: any) => {
+    try {
+      // Definir novo artista ativo
+      await setActiveArtist({
+        id: artist.id,
+        name: artist.name,
+        role: artist.role || 'viewer',
+        profile_url: artist.profile_url,
+        musical_style: artist.musical_style,
+        created_at: artist.created_at
+      });
+
+      // Fechar modal
+      setShowRemovedModal(false);
+      setAvailableArtists([]);
+
+      // Recarregar eventos do novo artista
+      // O useEffect vai detectar a mudança do activeArtist e carregar automaticamente
+    } catch (error) {
+      console.error('Erro ao selecionar artista:', error);
+      Alert.alert('Erro', 'Não foi possível alterar o artista. Tente novamente.');
+    }
+  };
+
+  const handleCreateNewArtist = () => {
+    setShowRemovedModal(false);
+    setAvailableArtists([]);
+    router.push('/cadastro-artista');
   };
 
   const navigateMonth = (direction: 'prev' | 'next') => {
@@ -879,6 +982,113 @@ export default function AgendaScreen() {
         message="Apenas gerentes e editores podem criar e visualizar detalhes e valores financeiros dos eventos. Entre em contato com um gerente para solicitar mais permissões."
         icon="lock-closed"
       />
+
+      {/* Modal: Usuário Removido do Artista */}
+      <Modal
+        visible={showRemovedModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
+        <View style={styles.removedModalOverlay}>
+          <View style={[styles.removedModalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.removedModalIcon, { backgroundColor: colors.error + '20' }]}>
+              <Ionicons name="alert-circle" size={48} color={colors.error} />
+            </View>
+
+            <Text style={[styles.removedModalTitle, { color: colors.text }]}>
+              Você foi removido deste artista
+            </Text>
+
+            <Text style={[styles.removedModalMessage, { color: colors.textSecondary }]}>
+              Parece que você foi removido como colaborador deste artista. Escolha uma das opções abaixo para continuar.
+            </Text>
+
+            {isLoadingArtists ? (
+              <View style={styles.removedModalLoading}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={[styles.removedModalLoadingText, { color: colors.textSecondary }]}>
+                  Carregando seus artistas...
+                </Text>
+              </View>
+            ) : availableArtists.length > 0 ? (
+              <ScrollView style={styles.removedModalArtistsList} showsVerticalScrollIndicator={false}>
+                <Text style={[styles.removedModalSubtitle, { color: colors.text }]}>
+                  Seus outros artistas:
+                </Text>
+                {availableArtists.map((artist) => (
+                  <TouchableOpacity
+                    key={artist.id}
+                    style={[styles.removedModalArtistCard, { backgroundColor: colors.background, borderColor: colors.border }]}
+                    onPress={() => handleSelectOtherArtist(artist)}
+                  >
+                    <View style={styles.removedModalArtistInfo}>
+                      {artist.profile_url ? (
+                        <OptimizedImage
+                          imageUrl={artist.profile_url}
+                          style={styles.removedModalArtistAvatar}
+                          cacheKey={`artist_${artist.id}`}
+                          fallbackIcon="musical-notes"
+                          fallbackIconSize={20}
+                          fallbackIconColor={colors.primary}
+                        />
+                      ) : (
+                        <View style={[styles.removedModalArtistAvatarPlaceholder, { backgroundColor: colors.primary }]}>
+                          <Ionicons name="musical-notes" size={20} color="#fff" />
+                        </View>
+                      )}
+                      <View style={styles.removedModalArtistDetails}>
+                        <Text style={[styles.removedModalArtistName, { color: colors.text }]}>
+                          {artist.name}
+                        </Text>
+                        <Text style={[styles.removedModalArtistRole, { color: colors.textSecondary }]}>
+                          {artist.role === 'owner' ? 'Gerente' : 
+                           artist.role === 'admin' ? 'Administrador' :
+                           artist.role === 'editor' ? 'Editor' : 'Visualizador'}
+                        </Text>
+                      </View>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            ) : (
+              <View style={styles.removedModalNoArtists}>
+                <Ionicons name="musical-notes-outline" size={48} color={colors.textSecondary} />
+                <Text style={[styles.removedModalNoArtistsText, { color: colors.textSecondary }]}>
+                  Você não está vinculado a nenhum outro artista.
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.removedModalActions}>
+              {availableArtists.length > 0 && (
+                <TouchableOpacity
+                  style={[styles.removedModalButton, styles.removedModalButtonSecondary, { borderColor: colors.border }]}
+                  onPress={handleCreateNewArtist}
+                >
+                  <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
+                  <Text style={[styles.removedModalButtonTextSecondary, { color: colors.primary }]}>
+                    Criar Novo Artista
+                  </Text>
+                </TouchableOpacity>
+              )}
+              
+              {availableArtists.length === 0 && (
+                <TouchableOpacity
+                  style={[styles.removedModalButton, styles.removedModalButtonPrimary, { backgroundColor: colors.primary }]}
+                  onPress={handleCreateNewArtist}
+                >
+                  <Ionicons name="add-circle" size={20} color="#fff" />
+                  <Text style={styles.removedModalButtonTextPrimary}>
+                    Criar Novo Artista
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1331,5 +1541,144 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     marginTop: 12,
+  },
+  // Estilos do Modal de Remoção
+  removedModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  removedModalContent: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 20,
+    padding: 24,
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  removedModalIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  removedModalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  removedModalMessage: {
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  removedModalLoading: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  removedModalLoadingText: {
+    marginTop: 12,
+    fontSize: 14,
+  },
+  removedModalSubtitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 16,
+  },
+  removedModalArtistsList: {
+    maxHeight: 300,
+    marginBottom: 20,
+  },
+  removedModalArtistCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+  },
+  removedModalArtistInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  removedModalArtistAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: 12,
+  },
+  removedModalArtistAvatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  removedModalArtistDetails: {
+    flex: 1,
+  },
+  removedModalArtistName: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  removedModalArtistRole: {
+    fontSize: 13,
+  },
+  removedModalNoArtists: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    marginBottom: 20,
+  },
+  removedModalNoArtistsText: {
+    fontSize: 15,
+    textAlign: 'center',
+    marginTop: 16,
+    lineHeight: 22,
+  },
+  removedModalActions: {
+    gap: 12,
+  },
+  removedModalButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+  },
+  removedModalButtonPrimary: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  removedModalButtonSecondary: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+  },
+  removedModalButtonTextPrimary: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  removedModalButtonTextSecondary: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { getActiveArtist, setActiveArtist as saveToStorage, clearActiveArtist } from '../services/artistContext';
-import { getArtistById } from '../services/supabase/artistService';
+import { getArtistById, getArtists } from '../services/supabase/artistService';
 import { getCurrentUser } from '../services/supabase/authService';
 
 export interface ActiveArtist {
@@ -138,6 +139,69 @@ export const ActiveArtistProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
+  /**
+   * Quando o usuário é removido do artista atual (linha em artist_members deletada),
+   * tentamos automaticamente:
+   * 1) Encontrar outro artista vinculado a esse usuário e alternar para ele
+   * 2) Se não houver mais artistas, limpar estado e avisar que ele precisa criar um novo
+   */
+  const handleArtistMemberRemoved = async (removedArtistId: string) => {
+    try {
+      const { user, error: userError } = await getCurrentUser();
+      if (userError || !user) {
+        await clearArtist();
+        return;
+      }
+
+      const { artists, error: artistsError } = await getArtists(user.id);
+      const allArtists = artists || [];
+
+      // Nenhum outro artista vinculado
+      if (artistsError || allArtists.length === 0) {
+        await clearArtist();
+        Alert.alert(
+          'Você foi removido deste artista',
+          'Parece que você foi removido como colaborador e não está vinculado a nenhum outro artista. Crie um novo perfil para continuar.'
+        );
+        return;
+      }
+
+      // Procurar outro artista diferente do removido
+      const alternativeArtist = allArtists.find(a => a.id !== removedArtistId) || null;
+
+      if (!alternativeArtist) {
+        // Só havia o artista removido
+        await clearArtist();
+        Alert.alert(
+          'Você foi removido deste artista',
+          'Parece que você foi removido como colaborador e não está vinculado a nenhum outro artista. Crie um novo perfil para continuar.'
+        );
+        return;
+      }
+
+      // Alternar automaticamente para outro artista disponível
+      const nextActiveArtist: ActiveArtist = {
+        id: alternativeArtist.id,
+        name: alternativeArtist.name,
+        role: alternativeArtist.role || 'viewer',
+        profile_url: alternativeArtist.profile_url,
+        musical_style: alternativeArtist.musical_style,
+        created_at: alternativeArtist.created_at,
+      };
+
+      await saveToStorage(nextActiveArtist);
+      setActiveArtistState(nextActiveArtist);
+      artistIdRef.current = nextActiveArtist.id;
+
+      Alert.alert(
+        'Você foi removido deste artista',
+        'Você foi removido como colaborador deste artista. Alteramos automaticamente para outro artista em que você ainda é colaborador.'
+      );
+    } catch (error) {
+      await clearArtist();
+    }
+  };
+
   const setupRealtime = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -219,9 +283,9 @@ export const ActiveArtistProvider: React.FC<{ children: React.ReactNode }> = ({ 
           async (payload) => {
             const deleted = payload.old as any;
             
-            // Se removido do artista atual, limpar
+            // Se removido do artista atual, tratar fluxo de remoção
             if (artistIdRef.current === deleted.artist_id) {
-              await clearArtist();
+              await handleArtistMemberRemoved(deleted.artist_id);
             }
           }
         )
