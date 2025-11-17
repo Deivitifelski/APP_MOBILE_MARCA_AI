@@ -1,6 +1,51 @@
 import { supabase } from '../../lib/supabase';
 import { hasPermission } from './permissionsService';
 
+const SUPABASE_URL = 'https://ctulmpyaikxsnjqmrzxf.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN0dWxtcHlhaWt4c25qcW1yenhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2MzkxMjMsImV4cCI6MjA3MzIxNTEyM30.bu0gER4uTIZ5PDV7t1-fcwU01UZAJ6aFG6axFZQlU8U';
+
+/**
+ * Envia notificação push para todos os membros do artista (exceto o criador)
+ */
+const sendNotificationToUsers = async (
+  artistId: string,
+  creatorUserId: string,
+  title: string,
+  message: string,
+  data: Record<string, any> = {}
+): Promise<void> => {
+  try {
+    const response = await fetch(
+      `${SUPABASE_URL}/functions/v1/send_notification_users`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          artist_id: artistId,
+          creator_user_id: creatorUserId,
+          title,
+          message,
+          data,
+        }),
+      }
+    );
+
+    const json = await response.json();
+    
+    if (!response.ok) {
+      console.error('⚠️ Erro ao enviar notificações push:', json);
+    } else {
+      console.log('✅ Notificações push enviadas:', json);
+    }
+  } catch (error) {
+    console.error('⚠️ Erro ao chamar função de notificação:', error);
+    // Não falha a operação se o push falhar
+  }
+};
+
 export interface Event {
   id: string;
   artist_id: string;
@@ -105,6 +150,18 @@ export const createEvent = async (eventData: CreateEventData): Promise<{ success
     // O trigger notify_event_created() no banco já cria as notificações
     // automaticamente para todos os colaboradores (exceto o criador)
 
+    // Enviar notificações push para todos os membros do artista (exceto o criador)
+    await sendNotificationToUsers(
+      eventData.artist_id,
+      eventData.user_id,
+      'Novo Evento Criado',
+      `${eventData.name} - ${new Date(eventData.event_date).toLocaleDateString('pt-BR')}`,
+      {
+        screen: 'event',
+        event_id: event.id,
+      }
+    );
+
     // Se há despesas, criar elas
     if (eventData.expenses && eventData.expenses.length > 0) {
       const expensesToInsert = eventData.expenses.map(expense => ({
@@ -200,8 +257,14 @@ export const getEventById = async (eventId: string): Promise<{ success: boolean;
 };
 
 // Atualizar evento
-export const updateEvent = async (eventId: string, eventData: UpdateEventData): Promise<{ success: boolean; error: string | null; event?: Event }> => {
+export const updateEvent = async (eventId: string, eventData: UpdateEventData, userId?: string): Promise<{ success: boolean; error: string | null; event?: Event }> => {
   try {
+    // Buscar o evento antes de atualizar para obter informações necessárias
+    const eventResult = await getEventById(eventId);
+    if (!eventResult.success || !eventResult.event) {
+      return { success: false, error: 'Evento não encontrado' };
+    }
+
     const { data, error } = await supabase
       .from('events')
       .update({
@@ -209,7 +272,8 @@ export const updateEvent = async (eventId: string, eventData: UpdateEventData): 
         updated_at: new Date().toISOString()
       })
       .eq('id', eventId)
-      .select('id');
+      .select()
+      .single();
 
     if (error) {
       if (error.message?.includes('JSON object')) {
@@ -218,19 +282,42 @@ export const updateEvent = async (eventId: string, eventData: UpdateEventData): 
       return { success: false, error: error.message };
     }
 
-    if (!data || data.length === 0) {
+    if (!data) {
       return { success: false, error: 'Evento não encontrado ou você não possui permissão para editá-lo.' };
     }
 
-    return { success: true, error: null };
+    // Enviar notificações push para todos os membros do artista (exceto quem editou)
+    if (userId) {
+      await sendNotificationToUsers(
+        data.artist_id,
+        userId,
+        'Evento Atualizado',
+        `${data.name} foi atualizado`,
+        {
+          screen: 'event',
+          event_id: eventId,
+        }
+      );
+    }
+
+    return { success: true, error: null, event: data };
   } catch {
     return { success: false, error: 'Erro de conexão' };
   }
 };
 
 // Deletar evento
-export const deleteEvent = async (eventId: string): Promise<{ success: boolean; error: string | null }> => {
+export const deleteEvent = async (eventId: string, userId?: string): Promise<{ success: boolean; error: string | null }> => {
   try {
+    // Buscar o evento antes de deletar para obter informações necessárias
+    const eventResult = await getEventById(eventId);
+    if (!eventResult.success || !eventResult.event) {
+      return { success: false, error: 'Evento não encontrado' };
+    }
+
+    const eventName = eventResult.event.name;
+    const artistId = eventResult.event.artist_id;
+
     const { error } = await supabase
       .from('events')
       .delete()
@@ -238,6 +325,20 @@ export const deleteEvent = async (eventId: string): Promise<{ success: boolean; 
 
     if (error) {
       return { success: false, error: error.message };
+    }
+
+    // Enviar notificações push para todos os membros do artista (exceto quem deletou)
+    if (userId) {
+      await sendNotificationToUsers(
+        artistId,
+        userId,
+        'Evento Deletado',
+        `${eventName} foi deletado`,
+        {
+          screen: 'events',
+          event_id: eventId,
+        }
+      );
     }
 
     return { success: true, error: null };
@@ -307,8 +408,8 @@ export const updateEventWithPermissions = async (eventId: string, eventData: Upd
       return { success: false, error: 'Sem permissão para editar eventos' };
     }
 
-    // Atualizar o evento
-    const result = await updateEvent(eventId, eventData);
+    // Atualizar o evento (passa userId para enviar notificações)
+    const result = await updateEvent(eventId, eventData, userId);
 
     // O trigger notify_event_updated() no banco (se existir) já cria as notificações
     // automaticamente para todos os colaboradores (exceto quem editou)
@@ -335,8 +436,8 @@ export const deleteEventWithPermissions = async (eventId: string, userId: string
       return { success: false, error: 'Sem permissão para deletar eventos' };
     }
 
-    // Deletar o evento
-    return await deleteEvent(eventId);
+    // Deletar o evento (passa userId para enviar notificações)
+    return await deleteEvent(eventId, userId);
   } catch (error) {
     console.error('Erro ao deletar evento:', error);
     return { success: false, error: 'Erro ao deletar evento' };

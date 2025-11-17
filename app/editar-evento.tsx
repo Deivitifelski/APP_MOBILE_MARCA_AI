@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
+import { supabase } from '../lib/supabase';
 import { getEventById, updateEvent, UpdateEventData } from '../services/supabase/eventService';
 
 interface EventoForm {
@@ -237,6 +238,18 @@ export default function EditarEventoScreen() {
   const [showTimeFimModal, setShowTimeFimModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingEvent, setIsLoadingEvent] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  // Obter usuário atual
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUserId(user.id);
+      }
+    };
+    getCurrentUser();
+  }, []);
 
   const loadEventData = useCallback(async () => {
     try {
@@ -321,7 +334,7 @@ export default function EditarEventoScreen() {
         tag: form.tag,
       };
 
-      const result = await updateEvent(eventId, updateData);
+      const result = await updateEvent(eventId, updateData, currentUserId || undefined);
 
       if (result.success) {
         Alert.alert(

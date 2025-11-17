@@ -284,12 +284,12 @@ export default function DetalhesEventoScreen() {
   };
 
   const confirmDeleteEvent = async () => {
-    if (!event) return;
+    if (!event || !currentUserId) return;
     
     setIsDeleting(true);
     
     try {
-      const result = await deleteEvent(event.id);
+      const result = await deleteEvent(event.id, currentUserId);
       
       if (result.success) {
         Alert.alert(
