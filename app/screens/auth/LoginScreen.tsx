@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import messaging from '@react-native-firebase/messaging';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -21,8 +21,8 @@ import FCMTokenModal from '../../../components/FCMTokenModal';
 import LogoMarcaAi from '../../../components/LogoMarcaAi';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { supabase } from '../../../lib/supabase';
-import { loginUser, resendConfirmationEmail, sendPasswordResetEmail } from '../../../services/supabase/authService';
-import { checkUserExists, createOrUpdateUserFromGoogle } from '../../../services/supabase/userService';
+import { getCurrentUser, loginUser, resendConfirmationEmail, sendPasswordResetEmail } from '../../../services/supabase/authService';
+import { checkUserExists, createOrUpdateUserFromGoogle, saveFCMToken } from '../../../services/supabase/userService';
 
 // Configurar Google Sign-In (conforme documentação)
 GoogleSignin.configure({
@@ -56,6 +56,40 @@ export default function LoginScreen() {
   const [fcmToken, setFcmToken] = useState<string | null>(null);
   const [showTokenModal, setShowTokenModal] = useState(false);
 
+  // Solicitar permissões ao carregar a tela de login
+  useEffect(() => {
+    const requestPermissions = async () => {
+      if (Platform.OS === 'ios') {
+        try {
+          console.log('📱 [LoginScreen] Solicitando permissões de notificação...');
+          const authStatus = await messaging().requestPermission();
+          const enabled =
+            authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+            authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+
+          if (enabled) {
+            console.log('✅ [LoginScreen] Permissão de notificação concedida');
+            // Registrar dispositivo para mensagens remotas
+            try {
+              await messaging().registerDeviceForRemoteMessages();
+              console.log('✅ [LoginScreen] Dispositivo registrado para mensagens remotas');
+            } catch (regError: any) {
+              if (regError?.code !== 'messaging/device-already-registered') {
+                console.log('⚠️ [LoginScreen] Erro ao registrar dispositivo:', regError);
+              }
+            }
+          } else {
+            console.log('⚠️ [LoginScreen] Permissão de notificação negada');
+          }
+        } catch (error) {
+          console.error('❌ [LoginScreen] Erro ao solicitar permissões:', error);
+        }
+      }
+    };
+
+    requestPermissions();
+  }, []);
+
   const getFCMToken = async () => {
     try {
       console.log('🔍 Iniciando busca do token FCM...');
@@ -72,8 +106,7 @@ export default function LoginScreen() {
 
         if (!hasPermission) {
           console.log('⚠️ Permissão de notificação não concedida');
-          setFcmToken(null);
-          setShowTokenModal(true);
+          // Não mostrar modal se não tiver permissão
           return;
         }
 
@@ -103,11 +136,22 @@ export default function LoginScreen() {
       if (token) {
         console.log('✅ Token FCM obtido com sucesso!');
         setFcmToken(token);
-        setShowTokenModal(true);
+        
+        // Salvar token no banco de dados
+        const { user } = await getCurrentUser();
+        if (user) {
+          const saveResult = await saveFCMToken(user.id, token);
+          if (saveResult.success) {
+            console.log('✅ Token FCM salvo no banco de dados!');
+          } else {
+            console.error('❌ Erro ao salvar token FCM:', saveResult.error);
+          }
+        }
+        
+        setShowTokenModal(true); // Mostrar modal apenas se obteve o token com sucesso
       } else {
         console.log('⚠️ Token FCM não disponível');
-        setFcmToken(null);
-        setShowTokenModal(true);
+        // Não mostrar modal se não obteve token
       }
     } catch (error: any) {
       console.error('❌ Erro ao obter token FCM:', error);
@@ -126,7 +170,19 @@ export default function LoginScreen() {
           if (token) {
             console.log('✅ Token FCM obtido após novo registro!');
             setFcmToken(token);
-            setShowTokenModal(true);
+            
+            // Salvar token no banco de dados
+            const { user } = await getCurrentUser();
+            if (user) {
+              const saveResult = await saveFCMToken(user.id, token);
+              if (saveResult.success) {
+                console.log('✅ Token FCM salvo no banco de dados!');
+              } else {
+                console.error('❌ Erro ao salvar token FCM:', saveResult.error);
+              }
+            }
+            
+            setShowTokenModal(true); // Mostrar modal apenas se obteve o token com sucesso
             return;
           }
         } catch (retryError: any) {
@@ -135,8 +191,8 @@ export default function LoginScreen() {
         }
       }
       
-      setFcmToken(null);
-      setShowTokenModal(true);
+      // Não mostrar modal se deu erro
+      console.log('⚠️ Não foi possível obter o token FCM - modal não será exibido');
     }
   };
 

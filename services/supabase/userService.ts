@@ -294,3 +294,29 @@ export const canExportData = async (userId: string): Promise<{ canExport: boolea
     return { canExport: false, error: 'Erro de conexão' };
   }
 };
+
+// Salvar ou atualizar token FCM do usuário
+export const saveFCMToken = async (userId: string, token: string): Promise<{ success: boolean; error: string | null }> => {
+  try {
+    console.log('💾 [saveFCMToken] Salvando token FCM para usuário:', userId);
+    
+    const { error } = await supabase
+      .from('users')
+      .update({
+        token_fcm: token,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+
+    if (error) {
+      console.error('❌ [saveFCMToken] Erro ao salvar token:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('✅ [saveFCMToken] Token FCM salvo com sucesso!');
+    return { success: true, error: null };
+  } catch (error) {
+    console.error('❌ [saveFCMToken] Erro de conexão:', error);
+    return { success: false, error: 'Erro de conexão' };
+  }
+};
