@@ -645,15 +645,72 @@ export default function AgendaScreen() {
       month: 'long'
     });
   };
-  const handleDayPress = (dateString: string | null) => {
+  const handleDayPress = async (dateString: string | null) => {
     if (!dateString) return;
     const dayEvents = eventsByDate[dateString];
-    if (!dayEvents || dayEvents.length === 0) {
+    
+    // Se houver eventos, mostrar modal com os eventos
+    if (dayEvents && dayEvents.length > 0) {
+      setSelectedDay(dateString);
+      setSelectedDayEvents(dayEvents);
+      setShowDayModal(true);
       return;
     }
-    setSelectedDay(dateString);
-    setSelectedDayEvents(dayEvents);
-    setShowDayModal(true);
+
+    // Se não houver eventos, navegar para criar evento com a data setada
+    if (!activeArtist) {
+      Alert.alert('Erro', 'Nenhum artista selecionado.');
+      return;
+    }
+
+    // Verificar permissão para criar eventos
+    try {
+      const { user } = await getCurrentUser();
+      if (!user) {
+        Alert.alert('Erro', 'Usuário não encontrado');
+        return;
+      }
+
+      // Buscar role atual do usuário DIRETO DO BANCO
+      const { data: memberData, error: roleError } = await supabase
+        .from('artist_members')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('artist_id', activeArtist.id)
+        .single();
+
+      if (roleError || !memberData) {
+        Alert.alert('Erro', 'Você não tem acesso a este artista');
+        return;
+      }
+
+      const userRole = memberData.role;
+
+      // Verificar se pode criar eventos (admin, editor, owner)
+      const allowedRoles = ['admin', 'editor', 'owner'];
+      const canCreate = allowedRoles.includes(userRole);
+      
+      if (!canCreate) {
+        setShowPermissionModal(true);
+        return;
+      }
+
+      // Parse da data do dateString (formato: YYYY-MM-DD)
+      const [year, month, day] = dateString.split('-').map(Number);
+      const selectedDate = new Date(year, month - 1, day);
+
+      // Navegar para tela de adicionar evento com a data setada
+      router.push({
+        pathname: '/adicionar-evento',
+        params: { 
+          selectedMonth: month - 1, // month é 0-indexed
+          selectedYear: year,
+          selectedDate: selectedDate.toISOString()
+        }
+      });
+    } catch (error) {
+      Alert.alert('Erro', 'Erro ao verificar permissões');
+    }
   };
 
   return (
@@ -877,8 +934,7 @@ export default function AgendaScreen() {
                             hasEvents && { backgroundColor: colors.secondary }
                           ]}
                           onPress={() => handleDayPress(day.dateString)}
-                          activeOpacity={hasEvents ? 0.8 : 1}
-                          disabled={!hasEvents}
+                          activeOpacity={0.7}
                         >
                           <Text
                             style={[

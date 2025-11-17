@@ -62,8 +62,9 @@ const DatePickerComponent = ({
 
   // Sempre usar dados atualizados - priorizar parâmetros ou usar data atual
   const currentDate = new Date();
-  const year = initialYear || currentDate.getFullYear();
-  const month = initialMonth !== undefined ? initialMonth : currentDate.getMonth();
+  // Se selectedDate foi passado, usar mês/ano dessa data, senão usar parâmetros ou data atual
+  const year = initialYear !== undefined ? initialYear : (selectedDate ? selectedDate.getFullYear() : currentDate.getFullYear());
+  const month = initialMonth !== undefined ? initialMonth : (selectedDate ? selectedDate.getMonth() : currentDate.getMonth());
 
   // Calcular quantos dias tem o mês selecionado
   const getDaysInMonth = (year: number, month: number) => {
@@ -269,7 +270,10 @@ const SuccessModal = ({
   }, [visible]);
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+    // Parse manual da data para evitar problemas de fuso horário
+    // dateString está no formato "YYYY-MM-DD"
+    const [year, month, day] = dateString.split('-').map(Number);
+    const date = new Date(year, month - 1, day); // month é 0-indexed no Date
     return date.toLocaleDateString('pt-BR', {
       day: '2-digit',
       month: 'long',
