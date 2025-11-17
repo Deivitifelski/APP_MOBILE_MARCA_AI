@@ -1,12 +1,32 @@
+import messaging from '@react-native-firebase/messaging';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { checkUserExists } from '../services/supabase/userService';
 
+async function requestUserPermission() {
+  if (Platform.OS !== 'ios') {
+    return;
+  }
+
+  const authStatus = await messaging().requestPermission();
+
+  const enabled =
+    authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+    authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+
+  if (enabled) {
+    console.log('Authorization status:', authStatus);
+  }
+}
+
 export default function Index() {
   useEffect(() => {
+    // Solicitar permissões de notificação no iOS
+    requestUserPermission();
+
     // Listener para mudanças no estado de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       // Estado de autenticação mudou
