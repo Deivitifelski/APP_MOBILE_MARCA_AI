@@ -50,6 +50,21 @@ export const checkUserExists = async (userId: string): Promise<{ exists: boolean
 // Criar perfil do usuário
 export const createUserProfile = async (userData: CreateUserProfileData): Promise<{ success: boolean; error: string | null }> => {
   try {
+    // Buscar token FCM apenas ao criar novo usuário
+    let tokenFCM: string | null = null;
+    try {
+      const { getFCMToken } = await import('../pushNotificationHandler');
+      tokenFCM = await getFCMToken();
+      if (tokenFCM) {
+        console.log('🔑 Token FCM obtido com sucesso!');
+      } else {
+        console.log('⚠️ Token FCM não disponível ao criar usuário');
+      }
+    } catch (tokenError) {
+      console.log('⚠️ Erro ao obter token FCM (continuando sem token):', tokenError);
+      // Continua sem o token se houver erro
+    }
+
     const { error } = await supabase
       .from('users')
       .insert({
@@ -61,6 +76,7 @@ export const createUserProfile = async (userData: CreateUserProfileData): Promis
         phone: userData.phone || null,
         profile_url: userData.profile_url || null,
         plan: userData.plan || 'free',
+        token_fcm: tokenFCM || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       });
@@ -112,7 +128,18 @@ export const createOrUpdateUserFromGoogle = async (
 
       return { success: true, error: null, isNewUser: false };
     } else {
-      // Criar novo usuário
+      // Criar novo usuário - buscar token FCM
+      let tokenFCM: string | null = null;
+      try {
+        const { getFCMToken } = await import('../pushNotificationHandler');
+        tokenFCM = await getFCMToken();
+        if (tokenFCM) {
+          console.log('🔑 Token FCM obtido ao criar usuário Google:', tokenFCM);
+        }
+      } catch (tokenError) {
+        console.log('⚠️ Erro ao obter token FCM (continuando sem token):', tokenError);
+      }
+
       const { error: insertError } = await supabase
         .from('users')
         .insert({
@@ -121,6 +148,7 @@ export const createOrUpdateUserFromGoogle = async (
           email: googleData.email,
           profile_url: googleData.photo || null,
           plan: 'free',
+          token_fcm: tokenFCM || null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         });
