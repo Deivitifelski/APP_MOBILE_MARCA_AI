@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import messaging from '@react-native-firebase/messaging';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
@@ -16,6 +17,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import FCMTokenModal from '../../../components/FCMTokenModal';
 import LogoMarcaAi from '../../../components/LogoMarcaAi';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { supabase } from '../../../lib/supabase';
@@ -51,6 +53,92 @@ export default function LoginScreen() {
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [sendingResetEmail, setSendingResetEmail] = useState(false);
+  const [fcmToken, setFcmToken] = useState<string | null>(null);
+  const [showTokenModal, setShowTokenModal] = useState(false);
+
+  const getFCMToken = async () => {
+    try {
+      console.log('🔍 Iniciando busca do token FCM...');
+      
+      // No iOS, garantir que temos permissão e registro
+      if (Platform.OS === 'ios') {
+        console.log('📱 iOS detectado - verificando permissões...');
+        
+        // Verificar se já temos permissão
+        const authStatus = await messaging().requestPermission();
+        const hasPermission = 
+          authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+          authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+
+        if (!hasPermission) {
+          console.log('⚠️ Permissão de notificação não concedida');
+          setFcmToken(null);
+          setShowTokenModal(true);
+          return;
+        }
+
+        console.log('✅ Permissão concedida, registrando dispositivo...');
+        
+        // Registrar dispositivo para mensagens remotas
+        try {
+          await messaging().registerDeviceForRemoteMessages();
+          console.log('✅ Dispositivo registrado, aguardando processamento...');
+          // Aguardar para garantir que o registro foi processado
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } catch (regError: any) {
+          // Se já estiver registrado, pode dar erro, mas continuamos
+          if (regError?.code === 'messaging/device-already-registered') {
+            console.log('✅ Dispositivo já estava registrado');
+          } else {
+            console.log('⚠️ Erro ao registrar dispositivo:', regError);
+            // Continuar mesmo assim, pode funcionar
+          }
+        }
+      }
+      
+      // Obter o token
+      console.log('🔑 Obtendo token FCM...');
+      const token = await messaging().getToken();
+      
+      if (token) {
+        console.log('✅ Token FCM obtido com sucesso!');
+        setFcmToken(token);
+        setShowTokenModal(true);
+      } else {
+        console.log('⚠️ Token FCM não disponível');
+        setFcmToken(null);
+        setShowTokenModal(true);
+      }
+    } catch (error: any) {
+      console.error('❌ Erro ao obter token FCM:', error);
+      console.error('❌ Código do erro:', error?.code);
+      console.error('❌ Mensagem do erro:', error?.message);
+      
+      // Se o erro for de não registrado, tentar registrar novamente
+      if (error?.code === 'messaging/unregistered' && Platform.OS === 'ios') {
+        console.log('🔄 Erro: dispositivo não registrado. Tentando registrar novamente...');
+        try {
+          await messaging().registerDeviceForRemoteMessages();
+          console.log('✅ Registrado novamente, aguardando...');
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          const token = await messaging().getToken();
+          if (token) {
+            console.log('✅ Token FCM obtido após novo registro!');
+            setFcmToken(token);
+            setShowTokenModal(true);
+            return;
+          }
+        } catch (retryError: any) {
+          console.error('❌ Erro ao tentar novamente:', retryError);
+          console.error('❌ Código do erro (retry):', retryError?.code);
+        }
+      }
+      
+      setFcmToken(null);
+      setShowTokenModal(true);
+    }
+  };
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -83,7 +171,14 @@ export default function LoginScreen() {
           if (!userCheck.exists) {
             setShowCompleteProfileModal(true);
           } else {
-            router.replace('/(tabs)/agenda');
+            // Buscar token FCM e mostrar modal (não navegar ainda, o modal vai aparecer)
+            getFCMToken().catch((error) => {
+              console.error('Erro ao buscar token FCM:', error);
+            });
+            // Navegar após um pequeno delay para garantir que o modal apareça
+            setTimeout(() => {
+              router.replace('/(tabs)/agenda');
+            }, 100);
           }
         } else {
           Alert.alert('Atenção', 'Erro ao verificar dados do usuário');
@@ -287,7 +382,14 @@ export default function LoginScreen() {
                           setUserName(response.data.user.name || response.data.user.email);
                           setShowWelcomeModal(true);
                         } else {
-                          router.replace('/(tabs)/agenda');
+                          // Buscar token FCM e mostrar modal (não navegar ainda, o modal vai aparecer)
+                          getFCMToken().catch((error) => {
+                            console.error('Erro ao buscar token FCM:', error);
+                          });
+                          // Navegar após um pequeno delay para garantir que o modal apareça
+                          setTimeout(() => {
+                            router.replace('/(tabs)/agenda');
+                          }, 100);
                         }
                       }
                     }
@@ -553,7 +655,14 @@ export default function LoginScreen() {
                 style={[styles.modalCancelButton, { backgroundColor: colors.background, borderColor: colors.border }]}
                 onPress={() => {
                   setShowWelcomeModal(false);
-                  router.replace('/(tabs)/agenda');
+                  // Buscar token FCM e mostrar modal (não navegar ainda, o modal vai aparecer)
+                  getFCMToken().catch((error) => {
+                    console.error('Erro ao buscar token FCM:', error);
+                  });
+                  // Navegar após um pequeno delay para garantir que o modal apareça
+                  setTimeout(() => {
+                    router.replace('/(tabs)/agenda');
+                  }, 100);
                 }}
               >
                 <Text style={[styles.modalCancelText, { color: colors.textSecondary }]}>Pular</Text>
@@ -646,6 +755,13 @@ export default function LoginScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Modal de Token FCM */}
+      <FCMTokenModal
+        visible={showTokenModal}
+        token={fcmToken}
+        onClose={() => setShowTokenModal(false)}
+      />
     </SafeAreaView>
   );
 }
