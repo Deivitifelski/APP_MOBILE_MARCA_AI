@@ -20,8 +20,8 @@ public class AppDelegate: ExpoAppDelegate {
   ) -> Bool {
     print("🚀 AppDelegate: Iniciando aplicação...")
     
-    // ⚠️ IMPORTANTE: Configurar Firebase apenas se GoogleService-Info.plist existir
-    // O Firebase requer o arquivo plist para funcionar corretamente
+    // ⚠️ IMPORTANTE: Configurar Firebase ANTES de super.application()
+    // Isso garante que o Firebase esteja disponível quando o React Native inicializar
     let googleServiceInfoPath = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist")
     
     if googleServiceInfoPath != nil {
@@ -51,26 +51,11 @@ public class AppDelegate: ExpoAppDelegate {
       print("   6. Certifique-se de que está marcado no Target Membership")
     }
     
-    // Criar factory e delegate do React Native
-    print("⚛️ Criando React Native factory...")
-    let delegate = ReactNativeDelegate()
-    let factory = ExpoReactNativeFactory(delegate: delegate)
-    delegate.dependencyProvider = RCTAppDependencyProvider()
-
-    reactNativeDelegate = delegate
-    reactNativeFactory = factory
-    bindReactNativeFactory(factory)
-
-    // Deixar o ExpoAppDelegate criar a window e root view controller automaticamente
-    // Isso garante que o módulo expo-router/entry seja registrado corretamente
-    print("✅ React Native factory configurado")
-    
-    // ⚠️ IMPORTANTE: Chamar super.application() PRIMEIRO para garantir inicialização rápida
-    // Isso evita o erro de métricas de lançamento do iOS
+    // ⚠️ CRÍTICO: Chamar super.application() DEPOIS de configurar Firebase
+    // O ExpoAppDelegate inicializa o React Native, que pode precisar do Firebase
     let result = super.application(application, didFinishLaunchingWithOptions: launchOptions)
     
-    // Configurar notificações DEPOIS de super.application() para não bloquear a inicialização
-    // Fazer isso de forma assíncrona para não atrasar o lançamento do app
+    // Configurar notificações de forma assíncrona para não bloquear a inicialização
     DispatchQueue.main.async {
       print("🔔 Configurando notificações...")
       UNUserNotificationCenter.current().delegate = self
