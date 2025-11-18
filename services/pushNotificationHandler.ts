@@ -116,10 +116,23 @@ export const setupPushNotificationHandlers = () => {
   // 4. HANDLER PARA TOKEN ATUALIZADO
   // ============================================
   // Quando o token FCM é atualizado (pode acontecer periodicamente)
-  const unsubscribeTokenRefresh = messaging().onTokenRefresh(token => {
+  const unsubscribeTokenRefresh = messaging().onTokenRefresh(async (token) => {
     console.log('🔄 Token FCM atualizado:', token);
-    // Aqui você deve salvar o novo token no banco de dados
-    // Por exemplo: saveFCMToken(userId, token);
+    // Salvar o novo token no banco de dados automaticamente
+    try {
+      const { getCurrentUser, saveFCMToken } = await import('./supabase/userService');
+      const { user } = await getCurrentUser();
+      if (user && token) {
+        const result = await saveFCMToken(user.id, token);
+        if (result.success) {
+          console.log('✅ Token FCM atualizado e salvo no banco de dados!');
+        } else {
+          console.error('❌ Erro ao salvar token FCM atualizado:', result.error);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erro ao salvar token FCM atualizado:', error);
+    }
   });
 
   console.log('✅ Handlers de notificações push configurados!');
