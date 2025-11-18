@@ -20,26 +20,35 @@ public class AppDelegate: ExpoAppDelegate {
   ) -> Bool {
     print("🚀 AppDelegate: Iniciando aplicação...")
     
-    // ⚠️ IMPORTANTE: Configurar Firebase ANTES de qualquer outra coisa
-    // Isso garante que o Firebase esteja disponível quando o React Native inicializar
-    if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
-      print("✅ Firebase: Configurando...")
-      FirebaseApp.configure()
-      // Configurar FCM apenas se Firebase foi configurado
-      Messaging.messaging().delegate = self
-      print("✅ Firebase: Configurado com sucesso")
-    } else {
-      print("⚠️ GoogleService-Info.plist não encontrado.")
-      print("💡 Tentando configurar Firebase mesmo assim...")
-      // Tentar configurar mesmo sem o arquivo (pode funcionar se configurado via código)
-      do {
+    // ⚠️ IMPORTANTE: Configurar Firebase apenas se GoogleService-Info.plist existir
+    // O Firebase requer o arquivo plist para funcionar corretamente
+    let googleServiceInfoPath = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist")
+    
+    if googleServiceInfoPath != nil {
+      // Arquivo existe, configurar Firebase
+      if FirebaseApp.app() == nil {
+        print("✅ Firebase: Configurando com GoogleService-Info.plist...")
         FirebaseApp.configure()
-        Messaging.messaging().delegate = self
-        print("✅ Firebase: Configurado (sem GoogleService-Info.plist)")
-      } catch {
-        print("❌ Firebase: Falha ao configurar - \(error.localizedDescription)")
-        print("💡 Para adicionar: Baixe o GoogleService-Info.plist do Firebase Console e adicione ao projeto Xcode.")
+        
+        // Configurar FCM apenas se Firebase foi configurado com sucesso
+        if FirebaseApp.app() != nil {
+          Messaging.messaging().delegate = self
+          print("✅ Firebase Messaging: Configurado com sucesso")
+        }
+      } else {
+        print("✅ Firebase: Já estava configurado")
       }
+    } else {
+      // Arquivo não existe - Firebase não será configurado
+      print("⚠️ GoogleService-Info.plist não encontrado.")
+      print("⚠️ Firebase não será inicializado.")
+      print("💡 Para habilitar Firebase e notificações push:")
+      print("   1. Acesse https://console.firebase.google.com/")
+      print("   2. Selecione seu projeto")
+      print("   3. Vá em Configurações do Projeto → iOS apps")
+      print("   4. Baixe o GoogleService-Info.plist")
+      print("   5. Arraste o arquivo para o projeto Xcode (pasta ios/MarcaAI/)")
+      print("   6. Certifique-se de que está marcado no Target Membership")
     }
     
     // Configurar notificações
@@ -76,8 +85,13 @@ public class AppDelegate: ExpoAppDelegate {
   
   // Registrar para notificações remotas
   public override func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-    // Configurar APNs token para FCM
-    Messaging.messaging().apnsToken = deviceToken
+    // Configurar APNs token para FCM apenas se Firebase estiver configurado
+    if FirebaseApp.app() != nil {
+      Messaging.messaging().apnsToken = deviceToken
+      print("✅ APNs token configurado para FCM")
+    } else {
+      print("⚠️ Firebase não configurado - APNs token não será enviado para FCM")
+    }
   }
   
   public override func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
@@ -161,6 +175,10 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
 extension AppDelegate: MessagingDelegate {
   // Receber token FCM
   public func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
-    print("🔑 Token FCM recebido: \(fcmToken ?? "nil")")
+    if let token = fcmToken {
+      print("🔑 Token FCM recebido: \(token)")
+    } else {
+      print("⚠️ Token FCM não disponível")
+    }
   }
 }

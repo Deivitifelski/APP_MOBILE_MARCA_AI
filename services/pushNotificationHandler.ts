@@ -10,6 +10,27 @@ import { Platform, Alert } from 'react-native';
 export const setupPushNotificationHandlers = () => {
   console.log('🔔 Configurando handlers de notificações push...');
 
+  // Verificar se o Firebase está disponível
+  // Se não estiver, os handlers simplesmente não funcionarão, mas não causarão crash
+  let firebaseAvailable = true;
+  try {
+    // Tentar acessar o messaging - se Firebase não estiver configurado, isso pode falhar
+    const messagingInstance = messaging();
+    if (!messagingInstance) {
+      firebaseAvailable = false;
+    }
+  } catch (error) {
+    firebaseAvailable = false;
+    console.warn('⚠️ Firebase não está configurado. Notificações push não estarão disponíveis.');
+    console.warn('💡 Para habilitar: Adicione o GoogleService-Info.plist ao projeto iOS.');
+    // Retornar função vazia de cleanup
+    return () => {};
+  }
+  
+  if (!firebaseAvailable) {
+    return () => {};
+  }
+
   // ============================================
   // 1. HANDLER PARA NOTIFICAÇÕES EM FOREGROUND
   // ============================================
@@ -121,6 +142,8 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
   }
 
   try {
+    // Verificar se Firebase está disponível
+    messaging();
     const authStatus = await messaging().requestPermission();
     const enabled =
       authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
@@ -148,6 +171,8 @@ export const registerDeviceForRemoteMessages = async (): Promise<boolean> => {
   }
 
   try {
+    // Verificar se Firebase está disponível
+    messaging();
     await messaging().registerDeviceForRemoteMessages();
     console.log('✅ Dispositivo registrado para mensagens remotas');
     return true;
@@ -166,6 +191,8 @@ export const registerDeviceForRemoteMessages = async (): Promise<boolean> => {
  */
 export const getFCMToken = async (): Promise<string | null> => {
   try {
+    // Verificar se Firebase está disponível
+    messaging();
     const token = await messaging().getToken();
     console.log('🔑 Token FCM obtido:', token);
     return token;

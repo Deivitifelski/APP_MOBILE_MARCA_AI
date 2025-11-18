@@ -11,6 +11,7 @@
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
 		7A7706041549C02996036FAC /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C94ECED74F2F35BBE193E17 /* ExpoModulesProvider.swift */; };
 		8A5E09EFCA265D2A52CE9F98 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 6284357D4C6C1A42BCF5BF4E /* PrivacyInfo.xcprivacy */; };
+		8DAC8DFB2ECC0B89003AF536 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 8DAC8DFA2ECC0B89003AF536 /* GoogleService-Info.plist */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		C0F55326F66381BCE9AA72B9 /* libPods-MarcaAI.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F54A41CB4A2D953B6BA94C1C /* libPods-MarcaAI.a */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
@@ -23,6 +24,7 @@
 		4C94ECED74F2F35BBE193E17 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-MarcaAI/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		6284357D4C6C1A42BCF5BF4E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = MarcaAI/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		89BF90FC57C4AE60746FF163 /* Pods-MarcaAI.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-MarcaAI.release.xcconfig"; path = "Target Support Files/Pods-MarcaAI/Pods-MarcaAI.release.xcconfig"; sourceTree = "<group>"; };
+		8DAC8DFA2ECC0B89003AF536 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		8EB018708F5C0835AB97827E /* Pods-MarcaAI.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-MarcaAI.debug.xcconfig"; path = "Target Support Files/Pods-MarcaAI/Pods-MarcaAI.debug.xcconfig"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = MarcaAI/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
@@ -92,6 +94,7 @@
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
 				9B3B5A6ECD44CE4523BF84F0 /* ExpoModulesProviders */,
 				15CE502BA58F13B153C35B31 /* Pods */,
+				8DAC8DFA2ECC0B89003AF536 /* GoogleService-Info.plist */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -195,6 +198,7 @@
 			files = (
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
+				8DAC8DFB2ECC0B89003AF536 /* GoogleService-Info.plist in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
 				8A5E09EFCA265D2A52CE9F98 /* PrivacyInfo.xcprivacy in Resources */,
 			);
