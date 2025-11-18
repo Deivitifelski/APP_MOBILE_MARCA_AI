@@ -166,7 +166,7 @@ export const sendPasswordResetEmail = async (email: string): Promise<{ success: 
     const { error } = await supabase.auth.resetPasswordForEmail(
       email.trim().toLowerCase(),
       {
-        redirectTo: 'marcaai://reset-password',
+        redirectTo: 'marcaai://auth/callback',
       }
     );
 

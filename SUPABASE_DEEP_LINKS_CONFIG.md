@@ -12,7 +12,6 @@ marcaai://auth/callback
 **Redirect URLs:**
 ```
 marcaai://auth/callback
-marcaai://reset-password
 ```
 
 ## 2. Testar o Deep Link
@@ -26,7 +25,7 @@ xcrun simctl openurl booted "marcaai://auth/callback?access_token=test123&refres
 
 **Testar reset de senha:**
 ```bash
-xcrun simctl openurl booted "marcaai://reset-password?access_token=test123&refresh_token=refresh123&type=recovery"
+xcrun simctl openurl booted "marcaai://auth/callback?access_token=test123&refresh_token=refresh123&type=recovery"
 ```
 
 ### No Dispositivo Real:
@@ -61,10 +60,10 @@ O componente `AuthDeepLinkHandler` irá logar:
 6. **Usuário clica "Email Verificado"** → Vai para `/cadastro-usuario`
 
 ### Reset de Senha:
-1. **Usuário solicita recuperação** → `sendPasswordResetEmail()` com `redirectTo: 'marcaai://reset-password'`
-2. **Recebe email** → Link contém `marcaai://reset-password?access_token=...&refresh_token=...&type=recovery`
+1. **Usuário solicita recuperação** → `sendPasswordResetEmail()` com `redirectTo: 'marcaai://auth/callback'`
+2. **Recebe email** → Link contém `marcaai://auth/callback?access_token=...&refresh_token=...&type=recovery`
 3. **Clica no link** → App abre via deep link
-4. **AuthDeepLinkHandler** → Captura URL e define sessão no Supabase
+4. **AuthDeepLinkHandler** → Detecta `type=recovery`, define sessão no Supabase
 5. **Navega** → Para `/reset-password`
 6. **Usuário define nova senha** → Senha é atualizada e redireciona para `/login`
 
@@ -82,16 +81,15 @@ O componente `AuthDeepLinkHandler` irá logar:
    - `🔵 [Reset Password]` - Mostra os parâmetros extraídos
    - `❌ [Reset Password]` - Mostra erros específicos
 
-2. **Verificar formato da URL** - O Supabase pode enviar em diferentes formatos:
-   - Com tokens: `marcaai://reset-password?access_token=...&refresh_token=...`
-   - Com código: `marcaai://reset-password?code=...`
-   - Com hash: `marcaai://reset-password#access_token=...&refresh_token=...`
+2. **Verificar formato da URL** - O Supabase envia:
+   - Link de confirmação: `marcaai://auth/callback?access_token=...&refresh_token=...&type=signup`
+   - Link de reset: `marcaai://auth/callback?access_token=...&refresh_token=...&type=recovery`
    
-   O código agora suporta todos esses formatos.
+   O código diferencia pelo parâmetro `type`.
 
 3. **Verificar configuração no Supabase:**
    - Authentication > URL Configuration
-   - Redirect URLs deve incluir: `marcaai://reset-password`
+   - Redirect URLs deve incluir: `marcaai://auth/callback`
    - Site URL deve estar configurado
 
 4. **Copiar URL do email:**
