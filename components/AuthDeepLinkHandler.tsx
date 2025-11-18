@@ -4,16 +4,46 @@ import { Alert, Linking } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { createOrUpdateUserFromGoogle } from '../services/supabase/userService';
 
+// Função auxiliar para fazer parsing de URLs customizadas (marcaai://)
+const parseCustomURL = (url: string): { path: string; params: URLSearchParams } => {
+  try {
+    // Tentar usar URL nativo primeiro (funciona se a URL for http/https)
+    const urlObj = new URL(url);
+    return { path: urlObj.pathname, params: urlObj.searchParams };
+  } catch {
+    // Se falhar, fazer parsing manual para URLs customizadas (marcaai://)
+    const match = url.match(/^([^:]+):\/\/([^?#]+)(\?.*)?$/);
+    if (match) {
+      const path = match[2] || '';
+      const queryString = match[3] ? match[3].substring(1) : '';
+      const params = new URLSearchParams(queryString);
+      return { path, params };
+    }
+    return { path: '', params: new URLSearchParams() };
+  }
+};
+
 export default function AuthDeepLinkHandler() {
   useEffect(() => {
     // Listener para deep links quando o app está aberto
     const handleDeepLink = (url: string) => {
+      console.log('🔵 [Deep Link] URL recebida:', url);
+      
       // Verificar se é callback de reset de senha
       if (url.includes('reset-password') || url.includes('type=recovery')) {
-        // Extrair tokens da URL
-        const urlObj = new URL(url);
-        const accessToken = urlObj.searchParams.get('access_token');
-        const refreshToken = urlObj.searchParams.get('refresh_token');
+        console.log('🔵 [Reset Password] Processando deep link de reset de senha');
+        
+        // Extrair tokens da URL usando função auxiliar
+        const { path, params } = parseCustomURL(url);
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        const type = params.get('type');
+        
+        console.log('🔵 [Reset Password] Tokens extraídos:', { 
+          hasAccessToken: !!accessToken, 
+          hasRefreshToken: !!refreshToken,
+          type 
+        });
         
         if (accessToken && refreshToken) {
           supabase.auth.setSession({
@@ -26,6 +56,7 @@ export default function AuthDeepLinkHandler() {
               router.replace('/login');
               return;
             }
+            console.log('✅ [Reset Password] Sessão definida com sucesso, navegando para reset-password');
             router.replace('/reset-password');
           });
         } else {
@@ -38,13 +69,13 @@ export default function AuthDeepLinkHandler() {
       }
       
       // Verificar se é callback do Google OAuth (redirect do Supabase)
-      if (url.includes('access_token') && url.includes('refresh_token')) {
-        // Extrair parâmetros da URL
-        const urlObj = new URL(url);
-        const accessToken = urlObj.searchParams.get('access_token');
-        const refreshToken = urlObj.searchParams.get('refresh_token');
-        const type = urlObj.searchParams.get('type');
-        const expiresIn = urlObj.searchParams.get('expires_in');
+      if (url.includes('access_token') && url.includes('refresh_token') && !url.includes('reset-password')) {
+        // Extrair parâmetros da URL usando função auxiliar
+        const { params } = parseCustomURL(url);
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        const type = params.get('type');
+        const expiresIn = params.get('expires_in');
 
         if (accessToken && refreshToken) {
           // Definir a sessão com os tokens do OAuth
@@ -85,11 +116,11 @@ export default function AuthDeepLinkHandler() {
       }
       // Callback original para email confirmation
       else if (url.includes('marcaai://auth/callback')) {
-        // Extrair parâmetros da URL
-        const urlObj = new URL(url);
-        const accessToken = urlObj.searchParams.get('access_token');
-        const refreshToken = urlObj.searchParams.get('refresh_token');
-        const type = urlObj.searchParams.get('type');
+        // Extrair parâmetros da URL usando função auxiliar
+        const { params } = parseCustomURL(url);
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        const type = params.get('type');
 
         if (accessToken && refreshToken && type === 'signup') {
           // Trocar o código pela sessão
