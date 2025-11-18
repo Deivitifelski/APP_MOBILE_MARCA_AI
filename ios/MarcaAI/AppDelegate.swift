@@ -18,28 +18,28 @@ public class AppDelegate: ExpoAppDelegate {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
-    print("🚀 AppDelegate: Iniciando aplicação...")
-    
-    // ⚠️ IMPORTANTE: Configurar Firebase ANTES de super.application()
-    // Isso garante que o Firebase esteja disponível quando o React Native inicializar
-    let googleServiceInfoPath = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist")
-    
-    if googleServiceInfoPath != nil {
-      // Arquivo existe, configurar Firebase
+    // ⚠️ CRÍTICO: Configurar Firebase PRIMEIRO, antes de qualquer outra coisa
+    // Isso evita o aviso "Firebase app has not yet been configured"
+    // Verificar se o arquivo existe e configurar imediatamente
+    if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
       if FirebaseApp.app() == nil {
-        print("✅ Firebase: Configurando com GoogleService-Info.plist...")
         FirebaseApp.configure()
-        
         // Configurar FCM apenas se Firebase foi configurado com sucesso
         if FirebaseApp.app() != nil {
           Messaging.messaging().delegate = self
-          print("✅ Firebase Messaging: Configurado com sucesso")
         }
-      } else {
-        print("✅ Firebase: Já estava configurado")
+      }
+    }
+    
+    print("🚀 AppDelegate: Iniciando aplicação...")
+    
+    // Verificar status do Firebase após configuração
+    if FirebaseApp.app() != nil {
+      print("✅ Firebase: Configurado com sucesso")
+      if Messaging.messaging().delegate != nil {
+        print("✅ Firebase Messaging: Configurado com sucesso")
       }
     } else {
-      // Arquivo não existe - Firebase não será configurado
       print("⚠️ GoogleService-Info.plist não encontrado.")
       print("⚠️ Firebase não será inicializado.")
       print("💡 Para habilitar Firebase e notificações push:")
@@ -51,7 +51,19 @@ public class AppDelegate: ExpoAppDelegate {
       print("   6. Certifique-se de que está marcado no Target Membership")
     }
     
-    // ⚠️ CRÍTICO: Chamar super.application() DEPOIS de configurar Firebase
+    // Criar factory e delegate do React Native ANTES de super.application()
+    // O ExpoAppDelegate precisa desses objetos para inicializar corretamente
+    print("⚛️ Criando React Native factory...")
+    let delegate = ReactNativeDelegate()
+    let factory = ExpoReactNativeFactory(delegate: delegate)
+    delegate.dependencyProvider = RCTAppDependencyProvider()
+
+    reactNativeDelegate = delegate
+    reactNativeFactory = factory
+    bindReactNativeFactory(factory)
+    print("✅ React Native factory configurado")
+    
+    // ⚠️ CRÍTICO: Chamar super.application() DEPOIS de configurar Firebase e factory
     // O ExpoAppDelegate inicializa o React Native, que pode precisar do Firebase
     let result = super.application(application, didFinishLaunchingWithOptions: launchOptions)
     
