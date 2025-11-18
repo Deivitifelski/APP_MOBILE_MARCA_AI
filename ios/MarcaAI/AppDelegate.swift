@@ -51,20 +51,6 @@ public class AppDelegate: ExpoAppDelegate {
       print("   6. Certifique-se de que está marcado no Target Membership")
     }
     
-    // Configurar notificações
-    print("🔔 Configurando notificações...")
-    UNUserNotificationCenter.current().delegate = self
-    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
-      if granted {
-        print("✅ Permissão de notificação concedida")
-        DispatchQueue.main.async {
-          application.registerForRemoteNotifications()
-        }
-      } else {
-        print("❌ Permissão de notificação negada: \(error?.localizedDescription ?? "desconhecido")")
-      }
-    }
-    
     // Criar factory e delegate do React Native
     print("⚛️ Criando React Native factory...")
     let delegate = ReactNativeDelegate()
@@ -79,8 +65,28 @@ public class AppDelegate: ExpoAppDelegate {
     // Isso garante que o módulo expo-router/entry seja registrado corretamente
     print("✅ React Native factory configurado")
     
-    // Chamar super.application() DEPOIS de configurar Firebase
-    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    // ⚠️ IMPORTANTE: Chamar super.application() PRIMEIRO para garantir inicialização rápida
+    // Isso evita o erro de métricas de lançamento do iOS
+    let result = super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    
+    // Configurar notificações DEPOIS de super.application() para não bloquear a inicialização
+    // Fazer isso de forma assíncrona para não atrasar o lançamento do app
+    DispatchQueue.main.async {
+      print("🔔 Configurando notificações...")
+      UNUserNotificationCenter.current().delegate = self
+      UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
+        if granted {
+          print("✅ Permissão de notificação concedida")
+          DispatchQueue.main.async {
+            application.registerForRemoteNotifications()
+          }
+        } else {
+          print("❌ Permissão de notificação negada: \(error?.localizedDescription ?? "desconhecido")")
+        }
+      }
+    }
+    
+    return result
   }
   
   // Registrar para notificações remotas

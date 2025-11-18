@@ -9,8 +9,10 @@ import { checkUserExists } from '../services/supabase/userService';
 export default function Index() {
   useEffect(() => {
     // ✅ Configurar handlers de notificações push
-    // IMPORTANTE: Isso deve ser feito ANTES de qualquer outra coisa
-    const cleanup = setupPushNotificationHandlers();
+    // IMPORTANTE: Adicionar um pequeno delay para garantir que o Firebase foi configurado no AppDelegate
+    const firebaseTimer = setTimeout(() => {
+      setupPushNotificationHandlers();
+    }, 1000);
 
     // Listener para mudanças no estado de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -18,17 +20,14 @@ export default function Index() {
     });
 
     // Pequeno delay para garantir que o AsyncStorage está pronto
-    const timer = setTimeout(() => {
+    const authTimer = setTimeout(() => {
       checkAuthStatus();
     }, 500);
 
     return () => {
-      clearTimeout(timer);
+      clearTimeout(firebaseTimer);
+      clearTimeout(authTimer);
       subscription.unsubscribe();
-      // Limpar handlers de notificações
-      if (cleanup) {
-        cleanup();
-      }
     };
   }, []);
 
