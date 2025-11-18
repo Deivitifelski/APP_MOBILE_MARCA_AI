@@ -42,8 +42,11 @@ app-example
 commands.md
 
 # generated native folders
-/ios
-/android
+# /ios
+# /android
+
+# Exceções: arquivos customizados que devem ser rastreados
+!/ios/MarcaAI/AppDelegate.swift
 
 # Stripe keys (security)
 config/stripe-keys.ts
