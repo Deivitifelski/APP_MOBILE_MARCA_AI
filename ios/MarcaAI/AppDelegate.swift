@@ -1,15 +1,18 @@
 import Expo
 import React
 import ReactAppDependencyProvider
-import FirebaseCore
+import Firebase
 import FirebaseMessaging
 import UserNotifications
-import UIKit
+import Foundation
+#if canImport(Network)
+import Network
+#endif
+import Darwin.POSIX.net.ifaddrs
 
 @UIApplicationMain
-@objc(AppDelegate)
 public class AppDelegate: ExpoAppDelegate {
-  @objc public var window: UIWindow?
+  var window: UIWindow?
 
   var reactNativeDelegate: ExpoReactNativeFactoryDelegate?
   var reactNativeFactory: RCTReactNativeFactory?
@@ -18,42 +21,48 @@ public class AppDelegate: ExpoAppDelegate {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
-    // ⚠️ CRÍTICO: Configurar Firebase PRIMEIRO, antes de qualquer outra coisa
-    // Isso evita o aviso "Firebase app has not yet been configured"
-    // Verificar se o arquivo existe e configurar imediatamente
-    if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
-      if FirebaseApp.app() == nil {
+    // Inicializar Firebase antes de qualquer outra coisa
+    // Verificar se o GoogleService-Info.plist está no bundle
+    if let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") {
+      print("✅ GoogleService-Info.plist encontrado em: \(path)")
+      FirebaseApp.configure()
+    } else {
+      // Arquivo não está no bundle - tentar carregar do caminho do projeto
+      print("⚠️ GoogleService-Info.plist não encontrado no bundle")
+      print("📁 Bundle path: \(Bundle.main.bundlePath)")
+      print("📁 Resource path: \(Bundle.main.resourcePath ?? "nil")")
+      
+      // Tentar carregar do caminho do projeto (útil durante desenvolvimento)
+      if let projectPath = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist", inDirectory: nil) {
+        print("✅ GoogleService-Info.plist encontrado em: \(projectPath)")
         FirebaseApp.configure()
-        // Configurar FCM apenas se Firebase foi configurado com sucesso
-        if FirebaseApp.app() != nil {
-          Messaging.messaging().delegate = self
+      } else {
+        print("❌ ERRO: GoogleService-Info.plist não encontrado!")
+        print("💡 SOLUÇÃO: Adicione o arquivo ao projeto Xcode:")
+        print("   1. Abra ios/MarcaAI.xcworkspace no Xcode")
+        print("   2. Clique com botão direito na pasta MarcaAI")
+        print("   3. Selecione 'Add Files to MarcaAI...'")
+        print("   4. Selecione ios/MarcaAI/GoogleService-Info.plist")
+        print("   5. Marque 'Add to targets: MarcaAI'")
+        print("   6. Clique em 'Add'")
+        // Tentar configurar mesmo assim (pode funcionar se estiver em outro lugar)
+        FirebaseApp.configure()
+      }
+    }
+    
+    // Configurar FCM
+    Messaging.messaging().delegate = self
+    
+    // Solicitar permissão para notificações
+    UNUserNotificationCenter.current().delegate = self
+    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
+      if granted {
+        DispatchQueue.main.async {
+          application.registerForRemoteNotifications()
         }
       }
     }
     
-    print("🚀 AppDelegate: Iniciando aplicação...")
-    
-    // Verificar status do Firebase após configuração
-    if FirebaseApp.app() != nil {
-      print("✅ Firebase: Configurado com sucesso")
-      if Messaging.messaging().delegate != nil {
-        print("✅ Firebase Messaging: Configurado com sucesso")
-      }
-    } else {
-      print("⚠️ GoogleService-Info.plist não encontrado.")
-      print("⚠️ Firebase não será inicializado.")
-      print("💡 Para habilitar Firebase e notificações push:")
-      print("   1. Acesse https://console.firebase.google.com/")
-      print("   2. Selecione seu projeto")
-      print("   3. Vá em Configurações do Projeto → iOS apps")
-      print("   4. Baixe o GoogleService-Info.plist")
-      print("   5. Arraste o arquivo para o projeto Xcode (pasta ios/MarcaAI/)")
-      print("   6. Certifique-se de que está marcado no Target Membership")
-    }
-    
-    // Criar factory e delegate do React Native ANTES de super.application()
-    // O ExpoAppDelegate precisa desses objetos para inicializar corretamente
-    print("⚛️ Criando React Native factory...")
     let delegate = ReactNativeDelegate()
     let factory = ExpoReactNativeFactory(delegate: delegate)
     delegate.dependencyProvider = RCTAppDependencyProvider()
@@ -61,44 +70,26 @@ public class AppDelegate: ExpoAppDelegate {
     reactNativeDelegate = delegate
     reactNativeFactory = factory
     bindReactNativeFactory(factory)
-    print("✅ React Native factory configurado")
-    
-    // ⚠️ CRÍTICO: Chamar super.application() DEPOIS de configurar Firebase e factory
-    // O ExpoAppDelegate inicializa o React Native, que pode precisar do Firebase
-    let result = super.application(application, didFinishLaunchingWithOptions: launchOptions)
-    
-    // Configurar notificações de forma assíncrona para não bloquear a inicialização
-    DispatchQueue.main.async {
-      print("🔔 Configurando notificações...")
-      UNUserNotificationCenter.current().delegate = self
-      UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
-        if granted {
-          print("✅ Permissão de notificação concedida")
-          DispatchQueue.main.async {
-            application.registerForRemoteNotifications()
-          }
-        } else {
-          print("❌ Permissão de notificação negada: \(error?.localizedDescription ?? "desconhecido")")
-        }
-      }
-    }
-    
-    return result
+
+#if os(iOS) || os(tvOS)
+    window = UIWindow(frame: UIScreen.main.bounds)
+    factory.startReactNative(
+      withModuleName: "main",
+      in: window,
+      launchOptions: launchOptions)
+#endif
+
+    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
   
   // Registrar para notificações remotas
   public override func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-    // Configurar APNs token para FCM apenas se Firebase estiver configurado
-    if FirebaseApp.app() != nil {
-      Messaging.messaging().apnsToken = deviceToken
-      print("✅ APNs token configurado para FCM")
-    } else {
-      print("⚠️ Firebase não configurado - APNs token não será enviado para FCM")
-    }
+    // Configurar APNs token para FCM
+    Messaging.messaging().apnsToken = deviceToken
   }
   
   public override func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
-    print("❌ Falha ao registrar para notificações remotas: \(error.localizedDescription)")
+    print("Falha ao registrar para notificações remotas: \(error.localizedDescription)")
   }
 
   // Linking API
@@ -123,6 +114,60 @@ public class AppDelegate: ExpoAppDelegate {
 
 class ReactNativeDelegate: ExpoReactNativeFactoryDelegate {
   // Extension point for config-plugins
+  
+  // Função auxiliar para obter IP da máquina
+  private func getLocalIPAddress() -> String? {
+    var address: String?
+    var ifaddr: UnsafeMutablePointer<ifaddrs>?
+    
+    guard getifaddrs(&ifaddr) == 0 else { return nil }
+    guard let firstAddr = ifaddr else { return nil }
+    
+    for ifptr in sequence(first: firstAddr, next: { $0.pointee.ifa_next }) {
+      let interface = ifptr.pointee
+      let addrFamily = interface.ifa_addr.pointee.sa_family
+      
+      if addrFamily == UInt8(AF_INET) {
+        let name = String(cString: interface.ifa_name)
+        if name == "en0" || name == "en1" { // WiFi ou Ethernet
+          var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+          getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
+                     &hostname, socklen_t(hostname.count),
+                     nil, socklen_t(0), NI_NUMERICHOST)
+          address = String(cString: hostname)
+          if address != "127.0.0.1" {
+            break
+          }
+        }
+      }
+    }
+    
+    freeifaddrs(ifaddr)
+    return address
+  }
+  
+  // Função auxiliar para substituir localhost pelo IP da máquina
+  private func replaceLocalhostWithIP(_ url: URL) -> URL? {
+    guard let host = url.host, host == "localhost" || host == "127.0.0.1" else {
+      return url
+    }
+    
+    // No simulador, localhost funciona, então manter
+    #if targetEnvironment(simulator)
+    return url
+    #else
+    // No dispositivo físico, substituir pelo IP da máquina
+    if let ipAddress = getLocalIPAddress() {
+      var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+      components?.host = ipAddress
+      if let newURL = components?.url {
+        print("🔄 Substituindo localhost por IP da máquina: \(ipAddress)")
+        return newURL
+      }
+    }
+    return url
+    #endif
+  }
 
   override func sourceURL(for bridge: RCTBridge) -> URL? {
     // needed to return the correct URL for expo-dev-client.
@@ -131,13 +176,95 @@ class ReactNativeDelegate: ExpoReactNativeFactoryDelegate {
 
   override func bundleURL() -> URL? {
 #if DEBUG
-    // Em desenvolvimento, usar Metro bundler
-    // Para expo-router, usar "index" como bundleRoot
-    // O Metro vai resolver através do package.json "main": "expo-router/entry"
-    return RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: "index")
+    // Configurar RCTBundleURLProvider para usar IP da máquina
+    let settings = RCTBundleURLProvider.sharedSettings()
+    
+    // 1. Tentar obter URL do Metro bundler
+    if let metroURL = settings.jsBundleURL(forBundleRoot: ".expo/.virtual-metro-entry") {
+      // Substituir localhost pelo IP se necessário
+      if let correctedURL = replaceLocalhostWithIP(metroURL) {
+        print("✅ Usando Metro bundler: \(correctedURL.absoluteString)")
+        return correctedURL
+      }
+    }
+    
+    // 2. Tentar Metro com diferentes configurações
+    let bundleRoots = [".expo/.virtual-metro-entry", "index", "main"]
+    for root in bundleRoots {
+      if let url = settings.jsBundleURL(forBundleRoot: root) {
+        if let correctedURL = replaceLocalhostWithIP(url) {
+          print("✅ Usando Metro bundler (root: \(root)): \(correctedURL.absoluteString)")
+          return correctedURL
+        }
+      }
+    }
+    
+    // 3. Tentar construir URL manualmente com IP da máquina
+    if let ipAddress = getLocalIPAddress() {
+      let bundleURLString = "http://\(ipAddress):8081/.expo/.virtual-metro-entry.bundle?platform=ios&dev=true"
+      if let manualURL = URL(string: bundleURLString) {
+        print("✅ Tentando Metro com IP manual: \(bundleURLString)")
+        return manualURL
+      }
+    }
+    
+    // 4. Fallback: tentar bundle local se Metro não estiver disponível
+    let bundleNames = ["main", "index", "AppEntry"]
+    for name in bundleNames {
+      if let localBundle = Bundle.main.url(forResource: name, withExtension: "jsbundle") {
+        print("⚠️ Metro não disponível, usando bundle local: \(name).jsbundle")
+        return localBundle
+      }
+    }
+    
+    // 5. Tentar encontrar bundle em subdiretórios
+    if let resourcePath = Bundle.main.resourcePath {
+      let fileManager = FileManager.default
+      if let enumerator = fileManager.enumerator(atPath: resourcePath) {
+        while let file = enumerator.nextObject() as? String {
+          if file.hasSuffix(".jsbundle") {
+            let fullPath = (resourcePath as NSString).appendingPathComponent(file)
+            if let bundleURL = URL(string: "file://\(fullPath)") {
+              print("⚠️ Encontrado bundle em: \(file)")
+              return bundleURL
+            }
+          }
+        }
+      }
+    }
+    
+    // 6. Último recurso: tentar localhost (funciona no simulador)
+    #if targetEnvironment(simulator)
+    if let localhostURL = URL(string: "http://localhost:8081/.expo/.virtual-metro-entry.bundle?platform=ios&dev=true") {
+      print("⚠️ Tentando Metro em localhost:8081 (simulador)...")
+      return localhostURL
+    }
+    #endif
+    
+    print("❌ ERRO: Nenhum bundle JavaScript encontrado!")
+    print("💡 SOLUÇÃO 1 (Recomendado): Inicie o Metro bundler")
+    print("   Execute: ./start-metro.sh")
+    print("   Depois: Clean Build (⇧⌘K) e Run (⌘R)")
+    print("")
+    print("💡 SOLUÇÃO 2: Gere um bundle local")
+    print("   Execute: ./gerar-bundle-local.sh")
+    print("   Depois adicione o bundle ao projeto Xcode")
+    
+    // Retornar nil causará crash, mas pelo menos o usuário verá a mensagem
+    return nil
 #else
-    // Em produção, usar bundle embutido
-    return Bundle.main.url(forResource: "main", withExtension: "jsbundle")
+    // Release: sempre usar bundle embutido
+    let bundleNames = ["main", "index", "AppEntry"]
+    for name in bundleNames {
+      if let bundleURL = Bundle.main.url(forResource: name, withExtension: "jsbundle") {
+        print("✅ Usando bundle de produção: \(name).jsbundle")
+        return bundleURL
+      }
+    }
+    
+    print("❌ ERRO: Bundle de produção não encontrado!")
+    print("💡 SOLUÇÃO: Gere o bundle com: ./gerar-bundle-local.sh")
+    return nil
 #endif
   }
 }
@@ -178,10 +305,6 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
 extension AppDelegate: MessagingDelegate {
   // Receber token FCM
   public func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
-    if let token = fcmToken {
-      print("🔑 Token FCM recebido: \(token)")
-    } else {
-      print("⚠️ Token FCM não disponível")
-    }
+    print("📱 Token FCM recebido: \(fcmToken ?? "nil")")
   }
 }
