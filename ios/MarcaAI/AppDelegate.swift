@@ -8,7 +8,7 @@ import Foundation
 #if canImport(Network)
 import Network
 #endif
-import Darwin.POSIX.net.ifaddrs
+import Darwin
 
 @UIApplicationMain
 public class AppDelegate: ExpoAppDelegate {
