@@ -2,7 +2,7 @@
   "expo": {
     "name": "Marca AI",
     "slug": "APP_MOBILE_MARCA_AI",
-    "version": "1.0.2",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/images/LOGO_MARCA_IPHONE_1024.png",
     "scheme": "marcaai",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.marcaai.app",
-      "buildNumber": "11",
+      "buildNumber": "40",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Este app precisa acessar sua galeria de fotos para permitir que você selecione uma foto de perfil.",
         "NSCameraUsageDescription": "Este app precisa acessar sua câmera para permitir que você tire uma foto para o perfil.",
