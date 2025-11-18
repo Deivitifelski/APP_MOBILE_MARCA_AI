@@ -211,9 +211,13 @@ export default function LoginScreen() {
         const errorMsg = result.error.message?.toLowerCase() || '';
         if (errorMsg.includes('network') || errorMsg.includes('fetch') || errorMsg.includes('failed')) {
           setShowNoInternetModal(true);
-        } else {
+        } else if (errorMsg.includes('email não confirmado') || errorMsg.includes('email not confirmed')) {
+          // Apenas mostrar modal de confirmação de email se o erro for especificamente sobre isso
           setEmailConfirmationError(result.error.message);
           setShowEmailConfirmationModal(true);
+        } else {
+          // Para outros erros (senha incorreta, etc), mostrar Alert simples
+          Alert.alert('Erro', result.error.message);
         }
       } else if (result.data?.user) {
         if (result.data.user.email_confirmed_at) {
