@@ -170,7 +170,11 @@ export default function SelecionarArtistaScreen() {
         key={artist.id}
         style={[
           styles.artistCard,
-          isActive && [styles.artistCardActive, { borderColor: colors.primary }]
+          { 
+            backgroundColor: colors.surface,
+            borderColor: isActive ? colors.primary : colors.border 
+          },
+          isActive && styles.artistCardActive
         ]}
         onPress={() => handleSelectArtist(artist)}
         disabled={isActive}
@@ -199,7 +203,7 @@ export default function SelecionarArtistaScreen() {
           </View>
           <View style={styles.artistDetails}>
             <View style={styles.artistNameContainer}>
-              <Text style={[styles.artistName, isActive && { color: colors.primary }]}>
+              <Text style={[styles.artistName, { color: colors.text }, isActive && { color: colors.primary }]}>
                 {artist.name}
               </Text>
               {isActive && (
@@ -223,7 +227,7 @@ export default function SelecionarArtistaScreen() {
         {isActive ? (
           <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
         ) : (
-          <Ionicons name="chevron-forward" size={20} color="#ccc" />
+          <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
         )}
       </TouchableOpacity>
     );
@@ -428,12 +432,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    borderWidth: 1,
   },
   artistCardActive: {
     borderWidth: 2,
-    opacity: 0.95,
   },
   artistInfo: {
     flexDirection: 'row',
@@ -496,7 +498,6 @@ const styles = StyleSheet.create({
   artistName: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#333',
   },
   activeBadge: {
     paddingHorizontal: 8,
