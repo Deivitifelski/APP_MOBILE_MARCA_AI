@@ -75,7 +75,29 @@ O componente `AuthDeepLinkHandler` irá logar:
 - Verificar se o app está instalado no dispositivo
 - Verificar se as configurações do Supabase estão corretas
 
-### Se o app abrir mas não processar:
-- Verificar logs do `AuthDeepLinkHandler`
-- Verificar se a URL contém os parâmetros corretos
-- Verificar se o Supabase está configurado corretamente
+### Se o app abrir mas mostrar "Link de recuperação inválido":
+1. **Verificar logs no console** - O `AuthDeepLinkHandler` agora tem logs detalhados:
+   - `🔵 [Deep Link] URL recebida:` - Mostra a URL completa recebida
+   - `🔍 [parseCustomURL]` - Mostra o processo de parsing
+   - `🔵 [Reset Password]` - Mostra os parâmetros extraídos
+   - `❌ [Reset Password]` - Mostra erros específicos
+
+2. **Verificar formato da URL** - O Supabase pode enviar em diferentes formatos:
+   - Com tokens: `marcaai://reset-password?access_token=...&refresh_token=...`
+   - Com código: `marcaai://reset-password?code=...`
+   - Com hash: `marcaai://reset-password#access_token=...&refresh_token=...`
+   
+   O código agora suporta todos esses formatos.
+
+3. **Verificar configuração no Supabase:**
+   - Authentication > URL Configuration
+   - Redirect URLs deve incluir: `marcaai://reset-password`
+   - Site URL deve estar configurado
+
+4. **Copiar URL do email:**
+   - Clique com botão direito no link do email
+   - Copie o endereço do link
+   - Verifique o formato da URL
+   - Compare com os logs no console
+
+5. **Ver documentação completa:** Veja `TROUBLESHOOTING_RESET_PASSWORD.md` para mais detalhes
