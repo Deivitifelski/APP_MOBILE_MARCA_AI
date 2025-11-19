@@ -1,7 +1,9 @@
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React from 'react';
+import React, { useEffect } from 'react';
+import { Platform } from 'react-native';
+import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -21,6 +23,16 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+
+  useEffect(() => {
+    Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
+
+    if (Platform.OS === 'ios') {
+      Purchases.configure({ apiKey: 'appl_PVJKhYqNfSQdfaFxmviIAQGmaAj' });
+    } else if (Platform.OS === 'android') {
+      Purchases.configure({ apiKey: '<revenuecat_project_google_api_key>' });
+    }
+  }, []);
 
   return (
     <ErrorBoundary>
