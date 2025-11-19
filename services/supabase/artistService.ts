@@ -150,6 +150,7 @@ export const updateArtist = async (artistId: string, artistData: Partial<CreateA
       .update({
         name: artistData.name,
         profile_url: artistData.profile_url,
+        musical_style: artistData.musical_style,
         updated_at: new Date().toISOString()
       })
       .eq('id', artistId)

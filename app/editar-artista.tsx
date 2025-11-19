@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,6 +24,69 @@ import { getCurrentUser } from '../services/supabase/authService';
 import { deleteImageFromSupabase, extractFileNameFromUrl, uploadImageToSupabase } from '../services/supabase/imageUploadService';
 import { getUserPermissions } from '../services/supabase/permissionsService';
 
+const estilosMusicais = [
+  'Alternative',
+  'Arrocha',
+  'Artista Solo',
+  'Axé',
+  'Baião',
+  'Bailão',
+  'Bandas do Sul',
+  'Bandinhas',
+  'Blues',
+  'Bossa Nova',
+  'Brega',
+  'Choro',
+  'Country',
+  'DJ',
+  'Eletrônica',
+  'Emo',
+  'Folk',
+  'Forró',
+  'Forró Eletrônico',
+  'Frevo',
+  'Funk',
+  'Funk Carioca',
+  'Funk Melody',
+  'Gospel',
+  'Gospel Contemporâneo',
+  'Hard Rock',
+  'Hip Hop',
+  'House',
+  'Indie',
+  'Instrumental',
+  'Jazz',
+  'Maracatu',
+  'Metal',
+  'MPB',
+  'Música Clássica',
+  'Música Gaúcha',
+  'Pagode',
+  'Piseiro',
+  'Pop',
+  'Pop Rock',
+  'Punk',
+  'R&B',
+  'Rap',
+  'Reggae',
+  'Reggaeton',
+  'Rock',
+  'Rock Nacional',
+  'Samba',
+  'Samba Rock',
+  'Sertanejo',
+  'Sertanejo Raiz',
+  'Sertanejo Universitário',
+  'Ska',
+  'Soul',
+  'Techno',
+  'Tradicionalista',
+  'Trap',
+  'Vanera',
+  'Xote',
+  'Outros'
+];
+
 export default function EditarArtistaScreen() {
   const { colors } = useTheme();
   const { activeArtist, setActiveArtist: setActiveArtistContext } = useActiveArtistContext();
@@ -31,11 +95,14 @@ export default function EditarArtistaScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [userPermissions, setUserPermissions] = useState<any>(null);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showEstilos, setShowEstilos] = useState(false);
   const [imageLoadError, setImageLoadError] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   
   // Campos do formulário
   const [name, setName] = useState('');
+  const [musicalStyle, setMusicalStyle] = useState('');
   const [profileUrl, setProfileUrl] = useState('');
   const [originalProfileUrl, setOriginalProfileUrl] = useState('');
 
@@ -109,6 +176,7 @@ export default function EditarArtistaScreen() {
       // Se tem permissão, carregar os dados do artista
       setArtist(currentArtist);
       setName(currentArtist.name || '');
+      setMusicalStyle(currentArtist.musical_style || '');
       setProfileUrl(currentArtist.profile_url || '');
       setOriginalProfileUrl(currentArtist.profile_url || '');
 
@@ -222,6 +290,7 @@ export default function EditarArtistaScreen() {
 
       const updateResult = await updateArtist(artist.id, {
         name: name.trim(),
+        musical_style: musicalStyle.trim() || undefined,
         profile_url: finalProfileUrl,
       });
 
@@ -235,7 +304,8 @@ export default function EditarArtistaScreen() {
           id: artist.id,
           name: name.trim(),
           role: userPermissions?.role || 'owner',
-          profile_url: finalProfileUrl || undefined
+          profile_url: finalProfileUrl || undefined,
+          musical_style: musicalStyle.trim() || undefined
         };
 
         console.log('💾 EDITAR ARTISTA - Atualizando Context:', updatedData);
@@ -251,12 +321,8 @@ export default function EditarArtistaScreen() {
         
         console.log('🎉 EDITAR ARTISTA - Processo completo!');
         
-        Alert.alert('Sucesso', 'Dados do artista atualizados com sucesso!', [
-          {
-            text: 'OK',
-            onPress: () => router.back(),
-          },
-        ]);
+        // Mostrar modal de sucesso
+        setShowSuccessModal(true);
       } else {
         Alert.alert('Erro', updateResult.error || 'Erro ao atualizar dados do artista');
       }
@@ -390,6 +456,33 @@ export default function EditarArtistaScreen() {
             true,
             50
           )}
+          
+          {/* Estilo Musical */}
+          <View style={styles.inputContainer}>
+            <Text style={[styles.inputLabel, { color: colors.text }]}>
+              Estilo Musical
+            </Text>
+            <TouchableOpacity
+              style={[styles.input, { 
+                borderColor: colors.border, 
+                backgroundColor: colors.surface,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }]}
+              onPress={() => setShowEstilos(true)}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                <Ionicons name="musical-note-outline" size={20} color={colors.textSecondary} style={{ marginRight: 8 }} />
+                <Text style={[
+                  { color: musicalStyle ? colors.text : colors.textSecondary, fontSize: 16 }
+                ]}>
+                  {musicalStyle || 'Selecione o estilo musical'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Informações adicionais */}
@@ -409,6 +502,95 @@ export default function EditarArtistaScreen() {
         message="Você não possui permissão para editar as informações deste artista. Entre em contato com um administrador para solicitar acesso."
         icon="lock-closed"
       />
+
+      {/* Modal de Seleção de Estilo Musical */}
+      <Modal
+        visible={showEstilos}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowEstilos(false)}
+      >
+        <TouchableOpacity 
+          style={styles.estilosModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowEstilos(false)}
+        >
+          <View 
+            style={[styles.estilosModalContent, { backgroundColor: colors.surface }]} 
+            onStartShouldSetResponder={() => true}
+          >
+            <View style={[styles.estilosModalHeader, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.estilosModalTitle, { color: colors.text }]}>Selecione o Estilo Musical</Text>
+              <TouchableOpacity onPress={() => setShowEstilos(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.estilosModalList}>
+              {estilosMusicais.map((estilo) => (
+                <TouchableOpacity
+                  key={estilo}
+                  style={[
+                    styles.estilosModalItem,
+                    { borderBottomColor: colors.border },
+                    musicalStyle === estilo && { backgroundColor: colors.primary + '20' }
+                  ]}
+                  onPress={() => {
+                    setMusicalStyle(estilo);
+                    setShowEstilos(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.estilosModalItemText, 
+                    { color: musicalStyle === estilo ? colors.primary : colors.text }
+                  ]}>
+                    {estilo}
+                  </Text>
+                  {musicalStyle === estilo && (
+                    <Ionicons name="checkmark" size={24} color={colors.primary} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Modal de sucesso */}
+      <Modal
+        visible={showSuccessModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowSuccessModal(false);
+          router.back();
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
+            <View style={styles.modalIconContainer}>
+              <View style={[styles.modalIcon, { backgroundColor: '#10B981' + '20' }]}>
+                <Ionicons name="checkmark-circle" size={48} color="#10B981" />
+              </View>
+            </View>
+            
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Sucesso!</Text>
+            
+            <Text style={[styles.modalMessage, { color: colors.textSecondary }]}>
+              Dados do artista atualizados com sucesso!
+            </Text>
+            
+            <TouchableOpacity 
+              style={[styles.modalButton, { backgroundColor: colors.primary }]}
+              onPress={() => {
+                setShowSuccessModal(false);
+                router.back();
+              }}
+            >
+              <Text style={styles.modalButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -566,5 +748,93 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     fontSize: 14,
     lineHeight: 20,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    borderRadius: 16,
+    padding: 24,
+    margin: 20,
+    maxWidth: 320,
+    width: '90%',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  modalIconContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalIcon: {
+    borderRadius: 50,
+    padding: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  modalMessage: {
+    fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  modalButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  estilosModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  estilosModalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '70%',
+    paddingBottom: 20,
+  },
+  estilosModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+  },
+  estilosModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  estilosModalList: {
+    maxHeight: 400,
+  },
+  estilosModalItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+  },
+  estilosModalItemText: {
+    fontSize: 16,
   },
 });
