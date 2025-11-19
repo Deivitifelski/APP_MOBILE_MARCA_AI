@@ -139,7 +139,7 @@ export default function ConfiguracoesScreen() {
   useFocusEffect(
     React.useCallback(() => {
       loadArtistData(true);
-      refreshActiveArtist(); // Recarregar artista ativo também
+      // Não recarregar activeArtist aqui para evitar recarregar eventos na agenda
     }, [])
   );
 
