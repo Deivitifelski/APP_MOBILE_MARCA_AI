@@ -17,14 +17,14 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import OptimizedImage from '../../components/OptimizedImage';
 import PermissionModal from '../../components/PermissionModal';
+import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { artistImageUpdateService } from '../../services/artistImageUpdateService';
 import { cacheService } from '../../services/cacheService';
+import { getArtists } from '../../services/supabase/artistService';
 import { getCurrentUser } from '../../services/supabase/authService';
 import { getEventsByMonthWithRole } from '../../services/supabase/eventService';
-import { getArtists } from '../../services/supabase/artistService';
-import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
 import { useNotifications } from '../../services/useNotifications';
 
 const months = [
@@ -160,11 +160,11 @@ export default function AgendaScreen() {
     const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
     const firstWeekDay = firstDayOfMonth.getDay();
     const totalDays = new Date(currentYear, currentMonth + 1, 0).getDate();
-    const weeks: Array<Array<{ dayNumber: number; dateString: string } | null>> = [];
+    const weeks: ({ dayNumber: number; dateString: string } | null)[][] = [];
 
     let dayCounter = 1 - firstWeekDay;
     while (dayCounter <= totalDays) {
-      const week: Array<{ dayNumber: number; dateString: string } | null> = [];
+      const week: ({ dayNumber: number; dateString: string } | null)[] = [];
       for (let i = 0; i < 7; i++) {
         const currentDay = dayCounter + i;
         if (currentDay < 1 || currentDay > totalDays) {
