@@ -26,7 +26,6 @@ import { getEventsByMonthWithRole } from '../../services/supabase/eventService';
 import { getArtists } from '../../services/supabase/artistService';
 import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
 import { useNotifications } from '../../services/useNotifications';
-import { sendPushNotificationToCurrentUser } from '../../services/supabase/pushNotificationService';
 
 const months = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -233,32 +232,6 @@ export default function AgendaScreen() {
         checkIfUserHasArtists();
       }
       loadUnreadCount();
-
-      // Enviar notificação push ao entrar na tela de agenda
-      const sendWelcomeNotification = async () => {
-        try {
-          const result = await sendPushNotificationToCurrentUser({
-            title: 'Bem-vindo à Agenda!',
-            body: 'Confira seus eventos e shows agendados.',
-            // imageUrl: 'https://my-cdn.com/app-logo.png', // Opcional: URL da imagem
-            data: {
-              screen: 'agenda',
-              timestamp: new Date().toISOString(),
-            },
-          });
-
-          if (result.success) {
-            console.log('✅ Notificação enviada com sucesso ao entrar na agenda');
-          } else {
-            console.log('⚠️ Não foi possível enviar notificação:', result.error);
-          }
-        } catch (error) {
-          console.error('❌ Erro ao enviar notificação:', error);
-        }
-      };
-
-      // Enviar notificação (não bloquear a UI)
-      sendWelcomeNotification();
     }, [activeArtist, currentMonth, currentYear])
   );
 

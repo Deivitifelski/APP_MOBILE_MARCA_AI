@@ -76,7 +76,6 @@ export const sendPushNotificationToCurrentUser = async (
     });
 
     if (error) {
-      console.error('❌ [sendPushNotificationToCurrentUser] Erro ao chamar Edge Function:', error);
       return { success: false, error: error.message };
     }
 
