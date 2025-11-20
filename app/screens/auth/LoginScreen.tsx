@@ -26,7 +26,7 @@ import { checkUserExists, createOrUpdateUserFromGoogle, saveFCMToken } from '../
 
 // Configurar Google Sign-In (conforme documentação)
 GoogleSignin.configure({
-  webClientId: '169304206053-1dnv4bsqrdbci79ktes1p0eqcfboctjb.apps.googleusercontent.com',
+  webClientId: '169304206053-i5bm2l2sofd011muqr66ddm2dosn5bn9.apps.googleusercontent.com',
   iosClientId: '169304206053-642isf3lub3ds2thkiupcje9r7lo7dh7.apps.googleusercontent.com',
 
 });
