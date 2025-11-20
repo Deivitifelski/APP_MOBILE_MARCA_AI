@@ -9,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 // Importar handler global de erros ANTES de qualquer outro código
 import './error-handler';
+import './suppress-logs';
 
 import AuthDeepLinkHandler from '../components/AuthDeepLinkHandler';
 import { ErrorBoundary } from '../components/ErrorBoundary';
