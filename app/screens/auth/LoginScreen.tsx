@@ -267,9 +267,13 @@ export default function LoginScreen() {
         }
       }
     } catch (error: any) {
-      const isAppleCanceled =
-        error?.code === 'ERR_CANCELED' ||
-        error?.code === AppleAuthentication.AppleAuthenticationError?.CANCELED;
+      const appleCancelCodes = [
+        'ERR_CANCELED',
+        'ERR_REQUEST_CANCELED',
+        'ERR_REQUEST_UNKNOWN',
+        AppleAuthentication.AppleAuthenticationError?.CANCELED,
+      ];
+      const isAppleCanceled = appleCancelCodes.includes(error?.code);
 
       if (isAppleCanceled) {
         console.log('Login com Apple cancelado pelo usuário');
