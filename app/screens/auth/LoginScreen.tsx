@@ -28,7 +28,8 @@ import { checkUserExists, createOrUpdateUserFromGoogle, saveFCMToken } from '../
 GoogleSignin.configure({
   webClientId: '169304206053-i5bm2l2sofd011muqr66ddm2dosn5bn9.apps.googleusercontent.com',
   iosClientId: '169304206053-642isf3lub3ds2thkiupcje9r7lo7dh7.apps.googleusercontent.com',
-
+  // Android Client ID será configurado após adicionar SHA-1 no Google Cloud Console
+  // Veja o guia: RESOLVER_ERRO_DEVELOPER_ERROR_ANDROID.md
 });
 
 // Ignorar erros de rede no console
@@ -459,8 +460,17 @@ export default function LoginScreen() {
                       Alert.alert('Atenção', 'Login já em andamento');
                     } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
                       Alert.alert('Erro', 'Google Play Services não disponível');
+                    } else if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+                      // Usuário cancelou o login, não mostrar erro
+                      console.log('Login com Google cancelado pelo usuário');
+                    } else if (error.code === '10' || error.message?.includes('DEVELOPER_ERROR')) {
+                      Alert.alert(
+                        'Erro de Configuração',
+                        'O app não está configurado corretamente para login com Google. Por favor, verifique se o SHA-1 está configurado no Google Cloud Console.\n\nVeja o guia: RESOLVER_ERRO_DEVELOPER_ERROR_ANDROID.md'
+                      );
                     } else {
-                      Alert.alert('Erro', error?.message || 'Erro ao fazer login');
+                      console.error('Erro no login com Google:', error);
+                      Alert.alert('Erro', error?.message || 'Erro ao fazer login com Google');
                     }
                   } finally {
                     setLoading(false);

@@ -173,6 +173,24 @@ eas logout
 
 ## 🚨 Troubleshooting
 
+### Erro de Assinatura Incompatível no Android
+**Erro:** `INSTALL_FAILED_UPDATE_INCOMPATIBLE: Package signatures do not match`
+
+**Solução:** Desinstalar o app existente do dispositivo antes de instalar a versão de debug:
+
+```bash
+# Desinstalar o app do dispositivo conectado
+adb uninstall com.marcaai.app
+
+# Ou desinstalar de um dispositivo específico
+adb -s RQ8N8071P1Y uninstall com.marcaai.app
+
+# Depois, rodar novamente
+npm run android
+```
+
+**Alternativa:** Desinstalar manualmente pelo dispositivo Android (Configurações > Apps > Marca AI > Desinstalar)
+
 ### Build Falhou
 ```bash
 # Ver detalhes do erro
