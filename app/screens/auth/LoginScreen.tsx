@@ -28,6 +28,7 @@ import { checkUserExists, createOrUpdateUserFromGoogle, saveFCMToken } from '../
 GoogleSignin.configure({
   webClientId: '169304206053-1dnv4bsqrdbci79ktes1p0eqcfboctjb.apps.googleusercontent.com',
   iosClientId: '169304206053-642isf3lub3ds2thkiupcje9r7lo7dh7.apps.googleusercontent.com',
+
 });
 
 // Ignorar erros de rede no console
