@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import OptimizedImage from '../../components/OptimizedImage';
 import PermissionModal from '../../components/PermissionModal';
 import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
+import { usePermissions } from '../../contexts/PermissionsContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { artistImageUpdateService } from '../../services/artistImageUpdateService';
@@ -44,6 +45,7 @@ export default function AgendaScreen() {
   const [imageLoadError, setImageLoadError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const { activeArtist, refreshActiveArtist, isLoading, setActiveArtist, clearArtist } = useActiveArtistContext();
+  const { canCreateEvents, canEditEvents, canViewFinancials, permissionsLoaded } = usePermissions();
   const [artistImageUpdated, setArtistImageUpdated] = useState<boolean>(false);
   const { unreadCount, loadUnreadCount } = useNotifications();
   const [hasAnyArtist, setHasAnyArtist] = useState(false);
@@ -59,10 +61,6 @@ export default function AgendaScreen() {
     setSelectedDay(null);
     setSelectedDayEvents([]);
   };
-  
-  // ✅ VERIFICAR ROLE DIRETAMENTE NO BANCO
-  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
-  const [hasFinancialAccess, setHasFinancialAccess] = useState(false);
   
   // Verificar se usuário tem artistas disponíveis
   useEffect(() => {
@@ -86,61 +84,15 @@ export default function AgendaScreen() {
     }
   };
 
-  // Verificar role quando artista mudar
+  // Limpar eventos quando artista mudar
   useEffect(() => {
-    // Limpar eventos imediatamente quando artista muda
     setEvents([]);
-    checkUserRole();
     
     // Carregar eventos do novo artista
     if (activeArtist) {
       loadEvents(true);
     }
   }, [activeArtist]);
-
-  const checkUserRole = async () => {
-    if (!activeArtist) {
-      setCurrentUserRole(null);
-      setHasFinancialAccess(false);
-      setEvents([]); // Limpar eventos quando não há artista
-      return;
-    }
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setCurrentUserRole(null);
-        setHasFinancialAccess(false);
-        return;
-      }
-
-      const { data: memberData, error } = await supabase
-        .from('artist_members')
-        .select('role')
-        .eq('user_id', user.id)
-        .eq('artist_id', activeArtist.id)
-        .single();
-
-      if (error || !memberData) {
-        setCurrentUserRole(null);
-        setHasFinancialAccess(false);
-        return;
-      }
-
-      const userRole = memberData.role;
-
-      // ✅ Apenas viewer NÃO pode ver valores financeiros
-      const isViewer = userRole === 'viewer';
-      const canViewFinancials = !isViewer;
-
-      setCurrentUserRole(userRole);
-      setHasFinancialAccess(canViewFinancials);
-    } catch (error) {
-      // Erro ao verificar role
-      setCurrentUserRole(null);
-      setHasFinancialAccess(false);
-    }
-  };
 
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
@@ -260,50 +212,55 @@ export default function AgendaScreen() {
       return;
     }
 
-    // ✅ VERIFICAR PERMISSÃO ATUALIZADA DO BANCO (sempre que clicar)
-    try {
-      const { user } = await getCurrentUser();
-      if (!user) {
-        Alert.alert('Erro', 'Usuário não encontrado');
+    // ✅ Usar permissões do contexto (já em cache, muito mais rápido)
+    // Se ainda não carregou, fazer validação rápida como fallback
+    if (!permissionsLoaded) {
+      // Fallback: validar diretamente se necessário (apenas se contexto não carregou)
+      try {
+        const { user } = await getCurrentUser();
+        if (!user) {
+          Alert.alert('Erro', 'Usuário não encontrado');
+          return;
+        }
+
+        const { data: memberData, error: roleError } = await supabase
+          .from('artist_members')
+          .select('role')
+          .eq('user_id', user.id)
+          .eq('artist_id', activeArtist.id)
+          .single();
+
+        if (roleError || !memberData) {
+          Alert.alert('Erro', 'Você não tem acesso a este artista');
+          return;
+        }
+
+        const userRole = memberData.role;
+        // Viewer não pode ver detalhes (apenas editor, admin, owner)
+        const allowedRoles = ['editor', 'admin', 'owner'];
+        const canViewDetails = allowedRoles.includes(userRole);
+        
+        if (!canViewDetails) {
+          setShowPermissionModal(true);
+          return;
+        }
+      } catch (error) {
+        Alert.alert('Erro', 'Erro ao verificar permissões');
         return;
       }
-
-      // Buscar role atual do usuário DIRETO DO BANCO
-      const { data: memberData, error: roleError } = await supabase
-        .from('artist_members')
-        .select('role')
-        .eq('user_id', user.id)
-        .eq('artist_id', activeArtist.id)
-        .single();
-
-      if (roleError || !memberData) {
-        Alert.alert('Erro', 'Você não tem acesso a este artista');
-        return;
-      }
-
-      const userRole = memberData.role;
-
-      // Viewer não pode ver detalhes (apenas editor, admin, owner)
-      const allowedRoles = ['editor', 'admin', 'owner'];
-      const canViewDetails = allowedRoles.includes(userRole);
-      
-      if (!canViewDetails) {
-        setShowPermissionModal(true);
-        return;
-      }
-      
-      router.push(`/detalhes-evento?eventId=${eventId}`);
-    } catch (error) {
-      Alert.alert('Erro', 'Erro ao verificar permissões');
+    } else if (!canEditEvents) {
+      // Se permissões carregaram mas não tem permissão
+      setShowPermissionModal(true);
+      return;
     }
+    
+    // Navegar imediatamente
+    router.push(`/detalhes-evento?eventId=${eventId}`);
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([
-      loadEvents(true),
-      checkUserRole()
-    ]);
+    await loadEvents(true);
     setRefreshing(false);
   };
 
@@ -456,52 +413,58 @@ export default function AgendaScreen() {
       return;
     }
 
-    // ✅ VERIFICAR PERMISSÃO ATUALIZADA DO BANCO (sempre que clicar)
-    try {
-      const { user } = await getCurrentUser();
-      if (!user) {
-        Alert.alert('Erro', 'Usuário não encontrado');
-        return;
-      }
-
-      // Buscar role atual do usuário DIRETO DO BANCO
-      const { data: memberData, error: roleError } = await supabase
-        .from('artist_members')
-        .select('role')
-        .eq('user_id', user.id)
-        .eq('artist_id', activeArtist.id)
-        .single();
-
-      if (roleError || !memberData) {
-        Alert.alert('Erro', 'Você não tem acesso a este artista');
-        return;
-      }
-
-      const userRole = memberData.role;
-
-      // Verificar se pode criar eventos (admin, editor, owner)
-      const allowedRoles = ['admin', 'editor', 'owner'];
-      const canCreate = allowedRoles.includes(userRole);
-      
-      if (!canCreate) {
-        setShowPermissionModal(true);
-        return;
-      }
-
-      // Se tem permissão, navegar para tela de adicionar evento
-      const selectedDate = new Date(currentYear, currentMonth, 1);
-      
-      router.push({
-        pathname: '/adicionar-evento',
-        params: { 
-          selectedMonth: currentMonth,
-          selectedYear: currentYear,
-          selectedDate: selectedDate.toISOString()
+    // ✅ Usar permissões do contexto (já em cache, muito mais rápido)
+    // Se ainda não carregou, fazer validação rápida como fallback
+    if (!permissionsLoaded) {
+      // Fallback: validar diretamente se necessário (apenas se contexto não carregou)
+      try {
+        const { user } = await getCurrentUser();
+        if (!user) {
+          Alert.alert('Erro', 'Usuário não encontrado');
+          return;
         }
-      });
-    } catch (error) {
-      Alert.alert('Erro', 'Erro ao verificar permissões');
+
+        const { data: memberData, error: roleError } = await supabase
+          .from('artist_members')
+          .select('role')
+          .eq('user_id', user.id)
+          .eq('artist_id', activeArtist.id)
+          .single();
+
+        if (roleError || !memberData) {
+          Alert.alert('Erro', 'Você não tem acesso a este artista');
+          return;
+        }
+
+        const userRole = memberData.role;
+        const allowedRoles = ['admin', 'editor', 'owner'];
+        const canCreate = allowedRoles.includes(userRole);
+        
+        if (!canCreate) {
+          setShowPermissionModal(true);
+          return;
+        }
+      } catch (error) {
+        Alert.alert('Erro', 'Erro ao verificar permissões');
+        return;
+      }
+    } else if (!canCreateEvents) {
+      // Se permissões carregaram mas não tem permissão
+      setShowPermissionModal(true);
+      return;
     }
+
+    // Se tem permissão, navegar imediatamente
+    const selectedDate = new Date(currentYear, currentMonth, 1);
+    
+    router.push({
+      pathname: '/adicionar-evento',
+      params: { 
+        selectedMonth: currentMonth,
+        selectedYear: currentYear,
+        selectedDate: selectedDate.toISOString()
+      }
+    });
   };
 
   const handleCreateArtist = () => {
@@ -562,7 +525,7 @@ export default function AgendaScreen() {
           }
         ]}
         onPress={() => handleEventPress(item.id)}
-        activeOpacity={hasFinancialAccess ? 0.7 : 1}
+        activeOpacity={canViewFinancials ? 0.7 : 1}
       >
         <View style={styles.showContent}>
           <View style={[styles.showDateSection, { backgroundColor: colors.primary }]}>
@@ -574,7 +537,7 @@ export default function AgendaScreen() {
             <View style={styles.showHeaderRow}>
               <View style={styles.eventNameContainer}>
                 <Text style={[styles.showName, { color: colors.text }]}>{item.name}</Text>
-                {!hasFinancialAccess && (
+                {!canViewFinancials && (
                   <Ionicons name="lock-closed" size={14} color={colors.textSecondary} style={{ marginLeft: 6 }} />
                 )}
               </View>
@@ -647,54 +610,60 @@ export default function AgendaScreen() {
       return;
     }
 
-    // Verificar permissão para criar eventos
-    try {
-      const { user } = await getCurrentUser();
-      if (!user) {
-        Alert.alert('Erro', 'Usuário não encontrado');
-        return;
-      }
-
-      // Buscar role atual do usuário DIRETO DO BANCO
-      const { data: memberData, error: roleError } = await supabase
-        .from('artist_members')
-        .select('role')
-        .eq('user_id', user.id)
-        .eq('artist_id', activeArtist.id)
-        .single();
-
-      if (roleError || !memberData) {
-        Alert.alert('Erro', 'Você não tem acesso a este artista');
-        return;
-      }
-
-      const userRole = memberData.role;
-
-      // Verificar se pode criar eventos (admin, editor, owner)
-      const allowedRoles = ['admin', 'editor', 'owner'];
-      const canCreate = allowedRoles.includes(userRole);
-      
-      if (!canCreate) {
-        setShowPermissionModal(true);
-        return;
-      }
-
-      // Parse da data do dateString (formato: YYYY-MM-DD)
-      const [year, month, day] = dateString.split('-').map(Number);
-      const selectedDate = new Date(year, month - 1, day);
-
-      // Navegar para tela de adicionar evento com a data setada
-      router.push({
-        pathname: '/adicionar-evento',
-        params: { 
-          selectedMonth: month - 1, // month é 0-indexed
-          selectedYear: year,
-          selectedDate: selectedDate.toISOString()
+    // ✅ Usar permissões do contexto (já em cache, muito mais rápido)
+    // Se ainda não carregou, fazer validação rápida como fallback
+    if (!permissionsLoaded) {
+      // Fallback: validar diretamente se necessário (apenas se contexto não carregou)
+      try {
+        const { user } = await getCurrentUser();
+        if (!user) {
+          Alert.alert('Erro', 'Usuário não encontrado');
+          return;
         }
-      });
-    } catch (error) {
-      Alert.alert('Erro', 'Erro ao verificar permissões');
+
+        const { data: memberData, error: roleError } = await supabase
+          .from('artist_members')
+          .select('role')
+          .eq('user_id', user.id)
+          .eq('artist_id', activeArtist.id)
+          .single();
+
+        if (roleError || !memberData) {
+          Alert.alert('Erro', 'Você não tem acesso a este artista');
+          return;
+        }
+
+        const userRole = memberData.role;
+        const allowedRoles = ['admin', 'editor', 'owner'];
+        const canCreate = allowedRoles.includes(userRole);
+        
+        if (!canCreate) {
+          setShowPermissionModal(true);
+          return;
+        }
+      } catch (error) {
+        Alert.alert('Erro', 'Erro ao verificar permissões');
+        return;
+      }
+    } else if (!canCreateEvents) {
+      // Se permissões carregaram mas não tem permissão
+      setShowPermissionModal(true);
+      return;
     }
+
+    // Parse da data do dateString (formato: YYYY-MM-DD)
+    const [year, month, day] = dateString.split('-').map(Number);
+    const selectedDate = new Date(year, month - 1, day);
+
+    // Navegar imediatamente
+    router.push({
+      pathname: '/adicionar-evento',
+      params: { 
+        selectedMonth: month - 1, // month é 0-indexed
+        selectedYear: year,
+        selectedDate: selectedDate.toISOString()
+      }
+    });
   };
 
   return (

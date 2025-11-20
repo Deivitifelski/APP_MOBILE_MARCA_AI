@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { clearPermissionsCache, getUserPermissions, UserPermission } from '../services/supabase/permissionsService';
-import { useActiveArtist } from '../services/useActiveArtist';
+import { useActiveArtistContext } from './ActiveArtistContext';
 
 interface PermissionsContextData {
   userPermissions: UserPermission | null;
@@ -25,7 +25,7 @@ const PermissionsContext = createContext<PermissionsContextData>({} as Permissio
 export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [userPermissions, setUserPermissions] = useState<UserPermission | null>(null);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
-  const { activeArtist } = useActiveArtist();
+  const { activeArtist } = useActiveArtistContext();
 
   // Carregar permissões
   const loadPermissions = async () => {
