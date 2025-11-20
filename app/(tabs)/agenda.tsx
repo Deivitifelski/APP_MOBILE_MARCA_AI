@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   FlatList,
   Modal,
   RefreshControl,
@@ -184,6 +185,16 @@ export default function AgendaScreen() {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   }, []);
+
+  // Calcular altura disponível para o ScrollView do modal
+  const modalScrollViewHeight = useMemo(() => {
+    const screenHeight = Dimensions.get('window').height;
+    const availableHeight = screenHeight - insets.top - insets.bottom;
+    // Altura do título (~60px) + padding do modal (40px) + margem de segurança
+    const calculatedHeight = availableHeight * 0.5;
+    // Garantir altura mínima de 200px e máxima de 500px
+    return Math.max(200, Math.min(500, calculatedHeight));
+  }, [insets.top, insets.bottom]);
 
   useEffect(() => {
     refreshActiveArtist();
@@ -972,7 +983,7 @@ export default function AgendaScreen() {
         animationType="fade"
         onRequestClose={closeDayModal}
       >
-        <View style={styles.dayModalOverlay}>
+        <View style={[styles.dayModalOverlay, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
           <TouchableWithoutFeedback onPress={closeDayModal}>
             <View style={styles.dayModalBackdrop} />
           </TouchableWithoutFeedback>
@@ -989,45 +1000,69 @@ export default function AgendaScreen() {
             <Text style={[styles.dayModalTitle, { color: colors.text }]}>
               {formatDisplayDate(selectedDay)}
             </Text>
-
-            {selectedDayEvents.map(event => (
-              <TouchableOpacity
-                key={event.id}
-                style={[styles.dayEventCard, { borderColor: colors.border }]}
-                activeOpacity={0.8}
-                onPress={() => {
-                  closeDayModal();
-                  handleEventPress(event.id);
-                }}
-              >
-                <View style={styles.dayEventHeader}>
-                  <Ionicons
-                    name="musical-notes"
-                    size={18}
-                    color={colors.primary}
-                  />
-                  <Text style={[styles.dayEventName, { color: colors.text }]}>
-                    {event.name}
-                  </Text>
-                </View>
-                <View style={styles.dayEventMeta}>
-                  <Ionicons
-                    name="time-outline"
-                    size={16}
-                    color={colors.textSecondary}
-                  />
-                  <Text style={[styles.dayEventTime, { color: colors.textSecondary }]}>
-                    {event.start_time}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-
-            {selectedDayEvents.length === 0 && (
-              <Text style={[styles.dayEventEmptyText, { color: colors.textSecondary }]}>
-                Nenhum evento para este dia.
+            <View style={[styles.dayModalEventCountContainer, { backgroundColor: colors.secondary }]}>
+              <Ionicons 
+                name="calendar-outline" 
+                size={16} 
+                color={colors.primary} 
+              />
+              <Text style={[styles.dayModalEventCount, { color: colors.text }]}>
+                {selectedDayEvents.length === 0 
+                  ? 'Nenhum evento' 
+                  : selectedDayEvents.length === 1 
+                  ? '1 evento' 
+                  : `${selectedDayEvents.length} eventos`}
               </Text>
-            )}
+            </View>
+
+            <ScrollView 
+              style={[styles.dayModalScrollView, { 
+                maxHeight: modalScrollViewHeight,
+                minHeight: 200
+              }]}
+              contentContainerStyle={styles.dayModalScrollContent}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+            >
+              {selectedDayEvents.map(event => (
+                <TouchableOpacity
+                  key={event.id}
+                  style={[styles.dayEventCard, { borderColor: colors.border }]}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    closeDayModal();
+                    handleEventPress(event.id);
+                  }}
+                >
+                  <View style={styles.dayEventHeader}>
+                    <Ionicons
+                      name="musical-notes"
+                      size={18}
+                      color={colors.primary}
+                    />
+                    <Text style={[styles.dayEventName, { color: colors.text }]}>
+                      {event.name}
+                    </Text>
+                  </View>
+                  <View style={styles.dayEventMeta}>
+                    <Ionicons
+                      name="time-outline"
+                      size={16}
+                      color={colors.textSecondary}
+                    />
+                    <Text style={[styles.dayEventTime, { color: colors.textSecondary }]}>
+                      {event.start_time}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+
+              {selectedDayEvents.length === 0 && (
+                <Text style={[styles.dayEventEmptyText, { color: colors.textSecondary }]}>
+                  Nenhum evento para este dia.
+                </Text>
+              )}
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -1531,7 +1566,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    paddingHorizontal: 24,
   },
   dayModalBackdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -1540,6 +1575,7 @@ const styles = StyleSheet.create({
   dayModalContent: {
     width: '100%',
     maxWidth: 360,
+    maxHeight: '85%',
     borderRadius: 20,
     padding: 20,
     shadowColor: '#000',
@@ -1547,6 +1583,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 12,
     elevation: 12,
+    justifyContent: 'flex-start',
+  },
+  dayModalScrollView: {
+    marginTop: 0,
+  },
+  dayModalScrollContent: {
+    paddingBottom: 8,
   },
   dayModalCloseButton: {
     position: 'absolute',
@@ -1565,8 +1608,22 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     textTransform: 'capitalize',
-    marginBottom: 20,
+    marginBottom: 8,
     paddingRight: 32,
+  },
+  dayModalEventCountContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginBottom: 16,
+    gap: 6,
+  },
+  dayModalEventCount: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   dayEventCard: {
     borderRadius: 12,
