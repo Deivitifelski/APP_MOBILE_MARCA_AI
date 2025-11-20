@@ -31,7 +31,7 @@ export default function RootLayout() {
     if (Platform.OS === 'ios') {
       Purchases.configure({ apiKey: 'appl_PVJKhYqNfSQdfaFxmviIAQGmaAj' });
     } else if (Platform.OS === 'android') {
-      Purchases.configure({ apiKey: '<revenuecat_project_google_api_key>' });
+
     }
   }, []);
 
