@@ -24,6 +24,7 @@ export default function TransferirPropriedadeScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isTransferring, setIsTransferring] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [currentUserRole, setCurrentUserRole] = useState<'owner' | 'admin' | null>(null);
 
   useEffect(() => {
     loadData();
@@ -44,17 +45,23 @@ export default function TransferirPropriedadeScreen() {
       }
 
       // Buscar colaboradores
-      const { collaborators, error } = await getCollaborators(activeArtist.id);
+      const { collaborators, userRole, error } = await getCollaborators(activeArtist.id);
       
       if (error) {
         Alert.alert('Erro', 'Erro ao carregar colaboradores');
         return;
       }
 
-      // Filtrar colaboradores: excluir admins e o próprio usuário atual
+      // Salvar a role do usuário atual
+      if (userRole === 'owner' || userRole === 'admin') {
+        setCurrentUserRole(userRole);
+      }
+
+      // Filtrar colaboradores: excluir admins/owners e o próprio usuário atual
       const eligibleCollaborators = collaborators?.filter(
         (collaborator) => 
           collaborator.role !== 'admin' && // Não incluir quem já é admin
+          collaborator.role !== 'owner' && // Não incluir quem já é owner
           collaborator.user_id !== user.id  // Não incluir o próprio usuário
       ) || [];
 
@@ -76,9 +83,11 @@ export default function TransferirPropriedadeScreen() {
   const handleTransferOwnership = async (newOwner: Collaborator) => {
     if (!activeArtist) return;
 
+    const roleLabel = currentUserRole === 'owner' ? 'gerência' : 'administração';
+    
     Alert.alert(
-      'Transferir Propriedade',
-      `Tem certeza que deseja transferir a propriedade do artista "${activeArtist.name}" para ${newOwner.user.name}?\n\nEsta ação não pode ser desfeita.`,
+      'Transferir Administração',
+      `Tem certeza que deseja transferir a ${roleLabel} do artista "${activeArtist.name}" para ${newOwner.user.name}?\n\nEsta ação não pode ser desfeita.`,
       [
         {
           text: 'Cancelar',
@@ -99,15 +108,34 @@ export default function TransferirPropriedadeScreen() {
     try {
       setIsTransferring(true);
 
-      // Atualizar o novo owner
+      // Se não temos a role do usuário atual, buscar novamente
+      let roleToTransfer: 'owner' | 'admin' = currentUserRole || 'admin';
+      
+      if (!currentUserRole) {
+        const { userRole } = await getCollaborators(activeArtist!.id);
+        if (userRole === 'owner' || userRole === 'admin') {
+          roleToTransfer = userRole;
+          setCurrentUserRole(userRole);
+        }
+      }
+
+      console.log('🔄 Transferindo role:', {
+        currentUserRole,
+        roleToTransfer,
+        newOwnerId: newOwner.user_id,
+        artistId: activeArtist!.id
+      });
+
+      // Atualizar o novo admin/owner
       const { success: updateSuccess, error: updateError } = await updateCollaboratorRole(
         newOwner.user_id,
         activeArtist!.id,
-        'owner'
+        roleToTransfer
       );
 
       if (!updateSuccess || updateError) {
-        Alert.alert('Erro', 'Erro ao transferir propriedade');
+        console.error('❌ Erro ao transferir role:', updateError);
+        Alert.alert('Erro', updateError || 'Erro ao transferir propriedade');
         return;
       }
 
@@ -123,7 +151,7 @@ export default function TransferirPropriedadeScreen() {
 
       Alert.alert(
         'Sucesso',
-        'Propriedade transferida com sucesso! Você foi removido do artista.',
+        `Administração transferida com sucesso! ${newOwner.user.name} agora é ${roleToTransfer === 'owner' ? 'gerente' : 'administrador'} do artista. Você foi removido do artista.`,
         [
           {
             text: 'OK',
@@ -228,7 +256,7 @@ export default function TransferirPropriedadeScreen() {
         <View style={styles.infoCard}>
           <Ionicons name="information-circle" size={24} color="#3B82F6" />
           <Text style={styles.infoText}>
-            Selecione um colaborador para se tornar o novo gerente do artista &quot;{activeArtist?.name}&quot;.
+            Selecione um colaborador para se tornar o novo {currentUserRole === 'owner' ? 'gerente' : 'administrador'} do artista &quot;{activeArtist?.name}&quot;.
         </Text>
         </View>
 
