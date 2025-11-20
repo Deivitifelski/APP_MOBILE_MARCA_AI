@@ -92,6 +92,79 @@ export const createUserProfile = async (userData: CreateUserProfileData): Promis
 };
 
 // Criar ou atualizar usuário com dados do Google
+interface SocialUserData {
+  name: string;
+  email: string;
+  photo?: string | null;
+}
+
+const upsertSocialUserProfile = async (
+  userId: string,
+  socialData: SocialUserData
+): Promise<{ success: boolean; error: string | null; isNewUser?: boolean }> => {
+  try {
+    const { exists, error: checkError } = await checkUserExists(userId);
+
+    if (checkError) {
+      console.error('❌ [Social User] Erro ao verificar usuário:', checkError);
+      return { success: false, error: checkError };
+    }
+
+    if (exists) {
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({
+          name: socialData.name,
+          email: socialData.email,
+          profile_url: socialData.photo || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId);
+
+      if (updateError) {
+        console.error('❌ [Social User] Erro ao atualizar usuário:', updateError);
+        return { success: false, error: updateError.message };
+      }
+
+      return { success: true, error: null, isNewUser: false };
+    }
+
+    let tokenFCM: string | null = null;
+    try {
+      const { getFCMToken } = await import('../pushNotificationHandler');
+      tokenFCM = await getFCMToken();
+      if (tokenFCM) {
+        console.log('🔑 Token FCM obtido ao criar usuário social:', tokenFCM);
+      }
+    } catch (tokenError) {
+      console.log('⚠️ Erro ao obter token FCM (continuando sem token):', tokenError);
+    }
+
+    const { error: insertError } = await supabase
+      .from('users')
+      .insert({
+        id: userId,
+        name: socialData.name,
+        email: socialData.email,
+        profile_url: socialData.photo || null,
+        plan: 'free',
+        token_fcm: tokenFCM || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+
+    if (insertError) {
+      console.error('❌ [Social User] Erro ao criar usuário:', insertError);
+      return { success: false, error: insertError.message };
+    }
+
+    return { success: true, error: null, isNewUser: true };
+  } catch (error) {
+    console.error('❌ [Social User] Erro inesperado:', error);
+    return { success: false, error: 'Erro de conexão' };
+  }
+};
+
 export const createOrUpdateUserFromGoogle = async (
   userId: string,
   googleData: {
@@ -100,70 +173,26 @@ export const createOrUpdateUserFromGoogle = async (
     photo?: string;
   }
 ): Promise<{ success: boolean; error: string | null; isNewUser?: boolean }> => {
-  try {
-    // Verificar se o usuário já existe
-    const { exists, error: checkError } = await checkUserExists(userId);
+  return upsertSocialUserProfile(userId, {
+    name: googleData.name,
+    email: googleData.email,
+    photo: googleData.photo || null
+  });
+};
 
-    if (checkError) {
-      console.error('❌ [Google User] Erro ao verificar usuário:', checkError);
-      return { success: false, error: checkError };
-    }
-
-    if (exists) {
-      // Atualizar dados do usuário existente
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({
-          name: googleData.name,
-          email: googleData.email,
-          profile_url: googleData.photo || null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', userId);
-
-      if (updateError) {
-        console.error('❌ [Google User] Erro ao atualizar usuário:', updateError);
-        return { success: false, error: updateError.message };
-      }
-
-      return { success: true, error: null, isNewUser: false };
-    } else {
-      // Criar novo usuário - buscar token FCM
-      let tokenFCM: string | null = null;
-      try {
-        const { getFCMToken } = await import('../pushNotificationHandler');
-        tokenFCM = await getFCMToken();
-        if (tokenFCM) {
-          console.log('🔑 Token FCM obtido ao criar usuário Google:', tokenFCM);
-        }
-      } catch (tokenError) {
-        console.log('⚠️ Erro ao obter token FCM (continuando sem token):', tokenError);
-      }
-
-      const { error: insertError } = await supabase
-        .from('users')
-        .insert({
-          id: userId,
-          name: googleData.name,
-          email: googleData.email,
-          profile_url: googleData.photo || null,
-          plan: 'free',
-          token_fcm: tokenFCM || null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
-
-      if (insertError) {
-        console.error('❌ [Google User] Erro ao criar usuário:', insertError);
-        return { success: false, error: insertError.message };
-      }
-
-      return { success: true, error: null, isNewUser: true };
-    }
-  } catch (error) {
-    console.error('❌ [Google User] Erro inesperado:', error);
-    return { success: false, error: 'Erro de conexão' };
+export const createOrUpdateUserFromApple = async (
+  userId: string,
+  appleData: {
+    name: string;
+    email: string;
+    photo?: string;
   }
+): Promise<{ success: boolean; error: string | null; isNewUser?: boolean }> => {
+  return upsertSocialUserProfile(userId, {
+    name: appleData.name,
+    email: appleData.email,
+    photo: appleData.photo || null
+  });
 };
 
 // Buscar perfil do usuário

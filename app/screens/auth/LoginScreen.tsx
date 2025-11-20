@@ -1,3 +1,4 @@
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { Ionicons } from '@expo/vector-icons';
 import messaging from '@react-native-firebase/messaging';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
@@ -22,7 +23,12 @@ import LogoMarcaAi from '../../../components/LogoMarcaAi';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { supabase } from '../../../lib/supabase';
 import { getCurrentUser, loginUser, resendConfirmationEmail, sendPasswordResetEmail } from '../../../services/supabase/authService';
-import { checkUserExists, createOrUpdateUserFromGoogle, saveFCMToken } from '../../../services/supabase/userService';
+import {
+  checkUserExists,
+  createOrUpdateUserFromApple,
+  createOrUpdateUserFromGoogle,
+  saveFCMToken,
+} from '../../../services/supabase/userService';
 
 // Configurar Google Sign-In (conforme documentação)
 GoogleSignin.configure({
@@ -195,6 +201,84 @@ export default function LoginScreen() {
       
       // Não mostrar modal se deu erro
       console.log('⚠️ Não foi possível obter o token FCM - modal não será exibido');
+    }
+  };
+
+  const handleAppleLogin = async () => {
+    try {
+      setLoading(true);
+
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        ],
+      });
+
+      if (!credential.identityToken) {
+        Alert.alert('Erro', 'Não foi possível obter os dados de autenticação da Apple.');
+        return;
+      }
+
+      const { data, error } = await supabase.auth.signInWithIdToken({
+        provider: 'apple',
+        token: credential.identityToken,
+      });
+
+      if (error) {
+        Alert.alert('Erro', error.message);
+        return;
+      }
+
+      if (data?.user) {
+        const sharedEmail = data.user.email || credential.email || '';
+
+        if (!sharedEmail) {
+          Alert.alert('Erro', 'O Apple ID precisa compartilhar um email para prosseguir.');
+          return;
+        }
+
+        const nameFromCredential = credential.fullName
+          ? `${credential.fullName.givenName || ''} ${credential.fullName.familyName || ''}`.trim()
+          : '';
+
+        const displayName =
+          nameFromCredential ||
+          data.user.user_metadata?.full_name ||
+          data.user.user_metadata?.name ||
+          sharedEmail ||
+          'Usuário';
+
+        const result = await createOrUpdateUserFromApple(data.user.id, {
+          name: displayName,
+          email: sharedEmail,
+        });
+
+        if (result.isNewUser) {
+          setUserName(displayName);
+          setShowWelcomeModal(true);
+        } else {
+          getFCMToken().catch((error) => {
+            console.error('Erro ao buscar token FCM:', error);
+          });
+          setTimeout(() => {
+            router.replace('/(tabs)/agenda');
+          }, 100);
+        }
+      }
+    } catch (error: any) {
+      const isAppleCanceled =
+        error?.code === 'ERR_CANCELED' ||
+        error?.code === AppleAuthentication.AppleAuthenticationError?.CANCELED;
+
+      if (isAppleCanceled) {
+        console.log('Login com Apple cancelado pelo usuário');
+      } else {
+        console.error('Erro no login com Apple:', error);
+        Alert.alert('Erro', error?.message || 'Erro ao fazer login com Apple');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -481,6 +565,17 @@ export default function LoginScreen() {
                 <Ionicons name="logo-google" size={20} color="#fff" />
                 <Text style={styles.googleButtonText}>
                   {loading ? 'Entrando...' : 'Entrar com Google'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.appleButton, loading && styles.loginButtonDisabled]}
+                onPress={handleAppleLogin}
+                disabled={loading}
+              >
+                <Ionicons name="logo-apple" size={20} color="#fff" />
+                <Text style={styles.appleButtonText}>
+                  {loading ? 'Entrando...' : 'Entrar com Apple'}
                 </Text>
               </TouchableOpacity>
 
@@ -942,6 +1037,21 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   googleButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  appleButton: {
+    backgroundColor: '#000',
+    borderRadius: 12,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+    gap: 8,
+  },
+  appleButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
