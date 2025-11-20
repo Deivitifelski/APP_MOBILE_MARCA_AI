@@ -17,6 +17,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.marcaai.app",
       "buildNumber": "40",
+      "icon": "./assets/images/LOGO_MARCA_IPHONE_1024.png",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Este app precisa acessar sua galeria de fotos para permitir que você selecione uma foto de perfil.",
         "NSCameraUsageDescription": "Este app precisa acessar sua câmera para permitir que você tire uma foto para o perfil.",
@@ -36,11 +37,10 @@
     },
     "android": {
       "package": "com.marcaai.app",
+      "icon": "./assets/images/LOGO_MARCA_ANDROID_512.png",
       "adaptiveIcon": {
-        "backgroundColor": "#667eea",
-        "foregroundImage": "./assets/images/LOGO_MARCA_ANDROID_512.png",
-        "backgroundImage": "./assets/images/LOGO_MARCA_ANDROID_512.png",
-        "monochromeImage": "./assets/images/LOGO_MARCA_ANDROID_512.png"
+        "backgroundColor": "#4e6bff",
+        "foregroundImage": "./assets/images/LOGO_MARCA_ANDROID_512.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
