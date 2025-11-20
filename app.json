@@ -14,6 +14,7 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
+      "usesAppleSignIn": true,
       "supportsTablet": true,
       "bundleIdentifier": "com.marcaai.app",
       "buildNumber": "40",
@@ -75,6 +76,7 @@
       "favicon": "./assets/images/LOGO_MARCA_IPHONE_1024.png"
     },
     "plugins": [
+      "expo-apple-authentication",
       [
         "@react-native-google-signin/google-signin",
         {
