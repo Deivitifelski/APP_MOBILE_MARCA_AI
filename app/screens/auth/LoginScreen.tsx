@@ -1,7 +1,7 @@
-import * as AppleAuthentication from 'expo-apple-authentication';
 import { Ionicons } from '@expo/vector-icons';
 import messaging from '@react-native-firebase/messaging';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -271,7 +271,6 @@ export default function LoginScreen() {
         'ERR_CANCELED',
         'ERR_REQUEST_CANCELED',
         'ERR_REQUEST_UNKNOWN',
-        AppleAuthentication.AppleAuthenticationError?.CANCELED,
       ];
       const isAppleCanceled = appleCancelCodes.includes(error?.code);
 
