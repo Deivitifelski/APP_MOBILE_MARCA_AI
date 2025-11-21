@@ -17,12 +17,18 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AppleSignInButton, { AppleSignInResult } from '../../../components/AppleSignInButton';
 import FCMTokenModal from '../../../components/FCMTokenModal';
 import LogoMarcaAi from '../../../components/LogoMarcaAi';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { supabase } from '../../../lib/supabase';
 import { getCurrentUser, loginUser, resendConfirmationEmail, sendPasswordResetEmail } from '../../../services/supabase/authService';
-import { checkUserExists, createOrUpdateUserFromGoogle, saveFCMToken } from '../../../services/supabase/userService';
+import {
+  checkUserExists,
+  createOrUpdateUserFromApple,
+  createOrUpdateUserFromGoogle,
+  saveFCMToken,
+} from '../../../services/supabase/userService';
 
 // Configurar Google Sign-In (conforme documentação)
 GoogleSignin.configure({
@@ -37,7 +43,6 @@ LogBox.ignoreLogs([
   'Network request failed',
   'TypeError: Network request failed',
 ]);
-LogBox.ignoreAllLogs(true); // Remove TODOS os erros/warnings visuais
 
 export default function LoginScreen() {
   const { colors, isDarkMode } = useTheme();
@@ -52,6 +57,9 @@ export default function LoginScreen() {
   const [resendingEmail, setResendingEmail] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [userName, setUserName] = useState('');
+  const [welcomeProvider, setWelcomeProvider] = useState<'google' | 'apple' | null>(null);
+  const [welcomeName, setWelcomeName] = useState('');
+  const [welcomeEmail, setWelcomeEmail] = useState('');
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [sendingResetEmail, setSendingResetEmail] = useState(false);
@@ -196,6 +204,71 @@ export default function LoginScreen() {
       // Não mostrar modal se deu erro
       console.log('⚠️ Não foi possível obter o token FCM - modal não será exibido');
     }
+  };
+
+  const handleAppleSuccess = async ({ user, credentialEmail, credentialFullName, isNewUser }: AppleSignInResult) => {
+    setLoading(true);
+    try {
+      const appleFullName = credentialFullName
+        ? [credentialFullName.givenName, credentialFullName.middleName, credentialFullName.familyName]
+            .filter(Boolean)
+            .join(' ')
+            .trim()
+        : '';
+
+      const storedName =
+        (user.user_metadata?.full_name as string | undefined) ||
+        (user.user_metadata?.name as string | undefined) ||
+        '';
+
+      const finalName = appleFullName || storedName;
+      const displayName = finalName || credentialEmail || 'Usuário';
+      const emailToPersist = credentialEmail || user.email || '';
+
+      const result = await createOrUpdateUserFromApple(user.id, {
+        name: displayName,
+        email: emailToPersist,
+        photo:
+          user.user_metadata?.avatar_url ||
+          user.user_metadata?.picture ||
+          undefined,
+      });
+
+      setWelcomeProvider('apple');
+      setWelcomeName(finalName);
+      setWelcomeEmail(emailToPersist);
+      setUserName(displayName);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao salvar o usuário Apple');
+      }
+
+      if (isNewUser) {
+        setShowWelcomeModal(true);
+        return;
+      }
+
+      getFCMToken().catch((error) => {
+        console.error('Erro ao buscar token FCM:', error);
+      });
+
+      setTimeout(() => {
+        router.replace('/(tabs)/agenda');
+      }, 100);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetWelcomeContext = () => {
+    setWelcomeProvider(null);
+    setWelcomeName('');
+    setWelcomeEmail('');
+  };
+
+  const handleAppleError = (error: Error) => {
+    console.error('Erro no login com Apple:', error);
+    Alert.alert('Erro', error?.message || 'Não foi possível autenticar com a Apple');
   };
 
   const handleLogin = async () => {
@@ -441,7 +514,13 @@ export default function LoginScreen() {
                         
                         // Mostrar modal de boas-vindas APENAS para novos usuários
                         if (result.isNewUser) {
-                          setUserName(response.data.user.name || response.data.user.email);
+                          const googleName = response.data.user.name || '';
+                          const googleEmail = response.data.user.email || '';
+                          const googleDisplay = googleName || googleEmail || 'Usuário';
+                          setUserName(googleDisplay);
+                          setWelcomeProvider('google');
+                          setWelcomeName(googleName);
+                          setWelcomeEmail(googleEmail);
                           setShowWelcomeModal(true);
                         } else {
                           // Buscar token FCM e mostrar modal (não navegar ainda, o modal vai aparecer)
@@ -483,6 +562,13 @@ export default function LoginScreen() {
                   {loading ? 'Entrando...' : 'Entrar com Google'}
                 </Text>
               </TouchableOpacity>
+
+              <AppleSignInButton
+                disabled={loading}
+                style={{ marginBottom: 24 }}
+                onSuccess={handleAppleSuccess}
+                onError={handleAppleError}
+              />
 
               <View style={styles.signupContainer}>
                 <Text style={[styles.signupText, { color: colors.textSecondary }]}>Não tem uma conta? </Text>
@@ -674,8 +760,15 @@ export default function LoginScreen() {
                 Bem-vindo, {userName}! 🎉
               </Text>
               <Text style={[styles.modalSubtitle, { color: colors.textSecondary, marginTop: 8 }]}>
-                Você está conectado com sua conta Google
+                {welcomeProvider === 'apple'
+                  ? 'Você está conectado com sua conta Apple'
+                  : 'Você está conectado com sua conta Google'}
               </Text>
+              {!welcomeName && welcomeEmail ? (
+                <Text style={[styles.modalSubtitle, { color: colors.textSecondary, marginTop: 4 }]}>
+                  Email: {welcomeEmail}
+                </Text>
+              ) : null}
             </View>
 
             {/* Informação sobre o app */}
@@ -726,6 +819,7 @@ export default function LoginScreen() {
                 style={[styles.modalCancelButton, { backgroundColor: colors.background, borderColor: colors.border }]}
                 onPress={() => {
                   setShowWelcomeModal(false);
+                  resetWelcomeContext();
                   // Buscar token FCM e mostrar modal (não navegar ainda, o modal vai aparecer)
                   getFCMToken().catch((error) => {
                     console.error('Erro ao buscar token FCM:', error);
@@ -743,6 +837,7 @@ export default function LoginScreen() {
                 style={[styles.modalContinueButton, { backgroundColor: colors.primary }]}
                 onPress={() => {
                   setShowWelcomeModal(false);
+                  resetWelcomeContext();
                   router.replace('/cadastro-artista');
                 }}
               >
