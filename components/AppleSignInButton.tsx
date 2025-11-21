@@ -1,7 +1,7 @@
 import type { User } from '@supabase/supabase-js';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import React, { useState } from 'react';
-import { Platform, StyleSheet, ViewStyle } from 'react-native';
+import { Alert, Platform, StyleSheet, ViewStyle } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { createOrUpdateUserFromApple } from '../services/supabase/userService';
 
@@ -53,6 +53,7 @@ export default function AppleSignInButton({
       console.log('AppleSignInButton: credential', JSON.stringify(credential, null, 2));
 
       if (!credential.identityToken) {
+        Alert.alert('Erro', 'Não foi possível obter seus dados junto a apple.');
         throw new Error('Não foi possível obter o token de identidade da Apple.');
       }
 
