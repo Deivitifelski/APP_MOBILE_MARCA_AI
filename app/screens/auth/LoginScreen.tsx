@@ -25,6 +25,7 @@ import { supabase } from '../../../lib/supabase';
 import { getCurrentUser, loginUser, resendConfirmationEmail, sendPasswordResetEmail } from '../../../services/supabase/authService';
 import {
   checkUserExists,
+  createOrUpdateUserFromApple,
   createOrUpdateUserFromGoogle,
   saveFCMToken,
 } from '../../../services/supabase/userService';
@@ -56,6 +57,9 @@ export default function LoginScreen() {
   const [resendingEmail, setResendingEmail] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [userName, setUserName] = useState('');
+  const [welcomeProvider, setWelcomeProvider] = useState<'google' | 'apple' | null>(null);
+  const [welcomeName, setWelcomeName] = useState('');
+  const [welcomeEmail, setWelcomeEmail] = useState('');
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [sendingResetEmail, setSendingResetEmail] = useState(false);
@@ -202,17 +206,44 @@ export default function LoginScreen() {
     }
   };
 
-  const handleAppleSuccess = async ({ user, credentialEmail, isNewUser }: AppleSignInResult) => {
+  const handleAppleSuccess = async ({ user, credentialEmail, credentialFullName, isNewUser }: AppleSignInResult) => {
     setLoading(true);
     try {
-      const displayName =
+      const appleFullName = credentialFullName
+        ? [credentialFullName.givenName, credentialFullName.middleName, credentialFullName.familyName]
+            .filter(Boolean)
+            .join(' ')
+            .trim()
+        : '';
+
+      const storedName =
         (user.user_metadata?.full_name as string | undefined) ||
         (user.user_metadata?.name as string | undefined) ||
-        credentialEmail ||
-        'Usuário';
+        '';
+
+      const finalName = appleFullName || storedName;
+      const displayName = finalName || credentialEmail || 'Usuário';
+      const emailToPersist = credentialEmail || user.email || '';
+
+      const result = await createOrUpdateUserFromApple(user.id, {
+        name: displayName,
+        email: emailToPersist,
+        photo:
+          user.user_metadata?.avatar_url ||
+          user.user_metadata?.picture ||
+          undefined,
+      });
+
+      setWelcomeProvider('apple');
+      setWelcomeName(finalName);
+      setWelcomeEmail(emailToPersist);
+      setUserName(displayName);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao salvar o usuário Apple');
+      }
 
       if (isNewUser) {
-        setUserName(displayName);
         setShowWelcomeModal(true);
         return;
       }
@@ -227,6 +258,12 @@ export default function LoginScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const resetWelcomeContext = () => {
+    setWelcomeProvider(null);
+    setWelcomeName('');
+    setWelcomeEmail('');
   };
 
   const handleAppleError = (error: Error) => {
@@ -477,7 +514,13 @@ export default function LoginScreen() {
                         
                         // Mostrar modal de boas-vindas APENAS para novos usuários
                         if (result.isNewUser) {
-                          setUserName(response.data.user.name || response.data.user.email);
+                          const googleName = response.data.user.name || '';
+                          const googleEmail = response.data.user.email || '';
+                          const googleDisplay = googleName || googleEmail || 'Usuário';
+                          setUserName(googleDisplay);
+                          setWelcomeProvider('google');
+                          setWelcomeName(googleName);
+                          setWelcomeEmail(googleEmail);
                           setShowWelcomeModal(true);
                         } else {
                           // Buscar token FCM e mostrar modal (não navegar ainda, o modal vai aparecer)
@@ -717,8 +760,15 @@ export default function LoginScreen() {
                 Bem-vindo, {userName}! 🎉
               </Text>
               <Text style={[styles.modalSubtitle, { color: colors.textSecondary, marginTop: 8 }]}>
-                Você está conectado com sua conta Google
+                {welcomeProvider === 'apple'
+                  ? 'Você está conectado com sua conta Apple'
+                  : 'Você está conectado com sua conta Google'}
               </Text>
+              {!welcomeName && welcomeEmail ? (
+                <Text style={[styles.modalSubtitle, { color: colors.textSecondary, marginTop: 4 }]}>
+                  Email: {welcomeEmail}
+                </Text>
+              ) : null}
             </View>
 
             {/* Informação sobre o app */}
@@ -769,6 +819,7 @@ export default function LoginScreen() {
                 style={[styles.modalCancelButton, { backgroundColor: colors.background, borderColor: colors.border }]}
                 onPress={() => {
                   setShowWelcomeModal(false);
+                  resetWelcomeContext();
                   // Buscar token FCM e mostrar modal (não navegar ainda, o modal vai aparecer)
                   getFCMToken().catch((error) => {
                     console.error('Erro ao buscar token FCM:', error);
@@ -786,6 +837,7 @@ export default function LoginScreen() {
                 style={[styles.modalContinueButton, { backgroundColor: colors.primary }]}
                 onPress={() => {
                   setShowWelcomeModal(false);
+                  resetWelcomeContext();
                   router.replace('/cadastro-artista');
                 }}
               >
