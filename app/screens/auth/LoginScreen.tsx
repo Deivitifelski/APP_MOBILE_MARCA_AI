@@ -222,11 +222,11 @@ export default function LoginScreen() {
         '';
 
       const finalName = appleFullName || storedName;
-      const displayName = finalName || credentialEmail || 'Usuário';
+      const displayName = (finalName || credentialEmail || 'Usuário').trim();
       const emailToPersist = credentialEmail || user.email || '';
 
       const result = await createOrUpdateUserFromApple(user.id, {
-        name: displayName,
+        name: displayName || 'Usuário',
         email: emailToPersist,
         photo:
           user.user_metadata?.avatar_url ||
