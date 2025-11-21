@@ -93,7 +93,7 @@ export const createUserProfile = async (userData: CreateUserProfileData): Promis
 
 // Criar ou atualizar usuário com dados do Google
 interface SocialUserData {
-  name: string;
+  name?: string;
   email: string;
   photo?: string | null;
 }
@@ -111,14 +111,25 @@ const upsertSocialUserProfile = async (
     }
 
     if (exists) {
+      const updatePayload: { name?: string; email?: string; profile_url?: string | null; updated_at: string } = {
+        updated_at: new Date().toISOString(),
+      };
+
+      if (socialData.name) {
+        updatePayload.name = socialData.name;
+      }
+
+      if (socialData.email) {
+        updatePayload.email = socialData.email;
+      }
+
+      if (socialData.photo !== undefined) {
+        updatePayload.profile_url = socialData.photo;
+      }
+
       const { error: updateError } = await supabase
         .from('users')
-        .update({
-          name: socialData.name,
-          email: socialData.email,
-          profile_url: socialData.photo || null,
-          updated_at: new Date().toISOString()
-        })
+        .update(updatePayload)
         .eq('id', userId);
 
       if (updateError) {
@@ -144,7 +155,7 @@ const upsertSocialUserProfile = async (
       .from('users')
       .insert({
         id: userId,
-        name: socialData.name,
+        name: socialData.name || 'Usuário',
         email: socialData.email,
         profile_url: socialData.photo || null,
         plan: 'free',
@@ -183,7 +194,7 @@ export const createOrUpdateUserFromGoogle = async (
 export const createOrUpdateUserFromApple = async (
   userId: string,
   appleData: {
-    name: string;
+    name?: string;
     email: string;
     photo?: string;
   }

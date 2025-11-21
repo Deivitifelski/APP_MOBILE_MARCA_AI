@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import messaging from '@react-native-firebase/messaging';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
-import * as AppleAuthentication from 'expo-apple-authentication';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -18,6 +17,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AppleSignInButton, { AppleSignInResult } from '../../../components/AppleSignInButton';
 import FCMTokenModal from '../../../components/FCMTokenModal';
 import LogoMarcaAi from '../../../components/LogoMarcaAi';
 import { useTheme } from '../../../contexts/ThemeContext';
@@ -25,7 +25,6 @@ import { supabase } from '../../../lib/supabase';
 import { getCurrentUser, loginUser, resendConfirmationEmail, sendPasswordResetEmail } from '../../../services/supabase/authService';
 import {
   checkUserExists,
-  createOrUpdateUserFromApple,
   createOrUpdateUserFromGoogle,
   saveFCMToken,
 } from '../../../services/supabase/userService';
@@ -43,7 +42,6 @@ LogBox.ignoreLogs([
   'Network request failed',
   'TypeError: Network request failed',
 ]);
-LogBox.ignoreAllLogs(true); // Remove TODOS os erros/warnings visuais
 
 export default function LoginScreen() {
   const { colors, isDarkMode } = useTheme();
@@ -204,85 +202,36 @@ export default function LoginScreen() {
     }
   };
 
-  const handleAppleLogin = async () => {
+  const handleAppleSuccess = async ({ user, credentialEmail, isNewUser }: AppleSignInResult) => {
+    setLoading(true);
     try {
-      setLoading(true);
+      const displayName =
+        (user.user_metadata?.full_name as string | undefined) ||
+        (user.user_metadata?.name as string | undefined) ||
+        credentialEmail ||
+        'Usuário';
 
-      const credential = await AppleAuthentication.signInAsync({
-        requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-        ],
-      });
-
-      if (!credential.identityToken) {
-        Alert.alert('Erro', 'Não foi possível obter os dados de autenticação da Apple.');
+      if (isNewUser) {
+        setUserName(displayName);
+        setShowWelcomeModal(true);
         return;
       }
 
-      const { data, error } = await supabase.auth.signInWithIdToken({
-        provider: 'apple',
-        token: credential.identityToken,
+      getFCMToken().catch((error) => {
+        console.error('Erro ao buscar token FCM:', error);
       });
 
-      if (error) {
-        Alert.alert('Erro', error.message);
-        return;
-      }
-
-      if (data?.user) {
-        const sharedEmail = data.user.email || credential.email || '';
-
-        if (!sharedEmail) {
-          Alert.alert('Erro', 'O Apple ID precisa compartilhar um email para prosseguir.');
-          return;
-        }
-
-        const nameFromCredential = credential.fullName
-          ? `${credential.fullName.givenName || ''} ${credential.fullName.familyName || ''}`.trim()
-          : '';
-
-        const displayName =
-          nameFromCredential ||
-          data.user.user_metadata?.full_name ||
-          data.user.user_metadata?.name ||
-          sharedEmail ||
-          'Usuário';
-
-        const result = await createOrUpdateUserFromApple(data.user.id, {
-          name: displayName,
-          email: sharedEmail,
-        });
-
-        if (result.isNewUser) {
-          setUserName(displayName);
-          setShowWelcomeModal(true);
-        } else {
-          getFCMToken().catch((error) => {
-            console.error('Erro ao buscar token FCM:', error);
-          });
-          setTimeout(() => {
-            router.replace('/(tabs)/agenda');
-          }, 100);
-        }
-      }
-    } catch (error: any) {
-      const appleCancelCodes = [
-        'ERR_CANCELED',
-        'ERR_REQUEST_CANCELED',
-        'ERR_REQUEST_UNKNOWN',
-      ];
-      const isAppleCanceled = appleCancelCodes.includes(error?.code);
-
-      if (isAppleCanceled) {
-        console.log('Login com Apple cancelado pelo usuário');
-      } else {
-        console.error('Erro no login com Apple:', error);
-        Alert.alert('Erro', error?.message || 'Erro ao fazer login com Apple');
-      }
+      setTimeout(() => {
+        router.replace('/(tabs)/agenda');
+      }, 100);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAppleError = (error: Error) => {
+    console.error('Erro no login com Apple:', error);
+    Alert.alert('Erro', error?.message || 'Não foi possível autenticar com a Apple');
   };
 
   const handleLogin = async () => {
@@ -571,16 +520,12 @@ export default function LoginScreen() {
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.appleButton, loading && styles.loginButtonDisabled]}
-                onPress={handleAppleLogin}
+              <AppleSignInButton
                 disabled={loading}
-              >
-                <Ionicons name="logo-apple" size={20} color="#fff" />
-                <Text style={styles.appleButtonText}>
-                  {loading ? 'Entrando...' : 'Entrar com Apple'}
-                </Text>
-              </TouchableOpacity>
+                style={{ marginBottom: 24 }}
+                onSuccess={handleAppleSuccess}
+                onError={handleAppleError}
+              />
 
               <View style={styles.signupContainer}>
                 <Text style={[styles.signupText, { color: colors.textSecondary }]}>Não tem uma conta? </Text>
@@ -1040,21 +985,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   googleButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  appleButton: {
-    backgroundColor: '#000',
-    borderRadius: 12,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
-    gap: 8,
-  },
-  appleButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
