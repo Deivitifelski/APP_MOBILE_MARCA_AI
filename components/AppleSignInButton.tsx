@@ -1,7 +1,7 @@
 import type { User } from '@supabase/supabase-js';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import React, { useState } from 'react';
-import { Alert, Platform, StyleSheet, ViewStyle } from 'react-native';
+import { Alert, Platform, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { createOrUpdateUserFromApple } from '../services/supabase/userService';
 
@@ -23,6 +23,8 @@ interface AppleSignInButtonProps {
   style?: ViewStyle;
   onSuccess?: (result: AppleSignInResult) => void;
   onError?: (error: Error) => void;
+  iconOnly?: boolean;
+  icon?: React.ReactNode;
 }
 
 export default function AppleSignInButton({
@@ -30,6 +32,8 @@ export default function AppleSignInButton({
   style,
   onSuccess,
   onError,
+  iconOnly = false,
+  icon,
 }: AppleSignInButtonProps) {
   const [working, setWorking] = useState(false);
 
@@ -124,6 +128,18 @@ export default function AppleSignInButton({
     }
   };
 
+  if (iconOnly) {
+    return (
+      <TouchableOpacity
+        style={[styles.iconButton, style]}
+        onPress={handlePress}
+        disabled={disabled || working}
+      >
+        {icon}
+      </TouchableOpacity>
+    );
+  }
+
   return (
     <AppleAuthentication.AppleAuthenticationButton
       buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
@@ -139,6 +155,13 @@ const styles = StyleSheet.create({
   button: {
     width: '100%',
     height: 54,
+  },
+  iconButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

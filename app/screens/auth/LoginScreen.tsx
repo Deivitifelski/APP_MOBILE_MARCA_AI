@@ -271,6 +271,72 @@ export default function LoginScreen() {
     Alert.alert('Erro', error?.message || 'Não foi possível autenticar com a Apple');
   };
 
+  const handleGoogleLogin = async () => {
+    try {
+      setLoading(true);
+      await GoogleSignin.hasPlayServices();
+      const response = await GoogleSignin.signIn();
+
+      if (response.type === 'success') {
+        const { data, error } = await supabase.auth.signInWithIdToken({
+          provider: 'google',
+          token: response.data.idToken || '',
+        });
+
+        if (error) {
+          Alert.alert('Erro', error.message);
+          return;
+        }
+
+        if (data?.user) {
+          const result = await createOrUpdateUserFromGoogle(
+            data.user.id,
+            {
+              name: response.data.user.name || response.data.user.email,
+              email: response.data.user.email,
+              photo: response.data.user.photo || undefined,
+            }
+          );
+
+          if (result.isNewUser) {
+            const googleName = response.data.user.name || response.data.user.email || 'Usuário';
+            const googleEmail = response.data.user.email || '';
+            setUserName(googleName);
+            setWelcomeProvider('google');
+            setWelcomeName(response.data.user.name || '');
+            setWelcomeEmail(googleEmail);
+            setShowWelcomeModal(true);
+          } else {
+            getFCMToken().catch((error) => {
+              console.error('Erro ao buscar token FCM:', error);
+            });
+            setTimeout(() => {
+              router.replace('/(tabs)/agenda');
+            }, 100);
+          }
+        }
+      }
+    } catch (error: any) {
+      if (error.code === statusCodes.IN_PROGRESS) {
+        Alert.alert('Atenção', 'Login já em andamento');
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        Alert.alert('Erro', 'Google Play Services não disponível');
+      } else if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        console.log('Login com Google cancelado pelo usuário');
+      } else if (error.code === '10' || error.message?.includes('DEVELOPER_ERROR')) {
+        Alert.alert(
+          'Erro de Configuração',
+          'O app não está configurado corretamente para login com Google. Por favor, verifique se o SHA-1 está configurado no Google Cloud Console.\n\nVeja o guia: RESOLVER_ERRO_DEVELOPER_ERROR_ANDROID.md'
+        );
+      } else {
+        console.error('Erro no login com Google:', error);
+        Alert.alert('Erro', error?.message || 'Erro ao fazer login com Google');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
       Alert.alert('Erro', 'Por favor, preencha todos os campos');
@@ -482,93 +548,32 @@ export default function LoginScreen() {
                 <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
               </View>
 
-              <TouchableOpacity 
-                style={[styles.googleButton, loading && styles.loginButtonDisabled]}
-                onPress={async () => {
-                  try {
-                    setLoading(true);
-                    await GoogleSignin.hasPlayServices();
-                    const response = await GoogleSignin.signIn();
-                    
-                    if (response.type === 'success') {
-                      const { data, error } = await supabase.auth.signInWithIdToken({
-                        provider: 'google',
-                        token: response.data.idToken || '',
-                      });
-                      
-                      if (error) {
-                        Alert.alert('Erro', error.message);
-                        return;
-                      }
-                      
-                      if (data?.user) {
-                        // Criar ou atualizar usuário automaticamente
-                        const result = await createOrUpdateUserFromGoogle(
-                          data.user.id,
-                          {
-                            name: response.data.user.name || response.data.user.email,
-                            email: response.data.user.email,
-                            photo: response.data.user.photo || undefined,
-                          }
-                        );
-                        
-                        // Mostrar modal de boas-vindas APENAS para novos usuários
-                        if (result.isNewUser) {
-                          const googleName = response.data.user.name || '';
-                          const googleEmail = response.data.user.email || '';
-                          const googleDisplay = googleName || googleEmail || 'Usuário';
-                          setUserName(googleDisplay);
-                          setWelcomeProvider('google');
-                          setWelcomeName(googleName);
-                          setWelcomeEmail(googleEmail);
-                          setShowWelcomeModal(true);
-                        } else {
-                          // Buscar token FCM e mostrar modal (não navegar ainda, o modal vai aparecer)
-                          getFCMToken().catch((error) => {
-                            console.error('Erro ao buscar token FCM:', error);
-                          });
-                          // Navegar após um pequeno delay para garantir que o modal apareça
-                          setTimeout(() => {
-                            router.replace('/(tabs)/agenda');
-                          }, 100);
-                        }
-                      }
-                    }
-                  } catch (error: any) {
-                    if (error.code === statusCodes.IN_PROGRESS) {
-                      Alert.alert('Atenção', 'Login já em andamento');
-                    } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-                      Alert.alert('Erro', 'Google Play Services não disponível');
-                    } else if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-                      // Usuário cancelou o login, não mostrar erro
-                      console.log('Login com Google cancelado pelo usuário');
-                    } else if (error.code === '10' || error.message?.includes('DEVELOPER_ERROR')) {
-                      Alert.alert(
-                        'Erro de Configuração',
-                        'O app não está configurado corretamente para login com Google. Por favor, verifique se o SHA-1 está configurado no Google Cloud Console.\n\nVeja o guia: RESOLVER_ERRO_DEVELOPER_ERROR_ANDROID.md'
-                      );
-                    } else {
-                      console.error('Erro no login com Google:', error);
-                      Alert.alert('Erro', error?.message || 'Erro ao fazer login com Google');
-                    }
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
-                disabled={loading}
-              >
-                <Ionicons name="logo-google" size={20} color="#fff" />
-                <Text style={styles.googleButtonText}>
-                  {loading ? 'Entrando...' : 'Entrar com Google'}
-                </Text>
-              </TouchableOpacity>
+              <View style={styles.socialButtonsRow}>
+                <TouchableOpacity
+                  style={StyleSheet.flatten([
+                    styles.socialIconButton,
+                    styles.socialIconButtonGoogle,
+                    loading ? styles.socialIconButtonDisabled : undefined,
+                  ])}
+                  onPress={handleGoogleLogin}
+                  disabled={loading}
+                >
+                  <Ionicons name="logo-google" size={24} color="#fff" />
+                </TouchableOpacity>
 
-              <AppleSignInButton
-                disabled={loading}
-                style={{ marginBottom: 24 }}
-                onSuccess={handleAppleSuccess}
-                onError={handleAppleError}
-              />
+                <AppleSignInButton
+                  iconOnly
+                  icon={<Ionicons name="logo-apple" size={24} color="#fff" />}
+                  style={StyleSheet.flatten([
+                    styles.socialIconButton,
+                    styles.socialIconButtonApple,
+                    loading ? styles.socialIconButtonDisabled : undefined,
+                  ])}
+                  disabled={loading}
+                  onSuccess={handleAppleSuccess}
+                  onError={handleAppleError}
+                />
+              </View>
 
               <View style={styles.signupContainer}>
                 <Text style={[styles.signupText, { color: colors.textSecondary }]}>Não tem uma conta? </Text>
@@ -1026,20 +1031,27 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     fontSize: 14,
   },
-  googleButton: {
-    backgroundColor: '#db4437',
-    borderRadius: 12,
-    paddingVertical: 16,
+  socialButtonsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
-    gap: 8,
   },
-  googleButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
+  socialIconButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 6,
+  },
+  socialIconButtonGoogle: {
+    backgroundColor: '#db4437',
+  },
+  socialIconButtonApple: {
+    backgroundColor: '#000',
+  },
+  socialIconButtonDisabled: {
+    opacity: 0.6,
   },
   signupContainer: {
     flexDirection: 'row',
