@@ -22,7 +22,7 @@ import FCMTokenModal from '../../../components/FCMTokenModal';
 import LogoMarcaAi from '../../../components/LogoMarcaAi';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { supabase } from '../../../lib/supabase';
-import { getCurrentUser, loginUser, resendConfirmationEmail, sendPasswordResetEmail } from '../../../services/supabase/authService';
+import { checkArtistsAndRedirect, getCurrentUser, loginUser, resendConfirmationEmail, sendPasswordResetEmail } from '../../../services/supabase/authService';
 import {
   checkUserExists,
   createOrUpdateUserFromApple,
@@ -252,8 +252,15 @@ export default function LoginScreen() {
         console.error('Erro ao buscar token FCM:', error);
       });
 
+      // Verificar artistas e redirecionar adequadamente
+      const { shouldRedirectToSelection } = await checkArtistsAndRedirect();
+
       setTimeout(() => {
-        router.replace('/(tabs)/agenda');
+        if (shouldRedirectToSelection) {
+          router.replace('/selecionar-artista');
+        } else {
+          router.replace('/(tabs)/agenda');
+        }
       }, 100);
     } finally {
       setLoading(false);
@@ -310,8 +317,16 @@ export default function LoginScreen() {
             getFCMToken().catch((error) => {
               console.error('Erro ao buscar token FCM:', error);
             });
+            
+            // Verificar artistas e redirecionar adequadamente
+            const { shouldRedirectToSelection } = await checkArtistsAndRedirect();
+            
             setTimeout(() => {
-              router.replace('/(tabs)/agenda');
+              if (shouldRedirectToSelection) {
+                router.replace('/selecionar-artista');
+              } else {
+                router.replace('/(tabs)/agenda');
+              }
             }, 100);
           }
         }
@@ -376,9 +391,17 @@ export default function LoginScreen() {
             getFCMToken().catch((error) => {
               console.error('Erro ao buscar token FCM:', error);
             });
+            
+            // Verificar artistas e redirecionar adequadamente
+            const { shouldRedirectToSelection } = await checkArtistsAndRedirect();
+            
             // Navegar após um pequeno delay para garantir que o modal apareça
             setTimeout(() => {
-              router.replace('/(tabs)/agenda');
+              if (shouldRedirectToSelection) {
+                router.replace('/selecionar-artista');
+              } else {
+                router.replace('/(tabs)/agenda');
+              }
             }, 100);
           }
         } else {
@@ -829,9 +852,17 @@ export default function LoginScreen() {
                   getFCMToken().catch((error) => {
                     console.error('Erro ao buscar token FCM:', error);
                   });
+                  
+                  // Verificar artistas e redirecionar adequadamente
+                  const { shouldRedirectToSelection } = await checkArtistsAndRedirect();
+                  
                   // Navegar após um pequeno delay para garantir que o modal apareça
                   setTimeout(() => {
-                    router.replace('/(tabs)/agenda');
+                    if (shouldRedirectToSelection) {
+                      router.replace('/selecionar-artista');
+                    } else {
+                      router.replace('/(tabs)/agenda');
+                    }
                   }, 100);
                 }}
               >
