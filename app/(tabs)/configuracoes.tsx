@@ -79,6 +79,8 @@ export default function ConfiguracoesScreen() {
   const [showDeleteErrorModal, setShowDeleteErrorModal] = useState(false);
   const [deleteErrorMessage, setDeleteErrorMessage] = useState('');
   const [showDeleteSuccessModal, setShowDeleteSuccessModal] = useState(false);
+  const [userArtistsForDelete, setUserArtistsForDelete] = useState<any[]>([]);
+  const [isLoadingArtistsForDelete, setIsLoadingArtistsForDelete] = useState(false);
   const [artistImageUpdated, setArtistImageUpdated] = useState<boolean>(false);
   const [imageLoadError, setImageLoadError] = useState(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
@@ -328,9 +330,25 @@ export default function ConfiguracoesScreen() {
     }
   };
 
-  const handleDeleteAccount = () => {
+  const handleDeleteAccount = async () => {
     setDeleteConfirmationInput('');
     setDeleteConfirmationError('');
+    setIsLoadingArtistsForDelete(true);
+    
+    try {
+      const { user } = await getCurrentUser();
+      if (user) {
+        const { artists, error } = await getArtists(user.id);
+        if (!error && artists) {
+          setUserArtistsForDelete(artists);
+        }
+      }
+    } catch (error) {
+      console.warn('Erro ao carregar artistas para exclusão', error);
+    } finally {
+      setIsLoadingArtistsForDelete(false);
+    }
+    
     setShowDeleteModal(true);
   };
 
@@ -1287,6 +1305,7 @@ export default function ConfiguracoesScreen() {
             <Text style={[dynamicStyles.deleteModalDescription, { color: colors.textSecondary }]}>
               Ao excluir sua conta &ldquo;{deleteConfirmationDisplay}&rdquo;, todos os dados (artistas, eventos, notificações e histórico) serão removidos permanentemente. Essa ação não pode ser desfeita.
             </Text>
+            
             <Text style={[dynamicStyles.deleteModalHelperText, { color: colors.textSecondary }]}>
               Digite o {deleteConfirmationLabel} acima para confirmar.
             </Text>
@@ -1307,6 +1326,34 @@ export default function ConfiguracoesScreen() {
               <Text style={[dynamicStyles.deleteModalErrorText, { color: colors.error }]}>
                 {deleteConfirmationError}
               </Text>
+            ) : null}
+            
+            {isLoadingArtistsForDelete ? (
+              <View style={dynamicStyles.deleteModalArtistsLoading}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={[dynamicStyles.deleteModalArtistsLoadingText, { color: colors.textSecondary }]}>
+                  Carregando artistas...
+                </Text>
+              </View>
+            ) : userArtistsForDelete.length > 0 ? (
+              <View style={[dynamicStyles.deleteModalArtistsContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <Text style={[dynamicStyles.deleteModalArtistsTitle, { color: colors.text }]}>
+                  Você não fará mais parte dos seguintes artistas:
+                </Text>
+                <ScrollView style={dynamicStyles.deleteModalArtistsList} nestedScrollEnabled>
+                  {userArtistsForDelete.map((artist) => (
+                    <View key={artist.id} style={[dynamicStyles.deleteModalArtistItem, { borderColor: colors.border }]}>
+                      <Ionicons name="musical-notes" size={18} color={colors.primary} />
+                      <Text style={[dynamicStyles.deleteModalArtistName, { color: colors.text }]} numberOfLines={1}>
+                        {artist.name}
+                      </Text>
+                      <Text style={[dynamicStyles.deleteModalArtistRole, { color: colors.textSecondary }]}>
+                        ({getRoleLabel(artist.role)})
+                      </Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
             ) : null}
             <View style={dynamicStyles.deleteModalActions}>
               <TouchableOpacity
@@ -2181,7 +2228,50 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
           fontSize: 15,
           fontWeight: '600',
         },
-  modalTitle: {
+        deleteModalArtistsContainer: {
+          marginTop: 16,
+          marginBottom: 12,
+          borderRadius: 12,
+          padding: 16,
+          borderWidth: 1,
+        },
+        deleteModalArtistsTitle: {
+          fontSize: 14,
+          fontWeight: '600',
+          marginBottom: 12,
+        },
+        deleteModalArtistsList: {
+          maxHeight: 150,
+        },
+        deleteModalArtistItem: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingVertical: 10,
+          paddingHorizontal: 12,
+          borderRadius: 8,
+          borderWidth: 1,
+          marginBottom: 8,
+          gap: 10,
+        },
+        deleteModalArtistName: {
+          flex: 1,
+          fontSize: 15,
+          fontWeight: '500',
+        },
+        deleteModalArtistRole: {
+          fontSize: 13,
+        },
+        deleteModalArtistsLoading: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingVertical: 16,
+          gap: 8,
+        },
+        deleteModalArtistsLoadingText: {
+          fontSize: 14,
+        },
+        modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     flex: 1,
