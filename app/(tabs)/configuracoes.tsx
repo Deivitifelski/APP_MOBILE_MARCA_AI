@@ -20,12 +20,11 @@ import OptimizedImage from '../../components/OptimizedImage';
 import UpgradeModal from '../../components/UpgradeModal';
 import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { supabase } from '../../lib/supabase';
 import { artistImageUpdateService } from '../../services/artistImageUpdateService';
 import { cacheService } from '../../services/cacheService';
 import { RealtimeSubscription, subscribeToUsers } from '../../services/realtimeService';
 import { getArtists } from '../../services/supabase/artistService';
-import { getCurrentUser, updatePassword, logoutUser, deleteAccount } from '../../services/supabase/authService';
+import { deleteAccount, getCurrentUser, logoutUser, updatePassword } from '../../services/supabase/authService';
 import { createFeedback } from '../../services/supabase/feedbackService';
 import { getUserPermissions } from '../../services/supabase/permissionsService';
 import { getUserProfile, isPremiumUser, UserProfile } from '../../services/supabase/userService';
@@ -80,7 +79,6 @@ export default function ConfiguracoesScreen() {
   const [showDeleteErrorModal, setShowDeleteErrorModal] = useState(false);
   const [deleteErrorMessage, setDeleteErrorMessage] = useState('');
   const [showDeleteSuccessModal, setShowDeleteSuccessModal] = useState(false);
-  const [deleteSuccessLog, setDeleteSuccessLog] = useState('');
   const [artistImageUpdated, setArtistImageUpdated] = useState<boolean>(false);
   const [imageLoadError, setImageLoadError] = useState(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
@@ -340,15 +338,13 @@ export default function ConfiguracoesScreen() {
     setIsDeletingAccount(true);
 
     try {
-      const { success, error, log } = await deleteAccount();
+      const { success, error } = await deleteAccount();
 
       if (!success) {
         handleShowDeleteError(error || 'Não foi possível excluir a conta. Tente novamente.');
         return;
       }
 
-      const logMessage = log || 'Nenhum log retornado pelo banco.';
-      setDeleteSuccessLog(logMessage);
       setShowDeleteSuccessModal(true);
     } catch (error) {
       handleShowDeleteError('Não foi possível excluir a conta. Tente novamente.');
@@ -1289,7 +1285,7 @@ export default function ConfiguracoesScreen() {
               </TouchableOpacity>
             </View>
             <Text style={[dynamicStyles.deleteModalDescription, { color: colors.textSecondary }]}>
-              Ao excluir sua conta "{deleteConfirmationDisplay}", todos os dados (artistas, eventos, notificações e histórico) serão removidos permanentemente. Essa ação não pode ser desfeita.
+              Ao excluir sua conta &ldquo;{deleteConfirmationDisplay}&rdquo;, todos os dados (artistas, eventos, notificações e histórico) serão removidos permanentemente. Essa ação não pode ser desfeita.
             </Text>
             <Text style={[dynamicStyles.deleteModalHelperText, { color: colors.textSecondary }]}>
               Digite o {deleteConfirmationLabel} acima para confirmar.
@@ -1374,11 +1370,8 @@ export default function ConfiguracoesScreen() {
           <View style={[dynamicStyles.deleteSuccessContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[dynamicStyles.deleteSuccessTitle, { color: colors.text }]}>Conta excluída com sucesso</Text>
             <Text style={[dynamicStyles.deleteSuccessMessage, { color: colors.textSecondary }]}>
-              O banco retornou:
+             Conta excluída. Obrigado por ter usado o app! Se desejar voltar, estaremos por aqui.
             </Text>
-            <ScrollView style={dynamicStyles.deleteSuccessLogContainer}>
-              <Text style={[dynamicStyles.deleteSuccessLogText, { color: colors.text }]}>{deleteSuccessLog}</Text>
-            </ScrollView>
             <TouchableOpacity
               style={[dynamicStyles.deleteSuccessButton, { backgroundColor: colors.primary }]}
               onPress={handleCloseDeleteSuccessModal}
@@ -2176,19 +2169,6 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
         deleteSuccessMessage: {
           fontSize: 14,
           textAlign: 'center',
-        },
-        deleteSuccessLogContainer: {
-          width: '100%',
-          maxHeight: 180,
-          borderRadius: 12,
-          borderWidth: 1,
-          borderColor: '#E5E7EB',
-          padding: 12,
-          backgroundColor: 'rgba(255,255,255,0.06)',
-        },
-        deleteSuccessLogText: {
-          fontSize: 13,
-          lineHeight: 18,
         },
         deleteSuccessButton: {
           marginTop: 6,
