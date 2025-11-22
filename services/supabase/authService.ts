@@ -42,7 +42,7 @@ export const loginUser = async (email: string, password: string): Promise<LoginR
       },
       error: null,
     };
-  } catch (error) {
+  } catch {
     return {
       data: null,
       error: {
@@ -69,7 +69,7 @@ export const logoutUser = async (): Promise<{ error: string | null }> => {
     return {
       error: null,
     };
-  } catch (error) {
+  } catch {
     return {
       error: 'Erro de conexão',
     };
@@ -85,7 +85,7 @@ export const getCurrentUser = async () => {
     }
 
     return { user, error: null };
-  } catch (error) {
+  } catch {
     return { user: null, error: 'Erro de conexão' };
   }
 };
@@ -99,7 +99,7 @@ export const getCurrentSession = async () => {
     }
 
     return { session, error: null };
-  } catch (error) {
+  } catch {
     return { session: null, error: 'Erro de conexão' };
   }
 };
@@ -185,6 +185,59 @@ export const sendPasswordResetEmail = async (email: string): Promise<{ success: 
     return {
       success: false,
       error: 'Erro de conexão. Tente novamente.'
+    };
+  }
+};
+
+
+export const deleteAccount = async (): Promise<{ success: boolean; error?: string; log?: string }> => {
+  try {
+    const { user, error: userError } = await getCurrentUser();
+
+    if (userError || !user) {
+      return { success: false, error: 'Usuário não autenticado' };
+    }
+
+    const { data, error } = await supabase.rpc('delete_user_account', {
+      p_uid: user.id,
+    });
+
+    if (error) {
+      console.error('deleteAccount rpc error', error);
+      return { success: false, error: error.message };
+    }
+
+    const response = (data as Record<string, any> | null) ?? null;
+
+    if (!response) {
+      return { success: false, error: 'Resposta vazia do servidor.', log: 'Resposta vazia do servidor.' };
+    }
+
+    const statusValue = response.status;
+    let status = '';
+
+    if (typeof statusValue === 'string') {
+      status = statusValue.toLowerCase();
+    } else if (typeof statusValue === 'number') {
+      status = String(statusValue).toLowerCase();
+    } else if (statusValue) {
+      status = String(statusValue).toLowerCase();
+    }
+
+    const responseError = (response.error || response.message) as string | undefined;
+
+    if (status === 'error' || responseError) {
+      const message = responseError || 'Erro desconhecido ao excluir a conta.';
+      return { success: false, error: message, log: JSON.stringify(response, null, 2) };
+    }
+
+    const logMessage = JSON.stringify(response, null, 2);
+    return { success: true, log: logMessage };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || 'Erro de conexão. Tente novamente.',
+      log: err?.message || 'Erro inesperado',
     };
   }
 };
