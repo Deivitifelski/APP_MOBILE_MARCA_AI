@@ -1328,33 +1328,6 @@ export default function ConfiguracoesScreen() {
               </Text>
             ) : null}
             
-            {isLoadingArtistsForDelete ? (
-              <View style={dynamicStyles.deleteModalArtistsLoading}>
-                <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={[dynamicStyles.deleteModalArtistsLoadingText, { color: colors.textSecondary }]}>
-                  Carregando artistas...
-                </Text>
-              </View>
-            ) : userArtistsForDelete.length > 0 ? (
-              <View style={[dynamicStyles.deleteModalArtistsContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                <Text style={[dynamicStyles.deleteModalArtistsTitle, { color: colors.text }]}>
-                  Você não fará mais parte dos seguintes artistas:
-                </Text>
-                <ScrollView style={dynamicStyles.deleteModalArtistsList} nestedScrollEnabled>
-                  {userArtistsForDelete.map((artist) => (
-                    <View key={artist.id} style={[dynamicStyles.deleteModalArtistItem, { borderColor: colors.border }]}>
-                      <Ionicons name="musical-notes" size={18} color={colors.primary} />
-                      <Text style={[dynamicStyles.deleteModalArtistName, { color: colors.text }]} numberOfLines={1}>
-                        {artist.name}
-                      </Text>
-                      <Text style={[dynamicStyles.deleteModalArtistRole, { color: colors.textSecondary }]}>
-                        ({getRoleLabel(artist.role)})
-                      </Text>
-                    </View>
-                  ))}
-                </ScrollView>
-              </View>
-            ) : null}
             <View style={dynamicStyles.deleteModalActions}>
               <TouchableOpacity
                 style={[dynamicStyles.deleteModalSecondaryButton, { borderColor: colors.border }]}
@@ -1379,6 +1352,44 @@ export default function ConfiguracoesScreen() {
                 )}
               </TouchableOpacity>
             </View>
+            
+            {isLoadingArtistsForDelete ? (
+              <View style={dynamicStyles.deleteModalArtistsLoading}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={[dynamicStyles.deleteModalArtistsLoadingText, { color: colors.textSecondary }]}>
+                  Carregando artistas...
+                </Text>
+              </View>
+            ) : userArtistsForDelete.length > 0 ? (
+              <View style={[dynamicStyles.deleteModalArtistsContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <Text style={[dynamicStyles.deleteModalArtistsTitle, { color: colors.text }]}>
+                  Você não fará mais parte dos seguintes artistas:
+                </Text>
+                <ScrollView style={dynamicStyles.deleteModalArtistsList} nestedScrollEnabled showsVerticalScrollIndicator>
+                  {userArtistsForDelete.map((artist) => (
+                    <View key={artist.id} style={[dynamicStyles.deleteModalArtistItem, { borderColor: colors.border }]}>
+                      <OptimizedImage
+                        imageUrl={artist.profile_url || ''}
+                        cacheKey={`delete_artist_${artist.id}`}
+                        style={[dynamicStyles.deleteModalArtistImage, { borderColor: colors.border }]}
+                        fallbackIcon="musical-notes"
+                        fallbackIconSize={20}
+                        fallbackIconColor={colors.primary}
+                        showLoadingIndicator={false}
+                      />
+                      <View style={dynamicStyles.deleteModalArtistInfo}>
+                        <Text style={[dynamicStyles.deleteModalArtistName, { color: colors.text }]} numberOfLines={1}>
+                          {artist.name}
+                        </Text>
+                        <Text style={[dynamicStyles.deleteModalArtistRole, { color: colors.textSecondary }]}>
+                          {getRoleLabel(artist.role)}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null}
           </View>
         </SafeAreaView>
       </Modal>
@@ -2229,11 +2240,13 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
           fontWeight: '600',
         },
         deleteModalArtistsContainer: {
-          marginTop: 16,
+          marginTop: 20,
           marginBottom: 12,
           borderRadius: 12,
           padding: 16,
           borderWidth: 1,
+          flex: 1,
+          minHeight: 100,
         },
         deleteModalArtistsTitle: {
           fontSize: 14,
@@ -2241,25 +2254,39 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
           marginBottom: 12,
         },
         deleteModalArtistsList: {
-          maxHeight: 150,
+          flex: 1,
         },
         deleteModalArtistItem: {
           flexDirection: 'row',
           alignItems: 'center',
-          paddingVertical: 10,
-          paddingHorizontal: 12,
+          paddingVertical: 12,
+          paddingHorizontal: 14,
           borderRadius: 8,
           borderWidth: 1,
           marginBottom: 8,
-          gap: 10,
+          gap: 12,
+        },
+        deleteModalArtistImage: {
+          width: 40,
+          height: 40,
+          borderRadius: 20,
+          borderWidth: 1,
+        },
+        deleteModalArtistInfo: {
+          flex: 1,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
         },
         deleteModalArtistName: {
           flex: 1,
           fontSize: 15,
-          fontWeight: '500',
+          fontWeight: '600',
         },
         deleteModalArtistRole: {
           fontSize: 13,
+          fontWeight: '500',
+          marginLeft: 12,
         },
         deleteModalArtistsLoading: {
           flexDirection: 'row',
