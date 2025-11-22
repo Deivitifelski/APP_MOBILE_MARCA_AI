@@ -20,12 +20,11 @@ import OptimizedImage from '../../components/OptimizedImage';
 import UpgradeModal from '../../components/UpgradeModal';
 import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { supabase } from '../../lib/supabase';
 import { artistImageUpdateService } from '../../services/artistImageUpdateService';
 import { cacheService } from '../../services/cacheService';
 import { RealtimeSubscription, subscribeToUsers } from '../../services/realtimeService';
 import { getArtists } from '../../services/supabase/artistService';
-import { getCurrentUser, updatePassword, logoutUser } from '../../services/supabase/authService';
+import { deleteAccount, getCurrentUser, logoutUser, updatePassword } from '../../services/supabase/authService';
 import { createFeedback } from '../../services/supabase/feedbackService';
 import { getUserPermissions } from '../../services/supabase/permissionsService';
 import { getUserProfile, isPremiumUser, UserProfile } from '../../services/supabase/userService';
@@ -73,6 +72,13 @@ export default function ConfiguracoesScreen() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmationInput, setDeleteConfirmationInput] = useState('');
+  const [deleteConfirmationError, setDeleteConfirmationError] = useState('');
+  const [showDeleteErrorModal, setShowDeleteErrorModal] = useState(false);
+  const [deleteErrorMessage, setDeleteErrorMessage] = useState('');
+  const [showDeleteSuccessModal, setShowDeleteSuccessModal] = useState(false);
   const [artistImageUpdated, setArtistImageUpdated] = useState<boolean>(false);
   const [imageLoadError, setImageLoadError] = useState(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
@@ -295,31 +301,84 @@ export default function ConfiguracoesScreen() {
     setShowLogoutModal(true);
   };
 
+  const cleanupSessionAndRedirect = async ({ allowRedirectOnError = false } = {}) => {
+    cleanupRealtimeSubscriptions();
+    await cacheService.clear();
+    await clearArtist();
+
+    const { error } = await logoutUser();
+
+    if (error) {
+      if (!allowRedirectOnError) {
+        throw new Error(error);
+      }
+      console.warn('cleanupSessionAndRedirect:', error);
+    }
+
+    router.replace('/login');
+  };
+
   const confirmLogout = async () => {
+    setShowLogoutModal(false);
+
     try {
-      // Limpar subscriptions
-      cleanupRealtimeSubscriptions();
-      
-      // Limpar cache
-      await cacheService.clear();
+      await cleanupSessionAndRedirect();
+    } catch (error: any) {
+      Alert.alert('Erro', error?.message || 'Não foi possível sair. Tente novamente.');
+    }
+  };
 
-      // Limpar artista ativo em memória e no AsyncStorage
-      await clearArtist();
+  const handleDeleteAccount = () => {
+    setDeleteConfirmationInput('');
+    setDeleteConfirmationError('');
+    setShowDeleteModal(true);
+  };
 
-      // Fazer logout centralizado (inclui limpar artista ativo no storage)
-      const { error } = await logoutUser();
-      if (error) {
-        Alert.alert('Erro', error || 'Não foi possível sair. Tente novamente.');
+  const executeDeleteAccount = async () => {
+    setIsDeletingAccount(true);
+
+    try {
+      const { success, error } = await deleteAccount();
+
+      if (!success) {
+        handleShowDeleteError(error || 'Não foi possível excluir a conta. Tente novamente.');
         return;
       }
-      
-      // Fechar modal
-      setShowLogoutModal(false);
-      
-      // Redirecionar para login
-      router.replace('/login');
+
+      setShowDeleteSuccessModal(true);
     } catch (error) {
-      Alert.alert('Erro', 'Não foi possível sair. Tente novamente.');
+      handleShowDeleteError('Não foi possível excluir a conta. Tente novamente.');
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
+
+  const handleConfirmDeleteAccount = async () => {
+    if (deleteConfirmationTarget) {
+      if (deleteConfirmationInput.trim().toLowerCase() !== deleteConfirmationTarget.toLowerCase()) {
+        setDeleteConfirmationError('O texto digitado não confere com o valor solicitado.');
+        return;
+      }
+    } else if (!deleteConfirmationInput.trim()) {
+      setDeleteConfirmationError('Digite um valor para confirmar a exclusão.');
+      return;
+    }
+
+    setShowDeleteModal(false);
+    await executeDeleteAccount();
+  };
+
+  const handleShowDeleteError = (message: string) => {
+    setDeleteErrorMessage(message);
+    setShowDeleteErrorModal(true);
+  };
+
+  const handleCloseDeleteSuccessModal = async () => {
+    setShowDeleteSuccessModal(false);
+    try {
+      await cleanupSessionAndRedirect({ allowRedirectOnError: true });
+    } catch (error: any) {
+      console.warn('Erro ao limpar sessão após exclusão', error);
     }
   };
 
@@ -442,6 +501,17 @@ export default function ConfiguracoesScreen() {
       Alert.alert('Erro', 'Erro ao processar seu feedback. Tente novamente.');
     }
   };
+
+  const deleteConfirmationTarget = (userProfile?.name || userProfile?.email || '').trim();
+  const deleteConfirmationLabel = userProfile?.name
+    ? 'nome'
+    : userProfile?.email
+      ? 'email'
+      : 'nome do usuário';
+  const deleteConfirmationDisplay = userProfile?.name || userProfile?.email || 'seu usuário';
+  const isDeleteConfirmationValid = deleteConfirmationTarget
+    ? deleteConfirmationInput.trim().toLowerCase() === deleteConfirmationTarget.toLowerCase()
+    : deleteConfirmationInput.trim().length > 0;
 
 
   const handleCopyEmail = async () => {
@@ -693,6 +763,16 @@ export default function ConfiguracoesScreen() {
               'Segurança',
               'Alterar senha e configurações de segurança',
               handleSecurity
+            )}
+            
+            {renderSettingItem(
+              'trash',
+              'Deletar Conta',
+              'Excluir permanentemente todos os dados e encerrar o acesso',
+              isDeletingAccount ? undefined : handleDeleteAccount,
+              isDeletingAccount ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : undefined
             )}
             
             {/* Status do Plano - apenas para usuários premium */}
@@ -1185,6 +1265,121 @@ export default function ConfiguracoesScreen() {
             </View>
           </ScrollView>
         </SafeAreaView>
+      </Modal>
+
+      {/* Modal de Confirmação de Exclusão de Conta */}
+      <Modal
+        visible={showDeleteModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowDeleteModal(false)}
+      >
+        <SafeAreaView style={[dynamicStyles.modalContainer, { backgroundColor: colors.background }]}>
+          <View style={[dynamicStyles.deleteModalContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={dynamicStyles.deleteModalHeader}>
+              <Text style={[dynamicStyles.deleteModalTitle, { color: colors.text }]}>
+                Confirmar exclusão de conta
+              </Text>
+              <TouchableOpacity onPress={() => setShowDeleteModal(false)} style={dynamicStyles.modalCloseButton}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            <Text style={[dynamicStyles.deleteModalDescription, { color: colors.textSecondary }]}>
+              Ao excluir sua conta &ldquo;{deleteConfirmationDisplay}&rdquo;, todos os dados (artistas, eventos, notificações e histórico) serão removidos permanentemente. Essa ação não pode ser desfeita.
+            </Text>
+            <Text style={[dynamicStyles.deleteModalHelperText, { color: colors.textSecondary }]}>
+              Digite o {deleteConfirmationLabel} acima para confirmar.
+            </Text>
+            <TextInput
+              style={[dynamicStyles.deleteModalInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+              value={deleteConfirmationInput}
+              onChangeText={(text) => {
+                setDeleteConfirmationInput(text);
+                if (deleteConfirmationError) {
+                  setDeleteConfirmationError('');
+                }
+              }}
+              placeholder={`Digite ${deleteConfirmationDisplay}`}
+              placeholderTextColor={colors.textSecondary}
+              autoCapitalize="none"
+            />
+            {deleteConfirmationError ? (
+              <Text style={[dynamicStyles.deleteModalErrorText, { color: colors.error }]}>
+                {deleteConfirmationError}
+              </Text>
+            ) : null}
+            <View style={dynamicStyles.deleteModalActions}>
+              <TouchableOpacity
+                style={[dynamicStyles.deleteModalSecondaryButton, { borderColor: colors.border }]}
+                onPress={() => setShowDeleteModal(false)}
+              >
+                <Text style={[dynamicStyles.deleteModalSecondaryButtonText, { color: colors.text }]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  dynamicStyles.deleteModalPrimaryButton,
+                  {
+                    backgroundColor: isDeleteConfirmationValid ? '#F44336' : '#F4433680',
+                  },
+                ]}
+                onPress={handleConfirmDeleteAccount}
+                disabled={!isDeleteConfirmationValid || isDeletingAccount}
+              >
+                {isDeletingAccount ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={dynamicStyles.deleteModalPrimaryButtonText}>Excluir Conta</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Modal de Erro na Exclusão de Conta */}
+      <Modal
+        visible={showDeleteErrorModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeleteErrorModal(false)}
+      >
+        <View style={dynamicStyles.deleteErrorOverlay}>
+          <View style={[dynamicStyles.deleteErrorContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[dynamicStyles.deleteErrorTitle, { color: colors.text }]}>Erro ao excluir conta</Text>
+            <Text style={[dynamicStyles.deleteErrorMessage, { color: colors.textSecondary }]}>
+              {deleteErrorMessage}
+            </Text>
+            <TouchableOpacity
+              style={[dynamicStyles.deleteErrorButton, { backgroundColor: colors.primary }]}
+              onPress={() => setShowDeleteErrorModal(false)}
+            >
+              <Text style={dynamicStyles.deleteErrorButtonText}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Sucesso da Exclusão */}
+      <Modal
+        visible={showDeleteSuccessModal}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCloseDeleteSuccessModal}
+      >
+        <View style={dynamicStyles.deleteSuccessOverlay}>
+          <View style={[dynamicStyles.deleteSuccessContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[dynamicStyles.deleteSuccessTitle, { color: colors.text }]}>Conta excluída com sucesso</Text>
+            <Text style={[dynamicStyles.deleteSuccessMessage, { color: colors.textSecondary }]}>
+             Conta excluída. Obrigado por ter usado o app! Se desejar voltar, estaremos por aqui.
+            </Text>
+            <TouchableOpacity
+              style={[dynamicStyles.deleteSuccessButton, { backgroundColor: colors.primary }]}
+              onPress={handleCloseDeleteSuccessModal}
+            >
+              <Text style={dynamicStyles.deleteSuccessButtonText}>Voltar ao login</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
       {/* Modal de Alteração de Senha */}
@@ -1846,6 +2041,146 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
   modalCloseButton: {
     padding: 8,
   },
+  deleteModalContent: {
+    margin: 20,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    flex: 1,
+    justifyContent: 'flex-start',
+  },
+  deleteModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  deleteModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  deleteModalDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  deleteModalHelperText: {
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  deleteModalInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  deleteModalErrorText: {
+    fontSize: 12,
+    marginBottom: 12,
+  },
+  deleteModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  deleteModalSecondaryButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  deleteModalSecondaryButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  deleteModalPrimaryButton: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteModalPrimaryButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+        deleteErrorOverlay: {
+          flex: 1,
+          backgroundColor: 'rgba(0, 0, 0, 0.35)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: 20,
+        },
+        deleteErrorContent: {
+          width: '100%',
+          maxWidth: 360,
+          borderRadius: 16,
+          padding: 22,
+          borderWidth: 1,
+          alignItems: 'center',
+          gap: 12,
+        },
+        deleteErrorTitle: {
+          fontSize: 20,
+          fontWeight: 'bold',
+        },
+        deleteErrorMessage: {
+          fontSize: 15,
+          lineHeight: 20,
+          textAlign: 'center',
+        },
+        deleteErrorButton: {
+          marginTop: 8,
+          borderRadius: 10,
+          paddingVertical: 12,
+          paddingHorizontal: 24,
+        },
+        deleteErrorButtonText: {
+          color: '#fff',
+          fontSize: 15,
+          fontWeight: '600',
+        },
+        deleteSuccessOverlay: {
+          flex: 1,
+          backgroundColor: 'rgba(0, 0, 0, 0.35)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: 20,
+        },
+        deleteSuccessContent: {
+          width: '100%',
+          maxWidth: 360,
+          borderRadius: 16,
+          padding: 22,
+          borderWidth: 1,
+          alignItems: 'center',
+          gap: 12,
+        },
+        deleteSuccessTitle: {
+          fontSize: 20,
+          fontWeight: 'bold',
+          textAlign: 'center',
+        },
+        deleteSuccessMessage: {
+          fontSize: 14,
+          textAlign: 'center',
+        },
+        deleteSuccessButton: {
+          marginTop: 6,
+          borderRadius: 10,
+          paddingVertical: 12,
+          paddingHorizontal: 24,
+        },
+        deleteSuccessButtonText: {
+          color: '#fff',
+          fontSize: 15,
+          fontWeight: '600',
+        },
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
