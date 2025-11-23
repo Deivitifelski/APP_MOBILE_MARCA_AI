@@ -1,6 +1,6 @@
 import { supabase } from '../../lib/supabase';
-import { clearActiveArtist } from '../artistContext';
-import { getArtists } from './artistService';
+import { clearActiveArtist, getActiveArtist } from '../artistContext';
+import { getArtistById, getArtists } from './artistService';
 
 export interface LoginResult {
   data: {
@@ -307,8 +307,30 @@ export const checkArtistsAndRedirect = async (): Promise<{ shouldRedirectToSelec
       return { shouldRedirectToSelection: false };
     }
 
-    // Limpar artista ativo ao fazer login (garantir estado limpo)
-    await clearActiveArtist();
+    // Verificar se já existe um artista salvo no AsyncStorage
+    const savedActiveArtist = await getActiveArtist();
+    
+    if (savedActiveArtist) {
+      // Validar se o artista salvo ainda existe e o usuário ainda tem acesso
+      const { artist, error: artistError } = await getArtistById(savedActiveArtist.id);
+      
+      if (!artistError && artist) {
+        // Verificar se o usuário ainda tem acesso a este artista
+        const { artists, error: artistsError } = await getArtists(user.id);
+        
+        if (!artistsError && artists) {
+          const userHasAccess = artists.some(a => a.id === savedActiveArtist.id);
+          
+          if (userHasAccess) {
+            // Artista salvo é válido e usuário tem acesso, não redirecionar
+            return { shouldRedirectToSelection: false };
+          }
+        }
+      }
+      
+      // Artista salvo não é mais válido, limpar
+      await clearActiveArtist();
+    }
 
     // Buscar artistas do usuário
     const { artists, error: artistsError } = await getArtists(user.id);
@@ -317,7 +339,7 @@ export const checkArtistsAndRedirect = async (): Promise<{ shouldRedirectToSelec
       return { shouldRedirectToSelection: false };
     }
 
-    // Se houver artistas, redirecionar para seleção
+    // Se houver artistas e não houver artista salvo válido, redirecionar para seleção
     if (artists.length > 0) {
       return { shouldRedirectToSelection: true };
     }

@@ -845,7 +845,7 @@ export default function LoginScreen() {
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalCancelButton, { backgroundColor: colors.background, borderColor: colors.border }]}
-                onPress={() => {
+                onPress={async () => {
                   setShowWelcomeModal(false);
                   resetWelcomeContext();
                   // Buscar token FCM e mostrar modal (não navegar ainda, o modal vai aparecer)
