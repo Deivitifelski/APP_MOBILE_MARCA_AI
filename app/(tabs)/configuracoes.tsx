@@ -85,7 +85,7 @@ export default function ConfiguracoesScreen() {
   const [imageLoadError, setImageLoadError] = useState(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
   const [showArtistProfileModal, setShowArtistProfileModal] = useState(false);
-  const appVersion = Constants.expoConfig?.version ?? Constants.manifest?.version ?? '1.0.1';
+  const appVersion = Constants.expoConfig?.version ?? Constants.manifest?.version ?? '1.0.6';
 
   const formatDate = (value?: string) => {
     if (!value) return 'Não informado';
