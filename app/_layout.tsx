@@ -2,10 +2,13 @@ import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } fro
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { LogBox, Platform } from 'react-native';
 import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+
+// Desabilitar LogBox para não mostrar logs na tela
+LogBox.ignoreAllLogs(true);
 
 // Importar handler global de erros ANTES de qualquer outro código
 import './error-handler';

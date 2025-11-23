@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { setupPushNotificationHandlers } from '../services/pushNotificationHandler';
+import { checkArtistsAndRedirect } from '../services/supabase/authService';
 import { checkUserExists } from '../services/supabase/userService';
 
 export default function Index() {
@@ -59,7 +60,14 @@ export default function Index() {
         if (!userCheck.exists) {
           router.replace('/login');
         } else {
-          router.replace('/(tabs)/agenda');
+          // Verificar artistas e redirecionar adequadamente
+          const { shouldRedirectToSelection } = await checkArtistsAndRedirect();
+          
+          if (shouldRedirectToSelection) {
+            router.replace('/selecionar-artista');
+          } else {
+            router.replace('/(tabs)/agenda');
+          }
         }
       } else {
         router.replace('/login');

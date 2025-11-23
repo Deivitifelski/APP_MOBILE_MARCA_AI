@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase';
-import { clearActiveArtist } from '../artistContext';
+import { clearActiveArtist, getActiveArtist } from '../artistContext';
+import { getArtistById, getArtists } from './artistService';
 
 export interface LoginResult {
   data: {
@@ -198,6 +199,9 @@ export const deleteAccount = async (): Promise<{ success: boolean; error?: strin
       return { success: false, error: 'Usuário não autenticado' };
     }
 
+    // Limpar artista ativo antes de deletar a conta
+    await clearActiveArtist();
+
     const { data, error } = await supabase.rpc('delete_user_account', {
       p_uid: user.id,
     });
@@ -292,4 +296,56 @@ const getErrorMessage = (errorMessage: string): string => {
   };
 
   return errorMap[errorMessage] || errorMessage;
+};
+
+// Função auxiliar para verificar artistas e redirecionar adequadamente após login
+export const checkArtistsAndRedirect = async (): Promise<{ shouldRedirectToSelection: boolean }> => {
+  try {
+    const { user, error: userError } = await getCurrentUser();
+    
+    if (userError || !user) {
+      return { shouldRedirectToSelection: false };
+    }
+
+    // Verificar se já existe um artista salvo no AsyncStorage
+    const savedActiveArtist = await getActiveArtist();
+    
+    if (savedActiveArtist) {
+      // Validar se o artista salvo ainda existe e o usuário ainda tem acesso
+      const { artist, error: artistError } = await getArtistById(savedActiveArtist.id);
+      
+      if (!artistError && artist) {
+        // Verificar se o usuário ainda tem acesso a este artista
+        const { artists, error: artistsError } = await getArtists(user.id);
+        
+        if (!artistsError && artists) {
+          const userHasAccess = artists.some(a => a.id === savedActiveArtist.id);
+          
+          if (userHasAccess) {
+            // Artista salvo é válido e usuário tem acesso, não redirecionar
+            return { shouldRedirectToSelection: false };
+          }
+        }
+      }
+      
+      // Artista salvo não é mais válido, limpar
+      await clearActiveArtist();
+    }
+
+    // Buscar artistas do usuário
+    const { artists, error: artistsError } = await getArtists(user.id);
+    
+    if (artistsError || !artists) {
+      return { shouldRedirectToSelection: false };
+    }
+
+    // Se houver artistas e não houver artista salvo válido, redirecionar para seleção
+    if (artists.length > 0) {
+      return { shouldRedirectToSelection: true };
+    }
+
+    return { shouldRedirectToSelection: false };
+  } catch {
+    return { shouldRedirectToSelection: false };
+  }
 };

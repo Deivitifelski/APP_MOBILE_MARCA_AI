@@ -60,8 +60,6 @@
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
 		<false/>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Este app precisa acessar sua câmera para permitir que você tire uma foto para o perfil.</string>
