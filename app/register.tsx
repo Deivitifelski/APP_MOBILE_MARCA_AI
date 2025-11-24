@@ -14,8 +14,14 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AppleSignInButton, { AppleSignInResult } from '../components/AppleSignInButton';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
+import { checkArtistsAndRedirect } from '../services/supabase/authService';
+import {
+    createOrUpdateUserFromApple,
+    createOrUpdateUserFromGoogle,
+} from '../services/supabase/userService';
 
 export default function RegisterScreen() {
   const { colors } = useTheme();
@@ -95,6 +101,156 @@ export default function RegisterScreen() {
   const isValidEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Carregar GoogleSignin dinamicamente para evitar problemas no modo Bridgeless
+      const { GoogleSignin, statusCodes } = await import('@react-native-google-signin/google-signin');
+      
+      // Configurar Google Sign-In
+      GoogleSignin.configure({
+        webClientId: '169304206053-i5bm2l2sofd011muqr66ddm2dosn5bn9.apps.googleusercontent.com',
+        iosClientId: '169304206053-642isf3lub3ds2thkiupcje9r7lo7dh7.apps.googleusercontent.com',
+      });
+      
+      await GoogleSignin.hasPlayServices();
+      const response = await GoogleSignin.signIn();
+
+      if (response.type === 'success') {
+        const { data, error } = await supabase.auth.signInWithIdToken({
+          provider: 'google',
+          token: response.data.idToken || '',
+        });
+
+        if (error) {
+          Alert.alert('Erro', error.message);
+          return;
+        }
+
+        if (data?.user) {
+          const result = await createOrUpdateUserFromGoogle(
+            data.user.id,
+            {
+              name: response.data.user.name || response.data.user.email,
+              email: response.data.user.email,
+              photo: response.data.user.photo || undefined,
+            }
+          );
+
+          if (result.isNewUser) {
+            // Novo usuário - redirecionar para cadastro de usuário
+            router.replace('/cadastro-usuario');
+          } else {
+            // Usuário existente - verificar artistas e redirecionar
+            const { shouldRedirectToSelection } = await checkArtistsAndRedirect();
+            
+            setTimeout(() => {
+              if (shouldRedirectToSelection) {
+                router.replace('/selecionar-artista');
+              } else {
+                router.replace('/(tabs)/agenda');
+              }
+            }, 100);
+          }
+        }
+      }
+    } catch (error: any) {
+      // Carregar statusCodes dinamicamente se necessário
+      let statusCodes: any;
+      try {
+        const googleSignInModule = await import('@react-native-google-signin/google-signin');
+        statusCodes = googleSignInModule.statusCodes;
+      } catch {
+        // Se não conseguir carregar, usar códigos conhecidos
+        statusCodes = {
+          IN_PROGRESS: '10',
+          PLAY_SERVICES_NOT_AVAILABLE: '20',
+          SIGN_IN_CANCELLED: '12501',
+        };
+      }
+      
+      if (error.code === statusCodes.IN_PROGRESS) {
+        Alert.alert('Atenção', 'Login já em andamento');
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        Alert.alert('Erro', 'Google Play Services não disponível');
+      } else if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        console.log('Login com Google cancelado pelo usuário');
+      } else if (error.code === '10' || error.message?.includes('DEVELOPER_ERROR')) {
+        Alert.alert(
+          'Erro de Configuração',
+          'O app não está configurado corretamente para login com Google. Por favor, verifique se o SHA-1 está configurado no Google Cloud Console.'
+        );
+      } else {
+        console.error('Erro no login com Google:', error);
+        Alert.alert('Erro', error?.message || 'Erro ao fazer login com Google');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAppleSuccess = async ({ user, credentialEmail, credentialFullName, isNewUser }: AppleSignInResult) => {
+    setIsLoading(true);
+    try {
+      const appleFullName = credentialFullName
+        ? [credentialFullName.givenName, credentialFullName.middleName, credentialFullName.familyName]
+            .filter(Boolean)
+            .join(' ')
+            .trim()
+        : '';
+
+      const storedName =
+        (user.user_metadata?.full_name as string | undefined) ||
+        (user.user_metadata?.name as string | undefined) ||
+        '';
+
+      const finalName = appleFullName || storedName;
+      const displayName = (finalName || credentialEmail || 'Usuário').trim();
+      const emailToPersist = credentialEmail || user.email || '';
+
+      const result = await createOrUpdateUserFromApple(user.id, {
+        name: displayName || 'Usuário',
+        email: emailToPersist,
+        photo:
+          user.user_metadata?.avatar_url ||
+          user.user_metadata?.picture ||
+          undefined,
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao salvar o usuário Apple');
+      }
+
+      if (isNewUser) {
+        // Novo usuário - redirecionar para cadastro de usuário
+        router.replace('/cadastro-usuario');
+        return;
+      }
+
+      // Usuário existente - verificar artistas e redirecionar
+      const { shouldRedirectToSelection } = await checkArtistsAndRedirect();
+
+      setTimeout(() => {
+        if (shouldRedirectToSelection) {
+          router.replace('/selecionar-artista');
+        } else {
+          router.replace('/(tabs)/agenda');
+        }
+      }, 100);
+    } catch (error: any) {
+      console.error('Erro no login com Apple:', error);
+      Alert.alert('Erro', error?.message || 'Erro ao fazer login com Apple');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAppleError = (error: Error) => {
+    console.error('Erro no login com Apple:', error);
+    Alert.alert('Erro', error?.message || 'Não foi possível autenticar com a Apple');
   };
 
   const dynamicStyles = createDynamicStyles(colors);
@@ -252,12 +408,28 @@ export default function RegisterScreen() {
                 <View style={[dynamicStyles.dividerLine, { backgroundColor: colors.border }]} />
               </View>
 
-              <TouchableOpacity style={[dynamicStyles.googleButton, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <Ionicons name="logo-google" size={20} color={colors.text} />
-                <Text style={[dynamicStyles.googleButtonText, { color: colors.text }]}>
+              <TouchableOpacity 
+                style={[
+                  dynamicStyles.googleButton,
+                  isLoading && dynamicStyles.buttonDisabled
+                ]}
+                onPress={handleGoogleLogin}
+                disabled={isLoading}
+              >
+                <Ionicons name="logo-google" size={20} color="#4285F4" />
+                <Text style={dynamicStyles.googleButtonText}>
                   Cadastrar com Google
                 </Text>
               </TouchableOpacity>
+
+              {Platform.OS === 'ios' && (
+                <AppleSignInButton
+                  onSuccess={handleAppleSuccess}
+                  onError={handleAppleError}
+                  disabled={isLoading}
+                  style={dynamicStyles.appleButton}
+                />
+              )}
 
               <View style={dynamicStyles.loginContainer}>
                 <Text style={[dynamicStyles.loginText, { color: colors.textSecondary }]}>
@@ -396,13 +568,30 @@ const createDynamicStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 12,
     height: 56,
-    marginBottom: 24,
+    marginBottom: 16,
     borderWidth: 1,
+    backgroundColor: '#FFFFFF',
+    borderColor: '#DADCE0',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   googleButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
     marginLeft: 8,
+    color: '#3C4043',
+  },
+  appleButton: {
+    marginBottom: 24,
+  },
+  buttonDisabled: {
+    opacity: 0.5,
   },
   loginContainer: {
     flexDirection: 'row',
