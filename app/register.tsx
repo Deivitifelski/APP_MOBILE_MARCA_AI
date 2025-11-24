@@ -410,15 +410,14 @@ export default function RegisterScreen() {
 
               <TouchableOpacity 
                 style={[
-                  dynamicStyles.googleButton, 
-                  { backgroundColor: colors.surface, borderColor: colors.border },
+                  dynamicStyles.googleButton,
                   isLoading && dynamicStyles.buttonDisabled
                 ]}
                 onPress={handleGoogleLogin}
                 disabled={isLoading}
               >
-                <Ionicons name="logo-google" size={20} color={colors.text} />
-                <Text style={[dynamicStyles.googleButtonText, { color: colors.text }]}>
+                <Ionicons name="logo-google" size={20} color="#4285F4" />
+                <Text style={dynamicStyles.googleButtonText}>
                   Cadastrar com Google
                 </Text>
               </TouchableOpacity>
@@ -571,11 +570,22 @@ const createDynamicStyles = (colors: any) => StyleSheet.create({
     height: 56,
     marginBottom: 16,
     borderWidth: 1,
+    backgroundColor: '#FFFFFF',
+    borderColor: '#DADCE0',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   googleButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
     marginLeft: 8,
+    color: '#3C4043',
   },
   appleButton: {
     marginBottom: 24,
