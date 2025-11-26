@@ -6,7 +6,7 @@ import { Platform } from 'react-native';
 export const getRevenueCatKey = (): string => {
   if (Platform.OS === 'ios') {
     // Chave pública do Revenue Cat para iOS
-    return 'appl_PVJKhYqNfSQdfaFxmviIAQGmaAj';
+    return 'appl_qbHbRLkSDGnAvykyixDZevZyhSY';
   } else {
     // Chave pública do Revenue Cat para Android
     // ⚠️ SUBSTITUA pela sua chave real quando tiver

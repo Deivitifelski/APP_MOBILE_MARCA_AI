@@ -61,7 +61,7 @@
          </BuildableReference>
       </BuildableProductRunnable>
       <StoreKitConfigurationFileReference
-         identifier = "MarcaAI.storekit">
+         identifier = "../app2aa2f6dbae.storekit">
       </StoreKitConfigurationFileReference>
    </LaunchAction>
    <ProfileAction

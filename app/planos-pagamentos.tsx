@@ -1,187 +1,153 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { fetchProducts, initConnection, requestPurchase, Product } from 'react-native-iap';
+import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Purchases, { PurchasesPackage } from 'react-native-purchases';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getRevenueCatKey } from '../config/revenuecat-keys';
 import { useTheme } from '../contexts/ThemeContext';
-
-// IDs das assinaturas
-const subscriptionSkus = ['Premium marca_ai_9_90_m'];
+import { supabase } from '../lib/supabase';
 
 export default function PlanosPagamentosScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, isDarkMode } = useTheme();
-  const [products, setProducts] = useState<Product[]>([]);
+  const [packages, setPackages] = useState<PurchasesPackage[]>([]);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
-    const inicializarEBuscar = async () => {
+    const inicializar = async () => {
       try {
-        // Inicializar StoreKit primeiro
-        console.log('🔄 [useEffect] Iniciando conexão com StoreKit...');
-        const initResult = await initConnection();
-        console.log('✅ [initConnection] SUCESSO - StoreKit inicializado:');
-        console.log('📊 [initConnection] Resultado:', JSON.stringify(initResult, null, 2));
+        // Configurar RevenueCat
+        const apiKey = getRevenueCatKey();
+        console.log('🔄 [RevenueCat] Configurando com chave:', apiKey);
         
-        // Aguardar um pouco para garantir que a conexão está totalmente estabelecida
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Agora buscar assinaturas
-        console.log('🔄 [useEffect] Conexão estabelecida, buscando assinaturas...');
-        await inAppGetSubscriptions();
+        await Purchases.configure({ apiKey });
+        console.log('✅ [RevenueCat] Configurado com sucesso');
+
+        // Buscar ofertas
+        await buscarOfertas();
       } catch (error: any) {
-        console.error('❌ [initConnection] ERRO ao inicializar StoreKit:');
-        console.error('❌ [initConnection] Tipo do erro:', typeof error);
-        console.error('❌ [initConnection] Mensagem:', error?.message || 'Sem mensagem');
-        console.error('❌ [initConnection] Stack:', error?.stack || 'Sem stack');
-        console.error('❌ [initConnection] Erro completo:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+        console.error('❌ [RevenueCat] Erro ao inicializar:', error);
+        setLoading(false);
       }
     };
 
-    inicializarEBuscar();
+    inicializar();
   }, []);
 
-  // Função para buscar assinaturas disponíveis
-  const inAppGetSubscriptions = async () => {
+  // Função para buscar ofertas
+  const buscarOfertas = async () => {
     try {
-      console.log('🔄 [inAppGetSubscriptions] Iniciando busca de assinaturas...');
-      console.log('📋 [inAppGetSubscriptions] SKUs buscados:', JSON.stringify(subscriptionSkus, null, 2));
+      console.log('🔍 [buscarOfertas] Buscando ofertas...');
       
-      // Garantir que a conexão está inicializada
-      console.log('🔍 [inAppGetSubscriptions] Verificando conexão...');
-      try {
-        await initConnection();
-        console.log('✅ [inAppGetSubscriptions] Conexão verificada/estabelecida');
-      } catch (initError) {
-        console.warn('⚠️ [inAppGetSubscriptions] Erro ao verificar conexão (pode já estar inicializada):', initError);
-      }
-      
-      // Pequeno delay para garantir que a conexão está pronta
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      console.log('🔍 [inAppGetSubscriptions] Buscando produtos...');
-      const test = await fetchProducts({
-        skus: subscriptionSkus,
-        type: 'subs',
+      const offerings = await Purchases.getOfferings();
+      console.log('📦 [buscarOfertas] Offerings recebidos:', {
+        current: offerings.current ? 'existe' : 'não existe',
+        all: Object.keys(offerings.all),
       });
-      
-      console.log('✅ [inAppGetSubscriptions] SUCESSO - Dados recebidos:');
-      console.log('📊 [inAppGetSubscriptions] Tipo:', typeof test);
-      console.log('📊 [inAppGetSubscriptions] É array?', Array.isArray(test));
-      console.log('📊 [inAppGetSubscriptions] Quantidade:', test?.length || 0);
-      console.log('📊 [inAppGetSubscriptions] Dados completos:', JSON.stringify(test, null, 2));
-      
-      if (test && test.length > 0) {
-        console.log('✅ [inAppGetSubscriptions] Produtos encontrados:', test.length);
-        setProducts(test); // Salvar produtos no estado
-        test.forEach((produto, index) => {
-          console.log(`\n📦 [inAppGetSubscriptions] Produto ${index + 1}:`);
-          console.log('   ID:', produto.id);
-          console.log('   Título:', produto.title);
-          console.log('   Preço:', produto.displayPrice);
-          console.log('   Descrição:', produto.description);
-          console.log('   Tipo:', produto.type);
-          console.log('   Dados completos do produto:', JSON.stringify(produto, null, 2));
+
+      if (offerings.current && offerings.current.availablePackages.length > 0) {
+        console.log('✅ [buscarOfertas] Packages encontrados:', offerings.current.availablePackages.length);
+        setPackages(offerings.current.availablePackages);
+        setShowModal(true);
+        
+        offerings.current.availablePackages.forEach((pkg: PurchasesPackage, index: number) => {
+          console.log(`📦 Package ${index + 1}:`, {
+            identifier: pkg.identifier,
+            packageType: pkg.packageType,
+            productId: pkg.product.identifier,
+            productTitle: pkg.product.title,
+            productPrice: pkg.product.priceString,
+            productDescription: pkg.product.description,
+          });
         });
       } else {
-        console.warn('⚠️ [inAppGetSubscriptions] Nenhuma assinatura encontrada');
-        console.warn('⚠️ [inAppGetSubscriptions] Resposta recebida:', test);
-        console.warn('💡 [inAppGetSubscriptions] Para resolver:');
-        console.warn('   1. Adicione o arquivo MarcaAI.storekit ao projeto Xcode');
-        console.warn('   2. Configure o StoreKit no Scheme: Product → Scheme → Edit Scheme → Run → Options → StoreKit Configuration');
-        console.warn('   3. Ou configure uma conta de teste do Sandbox no simulador');
-        setProducts([]);
+        console.warn('⚠️ [buscarOfertas] Nenhum package disponível');
+        setPackages([]);
       }
       setLoading(false);
     } catch (error: any) {
-      console.error('❌ [inAppGetSubscriptions] ERRO ao buscar assinaturas:');
-      console.error('❌ [inAppGetSubscriptions] Tipo do erro:', typeof error);
-      console.error('❌ [inAppGetSubscriptions] É instância de Error?', error instanceof Error);
-      console.error('❌ [inAppGetSubscriptions] Mensagem:', error?.message || 'Sem mensagem');
-      console.error('❌ [inAppGetSubscriptions] Código:', error?.code || 'Sem código');
-      console.error('❌ [inAppGetSubscriptions] Stack:', error?.stack || 'Sem stack');
-      console.error('❌ [inAppGetSubscriptions] Erro completo:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
-      setProducts([]);
+      console.error('❌ [buscarOfertas] Erro:', error);
+      setPackages([]);
       setLoading(false);
     }
   };
 
-  // Função para comprar uma assinatura
-  const handlePurchase = async (product: Product) => {
-    setPurchasing(product.id);
-    await inAppBuySubscription({ productid: product.id });
-    setPurchasing(null);
+  // Função para comprar
+  const comprar = async (packageToBuy: PurchasesPackage) => {
+    try {
+      setPurchasing(packageToBuy.identifier);
+      console.log('🛒 [comprar] Iniciando compra do package:', packageToBuy.identifier);
+
+      const purchaseResult = await Purchases.purchasePackage(packageToBuy);
+      
+      console.log('✅ [comprar] Compra realizada:', purchaseResult);
+      
+      // Sincronizar com Supabase
+      await syncPurchaseWithSupabase(purchaseResult.customerInfo);
+
+      Alert.alert(
+        'Compra realizada!',
+        'Sua assinatura foi ativada com sucesso. Obrigado!',
+        [{ text: 'OK' }]
+      );
+    } catch (error: any) {
+      console.error('❌ [comprar] Erro:', error);
+      
+      if (error.userCancelled) {
+        console.log('⚠️ [comprar] Compra cancelada pelo usuário');
+      } else {
+        Alert.alert(
+          'Erro na compra',
+          error.message || 'Não foi possível processar a compra. Tente novamente.',
+          [{ text: 'OK' }]
+        );
+      }
+    } finally {
+      setPurchasing(null);
+    }
   };
 
-  // Função para comprar uma assinatura
-  const inAppBuySubscription = async (data: { productid?: string }) => {
-    console.log('🔄 [inAppBuySubscription] Iniciando compra de assinatura...');
-    console.log('📋 [inAppBuySubscription] Dados recebidos:', JSON.stringify(data, null, 2));
-    console.log('📋 [inAppBuySubscription] Product ID:', data?.productid || 'Não fornecido');
-    
+  // Sincronizar compra com Supabase
+  const syncPurchaseWithSupabase = async (customerInfo: any): Promise<void> => {
     try {
-      // Garantir que a conexão está inicializada
-      console.log('🔍 [inAppBuySubscription] Verificando conexão...');
-      try {
-        await initConnection();
-        console.log('✅ [inAppBuySubscription] Conexão verificada/estabelecida');
-      } catch (initError) {
-        console.warn('⚠️ [inAppBuySubscription] Erro ao verificar conexão (pode já estar inicializada):', initError);
+      console.log('🔄 [syncPurchaseWithSupabase] Sincronizando compra com Supabase...');
+      
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        console.warn('⚠️ [syncPurchaseWithSupabase] Usuário não autenticado');
+        return;
       }
-      
-      // Pequeno delay para garantir que a conexão está pronta
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      const productId = data?.productid || subscriptionSkus[0];
-      console.log('🛒 [inAppBuySubscription] Product ID a ser usado:', productId);
-      
-      const requestParams = {
-        request: {
-          ios: { sku: productId },
-        },
-        type: 'subs' as const,
-      };
-      
-      console.log('📤 [inAppBuySubscription] Parâmetros da requisição:', JSON.stringify(requestParams, null, 2));
-      
-      const result = await requestPurchase(requestParams);
-      
-      console.log('✅ [inAppBuySubscription] SUCESSO - Compra iniciada:');
-      console.log('📊 [inAppBuySubscription] Tipo do resultado:', typeof result);
-      console.log('📊 [inAppBuySubscription] Resultado completo:', JSON.stringify(result, null, 2));
-      
-      if (result) {
-        console.log('✅ [inAppBuySubscription] Compra processada com sucesso');
-        if (Array.isArray(result)) {
-          console.log('📦 [inAppBuySubscription] Múltiplas compras:', result.length);
-          result.forEach((purchase, index) => {
-            console.log(`\n📦 [inAppBuySubscription] Compra ${index + 1}:`, JSON.stringify(purchase, null, 2));
-          });
-        } else {
-          console.log('📦 [inAppBuySubscription] Compra única:', JSON.stringify(result, null, 2));
-        }
+
+      // Verificar se tem assinatura premium ativa
+      const hasPremium = customerInfo.entitlements.active['premium'] !== undefined;
+      const plan = hasPremium ? 'premium' : 'free';
+      const status = hasPremium ? 'active' : 'inactive';
+
+      console.log('👤 [syncPurchaseWithSupabase] Usuário:', user.id);
+      console.log('📊 [syncPurchaseWithSupabase] Plano:', plan, 'Status:', status);
+
+      // Atualizar status da assinatura no Supabase
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({
+          plan,
+          subscription_status: status,
+          subscription_updated_at: new Date().toISOString(),
+        })
+        .eq('id', user.id);
+
+      if (updateError) {
+        console.error('❌ [syncPurchaseWithSupabase] Erro ao atualizar Supabase:', updateError);
       } else {
-        console.warn('⚠️ [inAppBuySubscription] Resultado é null (compra pode estar pendente)');
+        console.log('✅ [syncPurchaseWithSupabase] Assinatura sincronizada com Supabase com sucesso');
       }
     } catch (error: any) {
-      console.error('❌ [inAppBuySubscription] ERRO ao comprar assinatura:');
-      console.error('❌ [inAppBuySubscription] Tipo do erro:', typeof error);
-      console.error('❌ [inAppBuySubscription] É instância de Error?', error instanceof Error);
-      
-      // PurchaseError é uma interface, não uma classe
-      if (error && typeof error === 'object' && 'code' in error && 'message' in error) {
-        console.error('❌ [inAppBuySubscription] Código do erro:', error.code);
-        console.error('❌ [inAppBuySubscription] Mensagem do erro:', error.message);
-        console.error('❌ [inAppBuySubscription] Product ID (se disponível):', error.productId || 'Não disponível');
-        console.error('❌ [inAppBuySubscription] Erro completo:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
-      } else {
-        console.error('❌ [inAppBuySubscription] Mensagem:', error?.message || 'Sem mensagem');
-        console.error('❌ [inAppBuySubscription] Stack:', error?.stack || 'Sem stack');
-        console.error('❌ [inAppBuySubscription] Erro completo:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
-      }
+      console.error('❌ [syncPurchaseWithSupabase] Erro ao sincronizar:', error);
     }
   };
 
@@ -214,7 +180,7 @@ export default function PlanosPagamentosScreen() {
               Carregando planos...
             </Text>
           </View>
-        ) : products.length === 0 ? (
+        ) : packages.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="card-outline" size={64} color={colors.textSecondary} />
             <Text style={[styles.emptyTitle, { color: colors.text }]}>
@@ -226,9 +192,9 @@ export default function PlanosPagamentosScreen() {
           </View>
         ) : (
           <View style={styles.productsContainer}>
-            {products.map((product) => (
+            {packages.map((pkg) => (
               <View
-                key={product.id}
+                key={pkg.identifier}
                 style={[styles.productCard, { 
                   backgroundColor: colors.surface,
                   borderColor: colors.border,
@@ -237,10 +203,10 @@ export default function PlanosPagamentosScreen() {
                 <View style={styles.productHeader}>
                   <View style={styles.productInfo}>
                     <Text style={[styles.productTitle, { color: colors.text }]}>
-                      {product.title}
+                      {pkg.product.title}
                     </Text>
                     <Text style={[styles.productPrice, { color: colors.primary }]}>
-                      {product.displayPrice}
+                      {pkg.product.priceString}
                     </Text>
                   </View>
                   <View style={[styles.badge, { backgroundColor: colors.primary + '20' }]}>
@@ -248,9 +214,9 @@ export default function PlanosPagamentosScreen() {
                   </View>
                 </View>
 
-                {product.description && (
+                {pkg.product.description && (
                   <Text style={[styles.productDescription, { color: colors.textSecondary }]}>
-                    {product.description}
+                    {pkg.product.description}
                   </Text>
                 )}
 
@@ -280,13 +246,13 @@ export default function PlanosPagamentosScreen() {
                     styles.purchaseButton,
                     { 
                       backgroundColor: colors.primary,
-                      opacity: purchasing === product.id ? 0.6 : 1,
+                      opacity: purchasing === pkg.identifier ? 0.6 : 1,
                     }
                   ]}
-                  onPress={() => handlePurchase(product)}
-                  disabled={purchasing === product.id}
+                  onPress={() => comprar(pkg)}
+                  disabled={purchasing === pkg.identifier}
                 >
-                  {purchasing === product.id ? (
+                  {purchasing === pkg.identifier ? (
                     <ActivityIndicator size="small" color="#ffffff" />
                   ) : (
                     <>
@@ -300,6 +266,116 @@ export default function PlanosPagamentosScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Modal com produtos */}
+      <Modal
+        visible={showModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
+            {/* Header do Modal */}
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Planos Disponíveis
+              </Text>
+              <Pressable onPress={() => setShowModal(false)} style={styles.modalCloseButton}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </Pressable>
+            </View>
+
+            {/* Conteúdo do Modal */}
+            <ScrollView 
+              style={styles.modalContent}
+              contentContainerStyle={styles.modalContentContainer}
+              showsVerticalScrollIndicator={false}
+            >
+              {packages.length === 0 ? (
+                <View style={styles.modalEmptyContainer}>
+                  <Ionicons name="card-outline" size={48} color={colors.textSecondary} />
+                  <Text style={[styles.modalEmptyText, { color: colors.textSecondary }]}>
+                    Nenhum produto encontrado
+                  </Text>
+                </View>
+              ) : (
+                packages.map((pkg) => (
+                  <View
+                    key={pkg.identifier}
+                    style={[styles.modalProductCard, { 
+                      backgroundColor: colors.background,
+                      borderColor: colors.border,
+                    }]}
+                  >
+                    <View style={styles.modalProductHeader}>
+                      <View style={styles.modalProductInfo}>
+                        <Text style={[styles.modalProductTitle, { color: colors.text }]}>
+                          {pkg.product.title}
+                        </Text>
+                        <Text style={[styles.modalProductPrice, { color: colors.primary }]}>
+                          {pkg.product.priceString}
+                        </Text>
+                      </View>
+                      <View style={[styles.modalBadge, { backgroundColor: colors.primary + '20' }]}>
+                        <Ionicons name="star" size={16} color={colors.primary} />
+                      </View>
+                    </View>
+
+                    {pkg.product.description && (
+                      <Text style={[styles.modalProductDescription, { color: colors.textSecondary }]}>
+                        {pkg.product.description}
+                      </Text>
+                    )}
+
+                    <View style={styles.modalProductDetails}>
+                      <View style={styles.modalDetailRow}>
+                        <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                        <Text style={[styles.modalDetailText, { color: colors.text }]}>
+                          Acesso completo a todos os recursos
+                        </Text>
+                      </View>
+                      <View style={styles.modalDetailRow}>
+                        <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                        <Text style={[styles.modalDetailText, { color: colors.text }]}>
+                          Suporte prioritário
+                        </Text>
+                      </View>
+                      <View style={styles.modalDetailRow}>
+                        <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                        <Text style={[styles.modalDetailText, { color: colors.text }]}>
+                          Atualizações ilimitadas
+                        </Text>
+                      </View>
+                    </View>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.modalPurchaseButton,
+                        { 
+                          backgroundColor: colors.primary,
+                          opacity: purchasing === pkg.identifier ? 0.6 : 1,
+                        }
+                      ]}
+                      onPress={() => comprar(pkg)}
+                      disabled={purchasing === pkg.identifier}
+                    >
+                      {purchasing === pkg.identifier ? (
+                        <ActivityIndicator size="small" color="#ffffff" />
+                      ) : (
+                        <>
+                          <Ionicons name="card" size={18} color="#ffffff" />
+                          <Text style={styles.modalPurchaseButtonText}>Assinar Agora</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -446,4 +522,127 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  // Estilos do Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '90%',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 10,
+      },
+    }),
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalContent: {
+    flex: 1,
+  },
+  modalContentContainer: {
+    padding: 16,
+    paddingBottom: 32,
+  },
+  modalEmptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  modalEmptyText: {
+    marginTop: 16,
+    fontSize: 16,
+  },
+  modalProductCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  modalProductHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  modalProductInfo: {
+    flex: 1,
+  },
+  modalProductTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  modalProductPrice: {
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  modalBadge: {
+    padding: 6,
+    borderRadius: 6,
+  },
+  modalProductDescription: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  modalProductDetails: {
+    marginBottom: 16,
+    gap: 8,
+  },
+  modalDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  modalDetailText: {
+    fontSize: 13,
+    flex: 1,
+  },
+  modalPurchaseButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 10,
+    gap: 8,
+  },
+  modalPurchaseButtonText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
 });
+
