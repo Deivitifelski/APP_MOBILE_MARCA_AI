@@ -89,6 +89,10 @@ export default function PlanosPagamentosScreen() {
       } else {
         console.warn('⚠️ [inAppGetSubscriptions] Nenhuma assinatura encontrada');
         console.warn('⚠️ [inAppGetSubscriptions] Resposta recebida:', test);
+        console.warn('💡 [inAppGetSubscriptions] Para resolver:');
+        console.warn('   1. Adicione o arquivo MarcaAI.storekit ao projeto Xcode');
+        console.warn('   2. Configure o StoreKit no Scheme: Product → Scheme → Edit Scheme → Run → Options → StoreKit Configuration');
+        console.warn('   3. Ou configure uma conta de teste do Sandbox no simulador');
         setProducts([]);
       }
       setLoading(false);
