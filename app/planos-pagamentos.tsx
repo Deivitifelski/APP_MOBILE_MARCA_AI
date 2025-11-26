@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Purchases, { PurchasesPackage } from 'react-native-purchases';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getRevenueCatKey } from '../config/revenuecat-keys';
@@ -15,7 +15,6 @@ export default function PlanosPagamentosScreen() {
   const [packages, setPackages] = useState<PurchasesPackage[]>([]);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
-  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     const inicializar = async () => {
@@ -52,7 +51,6 @@ export default function PlanosPagamentosScreen() {
       if (offerings.current && offerings.current.availablePackages.length > 0) {
         console.log('✅ [buscarOfertas] Packages encontrados:', offerings.current.availablePackages.length);
         setPackages(offerings.current.availablePackages);
-        setShowModal(true);
         
         offerings.current.availablePackages.forEach((pkg: PurchasesPackage, index: number) => {
           console.log(`📦 Package ${index + 1}:`, {
@@ -173,6 +171,23 @@ export default function PlanosPagamentosScreen() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
+        {/* Hero Section */}
+        {!loading && packages.length > 0 && (
+          <View style={styles.heroSection}>
+            <View style={[styles.heroCard, { backgroundColor: colors.primary + '15' }]}>
+              <View style={[styles.heroIconContainer, { backgroundColor: colors.primary + '25' }]}>
+                <Ionicons name="diamond" size={32} color={colors.primary} />
+              </View>
+              <Text style={[styles.heroTitle, { color: colors.text }]}>
+                Upgrade para Premium
+              </Text>
+              <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]}>
+                Desbloqueie todos os recursos e funcionalidades exclusivas
+              </Text>
+            </View>
+          </View>
+        )}
+
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.primary} />
@@ -182,82 +197,141 @@ export default function PlanosPagamentosScreen() {
           </View>
         ) : packages.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Ionicons name="card-outline" size={64} color={colors.textSecondary} />
+            <View style={[styles.emptyIconContainer, { backgroundColor: colors.surface }]}>
+              <Ionicons name="card-outline" size={64} color={colors.textSecondary} />
+            </View>
             <Text style={[styles.emptyTitle, { color: colors.text }]}>
               Nenhum plano disponível
             </Text>
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
               Não foi possível carregar os planos no momento.
             </Text>
+            <TouchableOpacity
+              style={[styles.retryButton, { backgroundColor: colors.primary }]}
+              onPress={buscarOfertas}
+            >
+              <Ionicons name="refresh" size={18} color="#ffffff" />
+              <Text style={styles.retryButtonText}>Tentar Novamente</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           <View style={styles.productsContainer}>
-            {packages.map((pkg) => (
+            {packages.map((pkg, index) => (
               <View
                 key={pkg.identifier}
-                style={[styles.productCard, { 
-                  backgroundColor: colors.surface,
-                  borderColor: colors.border,
-                }]}
+                style={[
+                  styles.productCard,
+                  index === 0 && styles.featuredCard,
+                  { 
+                    backgroundColor: colors.surface,
+                    borderColor: index === 0 ? colors.primary : colors.border,
+                  }
+                ]}
               >
+                {/* Badge Premium */}
+                {index === 0 && (
+                  <View style={[styles.premiumBadge, { backgroundColor: colors.primary }]}>
+                    <Ionicons name="star" size={12} color="#ffffff" />
+                    <Text style={styles.premiumBadgeText}>MAIS POPULAR</Text>
+                  </View>
+                )}
+
+                {/* Header do Card */}
                 <View style={styles.productHeader}>
                   <View style={styles.productInfo}>
-                    <Text style={[styles.productTitle, { color: colors.text }]}>
-                      {pkg.product.title}
-                    </Text>
-                    <Text style={[styles.productPrice, { color: colors.primary }]}>
-                      {pkg.product.priceString}
-                    </Text>
-                  </View>
-                  <View style={[styles.badge, { backgroundColor: colors.primary + '20' }]}>
-                    <Ionicons name="star" size={16} color={colors.primary} />
+                    <View style={styles.titleRow}>
+                      <Ionicons 
+                        name={index === 0 ? "diamond" : "star"} 
+                        size={20} 
+                        color={index === 0 ? colors.primary : colors.textSecondary} 
+                        style={styles.titleIcon}
+                      />
+                      <Text style={[styles.productTitle, { color: colors.text }]}>
+                        {pkg.product.title}
+                      </Text>
+                    </View>
+                    <View style={styles.priceContainer}>
+                      <Text style={[styles.productPrice, { color: colors.primary }]}>
+                        {pkg.product.priceString}
+                      </Text>
+                      <Text style={[styles.pricePeriod, { color: colors.textSecondary }]}>
+                        /mês
+                      </Text>
+                    </View>
                   </View>
                 </View>
 
+                {/* Descrição */}
                 {pkg.product.description && (
-                  <Text style={[styles.productDescription, { color: colors.textSecondary }]}>
-                    {pkg.product.description}
-                  </Text>
+                  <View style={styles.descriptionContainer}>
+                    <Text style={[styles.productDescription, { color: colors.textSecondary }]}>
+                      {pkg.product.description}
+                    </Text>
+                  </View>
                 )}
 
+                {/* Divisor */}
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+                {/* Benefícios */}
                 <View style={styles.productDetails}>
                   <View style={styles.detailRow}>
-                    <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+                    <View style={[styles.checkIconContainer, { backgroundColor: colors.success + '20' }]}>
+                      <Ionicons name="checkmark" size={14} color={colors.success} />
+                    </View>
                     <Text style={[styles.detailText, { color: colors.text }]}>
                       Acesso completo a todos os recursos
                     </Text>
                   </View>
                   <View style={styles.detailRow}>
-                    <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+                    <View style={[styles.checkIconContainer, { backgroundColor: colors.success + '20' }]}>
+                      <Ionicons name="checkmark" size={14} color={colors.success} />
+                    </View>
                     <Text style={[styles.detailText, { color: colors.text }]}>
-                      Suporte prioritário
+                      Suporte prioritário 24/7
                     </Text>
                   </View>
                   <View style={styles.detailRow}>
-                    <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+                    <View style={[styles.checkIconContainer, { backgroundColor: colors.success + '20' }]}>
+                      <Ionicons name="checkmark" size={14} color={colors.success} />
+                    </View>
                     <Text style={[styles.detailText, { color: colors.text }]}>
                       Atualizações ilimitadas
                     </Text>
                   </View>
+                  <View style={styles.detailRow}>
+                    <View style={[styles.checkIconContainer, { backgroundColor: colors.success + '20' }]}>
+                      <Ionicons name="checkmark" size={14} color={colors.success} />
+                    </View>
+                    <Text style={[styles.detailText, { color: colors.text }]}>
+                      Sem anúncios
+                    </Text>
+                  </View>
                 </View>
 
+                {/* Botão de Compra */}
                 <TouchableOpacity
                   style={[
                     styles.purchaseButton,
+                    index === 0 && styles.featuredButton,
                     { 
-                      backgroundColor: colors.primary,
+                      backgroundColor: index === 0 ? colors.primary : colors.primary,
                       opacity: purchasing === pkg.identifier ? 0.6 : 1,
                     }
                   ]}
                   onPress={() => comprar(pkg)}
                   disabled={purchasing === pkg.identifier}
+                  activeOpacity={0.8}
                 >
                   {purchasing === pkg.identifier ? (
                     <ActivityIndicator size="small" color="#ffffff" />
                   ) : (
                     <>
                       <Ionicons name="card" size={20} color="#ffffff" />
-                      <Text style={styles.purchaseButtonText}>Assinar Agora</Text>
+                      <Text style={styles.purchaseButtonText}>
+                        {index === 0 ? 'Começar Agora' : 'Assinar Agora'}
+                      </Text>
+                      <Ionicons name="arrow-forward" size={18} color="#ffffff" />
                     </>
                   )}
                 </TouchableOpacity>
@@ -266,116 +340,6 @@ export default function PlanosPagamentosScreen() {
           </View>
         )}
       </ScrollView>
-
-      {/* Modal com produtos */}
-      <Modal
-        visible={showModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
-            {/* Header do Modal */}
-            <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
-                Planos Disponíveis
-              </Text>
-              <Pressable onPress={() => setShowModal(false)} style={styles.modalCloseButton}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </Pressable>
-            </View>
-
-            {/* Conteúdo do Modal */}
-            <ScrollView 
-              style={styles.modalContent}
-              contentContainerStyle={styles.modalContentContainer}
-              showsVerticalScrollIndicator={false}
-            >
-              {packages.length === 0 ? (
-                <View style={styles.modalEmptyContainer}>
-                  <Ionicons name="card-outline" size={48} color={colors.textSecondary} />
-                  <Text style={[styles.modalEmptyText, { color: colors.textSecondary }]}>
-                    Nenhum produto encontrado
-                  </Text>
-                </View>
-              ) : (
-                packages.map((pkg) => (
-                  <View
-                    key={pkg.identifier}
-                    style={[styles.modalProductCard, { 
-                      backgroundColor: colors.background,
-                      borderColor: colors.border,
-                    }]}
-                  >
-                    <View style={styles.modalProductHeader}>
-                      <View style={styles.modalProductInfo}>
-                        <Text style={[styles.modalProductTitle, { color: colors.text }]}>
-                          {pkg.product.title}
-                        </Text>
-                        <Text style={[styles.modalProductPrice, { color: colors.primary }]}>
-                          {pkg.product.priceString}
-                        </Text>
-                      </View>
-                      <View style={[styles.modalBadge, { backgroundColor: colors.primary + '20' }]}>
-                        <Ionicons name="star" size={16} color={colors.primary} />
-                      </View>
-                    </View>
-
-                    {pkg.product.description && (
-                      <Text style={[styles.modalProductDescription, { color: colors.textSecondary }]}>
-                        {pkg.product.description}
-                      </Text>
-                    )}
-
-                    <View style={styles.modalProductDetails}>
-                      <View style={styles.modalDetailRow}>
-                        <Ionicons name="checkmark-circle" size={14} color={colors.success} />
-                        <Text style={[styles.modalDetailText, { color: colors.text }]}>
-                          Acesso completo a todos os recursos
-                        </Text>
-                      </View>
-                      <View style={styles.modalDetailRow}>
-                        <Ionicons name="checkmark-circle" size={14} color={colors.success} />
-                        <Text style={[styles.modalDetailText, { color: colors.text }]}>
-                          Suporte prioritário
-                        </Text>
-                      </View>
-                      <View style={styles.modalDetailRow}>
-                        <Ionicons name="checkmark-circle" size={14} color={colors.success} />
-                        <Text style={[styles.modalDetailText, { color: colors.text }]}>
-                          Atualizações ilimitadas
-                        </Text>
-                      </View>
-                    </View>
-
-                    <TouchableOpacity
-                      style={[
-                        styles.modalPurchaseButton,
-                        { 
-                          backgroundColor: colors.primary,
-                          opacity: purchasing === pkg.identifier ? 0.6 : 1,
-                        }
-                      ]}
-                      onPress={() => comprar(pkg)}
-                      disabled={purchasing === pkg.identifier}
-                    >
-                      {purchasing === pkg.identifier ? (
-                        <ActivityIndicator size="small" color="#ffffff" />
-                      ) : (
-                        <>
-                          <Ionicons name="card" size={18} color="#ffffff" />
-                          <Text style={styles.modalPurchaseButtonText}>Assinar Agora</Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                ))
-              )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -420,43 +384,76 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    padding: 16,
     paddingBottom: 32,
   },
+  // Hero Section
+  heroSection: {
+    paddingHorizontal: 16,
+    paddingTop: 24,
+    paddingBottom: 8,
+  },
+  heroCard: {
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  heroIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  heroTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  heroSubtitle: {
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  // Loading
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
+    paddingVertical: 80,
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
+    fontWeight: '500',
   },
+  // Empty State
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 14,
-    textAlign: 'center',
+    paddingVertical: 80,
     paddingHorizontal: 32,
   },
-  productsContainer: {
-    gap: 16,
-  },
-  productCard: {
-    borderRadius: 12,
-    padding: 20,
-    borderWidth: 1,
+  emptyIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -469,180 +466,174 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  productHeader: {
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptyText: {
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  retryButton: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+  },
+  retryButtonText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  // Products
+  productsContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    gap: 20,
+  },
+  productCard: {
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 2,
+    position: 'relative',
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 5,
+      },
+    }),
+  },
+  featuredCard: {
+    borderWidth: 3,
+    transform: [{ scale: 1.02 }],
+  },
+  premiumBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    left: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    gap: 6,
+  },
+  premiumBadgeText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  productHeader: {
+    marginTop: 8,
+    marginBottom: 16,
   },
   productInfo: {
     flex: 1,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  titleIcon: {
+    marginRight: 8,
+  },
   productTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: 4,
+    fontSize: 24,
+    fontWeight: '800',
+    flex: 1,
+  },
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
   },
   productPrice: {
-    fontSize: 28,
-    fontWeight: '800',
+    fontSize: 36,
+    fontWeight: '900',
+    letterSpacing: -1,
   },
-  badge: {
-    padding: 8,
-    borderRadius: 8,
+  pricePeriod: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginLeft: 4,
+  },
+  descriptionContainer: {
+    marginBottom: 20,
   },
   productDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 16,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  divider: {
+    height: 1,
+    marginVertical: 20,
+    opacity: 0.3,
   },
   productDetails: {
-    marginBottom: 20,
-    gap: 12,
+    marginBottom: 24,
+    gap: 16,
   },
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
+  },
+  checkIconContainer: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   detailText: {
-    fontSize: 14,
+    fontSize: 15,
     flex: 1,
+    fontWeight: '500',
+    lineHeight: 22,
   },
   purchaseButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 12,
-    gap: 8,
+    paddingVertical: 18,
+    borderRadius: 16,
+    gap: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  },
+  featuredButton: {
+    paddingVertical: 20,
   },
   purchaseButtonText: {
     color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  // Estilos do Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContainer: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '90%',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 10,
-      },
-      android: {
-        elevation: 10,
-      },
-    }),
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-  },
-  modalTitle: {
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: '700',
-  },
-  modalCloseButton: {
-    padding: 4,
-  },
-  modalContent: {
-    flex: 1,
-  },
-  modalContentContainer: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  modalEmptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-  },
-  modalEmptyText: {
-    marginTop: 16,
-    fontSize: 16,
-  },
-  modalProductCard: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-  modalProductHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  modalProductInfo: {
-    flex: 1,
-  },
-  modalProductTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  modalProductPrice: {
-    fontSize: 24,
-    fontWeight: '800',
-  },
-  modalBadge: {
-    padding: 6,
-    borderRadius: 6,
-  },
-  modalProductDescription: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 12,
-  },
-  modalProductDetails: {
-    marginBottom: 16,
-    gap: 8,
-  },
-  modalDetailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  modalDetailText: {
-    fontSize: 13,
-    flex: 1,
-  },
-  modalPurchaseButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 10,
-    gap: 8,
-  },
-  modalPurchaseButtonText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '600',
+    letterSpacing: 0.5,
   },
 });
 
