@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useEffect } from 'react';
-import { Platform, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { fetchProducts, initConnection, requestPurchase } from 'react-native-iap';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { fetchProducts, initConnection, requestPurchase, Product } from 'react-native-iap';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -13,6 +13,9 @@ export default function PlanosPagamentosScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, isDarkMode } = useTheme();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [purchasing, setPurchasing] = useState<string | null>(null);
 
   useEffect(() => {
     const inicializarEBuscar = async () => {
@@ -73,6 +76,7 @@ export default function PlanosPagamentosScreen() {
       
       if (test && test.length > 0) {
         console.log('✅ [inAppGetSubscriptions] Produtos encontrados:', test.length);
+        setProducts(test); // Salvar produtos no estado
         test.forEach((produto, index) => {
           console.log(`\n📦 [inAppGetSubscriptions] Produto ${index + 1}:`);
           console.log('   ID:', produto.id);
@@ -85,7 +89,9 @@ export default function PlanosPagamentosScreen() {
       } else {
         console.warn('⚠️ [inAppGetSubscriptions] Nenhuma assinatura encontrada');
         console.warn('⚠️ [inAppGetSubscriptions] Resposta recebida:', test);
+        setProducts([]);
       }
+      setLoading(false);
     } catch (error: any) {
       console.error('❌ [inAppGetSubscriptions] ERRO ao buscar assinaturas:');
       console.error('❌ [inAppGetSubscriptions] Tipo do erro:', typeof error);
@@ -94,7 +100,16 @@ export default function PlanosPagamentosScreen() {
       console.error('❌ [inAppGetSubscriptions] Código:', error?.code || 'Sem código');
       console.error('❌ [inAppGetSubscriptions] Stack:', error?.stack || 'Sem stack');
       console.error('❌ [inAppGetSubscriptions] Erro completo:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+      setProducts([]);
+      setLoading(false);
     }
+  };
+
+  // Função para comprar uma assinatura
+  const handlePurchase = async (product: Product) => {
+    setPurchasing(product.id);
+    await inAppBuySubscription({ productid: product.id });
+    setPurchasing(null);
   };
 
   // Função para comprar uma assinatura
@@ -183,9 +198,104 @@ export default function PlanosPagamentosScreen() {
         <View style={styles.placeholder} />
       </View>
 
-      <View style={styles.content}>
-        {/* Conteúdo da tela será adicionado aqui */}
-      </View>
+      <ScrollView 
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+              Carregando planos...
+            </Text>
+          </View>
+        ) : products.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="card-outline" size={64} color={colors.textSecondary} />
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>
+              Nenhum plano disponível
+            </Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              Não foi possível carregar os planos no momento.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.productsContainer}>
+            {products.map((product) => (
+              <View
+                key={product.id}
+                style={[styles.productCard, { 
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                }]}
+              >
+                <View style={styles.productHeader}>
+                  <View style={styles.productInfo}>
+                    <Text style={[styles.productTitle, { color: colors.text }]}>
+                      {product.title}
+                    </Text>
+                    <Text style={[styles.productPrice, { color: colors.primary }]}>
+                      {product.displayPrice}
+                    </Text>
+                  </View>
+                  <View style={[styles.badge, { backgroundColor: colors.primary + '20' }]}>
+                    <Ionicons name="star" size={16} color={colors.primary} />
+                  </View>
+                </View>
+
+                {product.description && (
+                  <Text style={[styles.productDescription, { color: colors.textSecondary }]}>
+                    {product.description}
+                  </Text>
+                )}
+
+                <View style={styles.productDetails}>
+                  <View style={styles.detailRow}>
+                    <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+                    <Text style={[styles.detailText, { color: colors.text }]}>
+                      Acesso completo a todos os recursos
+                    </Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+                    <Text style={[styles.detailText, { color: colors.text }]}>
+                      Suporte prioritário
+                    </Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+                    <Text style={[styles.detailText, { color: colors.text }]}>
+                      Atualizações ilimitadas
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.purchaseButton,
+                    { 
+                      backgroundColor: colors.primary,
+                      opacity: purchasing === product.id ? 0.6 : 1,
+                    }
+                  ]}
+                  onPress={() => handlePurchase(product)}
+                  disabled={purchasing === product.id}
+                >
+                  {purchasing === product.id ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <>
+                      <Ionicons name="card" size={20} color="#ffffff" />
+                      <Text style={styles.purchaseButtonText}>Assinar Agora</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -228,6 +338,108 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  contentContainer: {
     padding: 16,
+    paddingBottom: 32,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    textAlign: 'center',
+    paddingHorizontal: 32,
+  },
+  productsContainer: {
+    gap: 16,
+  },
+  productCard: {
+    borderRadius: 12,
+    padding: 20,
+    borderWidth: 1,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  productHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  productInfo: {
+    flex: 1,
+  },
+  productTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  productPrice: {
+    fontSize: 28,
+    fontWeight: '800',
+  },
+  badge: {
+    padding: 8,
+    borderRadius: 8,
+  },
+  productDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  productDetails: {
+    marginBottom: 20,
+    gap: 12,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  detailText: {
+    fontSize: 14,
+    flex: 1,
+  },
+  purchaseButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  purchaseButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
