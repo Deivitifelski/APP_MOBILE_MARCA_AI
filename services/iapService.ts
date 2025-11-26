@@ -132,7 +132,7 @@ export const getAvailableProducts = async (): Promise<PurchasesPackage[]> => {
     // Tratar erros específicos do RevenueCat
     if (error?.code === 23 || error?.readableErrorCode === 'CONFIGURATION_ERROR') {
       console.warn('⚠️ Erro de configuração do RevenueCat:', error.message);
-      console.warn('💡 Dica: Configure um StoreKit Configuration File para testes.');
+      console.warn('💡 Dica: Verifique se os produtos estão configurados no dashboard do RevenueCat.');
     } else {
       console.error('❌ Erro ao buscar produtos:', error);
     }
