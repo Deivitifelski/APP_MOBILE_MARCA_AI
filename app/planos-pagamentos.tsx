@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Purchases, { PurchasesPackage } from 'react-native-purchases';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getRevenueCatKey } from '../config/revenuecat-keys';
@@ -15,6 +15,8 @@ export default function PlanosPagamentosScreen() {
   const [packages, setPackages] = useState<PurchasesPackage[]>([]);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
+  const [showInfoModal, setShowInfoModal] = useState(false);
+  const [offeringsInfo, setOfferingsInfo] = useState<any>(null);
 
   useEffect(() => {
     const inicializar = async () => {
@@ -52,6 +54,28 @@ export default function PlanosPagamentosScreen() {
         console.log('✅ [buscarOfertas] Packages encontrados:', offerings.current.availablePackages.length);
         setPackages(offerings.current.availablePackages);
         
+        // Preparar informações para o modal
+        const packagesInfo = offerings.current.availablePackages.map((pkg: PurchasesPackage, index: number) => ({
+          identifier: pkg.identifier,
+          packageType: pkg.packageType,
+          productId: pkg.product.identifier,
+          productTitle: pkg.product.title,
+          productPrice: pkg.product.priceString,
+          productPriceNumber: pkg.product.price,
+          productCurrencyCode: pkg.product.currencyCode,
+          productDescription: pkg.product.description,
+        }));
+        
+        setOfferingsInfo({
+          offeringIdentifier: offerings.current.identifier,
+          serverDescription: offerings.current.serverDescription,
+          metadata: offerings.current.metadata || {},
+          packages: packagesInfo,
+        });
+        
+        // Mostrar modal com as informações
+        setShowInfoModal(true);
+        
         offerings.current.availablePackages.forEach((pkg: PurchasesPackage, index: number) => {
           console.log(`📦 Package ${index + 1}:`, {
             identifier: pkg.identifier,
@@ -65,6 +89,7 @@ export default function PlanosPagamentosScreen() {
       } else {
         console.warn('⚠️ [buscarOfertas] Nenhum package disponível');
         setPackages([]);
+        setOfferingsInfo(null);
       }
       setLoading(false);
     } catch (error: any) {
@@ -261,15 +286,6 @@ export default function PlanosPagamentosScreen() {
                   </View>
                 </View>
 
-                {/* Descrição */}
-                {pkg.product.description && (
-                  <View style={styles.descriptionContainer}>
-                    <Text style={[styles.productDescription, { color: colors.textSecondary }]}>
-                      {pkg.product.description}
-                    </Text>
-                  </View>
-                )}
-
                 {/* Divisor */}
                 <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
@@ -340,6 +356,129 @@ export default function PlanosPagamentosScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Modal com informações do RevenueCat */}
+      <Modal
+        visible={showInfoModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowInfoModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
+            {/* Header do Modal */}
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Informações do RevenueCat
+              </Text>
+              <TouchableOpacity onPress={() => setShowInfoModal(false)} style={styles.modalCloseButton}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Conteúdo do Modal */}
+            <ScrollView 
+              style={styles.modalContent}
+              contentContainerStyle={styles.modalContentContainer}
+              showsVerticalScrollIndicator={true}
+            >
+              {offeringsInfo ? (
+                <>
+                  {/* Informações do Offering */}
+                  <View style={styles.infoSection}>
+                    <Text style={[styles.infoSectionTitle, { color: colors.text }]}>
+                      Offering
+                    </Text>
+                    <View style={[styles.infoCard, { backgroundColor: colors.background }]}>
+                      <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                        Identifier:
+                      </Text>
+                      <Text style={[styles.infoValue, { color: colors.text }]}>
+                        {offeringsInfo.offeringIdentifier}
+                      </Text>
+                      
+                      {offeringsInfo.serverDescription && (
+                        <>
+                          <Text style={[styles.infoLabel, { color: colors.textSecondary, marginTop: 12 }]}>
+                            Descrição:
+                          </Text>
+                          <Text style={[styles.infoValue, { color: colors.text }]}>
+                            {offeringsInfo.serverDescription}
+                          </Text>
+                        </>
+                      )}
+                    </View>
+                  </View>
+
+                  {/* Metadados */}
+                  {offeringsInfo.metadata && Object.keys(offeringsInfo.metadata).length > 0 && (
+                    <View style={styles.infoSection}>
+                      <Text style={[styles.infoSectionTitle, { color: colors.text }]}>
+                        Metadados
+                      </Text>
+                      <View style={[styles.infoCard, { backgroundColor: colors.background }]}>
+                        <Text style={[styles.infoValue, { color: colors.text, fontFamily: 'monospace' }]}>
+                          {JSON.stringify(offeringsInfo.metadata, null, 2)}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Packages */}
+                  <View style={styles.infoSection}>
+                    <Text style={[styles.infoSectionTitle, { color: colors.text }]}>
+                      Packages ({offeringsInfo.packages.length})
+                    </Text>
+                    {offeringsInfo.packages.map((pkg: any, index: number) => (
+                      <View key={index} style={[styles.infoCard, { backgroundColor: colors.background, marginBottom: 12 }]}>
+                        <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                          Package {index + 1}:
+                        </Text>
+                        <Text style={[styles.infoValue, { color: colors.text, marginTop: 4 }]}>
+                          <Text style={styles.boldText}>Identifier:</Text> {pkg.identifier}
+                        </Text>
+                        <Text style={[styles.infoValue, { color: colors.text }]}>
+                          <Text style={styles.boldText}>Type:</Text> {pkg.packageType}
+                        </Text>
+                        <Text style={[styles.infoValue, { color: colors.text }]}>
+                          <Text style={styles.boldText}>Product ID:</Text> {pkg.productId}
+                        </Text>
+                        <Text style={[styles.infoValue, { color: colors.text }]}>
+                          <Text style={styles.boldText}>Título:</Text> {pkg.productTitle}
+                        </Text>
+                        <Text style={[styles.infoValue, { color: colors.text }]}>
+                          <Text style={styles.boldText}>Preço:</Text> {pkg.productPrice} ({pkg.productCurrencyCode})
+                        </Text>
+                        {pkg.productDescription && (
+                          <Text style={[styles.infoValue, { color: colors.text }]}>
+                            <Text style={styles.boldText}>Descrição:</Text> {pkg.productDescription}
+                          </Text>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                </>
+              ) : (
+                <View style={styles.modalEmptyContainer}>
+                  <Text style={[styles.modalEmptyText, { color: colors.textSecondary }]}>
+                    Nenhuma informação disponível
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+
+            {/* Botão Fechar */}
+            <View style={[styles.modalFooter, { borderTopColor: colors.border }]}>
+              <TouchableOpacity
+                style={[styles.modalCloseButtonBottom, { backgroundColor: colors.primary }]}
+                onPress={() => setShowInfoModal(false)}
+              >
+                <Text style={styles.modalCloseButtonText}>Fechar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -634,6 +773,98 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     letterSpacing: 0.5,
+  },
+  // Modal de Informações
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    width: '90%',
+    maxHeight: '85%',
+    borderRadius: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 12,
+      },
+    }),
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalContent: {
+    flex: 1,
+  },
+  modalContentContainer: {
+    padding: 20,
+  },
+  modalEmptyContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+  },
+  modalEmptyText: {
+    fontSize: 16,
+  },
+  infoSection: {
+    marginBottom: 24,
+  },
+  infoSectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  infoCard: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  infoLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  infoValue: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  boldText: {
+    fontWeight: '700',
+  },
+  modalFooter: {
+    padding: 20,
+    borderTopWidth: 1,
+  },
+  modalCloseButtonBottom: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalCloseButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
