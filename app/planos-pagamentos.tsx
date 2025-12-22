@@ -56,9 +56,9 @@ export default function PlanosPagamentosScreen() {
         
         // Preparar informações para o modal
         const packagesInfo = offerings.current.availablePackages.map((pkg: PurchasesPackage, index: number) => ({
-          identifier: pkg.identifier,
-          packageType: pkg.packageType,
-          productId: pkg.product.identifier,
+        identifier: pkg.identifier,
+        packageType: pkg.packageType,
+        productId: pkg.product.identifier,
           productTitle: pkg.product.title,
           productPrice: pkg.product.priceString,
           productPriceNumber: pkg.product.price,
@@ -66,15 +66,24 @@ export default function PlanosPagamentosScreen() {
           productDescription: pkg.product.description,
         }));
         
-        setOfferingsInfo({
+        const infoData = {
           offeringIdentifier: offerings.current.identifier,
           serverDescription: offerings.current.serverDescription,
           metadata: offerings.current.metadata || {},
           packages: packagesInfo,
-        });
+        };
         
-        // Mostrar modal com as informações
-        setShowInfoModal(true);
+        console.log('📋 [Modal] Dados preparados:', JSON.stringify(infoData, null, 2));
+        console.log('📋 [Modal] Packages count:', infoData.packages.length);
+        console.log('📋 [Modal] Metadata keys:', Object.keys(infoData.metadata));
+        
+        setOfferingsInfo(infoData);
+        
+        // Mostrar modal com as informações após um pequeno delay para garantir que o state foi atualizado
+        setTimeout(() => {
+          console.log('📋 [Modal] Abrindo modal...');
+          setShowInfoModal(true);
+        }, 100);
         
         offerings.current.availablePackages.forEach((pkg: PurchasesPackage, index: number) => {
           console.log(`📦 Package ${index + 1}:`, {
@@ -184,12 +193,12 @@ export default function PlanosPagamentosScreen() {
         borderBottomColor: colors.border,
         paddingTop: insets.top > 0 ? 16 : 20
       }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text }]}>Planos e Pagamentos</Text>
-        <View style={styles.placeholder} />
-      </View>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={[styles.title, { color: colors.text }]}>Planos e Pagamentos</Text>
+          <View style={styles.placeholder} />
+        </View>
 
       <ScrollView 
         style={styles.content}
@@ -213,33 +222,33 @@ export default function PlanosPagamentosScreen() {
           </View>
         )}
 
-        {loading ? (
-          <View style={styles.loadingContainer}>
+          {loading ? (
+            <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+              <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
               Carregando planos...
-            </Text>
-          </View>
-        ) : packages.length === 0 ? (
-          <View style={styles.emptyContainer}>
+              </Text>
+            </View>
+          ) : packages.length === 0 ? (
+            <View style={styles.emptyContainer}>
             <View style={[styles.emptyIconContainer, { backgroundColor: colors.surface }]}>
               <Ionicons name="card-outline" size={64} color={colors.textSecondary} />
             </View>
             <Text style={[styles.emptyTitle, { color: colors.text }]}>
               Nenhum plano disponível
-            </Text>
+              </Text>
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
               Não foi possível carregar os planos no momento.
-            </Text>
-            <TouchableOpacity
+              </Text>
+              <TouchableOpacity
               style={[styles.retryButton, { backgroundColor: colors.primary }]}
               onPress={buscarOfertas}
-            >
+              >
               <Ionicons name="refresh" size={18} color="#ffffff" />
               <Text style={styles.retryButtonText}>Tentar Novamente</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
+              </TouchableOpacity>
+            </View>
+          ) : (
           <View style={styles.productsContainer}>
             {packages.map((pkg, index) => (
               <View
@@ -281,7 +290,7 @@ export default function PlanosPagamentosScreen() {
                       </Text>
                       <Text style={[styles.pricePeriod, { color: colors.textSecondary }]}>
                         /mês
-                      </Text>
+                  </Text>
                     </View>
                   </View>
                 </View>
@@ -346,7 +355,7 @@ export default function PlanosPagamentosScreen() {
                       <Ionicons name="card" size={20} color="#ffffff" />
                       <Text style={styles.purchaseButtonText}>
                         {index === 0 ? 'Começar Agora' : 'Assinar Agora'}
-                      </Text>
+                        </Text>
                       <Ionicons name="arrow-forward" size={18} color="#ffffff" />
                     </>
                   )}
@@ -362,7 +371,18 @@ export default function PlanosPagamentosScreen() {
         visible={showInfoModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowInfoModal(false)}
+        onRequestClose={() => {
+          console.log('📋 [Modal] Fechando modal...');
+          setShowInfoModal(false);
+        }}
+        onShow={() => {
+          console.log('📋 [Modal] Modal exibido!');
+          console.log('📋 [Modal] offeringsInfo:', offeringsInfo ? 'existe' : 'null');
+          if (offeringsInfo) {
+            console.log('📋 [Modal] Packages:', offeringsInfo.packages?.length || 0);
+            console.log('📋 [Modal] Metadata:', Object.keys(offeringsInfo.metadata || {}));
+          }
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
@@ -374,7 +394,7 @@ export default function PlanosPagamentosScreen() {
               <TouchableOpacity onPress={() => setShowInfoModal(false)} style={styles.modalCloseButton}>
                 <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
-            </View>
+                </View>
 
             {/* Conteúdo do Modal */}
             <ScrollView 
@@ -384,6 +404,9 @@ export default function PlanosPagamentosScreen() {
             >
               {offeringsInfo ? (
                 <>
+                  <Text style={[styles.debugText, { color: colors.textSecondary }]}>
+                    Debug: Modal visível, dados carregados ({offeringsInfo.packages?.length || 0} packages)
+                  </Text>
                   {/* Informações do Offering */}
                   <View style={styles.infoSection}>
                     <Text style={[styles.infoSectionTitle, { color: colors.text }]}>
@@ -452,9 +475,9 @@ export default function PlanosPagamentosScreen() {
                         {pkg.productDescription && (
                           <Text style={[styles.infoValue, { color: colors.text }]}>
                             <Text style={styles.boldText}>Descrição:</Text> {pkg.productDescription}
-                          </Text>
-                        )}
-                      </View>
+                      </Text>
+                  )}
+                </View>
                     ))}
                   </View>
                 </>
@@ -463,9 +486,12 @@ export default function PlanosPagamentosScreen() {
                   <Text style={[styles.modalEmptyText, { color: colors.textSecondary }]}>
                     Nenhuma informação disponível
                   </Text>
-                </View>
-              )}
-            </ScrollView>
+                  <Text style={[styles.debugText, { color: colors.textSecondary, marginTop: 8 }]}>
+                    Debug: offeringsInfo é null
+                  </Text>
+              </View>
+          )}
+        </ScrollView>
 
             {/* Botão Fechar */}
             <View style={[styles.modalFooter, { borderTopColor: colors.border }]}>
@@ -479,7 +505,7 @@ export default function PlanosPagamentosScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+      </SafeAreaView>
   );
 }
 
@@ -537,8 +563,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.1,
         shadowRadius: 12,
       },
@@ -597,8 +623,8 @@ const styles = StyleSheet.create({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
       },
       android: {
         elevation: 3,
@@ -756,9 +782,9 @@ const styles = StyleSheet.create({
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
       },
       android: {
         elevation: 6,
@@ -825,6 +851,11 @@ const styles = StyleSheet.create({
   },
   modalEmptyText: {
     fontSize: 16,
+  },
+  debugText: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginBottom: 8,
   },
   infoSection: {
     marginBottom: 24,
