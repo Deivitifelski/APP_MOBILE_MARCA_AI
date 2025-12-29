@@ -6,7 +6,7 @@ import Purchases, { PurchasesPackage } from 'react-native-purchases';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getRevenueCatKey } from '../config/revenuecat-keys';
 import { useTheme } from '../contexts/ThemeContext';
-import { supabase } from '../lib/supabase';
+import { purchaseSubscription } from '../services/iapService';
 
 export default function PlanosPagamentosScreen() {
   const router = useRouter();
@@ -25,12 +25,8 @@ export default function PlanosPagamentosScreen() {
         const apiKey = getRevenueCatKey();
         console.log('🔄 [RevenueCat] Configurando com chave:', apiKey);
         
-        // Configurar com opções para usar API diretamente
-        await Purchases.configure({ 
-          apiKey,
-          useStoreKit2IfAvailable: false, // Usar StoreKit 1 para melhor compatibilidade
-          observerMode: false,
-        });
+        // Configurar RevenueCat (a configuração completa é feita no serviço iapService)
+        await Purchases.configure({ apiKey });
         console.log('✅ [RevenueCat] Configurado com sucesso');
 
         // Buscar ofertas
@@ -119,22 +115,30 @@ export default function PlanosPagamentosScreen() {
       setPurchasing(packageToBuy.identifier);
       console.log('🛒 [comprar] Iniciando compra do package:', packageToBuy.identifier);
 
-      const purchaseResult = await Purchases.purchasePackage(packageToBuy);
-      
-      console.log('✅ [comprar] Compra realizada:', purchaseResult);
-      
-      // Sincronizar com Supabase
-      await syncPurchaseWithSupabase(purchaseResult.customerInfo);
+      // Usar a função centralizada do serviço que já sincroniza com Supabase
+      const purchaseResult = await purchaseSubscription(packageToBuy);
 
-      Alert.alert(
-        'Compra realizada!',
-        'Sua assinatura foi ativada com sucesso. Obrigado!',
-        [{ text: 'OK' }]
-      );
+      if (purchaseResult.success) {
+        console.log('✅ [comprar] Compra realizada com sucesso');
+        console.log('📊 [comprar] Status sincronizado:', {
+          plan: purchaseResult.customerInfo?.entitlements.active['premium'] ? 'premium' : 'free',
+        });
+
+        Alert.alert(
+          'Compra realizada!',
+          'Sua assinatura foi ativada com sucesso. Obrigado!',
+          [{ text: 'OK' }]
+        );
+
+        // Recarregar ofertas para atualizar a tela
+        await buscarOfertas();
+      } else {
+        throw new Error(purchaseResult.error || 'Erro ao processar compra');
+      }
     } catch (error: any) {
       console.error('❌ [comprar] Erro:', error);
       
-      if (error.userCancelled) {
+      if (error.userCancelled || error.message?.includes('cancelada')) {
         console.log('⚠️ [comprar] Compra cancelada pelo usuário');
       } else {
         Alert.alert(
@@ -145,46 +149,6 @@ export default function PlanosPagamentosScreen() {
       }
     } finally {
       setPurchasing(null);
-    }
-  };
-
-  // Sincronizar compra com Supabase
-  const syncPurchaseWithSupabase = async (customerInfo: any): Promise<void> => {
-    try {
-      console.log('🔄 [syncPurchaseWithSupabase] Sincronizando compra com Supabase...');
-      
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
-      if (userError || !user) {
-        console.warn('⚠️ [syncPurchaseWithSupabase] Usuário não autenticado');
-        return;
-      }
-
-      // Verificar se tem assinatura premium ativa
-      const hasPremium = customerInfo.entitlements.active['premium'] !== undefined;
-      const plan = hasPremium ? 'premium' : 'free';
-      const status = hasPremium ? 'active' : 'inactive';
-
-      console.log('👤 [syncPurchaseWithSupabase] Usuário:', user.id);
-      console.log('📊 [syncPurchaseWithSupabase] Plano:', plan, 'Status:', status);
-
-      // Atualizar status da assinatura no Supabase
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({
-          plan,
-          subscription_status: status,
-          subscription_updated_at: new Date().toISOString(),
-        })
-        .eq('id', user.id);
-
-      if (updateError) {
-        console.error('❌ [syncPurchaseWithSupabase] Erro ao atualizar Supabase:', updateError);
-      } else {
-        console.log('✅ [syncPurchaseWithSupabase] Assinatura sincronizada com Supabase com sucesso');
-      }
-    } catch (error: any) {
-      console.error('❌ [syncPurchaseWithSupabase] Erro ao sincronizar:', error);
     }
   };
 

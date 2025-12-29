@@ -20,6 +20,7 @@ import { ActiveArtistProvider } from '../contexts/ActiveArtistContext';
 import { PermissionsProvider } from '../contexts/PermissionsContext';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { useColorScheme } from '../hooks/use-color-scheme';
+import { setupSubscriptionStatusListener } from '../services/iapService';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -34,6 +35,11 @@ export default function RootLayout() {
     // A configuração do RevenueCat será feita no serviço iapService
     // ou nas telas que precisam (como planos-pagamentos)
     // Não configurar aqui para evitar conflitos
+
+    // Configurar listener para mudanças de status da assinatura em tempo real
+    // Este listener detecta automaticamente quando o status muda (renovação, cancelamento, etc)
+    // e sincroniza com o Supabase
+    setupSubscriptionStatusListener();
   }, []);
 
   return (

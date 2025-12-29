@@ -252,8 +252,20 @@ export const purchaseSubscription = async (
 
     const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
 
-    // Sincronizar com Supabase
-    await syncSubscriptionWithSupabase(customerInfo);
+    console.log('✅ [purchaseSubscription] Compra realizada com sucesso');
+    console.log('📊 [purchaseSubscription] Status da assinatura:', {
+      hasPremium: customerInfo.entitlements.active['premium'] !== undefined,
+      activeEntitlements: Object.keys(customerInfo.entitlements.active),
+    });
+
+    // Sincronizar com Supabase - isso atualiza o status no banco de dados
+    const syncResult = await syncSubscriptionWithSupabase(customerInfo);
+    
+    if (syncResult.success) {
+      console.log('✅ [purchaseSubscription] Assinatura sincronizada com banco de dados');
+    } else {
+      console.warn('⚠️ [purchaseSubscription] Erro ao sincronizar:', syncResult.error);
+    }
 
     return {
       success: true,
@@ -355,39 +367,221 @@ export const hasActiveSubscription = async (): Promise<boolean> => {
 
 /**
  * Sincroniza o status da assinatura com o Supabase
+ * Esta função busca o status mais recente da API do RevenueCat e atualiza no banco
  */
-const syncSubscriptionWithSupabase = async (customerInfo: CustomerInfo): Promise<void> => {
+export const syncSubscriptionWithSupabase = async (customerInfo?: CustomerInfo): Promise<{
+  success: boolean;
+  plan: 'premium' | 'free';
+  status: 'active' | 'inactive';
+  error?: string;
+}> => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
       console.warn('⚠️ Usuário não autenticado, não é possível sincronizar assinatura');
-      return;
+      return {
+        success: false,
+        plan: 'free',
+        status: 'inactive',
+        error: 'Usuário não autenticado',
+      };
+    }
+
+    // Se não foi fornecido customerInfo, buscar da API
+    let info = customerInfo;
+    if (!info) {
+      console.log('🔄 [syncSubscription] Buscando status atualizado da API do RevenueCat...');
+      const configured = await ensureConfigured();
+      if (!configured) {
+        return {
+          success: false,
+          plan: 'free',
+          status: 'inactive',
+          error: 'RevenueCat não configurado',
+        };
+      }
+      
+      info = await Purchases.getCustomerInfo();
+      console.log('📡 [syncSubscription] Status recebido da API do RevenueCat');
     }
 
     // Verificar se tem assinatura premium ativa
-    const hasPremium = customerInfo.entitlements.active['premium'] !== undefined;
-    const plan = hasPremium ? 'premium' : 'free';
-    const status = hasPremium ? 'active' : 'inactive';
+    const premiumEntitlement = info.entitlements.active['premium'];
+    const hasPremium = premiumEntitlement !== undefined;
+    
+    // Determinar o status da assinatura
+    let status: 'active' | 'inactive' | 'cancelled' | 'past_due' = 'inactive';
+    let plan: 'premium' | 'free' = 'free';
+    
+    if (hasPremium && premiumEntitlement) {
+      plan = 'premium';
+      
+      // Verificar se vai renovar (se não vai renovar, está cancelada mas ainda ativa)
+      if (premiumEntitlement.willRenew) {
+        status = 'active';
+      } else {
+        // Assinatura cancelada mas ainda ativa até expirar
+        status = 'cancelled';
+      }
+      
+      // Verificar se há problemas de pagamento (verificar entitlement expirado)
+      const expiredEntitlement = info.entitlements.all['premium'];
+      if (expiredEntitlement && !premiumEntitlement.willRenew && 
+          expiredEntitlement.expirationDate && 
+          new Date(expiredEntitlement.expirationDate) < new Date()) {
+        // Assinatura expirada devido a problema de pagamento
+        status = 'past_due';
+        plan = 'free';
+      }
+    } else {
+      // Verificar se tinha assinatura mas expirou
+      const expiredEntitlement = info.entitlements.all['premium'];
+      if (expiredEntitlement) {
+        status = 'inactive';
+        plan = 'free';
+      }
+    }
+
+    // Sempre atualizar subscription_updated_at com a data/hora atual
+    const now = new Date().toISOString();
+
+    // Informações da assinatura para atualizar no banco
+    const subscriptionInfo: any = {
+      plan,
+      subscription_status: status,
+      subscription_updated_at: now, // Sempre atualizar a data de atualização
+    };
+
+    // Se tem assinatura ativa, adicionar informações detalhadas
+    if (premiumEntitlement) {
+      subscriptionInfo.subscription_expires_at = premiumEntitlement.expirationDate 
+        ? new Date(premiumEntitlement.expirationDate).toISOString()
+        : null;
+      subscriptionInfo.subscription_will_renew = premiumEntitlement.willRenew || false;
+      subscriptionInfo.subscription_product_identifier = premiumEntitlement.productIdentifier || null;
+      subscriptionInfo.subscription_is_sandbox = premiumEntitlement.isSandbox || false;
+    } else {
+      // Limpar campos de assinatura se não há mais assinatura ativa
+      subscriptionInfo.subscription_expires_at = null;
+      subscriptionInfo.subscription_will_renew = false;
+      subscriptionInfo.subscription_product_identifier = null;
+    }
+
+    console.log('📊 [syncSubscription] Atualizando no Supabase:', {
+      userId: user.id,
+      plan,
+      status,
+      expiresAt: subscriptionInfo.subscription_expires_at,
+      willRenew: subscriptionInfo.subscription_will_renew,
+    });
 
     // Atualizar no Supabase
     const { error } = await supabase
       .from('users')
-      .update({
-        plan,
-        subscription_status: status,
-        subscription_updated_at: new Date().toISOString(),
-      })
+      .update(subscriptionInfo)
       .eq('id', user.id);
 
     if (error) {
       console.error('❌ Erro ao atualizar assinatura no Supabase:', error);
-    } else {
-      console.log('✅ Assinatura sincronizada com Supabase');
+      return {
+        success: false,
+        plan,
+        status,
+        error: error.message,
+      };
     }
-  } catch (error) {
+
+    console.log('✅ [syncSubscription] Assinatura sincronizada com Supabase com sucesso');
+    return {
+      success: true,
+      plan,
+      status,
+    };
+  } catch (error: any) {
     console.error('❌ Erro ao sincronizar assinatura:', error);
+    return {
+      success: false,
+      plan: 'free',
+      status: 'inactive',
+      error: error.message,
+    };
   }
+};
+
+/**
+ * Verifica e sincroniza o status da assinatura ao abrir o app
+ * Esta função deve ser chamada sempre que o app for aberto
+ */
+export const checkAndSyncSubscriptionOnAppStart = async (): Promise<void> => {
+  try {
+    console.log('🔄 [checkAndSyncSubscription] Verificando status da assinatura ao abrir o app...');
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      console.log('⚠️ [checkAndSyncSubscription] Usuário não autenticado, pulando verificação');
+      return;
+    }
+
+    // Inicializar RevenueCat se necessário
+    const configured = await ensureConfigured();
+    if (!configured) {
+      console.warn('⚠️ [checkAndSyncSubscription] RevenueCat não configurado');
+      return;
+    }
+
+    // Buscar status atualizado da API do RevenueCat
+    console.log('📡 [checkAndSyncSubscription] Buscando status da API do RevenueCat...');
+    const customerInfo = await Purchases.getCustomerInfo();
+    
+    console.log('📊 [checkAndSyncSubscription] Status recebido:', {
+      hasPremium: customerInfo.entitlements.active['premium'] !== undefined,
+      allEntitlements: Object.keys(customerInfo.entitlements.active),
+      firstSeen: customerInfo.firstSeen,
+      requestDate: customerInfo.requestDate,
+    });
+
+    // Sincronizar com Supabase
+    await syncSubscriptionWithSupabase(customerInfo);
+    
+    console.log('✅ [checkAndSyncSubscription] Verificação concluída');
+  } catch (error: any) {
+    console.error('❌ [checkAndSyncSubscription] Erro ao verificar assinatura:', error);
+    
+    // Não fazer throw para não quebrar o fluxo do app
+    // Apenas logar o erro
+    if (error?.code !== 23) {
+      console.warn('⚠️ [checkAndSyncSubscription] Erro não crítico, continuando...');
+    }
+  }
+};
+
+/**
+ * Configura listener para mudanças de status da assinatura em tempo real
+ * Este listener detecta quando o status muda (renovação, cancelamento, etc)
+ */
+export const setupSubscriptionStatusListener = (): (() => void) => {
+  console.log('👂 [setupSubscriptionStatusListener] Configurando listener de mudanças de status...');
+  
+  const listener = Purchases.addCustomerInfoUpdateListener(async (customerInfo) => {
+    console.log('📢 [SubscriptionListener] Status da assinatura mudou!');
+    console.log('📊 [SubscriptionListener] Novo status:', {
+      hasPremium: customerInfo.entitlements.active['premium'] !== undefined,
+      activeEntitlements: Object.keys(customerInfo.entitlements.active),
+    });
+    
+    // Sincronizar automaticamente quando o status mudar
+    await syncSubscriptionWithSupabase(customerInfo);
+  });
+
+  console.log('✅ [setupSubscriptionStatusListener] Listener configurado');
+  
+  // Retornar função para remover o listener quando necessário
+  return () => {
+    // O RevenueCat não tem método para remover listener, mas podemos deixar assim
+    console.log('👂 [setupSubscriptionStatusListener] Listener ativo (não pode ser removido)');
+  };
 };
 
 /**
