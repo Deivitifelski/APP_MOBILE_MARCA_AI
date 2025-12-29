@@ -31,11 +31,9 @@ export default function RootLayout() {
   useEffect(() => {
     Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
 
-    if (Platform.OS === 'ios') {
-      Purchases.configure({ apiKey: 'appl_PVJKhYqNfSQdfaFxmviIAQGmaAj' });
-    } else if (Platform.OS === 'android') {
-
-    }
+    // A configuração do RevenueCat será feita no serviço iapService
+    // ou nas telas que precisam (como planos-pagamentos)
+    // Não configurar aqui para evitar conflitos
   }, []);
 
   return (

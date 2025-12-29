@@ -25,7 +25,12 @@ export default function PlanosPagamentosScreen() {
         const apiKey = getRevenueCatKey();
         console.log('🔄 [RevenueCat] Configurando com chave:', apiKey);
         
-        await Purchases.configure({ apiKey });
+        // Configurar com opções para usar API diretamente
+        await Purchases.configure({ 
+          apiKey,
+          useStoreKit2IfAvailable: false, // Usar StoreKit 1 para melhor compatibilidade
+          observerMode: false,
+        });
         console.log('✅ [RevenueCat] Configurado com sucesso');
 
         // Buscar ofertas

@@ -33,7 +33,14 @@ export const initializeIAP = async (userId: string): Promise<void> => {
     }
 
     if (Platform.OS === 'ios') {
-      await Purchases.configure({ apiKey });
+      // Configurar iOS com opções para usar API diretamente
+      await Purchases.configure({ 
+        apiKey,
+        // Usar StoreKit 1 se StoreKit 2 não estiver disponível
+        useStoreKit2IfAvailable: false,
+        // Não usar observer mode - usar transações normais
+        observerMode: false,
+      });
     } else if (Platform.OS === 'android') {
       await Purchases.configure({ apiKey });
       // Para Amazon: await Purchases.configure({ apiKey, useAmazon: true });
@@ -124,6 +131,15 @@ export const getAvailableProducts = async (): Promise<PurchasesPackage[]> => {
     } else {
       console.warn('⚠️ Nenhuma oferta atual (current) disponível');
       console.log('📋 Ofertas disponíveis:', Object.keys(offerings.all));
+      
+      // Tentar buscar produtos de outras offerings
+      for (const offeringKey in offerings.all) {
+        const offering = offerings.all[offeringKey];
+        if (offering.availablePackages.length > 0) {
+          console.log(`✅ Usando offering alternativa: ${offering.identifier} com ${offering.availablePackages.length} packages`);
+          return offering.availablePackages;
+        }
+      }
     }
 
     console.warn('⚠️ Nenhum produto disponível no RevenueCat');
@@ -133,6 +149,26 @@ export const getAvailableProducts = async (): Promise<PurchasesPackage[]> => {
     if (error?.code === 23 || error?.readableErrorCode === 'CONFIGURATION_ERROR') {
       console.warn('⚠️ Erro de configuração do RevenueCat:', error.message);
       console.warn('💡 Dica: Verifique se os produtos estão configurados no dashboard do RevenueCat.');
+      console.warn('💡 Se estiver no simulador, você pode precisar configurar o arquivo StoreKit Configuration.');
+      console.warn('💡 Se estiver em dispositivo físico, use uma conta sandbox do App Store Connect.');
+      
+      // Tentar buscar produtos de outras offerings disponíveis
+      console.log('🔄 Tentando buscar produtos de outras offerings disponíveis...');
+      try {
+        const allOfferings = await Purchases.getOfferings();
+        console.log('📋 Todas as offerings disponíveis:', Object.keys(allOfferings.all));
+        
+        // Tentar buscar packages de todas as offerings
+        for (const offeringKey in allOfferings.all) {
+          const offering = allOfferings.all[offeringKey];
+          if (offering.availablePackages.length > 0) {
+            console.log(`✅ Encontrados ${offering.availablePackages.length} packages na offering: ${offering.identifier}`);
+            return offering.availablePackages;
+          }
+        }
+      } catch (directError) {
+        console.warn('⚠️ Não foi possível buscar produtos de outras offerings:', directError);
+      }
     } else {
       console.error('❌ Erro ao buscar produtos:', error);
     }
