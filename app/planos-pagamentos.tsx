@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Modal, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Purchases, { PurchasesPackage } from 'react-native-purchases';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SubscriptionModal } from '../components/SubscriptionModal';
 import { getRevenueCatKey } from '../config/revenuecat-keys';
 import { useTheme } from '../contexts/ThemeContext';
-import { purchaseSubscription } from '../services/iapService';
+import { getCurrentSubscriptionInfo, purchaseSubscription, restorePurchases } from '../services/iapService';
 
 export default function PlanosPagamentosScreen() {
   const router = useRouter();
@@ -17,6 +18,13 @@ export default function PlanosPagamentosScreen() {
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [offeringsInfo, setOfferingsInfo] = useState<any>(null);
+  
+  // Estados do modal de resposta
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalType, setModalType] = useState<'success' | 'error' | 'info' | 'warning'>('info');
+  const [modalTitle, setModalTitle] = useState('');
+  const [modalMessage, setModalMessage] = useState('');
+  const [restoring, setRestoring] = useState(false);
 
   useEffect(() => {
     const inicializar = async () => {
@@ -109,12 +117,68 @@ export default function PlanosPagamentosScreen() {
     }
   };
 
+  // Função para mostrar modal
+  const showModal = (
+    type: 'success' | 'error' | 'info' | 'warning',
+    title: string,
+    message: string
+  ) => {
+    setModalType(type);
+    setModalTitle(title);
+    setModalMessage(message);
+    setModalVisible(true);
+  };
+
   // Função para comprar
   const comprar = async (packageToBuy: PurchasesPackage) => {
     try {
       setPurchasing(packageToBuy.identifier);
       console.log('🛒 [comprar] Iniciando compra do package:', packageToBuy.identifier);
 
+      // Verificar se já tem assinatura ativa antes de tentar comprar
+      const subscriptionInfo = await getCurrentSubscriptionInfo();
+      
+      if (subscriptionInfo?.hasSubscription && subscriptionInfo.status === 'active') {
+        setPurchasing(null);
+        
+        // Formatar data de expiração
+        let expirationText = 'Data não disponível';
+        if (subscriptionInfo.expirationDate) {
+          const date = subscriptionInfo.expirationDate;
+          const day = date.getDate().toString().padStart(2, '0');
+          const month = (date.getMonth() + 1).toString().padStart(2, '0');
+          const year = date.getFullYear();
+          const hours = date.getHours().toString().padStart(2, '0');
+          const minutes = date.getMinutes().toString().padStart(2, '0');
+          expirationText = `${day}/${month}/${year} às ${hours}:${minutes}`;
+        }
+
+        // Criar mensagem detalhada em português
+        let message = `Você já possui uma assinatura Premium ativa!`;
+        
+        if (subscriptionInfo.willRenew) {
+          message += `\n\n✅ Sua assinatura é válida até:`;
+          message += `\n${expirationText}`;
+          message += `\n\n🔄 Ela será renovada automaticamente.`;
+          message += `\n\n💡 Para gerenciar ou cancelar sua assinatura, acesse as configurações do seu dispositivo na App Store ou Google Play.`;
+        } else {
+          message += `\n\n⚠️ Sua assinatura está cancelada mas ainda ativa até:`;
+          message += `\n${expirationText}`;
+          message += `\n\n📅 Após essa data, sua assinatura não será renovada.`;
+          message += `\n\n💡 Você pode reativá-la antes da data de expiração nas configurações do seu dispositivo.`;
+        }
+
+        // Mostrar modal informativo em português
+        showModal(
+          'info',
+          'Assinatura Já Ativa ✅',
+          message
+        );
+        
+        return;
+      }
+
+      // Se não tem assinatura ativa, prosseguir com a compra
       // Usar a função centralizada do serviço que já sincroniza com Supabase
       const purchaseResult = await purchaseSubscription(packageToBuy);
 
@@ -124,31 +188,85 @@ export default function PlanosPagamentosScreen() {
           plan: purchaseResult.customerInfo?.entitlements.active['premium'] ? 'premium' : 'free',
         });
 
-        Alert.alert(
-          'Compra realizada!',
-          'Sua assinatura foi ativada com sucesso. Obrigado!',
-          [{ text: 'OK' }]
+        // Mostrar modal de sucesso
+        showModal(
+          'success',
+          'Assinatura Ativada! 🎉',
+          'Parabéns! Sua assinatura Premium foi ativada com sucesso. Agora você tem acesso a todos os recursos exclusivos. Aproveite!'
         );
 
         // Recarregar ofertas para atualizar a tela
         await buscarOfertas();
       } else {
-        throw new Error(purchaseResult.error || 'Erro ao processar compra');
+        // Verificar se foi cancelamento
+        if (purchaseResult.error === 'cancelado') {
+          // Não mostrar modal para cancelamento
+          return;
+        }
+        
+        // Mostrar modal de erro
+        showModal(
+          'error',
+          'Ops! Algo deu errado',
+          purchaseResult.error || 'Não foi possível processar sua compra. Por favor, tente novamente.'
+        );
       }
     } catch (error: any) {
       console.error('❌ [comprar] Erro:', error);
       
-      if (error.userCancelled || error.message?.includes('cancelada')) {
+      if (error.userCancelled || error.message?.includes('cancelada') || error.message?.includes('cancelado')) {
         console.log('⚠️ [comprar] Compra cancelada pelo usuário');
-      } else {
-        Alert.alert(
-          'Erro na compra',
-          error.message || 'Não foi possível processar a compra. Tente novamente.',
-          [{ text: 'OK' }]
-        );
+        // Não mostrar modal para cancelamento
+        return;
       }
+      
+      // Mostrar modal de erro
+      showModal(
+        'error',
+        'Erro na Compra',
+        error.message || 'Não foi possível processar sua compra. Por favor, verifique sua conexão e tente novamente.'
+      );
     } finally {
       setPurchasing(null);
+    }
+  };
+
+  // Função para restaurar compras
+  const restaurarCompras = async () => {
+    try {
+      setRestoring(true);
+      console.log('🔄 [restaurarCompras] Iniciando restauração...');
+
+      const result = await restorePurchases();
+
+      if (result.success) {
+        console.log('✅ [restaurarCompras] Compras restauradas com sucesso');
+        
+        showModal(
+          'success',
+          'Compras Restauradas! ✅',
+          'Suas compras anteriores foram restauradas com sucesso! Sua assinatura Premium foi reativada.'
+        );
+
+        // Recarregar ofertas
+        await buscarOfertas();
+      } else {
+        showModal(
+          'warning',
+          'Nenhuma Compra Encontrada',
+          result.error || 'Não encontramos nenhuma compra anterior associada à sua conta para restaurar.'
+        );
+      }
+    } catch (error: any) {
+      console.error('❌ [restaurarCompras] Erro:', error);
+      
+      showModal(
+        'error',
+        'Erro ao Restaurar',
+        'Não foi possível restaurar suas compras. Verifique sua conexão e tente novamente.'
+      );
+    } finally {
+      setRestoring(false);
     }
   };
 
@@ -331,9 +449,46 @@ export default function PlanosPagamentosScreen() {
                 </TouchableOpacity>
               </View>
             ))}
+            
+            {/* Botão de Restaurar Compras */}
+            <View style={styles.restoreContainer}>
+              <TouchableOpacity
+                onPress={restaurarCompras}
+                disabled={restoring}
+                style={[styles.restoreButton, { 
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                }]}
+                activeOpacity={0.7}
+              >
+                {restoring ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <>
+                    <Ionicons name="refresh-outline" size={20} color={colors.primary} />
+                    <Text style={[styles.restoreButtonText, { color: colors.primary }]}>
+                      Restaurar Compras
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              <Text style={[styles.restoreHint, { color: colors.textSecondary }]}>
+                Restaure compras feitas em outros dispositivos
+              </Text>
+            </View>
           </View>
         )}
       </ScrollView>
+
+      {/* Modal de resposta de assinatura */}
+      <SubscriptionModal
+        visible={modalVisible}
+        type={modalType}
+        title={modalTitle}
+        message={modalMessage}
+        onClose={() => setModalVisible(false)}
+        buttonText="Entendi"
+      />
 
       {/* Modal com informações do RevenueCat */}
       <Modal
@@ -865,6 +1020,45 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  // Restaurar Compras
+  restoreContainer: {
+    marginTop: 24,
+    marginBottom: 16,
+    alignItems: 'center',
+    gap: 8,
+  },
+  restoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    gap: 8,
+    minWidth: 200,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  restoreButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  restoreHint: {
+    fontSize: 12,
+    textAlign: 'center',
+    paddingHorizontal: 32,
+    lineHeight: 16,
   },
 });
 

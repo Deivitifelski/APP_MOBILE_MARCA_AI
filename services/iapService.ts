@@ -246,7 +246,7 @@ export const purchaseSubscription = async (
     if (!configured) {
       return {
         success: false,
-        error: 'RevenueCat não configurado. Faça login novamente.',
+        error: 'Não foi possível conectar ao sistema de pagamentos. Por favor, faça login novamente.',
       };
     }
 
@@ -277,14 +277,31 @@ export const purchaseSubscription = async (
     if (purchasesError.userCancelled) {
       return {
         success: false,
-        error: 'Compra cancelada pelo usuário',
+        error: 'cancelado', // Usado para identificar cancelamento
       };
     }
 
     console.error('❌ Erro ao comprar assinatura:', error);
+    
+    // Traduzir erros comuns para português
+    let errorMessage = 'Não foi possível processar sua compra. Por favor, tente novamente.';
+    
+    if (purchasesError.message) {
+      const msg = purchasesError.message.toLowerCase();
+      if (msg.includes('network') || msg.includes('internet') || msg.includes('connection')) {
+        errorMessage = 'Verifique sua conexão com a internet e tente novamente.';
+      } else if (msg.includes('payment') || msg.includes('purchase')) {
+        errorMessage = 'Não foi possível processar o pagamento. Verifique seus dados e tente novamente.';
+      } else if (msg.includes('product') || msg.includes('unavailable')) {
+        errorMessage = 'Este produto não está disponível no momento. Tente novamente mais tarde.';
+      } else if (msg.includes('store')) {
+        errorMessage = 'Erro ao conectar com a loja. Por favor, tente novamente.';
+      }
+    }
+    
     return {
       success: false,
-      error: purchasesError.message || 'Erro ao processar compra',
+      error: errorMessage,
     };
   }
 };
@@ -302,24 +319,48 @@ export const restorePurchases = async (): Promise<{
     if (!configured) {
       return {
         success: false,
-        error: 'RevenueCat não configurado. Faça login novamente.',
+        error: 'Não foi possível conectar ao sistema de pagamentos. Por favor, faça login novamente.',
       };
     }
 
     const customerInfo = await Purchases.restorePurchases();
+    
+    // Verificar se encontrou alguma compra para restaurar
+    const hasPremium = customerInfo.entitlements.active['premium'] !== undefined;
+    
+    if (!hasPremium) {
+      return {
+        success: false,
+        error: 'Nenhuma compra anterior foi encontrada para restaurar.',
+      };
+    }
 
     // Sincronizar com Supabase
-    await syncSubscriptionWithSupabase(customerInfo);
+    const syncResult = await syncSubscriptionWithSupabase(customerInfo);
+    
+    if (!syncResult.success) {
+      console.warn('⚠️ [restorePurchases] Erro ao sincronizar:', syncResult.error);
+    }
 
     return {
       success: true,
       customerInfo,
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Erro ao restaurar compras:', error);
+    
+    let errorMessage = 'Não foi possível restaurar suas compras. Tente novamente mais tarde.';
+    
+    if (error?.message) {
+      const msg = error.message.toLowerCase();
+      if (msg.includes('network') || msg.includes('internet')) {
+        errorMessage = 'Verifique sua conexão com a internet e tente novamente.';
+      }
+    }
+    
     return {
       success: false,
-      error: 'Erro ao restaurar compras',
+      error: errorMessage,
     };
   }
 };
@@ -408,13 +449,60 @@ export const syncSubscriptionWithSupabase = async (customerInfo?: CustomerInfo):
 
     // Verificar se tem assinatura premium ativa
     const premiumEntitlement = info.entitlements.active['premium'];
-    const hasPremium = premiumEntitlement !== undefined;
+    
+    // Validações rigorosas para garantir que é uma assinatura válida
+    let hasValidPremium = false;
+    
+    if (premiumEntitlement) {
+      // Verificar se tem data de expiração válida
+      const expirationDate = premiumEntitlement.expirationDate 
+        ? new Date(premiumEntitlement.expirationDate)
+        : null;
+      
+      // Verificar se não está expirado
+      const isExpired = expirationDate ? expirationDate < new Date() : false;
+      
+      // Verificar se tem productIdentifier (indicando que foi realmente comprado)
+      const hasProductId = !!premiumEntitlement.productIdentifier;
+      
+      // Verificar se tem purchaseDate (data de compra)
+      const hasPurchaseDate = !!premiumEntitlement.latestPurchaseDate;
+      
+      // Log detalhado para debug
+      console.log('🔍 [syncSubscription] Validação de entitlement:', {
+        hasEntitlement: !!premiumEntitlement,
+        expirationDate: expirationDate?.toISOString(),
+        isExpired,
+        hasProductId,
+        hasPurchaseDate,
+        productIdentifier: premiumEntitlement.productIdentifier,
+        willRenew: premiumEntitlement.willRenew,
+        isSandbox: premiumEntitlement.isSandbox,
+      });
+      
+      // Só considerar válido se:
+      // 1. Tem productIdentifier (foi comprado)
+      // 2. Tem purchaseDate (tem data de compra)
+      // 3. Não está expirado
+      // 4. Está realmente no objeto active (RevenueCat já filtra, mas vamos garantir)
+      hasValidPremium = !isExpired && hasProductId && hasPurchaseDate;
+      
+      if (!hasValidPremium) {
+        console.log('⚠️ [syncSubscription] Entitlement encontrado mas não é válido:', {
+          reason: !hasProductId ? 'sem productIdentifier' : 
+                  !hasPurchaseDate ? 'sem purchaseDate' : 
+                  isExpired ? 'expirado' : 'desconhecido',
+        });
+      }
+    } else {
+      console.log('📭 [syncSubscription] Nenhum entitlement premium ativo encontrado');
+    }
     
     // Determinar o status da assinatura
     let status: 'active' | 'inactive' | 'cancelled' | 'past_due' = 'inactive';
     let plan: 'premium' | 'free' = 'free';
     
-    if (hasPremium && premiumEntitlement) {
+    if (hasValidPremium && premiumEntitlement) {
       plan = 'premium';
       
       // Verificar se vai renovar (se não vai renovar, está cancelada mas ainda ativa)
@@ -435,9 +523,14 @@ export const syncSubscriptionWithSupabase = async (customerInfo?: CustomerInfo):
         plan = 'free';
       }
     } else {
+      // Não tem assinatura válida - garantir que está como free/inactive
+      status = 'inactive';
+      plan = 'free';
+      
       // Verificar se tinha assinatura mas expirou
       const expiredEntitlement = info.entitlements.all['premium'];
       if (expiredEntitlement) {
+        console.log('📅 [syncSubscription] Entitlement encontrado mas expirado ou inválido');
         status = 'inactive';
         plan = 'free';
       }
@@ -453,8 +546,8 @@ export const syncSubscriptionWithSupabase = async (customerInfo?: CustomerInfo):
       subscription_updated_at: now, // Sempre atualizar a data de atualização
     };
 
-    // Se tem assinatura ativa, adicionar informações detalhadas
-    if (premiumEntitlement) {
+    // Se tem assinatura ativa E válida, adicionar informações detalhadas
+    if (hasValidPremium && premiumEntitlement) {
       subscriptionInfo.subscription_expires_at = premiumEntitlement.expirationDate 
         ? new Date(premiumEntitlement.expirationDate).toISOString()
         : null;
@@ -462,18 +555,27 @@ export const syncSubscriptionWithSupabase = async (customerInfo?: CustomerInfo):
       subscriptionInfo.subscription_product_identifier = premiumEntitlement.productIdentifier || null;
       subscriptionInfo.subscription_is_sandbox = premiumEntitlement.isSandbox || false;
     } else {
-      // Limpar campos de assinatura se não há mais assinatura ativa
+      // Limpar TODOS os campos de assinatura se não há assinatura válida
       subscriptionInfo.subscription_expires_at = null;
       subscriptionInfo.subscription_will_renew = false;
       subscriptionInfo.subscription_product_identifier = null;
+      subscriptionInfo.subscription_is_sandbox = null;
+      
+      // Garantir que plan e status estão corretos
+      subscriptionInfo.plan = 'free';
+      subscriptionInfo.subscription_status = 'inactive';
+      
+      console.log('🧹 [syncSubscription] Limpando campos de assinatura - usuário sem assinatura válida');
     }
 
     console.log('📊 [syncSubscription] Atualizando no Supabase:', {
       userId: user.id,
       plan,
       status,
+      hasValidPremium,
       expiresAt: subscriptionInfo.subscription_expires_at,
       willRenew: subscriptionInfo.subscription_will_renew,
+      productIdentifier: subscriptionInfo.subscription_product_identifier,
     });
 
     // Atualizar no Supabase
@@ -535,11 +637,20 @@ export const checkAndSyncSubscriptionOnAppStart = async (): Promise<void> => {
     console.log('📡 [checkAndSyncSubscription] Buscando status da API do RevenueCat...');
     const customerInfo = await Purchases.getCustomerInfo();
     
+    // Log detalhado para debug
+    const premiumEntitlement = customerInfo.entitlements.active['premium'];
     console.log('📊 [checkAndSyncSubscription] Status recebido:', {
-      hasPremium: customerInfo.entitlements.active['premium'] !== undefined,
+      hasPremiumEntitlement: premiumEntitlement !== undefined,
       allEntitlements: Object.keys(customerInfo.entitlements.active),
       firstSeen: customerInfo.firstSeen,
       requestDate: customerInfo.requestDate,
+      premiumDetails: premiumEntitlement ? {
+        productIdentifier: premiumEntitlement.productIdentifier,
+        expirationDate: premiumEntitlement.expirationDate,
+        willRenew: premiumEntitlement.willRenew,
+        isSandbox: premiumEntitlement.isSandbox,
+        latestPurchaseDate: premiumEntitlement.latestPurchaseDate,
+      } : null,
     });
 
     // Sincronizar com Supabase
@@ -589,6 +700,61 @@ export const setupSubscriptionStatusListener = (): (() => void) => {
  */
 export const getPremiumEntitlement = (customerInfo: CustomerInfo) => {
   return customerInfo.entitlements.active['premium'];
+};
+
+/**
+ * Obtém informações detalhadas da assinatura atual do usuário
+ */
+export const getCurrentSubscriptionInfo = async (): Promise<{
+  hasSubscription: boolean;
+  expirationDate: Date | null;
+  willRenew: boolean;
+  productIdentifier: string | null;
+  isSandbox: boolean;
+  status: 'active' | 'cancelled' | 'expired' | 'none';
+} | null> => {
+  try {
+    const configured = await ensureConfigured();
+    if (!configured) {
+      return null;
+    }
+
+    const customerInfo = await Purchases.getCustomerInfo();
+    const premiumEntitlement = customerInfo.entitlements.active['premium'];
+
+    if (!premiumEntitlement) {
+      return {
+        hasSubscription: false,
+        expirationDate: null,
+        willRenew: false,
+        productIdentifier: null,
+        isSandbox: false,
+        status: 'none',
+      };
+    }
+
+    const expirationDate = premiumEntitlement.expirationDate
+      ? new Date(premiumEntitlement.expirationDate)
+      : null;
+
+    const isExpired = expirationDate ? expirationDate < new Date() : false;
+
+    return {
+      hasSubscription: true,
+      expirationDate,
+      willRenew: premiumEntitlement.willRenew || false,
+      productIdentifier: premiumEntitlement.productIdentifier || null,
+      isSandbox: premiumEntitlement.isSandbox || false,
+      status: isExpired
+        ? 'expired'
+        : premiumEntitlement.willRenew
+        ? 'active'
+        : 'cancelled',
+    };
+  } catch (error) {
+    console.error('❌ Erro ao obter informações da assinatura:', error);
+    return null;
+  }
 };
 
 /**
