@@ -3,7 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { checkAndSyncSubscriptionOnAppStart, initializeIAP } from '../services/iapService';
+import { initializeIAP } from '../services/iapService';
 import { setupPushNotificationHandlers } from '../services/pushNotificationHandler';
 import { checkArtistsAndRedirect } from '../services/supabase/authService';
 import { checkUserExists } from '../services/supabase/userService';
@@ -61,15 +61,13 @@ export default function Index() {
         if (!userCheck.exists) {
           router.replace('/login');
         } else {
-          // Inicializar RevenueCat e verificar status da assinatura
+          // Inicializar RevenueCat
+          // O webhook do RevenueCat atualiza automaticamente a coluna plan_is_active no banco
           try {
             await initializeIAP(session.user.id);
-            // Verificar e sincronizar status da assinatura ao abrir o app
-            // Isso busca o status mais recente da API do RevenueCat
-            await checkAndSyncSubscriptionOnAppStart();
           } catch (error) {
-            console.warn('⚠️ Erro ao verificar assinatura ao abrir app:', error);
-            // Continuar mesmo se houver erro na verificação de assinatura
+            console.warn('⚠️ Erro ao inicializar RevenueCat:', error);
+            // Continuar mesmo se houver erro na inicialização do RevenueCat
           }
 
           // Verificar artistas e redirecionar adequadamente

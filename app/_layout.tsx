@@ -2,18 +2,10 @@ import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } fro
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
-import { LogBox, Platform } from 'react-native';
+import { LogBox } from 'react-native';
 import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-
-// Desabilitar LogBox para não mostrar logs na tela
-LogBox.ignoreAllLogs(true);
-
-// Importar handler global de erros ANTES de qualquer outro código
-import './error-handler';
-import './suppress-logs';
-
 import AuthDeepLinkHandler from '../components/AuthDeepLinkHandler';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { ActiveArtistProvider } from '../contexts/ActiveArtistContext';
@@ -21,6 +13,11 @@ import { PermissionsProvider } from '../contexts/PermissionsContext';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { useColorScheme } from '../hooks/use-color-scheme';
 import { setupSubscriptionStatusListener } from '../services/iapService';
+import './error-handler';
+import './suppress-logs';
+
+// Desabilitar LogBox para não mostrar logs na tela
+LogBox.ignoreAllLogs(true);
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -31,10 +28,6 @@ export default function RootLayout() {
 
   useEffect(() => {
     Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
-
-    // A configuração do RevenueCat será feita no serviço iapService
-    // ou nas telas que precisam (como planos-pagamentos)
-    // Não configurar aqui para evitar conflitos
 
     // Configurar listener para mudanças de status da assinatura em tempo real
     // Este listener detecta automaticamente quando o status muda (renovação, cancelamento, etc)

@@ -945,7 +945,7 @@ export default function ConfiguracoesScreen() {
                       Plano
                     </Text>
                     <Text style={[dynamicStyles.profileModalInfoValueHighlight, { color: colors.primary }]}>
-                      {userProfile.plan === 'premium' ? 'Premium' : 'Free'}
+                      {userProfile.plan_is_active ? 'Premium' : 'Free'}
                     </Text>
                   </View>
 

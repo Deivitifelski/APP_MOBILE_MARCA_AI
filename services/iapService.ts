@@ -258,14 +258,8 @@ export const purchaseSubscription = async (
       activeEntitlements: Object.keys(customerInfo.entitlements.active),
     });
 
-    // Sincronizar com Supabase - isso atualiza o status no banco de dados
-    const syncResult = await syncSubscriptionWithSupabase(customerInfo);
-    
-    if (syncResult.success) {
-      console.log('✅ [purchaseSubscription] Assinatura sincronizada com banco de dados');
-    } else {
-      console.warn('⚠️ [purchaseSubscription] Erro ao sincronizar:', syncResult.error);
-    }
+    // O webhook do RevenueCat atualiza automaticamente o banco de dados
+    console.log('📡 [purchaseSubscription] O webhook do RevenueCat atualizará o banco automaticamente');
 
     return {
       success: true,
@@ -274,7 +268,8 @@ export const purchaseSubscription = async (
   } catch (error) {
     const purchasesError = error as PurchasesError;
     
-    if (purchasesError.userCancelled) {
+    // Verificar se foi cancelamento
+    if (purchasesError.userCancelled || purchasesError.code === 'PURCHASES_ERROR_CODE_PURCHASE_CANCELLED') {
       return {
         success: false,
         error: 'cancelado', // Usado para identificar cancelamento
@@ -283,19 +278,41 @@ export const purchaseSubscription = async (
 
     console.error('❌ Erro ao comprar assinatura:', error);
     
-    // Traduzir erros comuns para português
-    let errorMessage = 'Não foi possível processar sua compra. Por favor, tente novamente.';
+    // Traduzir erros comuns do RevenueCat para português
+    let errorMessage = 'Não foi possível processar sua compra. Tente novamente.';
     
     if (purchasesError.message) {
       const msg = purchasesError.message.toLowerCase();
-      if (msg.includes('network') || msg.includes('internet') || msg.includes('connection')) {
-        errorMessage = 'Verifique sua conexão com a internet e tente novamente.';
-      } else if (msg.includes('payment') || msg.includes('purchase')) {
-        errorMessage = 'Não foi possível processar o pagamento. Verifique seus dados e tente novamente.';
-      } else if (msg.includes('product') || msg.includes('unavailable')) {
-        errorMessage = 'Este produto não está disponível no momento. Tente novamente mais tarde.';
-      } else if (msg.includes('store')) {
-        errorMessage = 'Erro ao conectar com a loja. Por favor, tente novamente.';
+      
+      // Traduzir mensagens específicas
+      if (msg.includes('network') || msg.includes('internet') || msg.includes('connection') || msg.includes('timeout')) {
+        errorMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
+      } else if (msg.includes('payment') || msg.includes('purchase') || msg.includes('transaction')) {
+        errorMessage = 'Erro no pagamento. Verifique seus dados e tente novamente.';
+      } else if (msg.includes('product') || msg.includes('unavailable') || msg.includes('not found')) {
+        errorMessage = 'Produto não disponível no momento. Tente novamente mais tarde.';
+      } else if (msg.includes('store') || msg.includes('app store') || msg.includes('play store')) {
+        errorMessage = 'Erro ao conectar com a loja. Tente novamente.';
+      } else if (msg.includes('already purchased') || msg.includes('you\'re currently subscribed')) {
+        errorMessage = 'Você já possui uma assinatura ativa.';
+      } else if (msg.includes('receipt') || msg.includes('invalid')) {
+        errorMessage = 'Erro ao validar a compra. Tente novamente.';
+      } else if (msg.includes('permission') || msg.includes('unauthorized')) {
+        errorMessage = 'Permissão negada. Verifique as configurações do seu dispositivo.';
+      }
+    }
+    
+    // Verificar códigos de erro do RevenueCat
+    if (purchasesError.code) {
+      const errorCode = purchasesError.code.toString();
+      if (errorCode.includes('NETWORK') || errorCode.includes('PURCHASES_ERROR_CODE_NETWORK_ERROR')) {
+        errorMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
+      } else if (errorCode.includes('PRODUCT_NOT_AVAILABLE') || errorCode.includes('PURCHASES_ERROR_CODE_PRODUCT_NOT_AVAILABLE_FOR_PURCHASE')) {
+        errorMessage = 'Produto não disponível no momento. Tente novamente mais tarde.';
+      } else if (errorCode.includes('PURCHASE_INVALID')) {
+        errorMessage = 'Erro ao validar a compra. Tente novamente.';
+      } else if (errorCode.includes('PAYMENT_PENDING')) {
+        errorMessage = 'Pagamento pendente. Aguarde a confirmação.';
       }
     }
     
@@ -335,12 +352,8 @@ export const restorePurchases = async (): Promise<{
       };
     }
 
-    // Sincronizar com Supabase
-    const syncResult = await syncSubscriptionWithSupabase(customerInfo);
-    
-    if (!syncResult.success) {
-      console.warn('⚠️ [restorePurchases] Erro ao sincronizar:', syncResult.error);
-    }
+    // O webhook do RevenueCat atualiza automaticamente o banco de dados
+    console.log('📡 [restorePurchases] O webhook do RevenueCat atualizará o banco automaticamente');
 
     return {
       success: true,
@@ -407,270 +420,41 @@ export const hasActiveSubscription = async (): Promise<boolean> => {
 };
 
 /**
- * Sincroniza o status da assinatura com o Supabase
- * Esta função busca o status mais recente da API do RevenueCat e atualiza no banco
+ * DEPRECATED: Esta função não atualiza mais o banco de dados.
+ * O webhook do RevenueCat atualiza automaticamente a coluna plan_is_active na tabela users.
+ * 
+ * Esta função foi mantida apenas para compatibilidade, mas não faz mais nada.
+ * Use a coluna plan_is_active da tabela users para verificar o status da assinatura.
  */
 export const syncSubscriptionWithSupabase = async (customerInfo?: CustomerInfo): Promise<{
   success: boolean;
-  plan: 'premium' | 'free';
   status: 'active' | 'inactive';
   error?: string;
 }> => {
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      console.warn('⚠️ Usuário não autenticado, não é possível sincronizar assinatura');
-      return {
-        success: false,
-        plan: 'free',
-        status: 'inactive',
-        error: 'Usuário não autenticado',
-      };
-    }
-
-    // Se não foi fornecido customerInfo, buscar da API
-    let info = customerInfo;
-    if (!info) {
-      console.log('🔄 [syncSubscription] Buscando status atualizado da API do RevenueCat...');
-      const configured = await ensureConfigured();
-      if (!configured) {
-        return {
-          success: false,
-          plan: 'free',
-          status: 'inactive',
-          error: 'RevenueCat não configurado',
-        };
-      }
-      
-      info = await Purchases.getCustomerInfo();
-      console.log('📡 [syncSubscription] Status recebido da API do RevenueCat');
-    }
-
-    // Verificar se tem assinatura premium ativa
-    const premiumEntitlement = info.entitlements.active['premium'];
-    
-    // Validações rigorosas para garantir que é uma assinatura válida
-    let hasValidPremium = false;
-    
-    if (premiumEntitlement) {
-      // Verificar se tem data de expiração válida
-      const expirationDate = premiumEntitlement.expirationDate 
-        ? new Date(premiumEntitlement.expirationDate)
-        : null;
-      
-      // Verificar se não está expirado
-      const isExpired = expirationDate ? expirationDate < new Date() : false;
-      
-      // Verificar se tem productIdentifier (indicando que foi realmente comprado)
-      const hasProductId = !!premiumEntitlement.productIdentifier;
-      
-      // Verificar se tem purchaseDate (data de compra)
-      const hasPurchaseDate = !!premiumEntitlement.latestPurchaseDate;
-      
-      // Log detalhado para debug
-      console.log('🔍 [syncSubscription] Validação de entitlement:', {
-        hasEntitlement: !!premiumEntitlement,
-        expirationDate: expirationDate?.toISOString(),
-        isExpired,
-        hasProductId,
-        hasPurchaseDate,
-        productIdentifier: premiumEntitlement.productIdentifier,
-        willRenew: premiumEntitlement.willRenew,
-        isSandbox: premiumEntitlement.isSandbox,
-      });
-      
-      // Só considerar válido se:
-      // 1. Tem productIdentifier (foi comprado)
-      // 2. Tem purchaseDate (tem data de compra)
-      // 3. Não está expirado
-      // 4. Está realmente no objeto active (RevenueCat já filtra, mas vamos garantir)
-      hasValidPremium = !isExpired && hasProductId && hasPurchaseDate;
-      
-      if (!hasValidPremium) {
-        console.log('⚠️ [syncSubscription] Entitlement encontrado mas não é válido:', {
-          reason: !hasProductId ? 'sem productIdentifier' : 
-                  !hasPurchaseDate ? 'sem purchaseDate' : 
-                  isExpired ? 'expirado' : 'desconhecido',
-        });
-      }
-    } else {
-      console.log('📭 [syncSubscription] Nenhum entitlement premium ativo encontrado');
-    }
-    
-    // Determinar o status da assinatura
-    let status: 'active' | 'inactive' | 'cancelled' | 'past_due' = 'inactive';
-    let plan: 'premium' | 'free' = 'free';
-    
-    if (hasValidPremium && premiumEntitlement) {
-      plan = 'premium';
-      
-      // Verificar se vai renovar (se não vai renovar, está cancelada mas ainda ativa)
-      if (premiumEntitlement.willRenew) {
-        status = 'active';
-      } else {
-        // Assinatura cancelada mas ainda ativa até expirar
-        status = 'cancelled';
-      }
-      
-      // Verificar se há problemas de pagamento (verificar entitlement expirado)
-      const expiredEntitlement = info.entitlements.all['premium'];
-      if (expiredEntitlement && !premiumEntitlement.willRenew && 
-          expiredEntitlement.expirationDate && 
-          new Date(expiredEntitlement.expirationDate) < new Date()) {
-        // Assinatura expirada devido a problema de pagamento
-        status = 'past_due';
-        plan = 'free';
-      }
-    } else {
-      // Não tem assinatura válida - garantir que está como free/inactive
-      status = 'inactive';
-      plan = 'free';
-      
-      // Verificar se tinha assinatura mas expirou
-      const expiredEntitlement = info.entitlements.all['premium'];
-      if (expiredEntitlement) {
-        console.log('📅 [syncSubscription] Entitlement encontrado mas expirado ou inválido');
-        status = 'inactive';
-        plan = 'free';
-      }
-    }
-
-    // Sempre atualizar subscription_updated_at com a data/hora atual
-    const now = new Date().toISOString();
-
-    // Informações da assinatura para atualizar no banco
-    const subscriptionInfo: any = {
-      plan,
-      subscription_status: status,
-      subscription_updated_at: now, // Sempre atualizar a data de atualização
-    };
-
-    // Se tem assinatura ativa E válida, adicionar informações detalhadas
-    if (hasValidPremium && premiumEntitlement) {
-      subscriptionInfo.subscription_expires_at = premiumEntitlement.expirationDate 
-        ? new Date(premiumEntitlement.expirationDate).toISOString()
-        : null;
-      subscriptionInfo.subscription_will_renew = premiumEntitlement.willRenew || false;
-      subscriptionInfo.subscription_product_identifier = premiumEntitlement.productIdentifier || null;
-      subscriptionInfo.subscription_is_sandbox = premiumEntitlement.isSandbox || false;
-    } else {
-      // Limpar TODOS os campos de assinatura se não há assinatura válida
-      subscriptionInfo.subscription_expires_at = null;
-      subscriptionInfo.subscription_will_renew = false;
-      subscriptionInfo.subscription_product_identifier = null;
-      subscriptionInfo.subscription_is_sandbox = null;
-      
-      // Garantir que plan e status estão corretos
-      subscriptionInfo.plan = 'free';
-      subscriptionInfo.subscription_status = 'inactive';
-      
-      console.log('🧹 [syncSubscription] Limpando campos de assinatura - usuário sem assinatura válida');
-    }
-
-    console.log('📊 [syncSubscription] Atualizando no Supabase:', {
-      userId: user.id,
-      plan,
-      status,
-      hasValidPremium,
-      expiresAt: subscriptionInfo.subscription_expires_at,
-      willRenew: subscriptionInfo.subscription_will_renew,
-      productIdentifier: subscriptionInfo.subscription_product_identifier,
-    });
-
-    // Atualizar no Supabase
-    const { error } = await supabase
-      .from('users')
-      .update(subscriptionInfo)
-      .eq('id', user.id);
-
-    if (error) {
-      console.error('❌ Erro ao atualizar assinatura no Supabase:', error);
-      return {
-        success: false,
-        plan,
-        status,
-        error: error.message,
-      };
-    }
-
-    console.log('✅ [syncSubscription] Assinatura sincronizada com Supabase com sucesso');
-    return {
-      success: true,
-      plan,
-      status,
-    };
-  } catch (error: any) {
-    console.error('❌ Erro ao sincronizar assinatura:', error);
-    return {
-      success: false,
-      plan: 'free',
-      status: 'inactive',
-      error: error.message,
-    };
-  }
+  console.log('⚠️ [syncSubscription] DEPRECATED: O webhook do RevenueCat atualiza o banco automaticamente. Use a coluna plan_is_active da tabela users.');
+  return {
+    success: true,
+    status: 'inactive',
+  };
 };
 
 /**
- * Verifica e sincroniza o status da assinatura ao abrir o app
- * Esta função deve ser chamada sempre que o app for aberto
+ * DEPRECATED: Esta função não atualiza mais o banco de dados.
+ * O webhook do RevenueCat atualiza automaticamente a coluna plan_is_active na tabela users.
+ * 
+ * Esta função foi mantida apenas para compatibilidade, mas não faz mais nada.
+ * Use a coluna plan_is_active da tabela users para verificar o status da assinatura.
  */
 export const checkAndSyncSubscriptionOnAppStart = async (): Promise<void> => {
-  try {
-    console.log('🔄 [checkAndSyncSubscription] Verificando status da assinatura ao abrir o app...');
-    
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      console.log('⚠️ [checkAndSyncSubscription] Usuário não autenticado, pulando verificação');
-      return;
-    }
-
-    // Inicializar RevenueCat se necessário
-    const configured = await ensureConfigured();
-    if (!configured) {
-      console.warn('⚠️ [checkAndSyncSubscription] RevenueCat não configurado');
-      return;
-    }
-
-    // Buscar status atualizado da API do RevenueCat
-    console.log('📡 [checkAndSyncSubscription] Buscando status da API do RevenueCat...');
-    const customerInfo = await Purchases.getCustomerInfo();
-    
-    // Log detalhado para debug
-    const premiumEntitlement = customerInfo.entitlements.active['premium'];
-    console.log('📊 [checkAndSyncSubscription] Status recebido:', {
-      hasPremiumEntitlement: premiumEntitlement !== undefined,
-      allEntitlements: Object.keys(customerInfo.entitlements.active),
-      firstSeen: customerInfo.firstSeen,
-      requestDate: customerInfo.requestDate,
-      premiumDetails: premiumEntitlement ? {
-        productIdentifier: premiumEntitlement.productIdentifier,
-        expirationDate: premiumEntitlement.expirationDate,
-        willRenew: premiumEntitlement.willRenew,
-        isSandbox: premiumEntitlement.isSandbox,
-        latestPurchaseDate: premiumEntitlement.latestPurchaseDate,
-      } : null,
-    });
-
-    // Sincronizar com Supabase
-    await syncSubscriptionWithSupabase(customerInfo);
-    
-    console.log('✅ [checkAndSyncSubscription] Verificação concluída');
-  } catch (error: any) {
-    console.error('❌ [checkAndSyncSubscription] Erro ao verificar assinatura:', error);
-    
-    // Não fazer throw para não quebrar o fluxo do app
-    // Apenas logar o erro
-    if (error?.code !== 23) {
-      console.warn('⚠️ [checkAndSyncSubscription] Erro não crítico, continuando...');
-    }
-  }
+  console.log('⚠️ [checkAndSyncSubscription] DEPRECATED: O webhook do RevenueCat atualiza o banco automaticamente. Use a coluna plan_is_active da tabela users.');
 };
 
 /**
  * Configura listener para mudanças de status da assinatura em tempo real
  * Este listener detecta quando o status muda (renovação, cancelamento, etc)
+ * 
+ * NOTA: O webhook do RevenueCat atualiza automaticamente o banco de dados.
+ * Este listener apenas registra as mudanças para log/debug.
  */
 export const setupSubscriptionStatusListener = (): (() => void) => {
   console.log('👂 [setupSubscriptionStatusListener] Configurando listener de mudanças de status...');
@@ -682,8 +466,8 @@ export const setupSubscriptionStatusListener = (): (() => void) => {
       activeEntitlements: Object.keys(customerInfo.entitlements.active),
     });
     
-    // Sincronizar automaticamente quando o status mudar
-    await syncSubscriptionWithSupabase(customerInfo);
+    // O webhook do RevenueCat atualiza automaticamente o banco de dados
+    console.log('📡 [SubscriptionListener] O webhook do RevenueCat atualizará o banco automaticamente');
   });
 
   console.log('✅ [setupSubscriptionStatusListener] Listener configurado');

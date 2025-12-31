@@ -7,7 +7,9 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { SubscriptionModal } from '../components/SubscriptionModal';
 import { getRevenueCatKey } from '../config/revenuecat-keys';
 import { useTheme } from '../contexts/ThemeContext';
-import { getCurrentSubscriptionInfo, purchaseSubscription, restorePurchases } from '../services/iapService';
+import { supabase } from '../lib/supabase';
+import { purchaseSubscription, restorePurchases } from '../services/iapService';
+import { isPremiumUser } from '../services/supabase/userService';
 
 export default function PlanosPagamentosScreen() {
   const router = useRouter();
@@ -24,6 +26,7 @@ export default function PlanosPagamentosScreen() {
   const [modalType, setModalType] = useState<'success' | 'error' | 'info' | 'warning'>('info');
   const [modalTitle, setModalTitle] = useState('');
   const [modalMessage, setModalMessage] = useState('');
+  const [showCancelButton, setShowCancelButton] = useState(false);
   const [restoring, setRestoring] = useState(false);
 
   useEffect(() => {
@@ -48,19 +51,75 @@ export default function PlanosPagamentosScreen() {
     inicializar();
   }, []);
 
+  // Função para obter o preço formatado do RevenueCat
+  // O RevenueCat retorna o preço já formatado na moeda local do dispositivo
+  const obterPrecoFormatado = (pkg: PurchasesPackage): string => {
+    // Log detalhado do produto (usando console.error para contornar suppress-logs)
+    console.error('💰 [obterPrecoFormatado] Dados do produto:', JSON.stringify({
+      identifier: pkg.identifier,
+      packageType: pkg.packageType,
+      productId: pkg.product.identifier,
+      productTitle: pkg.product.title,
+      productDescription: pkg.product.description,
+      price: pkg.product.price,
+      priceString: pkg.product.priceString,
+      currencyCode: pkg.product.currencyCode,
+      introPrice: pkg.product.introPrice,
+      discounts: pkg.product.discounts,
+    }, null, 2));
+    
+    // Usar o priceString que vem do RevenueCat (já formatado na moeda local)
+    const preco = pkg.product.priceString || '';
+    console.error('✅ [obterPrecoFormatado] Preço formatado retornado:', preco);
+    return preco;
+  };
+
   // Função para buscar ofertas
   const buscarOfertas = async () => {
     try {
-      console.log('🔍 [buscarOfertas] Buscando ofertas...');
+      console.error('🔍 [buscarOfertas] Buscando ofertas...');
       
       const offerings = await Purchases.getOfferings();
-      console.log('📦 [buscarOfertas] Offerings recebidos:', {
+      console.error('📦 [buscarOfertas] Offerings recebidos:', JSON.stringify({
         current: offerings.current ? 'existe' : 'não existe',
         all: Object.keys(offerings.all),
-      });
+      }, null, 2));
 
       if (offerings.current && offerings.current.availablePackages.length > 0) {
-        console.log('✅ [buscarOfertas] Packages encontrados:', offerings.current.availablePackages.length);
+        console.error('✅ [buscarOfertas] Packages encontrados:', offerings.current.availablePackages.length);
+        
+        // Log detalhado de cada package
+        offerings.current.availablePackages.forEach((pkg, index) => {
+          console.error(`📦 [buscarOfertas] Package ${index + 1} completo:`, JSON.stringify({
+            identifier: pkg.identifier,
+            packageType: pkg.packageType,
+            product: {
+              identifier: pkg.product.identifier,
+              description: pkg.product.description,
+              title: pkg.product.title,
+              price: pkg.product.price,
+              priceString: pkg.product.priceString,
+              currencyCode: pkg.product.currencyCode,
+              introPrice: pkg.product.introPrice,
+              subscriptionPeriod: pkg.product.subscriptionPeriod,
+              discounts: pkg.product.discounts,
+            }
+          }, null, 2));
+        });
+        
+        // Log do primeiro package (mais detalhado)
+        const primeiroPacote = offerings.current.availablePackages[0];
+        console.error('🎯 [buscarOfertas] PRIMEIRO PACKAGE DETALHADO:', JSON.stringify({
+          identifier: primeiroPacote.identifier,
+          packageType: primeiroPacote.packageType,
+          productId: primeiroPacote.product.identifier,
+          productTitle: primeiroPacote.product.title,
+          productPrice: primeiroPacote.product.price,
+          productPriceString: primeiroPacote.product.priceString,
+          productCurrencyCode: primeiroPacote.product.currencyCode,
+          productDescription: primeiroPacote.product.description,
+        }, null, 2));
+        
         setPackages(offerings.current.availablePackages);
         
         // Preparar informações para o modal
@@ -82,30 +141,30 @@ export default function PlanosPagamentosScreen() {
           packages: packagesInfo,
         };
         
-        console.log('📋 [Modal] Dados preparados:', JSON.stringify(infoData, null, 2));
-        console.log('📋 [Modal] Packages count:', infoData.packages.length);
-        console.log('📋 [Modal] Metadata keys:', Object.keys(infoData.metadata));
+        console.error('📋 [Modal] Dados preparados:', JSON.stringify(infoData, null, 2));
+        console.error('📋 [Modal] Packages count:', infoData.packages.length);
+        console.error('📋 [Modal] Metadata keys:', Object.keys(infoData.metadata));
         
         setOfferingsInfo(infoData);
         
         // Mostrar modal com as informações após um pequeno delay para garantir que o state foi atualizado
         setTimeout(() => {
-          console.log('📋 [Modal] Abrindo modal...');
+          console.error('📋 [Modal] Abrindo modal...');
           setShowInfoModal(true);
         }, 100);
         
         offerings.current.availablePackages.forEach((pkg: PurchasesPackage, index: number) => {
-          console.log(`📦 Package ${index + 1}:`, {
+          console.error(`📦 Package ${index + 1}:`, JSON.stringify({
             identifier: pkg.identifier,
             packageType: pkg.packageType,
             productId: pkg.product.identifier,
             productTitle: pkg.product.title,
             productPrice: pkg.product.priceString,
             productDescription: pkg.product.description,
-          });
+          }, null, 2));
         });
       } else {
-        console.warn('⚠️ [buscarOfertas] Nenhum package disponível');
+        console.error('⚠️ [buscarOfertas] Nenhum package disponível');
         setPackages([]);
         setOfferingsInfo(null);
       }
@@ -121,11 +180,13 @@ export default function PlanosPagamentosScreen() {
   const showModal = (
     type: 'success' | 'error' | 'info' | 'warning',
     title: string,
-    message: string
+    message: string,
+    showCancel: boolean = false
   ) => {
     setModalType(type);
     setModalTitle(title);
     setModalMessage(message);
+    setShowCancelButton(showCancel);
     setModalVisible(true);
   };
 
@@ -135,47 +196,87 @@ export default function PlanosPagamentosScreen() {
       setPurchasing(packageToBuy.identifier);
       console.log('🛒 [comprar] Iniciando compra do package:', packageToBuy.identifier);
 
-      // Verificar se já tem assinatura ativa antes de tentar comprar
-      const subscriptionInfo = await getCurrentSubscriptionInfo();
+      // Verificar se já tem assinatura ativa no banco de dados (atualizado pelo webhook)
+      const { data: { user } } = await supabase.auth.getUser();
       
-      if (subscriptionInfo?.hasSubscription && subscriptionInfo.status === 'active') {
-        setPurchasing(null);
+      if (user) {
+        const { isPremium } = await isPremiumUser(user.id);
         
-        // Formatar data de expiração
-        let expirationText = 'Data não disponível';
-        if (subscriptionInfo.expirationDate) {
-          const date = subscriptionInfo.expirationDate;
-          const day = date.getDate().toString().padStart(2, '0');
-          const month = (date.getMonth() + 1).toString().padStart(2, '0');
-          const year = date.getFullYear();
-          const hours = date.getHours().toString().padStart(2, '0');
-          const minutes = date.getMinutes().toString().padStart(2, '0');
-          expirationText = `${day}/${month}/${year} às ${hours}:${minutes}`;
-        }
+        if (isPremium) {
+          setPurchasing(null);
+          
+          // Buscar informações detalhadas da assinatura do banco
+          const { data: userData } = await supabase
+            .from('users')
+            .select('subscription_expires_at, subscription_will_renew, subscription_status, subscription_product_identifier')
+            .eq('id', user.id)
+            .single();
 
-        // Criar mensagem detalhada em português
-        let message = `Você já possui uma assinatura Premium ativa!`;
-        
-        if (subscriptionInfo.willRenew) {
-          message += `\n\n✅ Sua assinatura é válida até:`;
-          message += `\n${expirationText}`;
-          message += `\n\n🔄 Ela será renovada automaticamente.`;
-          message += `\n\n💡 Para gerenciar ou cancelar sua assinatura, acesse as configurações do seu dispositivo na App Store ou Google Play.`;
-        } else {
-          message += `\n\n⚠️ Sua assinatura está cancelada mas ainda ativa até:`;
-          message += `\n${expirationText}`;
-          message += `\n\n📅 Após essa data, sua assinatura não será renovada.`;
-          message += `\n\n💡 Você pode reativá-la antes da data de expiração nas configurações do seu dispositivo.`;
-        }
+          // Buscar o preço real dos offerings do RevenueCat
+          console.error('🔍 [comprar] Buscando preço real dos offerings...');
+          const offerings = await Purchases.getOfferings();
+          const primeiroPacote = offerings.current?.availablePackages[0];
+          
+          console.error('📊 [comprar] Dados do primeiro pacote:', JSON.stringify({
+            existe: !!primeiroPacote,
+            identifier: primeiroPacote?.identifier,
+            productId: primeiroPacote?.product?.identifier,
+            productTitle: primeiroPacote?.product?.title,
+            productPrice: primeiroPacote?.product?.price,
+            productPriceString: primeiroPacote?.product?.priceString,
+            productCurrencyCode: primeiroPacote?.product?.currencyCode,
+          }, null, 2));
+          
+          console.error('📊 [comprar] Dados do packageToBuy:', JSON.stringify({
+            identifier: packageToBuy?.identifier,
+            productId: packageToBuy?.product?.identifier,
+            productTitle: packageToBuy?.product?.title,
+            productPrice: packageToBuy?.product?.price,
+            productPriceString: packageToBuy?.product?.priceString,
+            productCurrencyCode: packageToBuy?.product?.currencyCode,
+          }, null, 2));
+          
+          const precoReal = primeiroPacote?.product?.priceString || packageToBuy?.product?.priceString || '';
+          const packageTitle = primeiroPacote?.product?.title || packageToBuy?.product?.title || 'Premium';
+          
+          console.error('✅ [comprar] Valores finais usados:', JSON.stringify({
+            precoReal,
+            packageTitle,
+          }, null, 2));
+          
+          // Formatar mensagem com informações claras
+          let message = 'Você já possui uma assinatura Premium ativa.';
+          
+          if (precoReal) {
+            message += `\n\n💎 Plano: ${packageTitle}`;
+            message += `\n💰 Valor: ${precoReal}/mês`;
+          }
+          
+          if (userData?.subscription_expires_at) {
+            const date = new Date(userData.subscription_expires_at);
+            const day = date.getDate().toString().padStart(2, '0');
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const year = date.getFullYear();
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            
+            message += `\n\n📅 Válida até: ${day}/${month}/${year} às ${hours}:${minutes}`;
+            
+            if (userData.subscription_will_renew) {
+              message += `\n\n🔄 Renovação automática ativada`;
+            }
+          }
 
-        // Mostrar modal informativo em português
-        showModal(
-          'info',
-          'Assinatura Já Ativa ✅',
-          message
-        );
-        
-        return;
+          // Mostrar modal informativo
+          showModal(
+            'info',
+            'Assinatura Ativa',
+            message,
+            false
+          );
+          
+          return;
+        }
       }
 
       // Se não tem assinatura ativa, prosseguir com a compra
@@ -185,14 +286,15 @@ export default function PlanosPagamentosScreen() {
       if (purchaseResult.success) {
         console.log('✅ [comprar] Compra realizada com sucesso');
         console.log('📊 [comprar] Status sincronizado:', {
-          plan: purchaseResult.customerInfo?.entitlements.active['premium'] ? 'premium' : 'free',
+          hasPremium: purchaseResult.customerInfo?.entitlements.active['premium'] ? true : false,
         });
 
         // Mostrar modal de sucesso
         showModal(
           'success',
-          'Assinatura Ativada! 🎉',
-          'Parabéns! Sua assinatura Premium foi ativada com sucesso. Agora você tem acesso a todos os recursos exclusivos. Aproveite!'
+          'Assinatura Ativada',
+          'Sua assinatura Premium foi ativada com sucesso!',
+          false
         );
 
         // Recarregar ofertas para atualizar a tela
@@ -200,31 +302,75 @@ export default function PlanosPagamentosScreen() {
       } else {
         // Verificar se foi cancelamento
         if (purchaseResult.error === 'cancelado') {
-          // Não mostrar modal para cancelamento
+          // Mostrar modal informando que foi cancelado
+          showModal(
+            'info',
+            'Compra Cancelada',
+            'A compra foi cancelada. Você pode tentar novamente quando desejar.',
+            false
+          );
           return;
         }
         
-        // Mostrar modal de erro
+        // Mostrar modal de erro com opção de cancelar
         showModal(
           'error',
-          'Ops! Algo deu errado',
-          purchaseResult.error || 'Não foi possível processar sua compra. Por favor, tente novamente.'
+          'Erro na Compra',
+          purchaseResult.error || 'Não foi possível processar sua compra. Tente novamente.',
+          false
         );
       }
     } catch (error: any) {
       console.error('❌ [comprar] Erro:', error);
       
-      if (error.userCancelled || error.message?.includes('cancelada') || error.message?.includes('cancelado')) {
+      // Verificar se foi cancelamento (em vários formatos possíveis)
+      const errorMessage = error.message?.toLowerCase() || '';
+      const isCancelled = 
+        error.userCancelled || 
+        errorMessage.includes('cancelada') || 
+        errorMessage.includes('cancelado') ||
+        errorMessage.includes('cancelled') ||
+        errorMessage.includes('cancel') ||
+        error.code === 'USER_CANCELLED';
+      
+      if (isCancelled) {
         console.log('⚠️ [comprar] Compra cancelada pelo usuário');
-        // Não mostrar modal para cancelamento
+        setPurchasing(null);
+        // Mostrar modal informando cancelamento
+        showModal(
+          'info',
+          'Compra Cancelada',
+          'A compra foi cancelada. Você pode tentar novamente quando desejar.',
+          false
+        );
         return;
+      }
+      
+      // Traduzir mensagens de erro comuns para português
+      let errorMsg = 'Não foi possível processar sua compra. Verifique sua conexão e tente novamente.';
+      
+      if (error.message) {
+        const msg = error.message.toLowerCase();
+        if (msg.includes('network') || msg.includes('internet') || msg.includes('connection')) {
+          errorMsg = 'Erro de conexão. Verifique sua internet e tente novamente.';
+        } else if (msg.includes('payment') || msg.includes('purchase')) {
+          errorMsg = 'Erro no pagamento. Verifique seus dados e tente novamente.';
+        } else if (msg.includes('product') || msg.includes('unavailable')) {
+          errorMsg = 'Produto não disponível no momento. Tente novamente mais tarde.';
+        } else if (msg.includes('store') || msg.includes('app store')) {
+          errorMsg = 'Erro ao conectar com a loja. Tente novamente.';
+        } else if (!msg.includes('cancel')) {
+          // Só usar a mensagem original se não for cancelamento
+          errorMsg = error.message;
+        }
       }
       
       // Mostrar modal de erro
       showModal(
         'error',
         'Erro na Compra',
-        error.message || 'Não foi possível processar sua compra. Por favor, verifique sua conexão e tente novamente.'
+        errorMsg,
+        false
       );
     } finally {
       setPurchasing(null);
@@ -244,8 +390,8 @@ export default function PlanosPagamentosScreen() {
         
         showModal(
           'success',
-          'Compras Restauradas! ✅',
-          'Suas compras anteriores foram restauradas com sucesso! Sua assinatura Premium foi reativada.'
+          'Compras Restauradas',
+          'Suas compras anteriores foram restauradas com sucesso!'
         );
 
         // Recarregar ofertas
@@ -254,7 +400,7 @@ export default function PlanosPagamentosScreen() {
         showModal(
           'warning',
           'Nenhuma Compra Encontrada',
-          result.error || 'Não encontramos nenhuma compra anterior associada à sua conta para restaurar.'
+          result.error || 'Não encontramos nenhuma compra anterior para restaurar.'
         );
       }
     } catch (error: any) {
@@ -263,7 +409,7 @@ export default function PlanosPagamentosScreen() {
       showModal(
         'error',
         'Erro ao Restaurar',
-        'Não foi possível restaurar suas compras. Verifique sua conexão e tente novamente.'
+        'Não foi possível restaurar suas compras. Tente novamente.'
       );
     } finally {
       setRestoring(false);
@@ -295,17 +441,12 @@ export default function PlanosPagamentosScreen() {
         {/* Hero Section */}
         {!loading && packages.length > 0 && (
           <View style={styles.heroSection}>
-            <View style={[styles.heroCard, { backgroundColor: colors.primary + '15' }]}>
-              <View style={[styles.heroIconContainer, { backgroundColor: colors.primary + '25' }]}>
-                <Ionicons name="diamond" size={32} color={colors.primary} />
-              </View>
-              <Text style={[styles.heroTitle, { color: colors.text }]}>
-                Upgrade para Premium
-              </Text>
-              <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]}>
-                Desbloqueie todos os recursos e funcionalidades exclusivas
-              </Text>
-            </View>
+            <Text style={[styles.heroTitle, { color: colors.text }]}>
+              Escolha seu Plano
+            </Text>
+            <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]}>
+              Desbloqueie todos os recursos premium
+            </Text>
           </View>
         )}
 
@@ -337,144 +478,103 @@ export default function PlanosPagamentosScreen() {
             </View>
           ) : (
           <View style={styles.productsContainer}>
-            {packages.map((pkg, index) => (
-              <View
-                key={pkg.identifier}
-                style={[
-                  styles.productCard,
-                  index === 0 && styles.featuredCard,
-                  { 
-                    backgroundColor: colors.surface,
-                    borderColor: index === 0 ? colors.primary : colors.border,
-                  }
-                ]}
-              >
-                {/* Badge Premium */}
-                {index === 0 && (
-                  <View style={[styles.premiumBadge, { backgroundColor: colors.primary }]}>
-                    <Ionicons name="star" size={12} color="#ffffff" />
-                    <Text style={styles.premiumBadgeText}>MAIS POPULAR</Text>
-                  </View>
-                )}
-
-                {/* Header do Card */}
-                <View style={styles.productHeader}>
-                  <View style={styles.productInfo}>
-                    <View style={styles.titleRow}>
-                      <Ionicons 
-                        name={index === 0 ? "diamond" : "star"} 
-                        size={20} 
-                        color={index === 0 ? colors.primary : colors.textSecondary} 
-                        style={styles.titleIcon}
-                      />
-                      <Text style={[styles.productTitle, { color: colors.text }]}>
-                        {pkg.product.title}
-                      </Text>
+            {packages.map((pkg, index) => {
+              const isFeatured = index === 0;
+              return (
+                <View
+                  key={pkg.identifier}
+                  style={[
+                    styles.productCard,
+                    isFeatured && styles.featuredCard,
+                    { 
+                      backgroundColor: colors.surface,
+                      borderColor: isFeatured ? colors.primary : colors.border,
+                    }
+                  ]}
+                >
+                  {/* Badge */}
+                  {isFeatured && (
+                    <View style={[styles.badge, { backgroundColor: colors.primary }]}>
+                      <Text style={styles.badgeText}>RECOMENDADO</Text>
                     </View>
-                    <View style={styles.priceContainer}>
+                  )}
+
+                  {/* Título e Preço */}
+                  <View style={styles.headerSection}>
+                    <Text style={[styles.planName, { color: colors.text }]}>
+                      {pkg.product.title}
+                    </Text>
+                    <View style={styles.priceRow}>
                       <Text style={[styles.productPrice, { color: colors.primary }]}>
-                        {pkg.product.priceString}
+                        {obterPrecoFormatado(pkg)}
                       </Text>
                       <Text style={[styles.pricePeriod, { color: colors.textSecondary }]}>
                         /mês
-                  </Text>
+                      </Text>
                     </View>
                   </View>
-                </View>
 
-                {/* Divisor */}
-                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                  {/* Divisor */}
+                  <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-                {/* Benefícios */}
-                <View style={styles.productDetails}>
-                  <View style={styles.detailRow}>
-                    <View style={[styles.checkIconContainer, { backgroundColor: colors.success + '20' }]}>
-                      <Ionicons name="checkmark" size={14} color={colors.success} />
-                    </View>
-                    <Text style={[styles.detailText, { color: colors.text }]}>
-                      Acesso completo a todos os recursos
-                    </Text>
-                  </View>
-                  <View style={styles.detailRow}>
-                    <View style={[styles.checkIconContainer, { backgroundColor: colors.success + '20' }]}>
-                      <Ionicons name="checkmark" size={14} color={colors.success} />
-                    </View>
-                    <Text style={[styles.detailText, { color: colors.text }]}>
-                      Suporte prioritário 24/7
-                    </Text>
-                  </View>
-                  <View style={styles.detailRow}>
-                    <View style={[styles.checkIconContainer, { backgroundColor: colors.success + '20' }]}>
-                      <Ionicons name="checkmark" size={14} color={colors.success} />
-                    </View>
-                    <Text style={[styles.detailText, { color: colors.text }]}>
-                      Atualizações ilimitadas
-                    </Text>
-                  </View>
-                  <View style={styles.detailRow}>
-                    <View style={[styles.checkIconContainer, { backgroundColor: colors.success + '20' }]}>
-                      <Ionicons name="checkmark" size={14} color={colors.success} />
-                    </View>
-                    <Text style={[styles.detailText, { color: colors.text }]}>
-                      Sem anúncios
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Botão de Compra */}
-                <TouchableOpacity
-                  style={[
-                    styles.purchaseButton,
-                    index === 0 && styles.featuredButton,
-                    { 
-                      backgroundColor: index === 0 ? colors.primary : colors.primary,
-                      opacity: purchasing === pkg.identifier ? 0.6 : 1,
-                    }
-                  ]}
-                  onPress={() => comprar(pkg)}
-                  disabled={purchasing === pkg.identifier}
-                  activeOpacity={0.8}
-                >
-                  {purchasing === pkg.identifier ? (
-                    <ActivityIndicator size="small" color="#ffffff" />
-                  ) : (
-                    <>
-                      <Ionicons name="card" size={20} color="#ffffff" />
-                      <Text style={styles.purchaseButtonText}>
-                        {index === 0 ? 'Começar Agora' : 'Assinar Agora'}
+                  {/* Benefícios */}
+                  <View style={styles.benefitsList}>
+                    {[
+                      'Acesso completo a todos os recursos',
+                      'Suporte prioritário 24/7',
+                      'Atualizações ilimitadas',
+                      'Sem anúncios'
+                    ].map((benefit, idx) => (
+                      <View key={idx} style={styles.benefitItem}>
+                        <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                        <Text style={[styles.benefitText, { color: colors.text }]}>
+                          {benefit}
                         </Text>
-                      <Ionicons name="arrow-forward" size={18} color="#ffffff" />
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-            ))}
+                      </View>
+                    ))}
+                  </View>
+
+                  {/* Botão */}
+                  <TouchableOpacity
+                    style={[
+                      styles.actionButton,
+                      { 
+                        backgroundColor: colors.primary,
+                        opacity: purchasing === pkg.identifier ? 0.6 : 1,
+                      }
+                    ]}
+                    onPress={() => comprar(pkg)}
+                    disabled={purchasing === pkg.identifier}
+                    activeOpacity={0.8}
+                  >
+                    {purchasing === pkg.identifier ? (
+                      <ActivityIndicator size="small" color="#ffffff" />
+                    ) : (
+                      <Text style={styles.actionButtonText}>
+                        {isFeatured ? 'Começar Agora' : 'Assinar'}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
             
-            {/* Botão de Restaurar Compras */}
-            <View style={styles.restoreContainer}>
+            {/* Botão de Restaurar */}
+            <View style={styles.restoreSection}>
               <TouchableOpacity
                 onPress={restaurarCompras}
                 disabled={restoring}
-                style={[styles.restoreButton, { 
-                  backgroundColor: colors.surface,
-                  borderColor: colors.border,
-                }]}
+                style={[styles.restoreButton, { borderColor: colors.border }]}
                 activeOpacity={0.7}
               >
                 {restoring ? (
                   <ActivityIndicator size="small" color={colors.primary} />
                 ) : (
-                  <>
-                    <Ionicons name="refresh-outline" size={20} color={colors.primary} />
-                    <Text style={[styles.restoreButtonText, { color: colors.primary }]}>
-                      Restaurar Compras
-                    </Text>
-                  </>
+                  <Text style={[styles.restoreButtonText, { color: colors.primary }]}>
+                    Restaurar Compras
+                  </Text>
                 )}
               </TouchableOpacity>
-              <Text style={[styles.restoreHint, { color: colors.textSecondary }]}>
-                Restaure compras feitas em outros dispositivos
-              </Text>
             </View>
           </View>
         )}
@@ -487,6 +587,8 @@ export default function PlanosPagamentosScreen() {
         title={modalTitle}
         message={modalMessage}
         onClose={() => setModalVisible(false)}
+        onCancel={() => setModalVisible(false)}
+        showCancel={showCancelButton}
         buttonText="Entendi"
       />
 
@@ -677,44 +779,21 @@ const styles = StyleSheet.create({
   },
   // Hero Section
   heroSection: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingTop: 24,
-    paddingBottom: 8,
-  },
-  heroCard: {
-    borderRadius: 20,
-    padding: 24,
+    paddingBottom: 20,
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
-  },
-  heroIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
   },
   heroTitle: {
     fontSize: 24,
-    fontWeight: '800',
+    fontWeight: '700',
     marginBottom: 8,
     textAlign: 'center',
   },
   heroSubtitle: {
     fontSize: 15,
     textAlign: 'center',
-    lineHeight: 22,
+    opacity: 0.7,
   },
   // Loading
   loadingContainer: {
@@ -782,147 +861,81 @@ const styles = StyleSheet.create({
   },
   // Products
   productsContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingHorizontal: 20,
+    paddingTop: 8,
     gap: 20,
   },
   productCard: {
-    borderRadius: 20,
+    borderRadius: 16,
     padding: 24,
     borderWidth: 2,
     position: 'relative',
-    overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.12,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
   },
   featuredCard: {
-    borderWidth: 3,
-    transform: [{ scale: 1.02 }],
+    borderWidth: 2.5,
   },
-  premiumBadge: {
+  badge: {
     position: 'absolute',
-    top: 0,
-    right: 0,
-    left: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    gap: 6,
+    top: -10,
+    right: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  premiumBadgeText: {
+  badgeText: {
     color: '#ffffff',
     fontSize: 11,
     fontWeight: '700',
-    letterSpacing: 1,
   },
-  productHeader: {
-    marginTop: 8,
-    marginBottom: 16,
+  headerSection: {
+    marginBottom: 20,
   },
-  productInfo: {
-    flex: 1,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  planName: {
+    fontSize: 20,
+    fontWeight: '700',
     marginBottom: 12,
   },
-  titleIcon: {
-    marginRight: 8,
-  },
-  productTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    flex: 1,
-  },
-  priceContainer: {
+  priceRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
   },
   productPrice: {
     fontSize: 36,
-    fontWeight: '900',
-    letterSpacing: -1,
+    fontWeight: '800',
   },
   pricePeriod: {
     fontSize: 16,
-    fontWeight: '500',
-    marginLeft: 4,
-  },
-  descriptionContainer: {
-    marginBottom: 20,
-  },
-  productDescription: {
-    fontSize: 15,
-    lineHeight: 22,
+    marginLeft: 6,
+    opacity: 0.7,
   },
   divider: {
     height: 1,
     marginVertical: 20,
-    opacity: 0.3,
+    opacity: 0.2,
   },
-  productDetails: {
+  benefitsList: {
     marginBottom: 24,
-    gap: 16,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 12,
   },
-  checkIconContainer: {
-    width: 24,
-    height: 24,
+  benefitItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  benefitText: {
+    fontSize: 15,
+    flex: 1,
+  },
+  actionButton: {
+    paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  detailText: {
-    fontSize: 15,
-    flex: 1,
-    fontWeight: '500',
-    lineHeight: 22,
-  },
-  purchaseButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 18,
-    borderRadius: 16,
-    gap: 10,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
-  },
-  featuredButton: {
-    paddingVertical: 20,
-  },
-  purchaseButtonText: {
+  actionButtonText: {
     color: '#ffffff',
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
-    letterSpacing: 0.5,
   },
   // Modal de Informações
   modalOverlay: {
@@ -1022,43 +1035,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   // Restaurar Compras
-  restoreContainer: {
+  restoreSection: {
     marginTop: 24,
-    marginBottom: 16,
+    marginBottom: 24,
+    paddingHorizontal: 20,
     alignItems: 'center',
-    gap: 8,
   },
   restoreButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 12,
     borderWidth: 1.5,
-    gap: 8,
-    minWidth: 200,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    backgroundColor: 'transparent',
   },
   restoreButtonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-  },
-  restoreHint: {
-    fontSize: 12,
-    textAlign: 'center',
-    paddingHorizontal: 32,
-    lineHeight: 16,
   },
 });
 

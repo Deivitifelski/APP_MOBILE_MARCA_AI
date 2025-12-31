@@ -1,7 +1,5 @@
 import { supabase } from '../../lib/supabase';
 
-export type UserPlan = 'free' | 'premium';
-
 export interface UserProfile {
   id: string;
   name: string;
@@ -10,7 +8,7 @@ export interface UserProfile {
   state?: string;
   phone?: string;
   profile_url?: string;
-  plan: UserPlan;
+  plan_is_active?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -23,7 +21,7 @@ export interface CreateUserProfileData {
   state?: string;
   phone?: string;
   profile_url?: string;
-  plan?: UserPlan;
+  plan_is_active?: boolean;
 }
 
 // Verificar se o usuário existe na tabela users
@@ -75,7 +73,7 @@ export const createUserProfile = async (userData: CreateUserProfileData): Promis
         state: userData.state || null,
         phone: userData.phone || null,
         profile_url: userData.profile_url || null,
-        plan: userData.plan || 'free',
+        plan_is_active: userData.plan_is_active || false,
         token_fcm: tokenFCM || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -158,7 +156,7 @@ const upsertSocialUserProfile = async (
         name: socialData.name || 'Usuário',
         email: socialData.email,
         profile_url: socialData.photo || null,
-        plan: 'free',
+        plan_is_active: false,
         token_fcm: tokenFCM || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -253,42 +251,27 @@ export const updateUserProfile = async (userId: string, userData: Partial<Create
   }
 };
 
-// Verificar o plano do usuário
-export const getUserPlan = async (userId: string): Promise<{ plan: UserPlan | null; error: string | null }> => {
+// Verificar se o usuário tem plano premium
+export const isPremiumUser = async (userId: string): Promise<{ isPremium: boolean; error: string | null }> => {
   try {
     const { data, error } = await supabase
       .from('users')
-      .select('plan')
+      .select('plan_is_active')
       .eq('id', userId)
       .single();
 
     if (error) {
-      // Se a coluna não existir, retornar 'free' como padrão
-      if (error.message.includes('column') && error.message.includes('plan')) {
-        return { plan: 'free', error: null };
+      // Se a coluna não existir, retornar false como padrão
+      if (error.message.includes('column') && error.message.includes('plan_is_active')) {
+        return { isPremium: false, error: null };
       }
       
-      return { plan: null, error: error.message };
+      return { isPremium: false, error: error.message };
     }
 
-    // Se o plano for null ou undefined, retornar 'free' como padrão
-    const plan = data?.plan || 'free';
-    return { plan: plan as UserPlan, error: null };
-  } catch (error) {
-    return { plan: null, error: 'Erro de conexão' };
-  }
-};
-
-// Verificar se o usuário tem plano premium
-export const isPremiumUser = async (userId: string): Promise<{ isPremium: boolean; error: string | null }> => {
-  try {
-    const { plan, error } = await getUserPlan(userId);
-    
-    if (error) {
-      return { isPremium: false, error };
-    }
-
-    return { isPremium: plan === 'premium', error: null };
+    // Se plan_is_active for null ou undefined, retornar false como padrão
+    const isPremium = data?.plan_is_active === true;
+    return { isPremium, error: null };
   } catch (error) {
     return { isPremium: false, error: 'Erro de conexão' };
   }
@@ -297,14 +280,14 @@ export const isPremiumUser = async (userId: string): Promise<{ isPremium: boolea
 // Verificar se o usuário pode criar mais artistas (limitação do plano free)
 export const canCreateArtist = async (userId: string): Promise<{ canCreate: boolean; error: string | null }> => {
   try {
-    const { plan, error } = await getUserPlan(userId);
-    if (error) {
-      console.error('❌ [canCreateArtist] Erro ao obter plano:', error);
-      return { canCreate: false, error };
+    const { isPremium, error: planError } = await isPremiumUser(userId);
+    if (planError) {
+      console.error('❌ [canCreateArtist] Erro ao obter plano:', planError);
+      return { canCreate: false, error: planError };
     }
 
     // Se for premium, pode criar até 50 artistas
-    if (plan === 'premium') {
+    if (isPremium) {
       // Verificar quantos artistas o usuário premium já possui
       const { data, error: countError } = await supabase
         .from('artist_members')
@@ -349,13 +332,13 @@ export const canCreateArtist = async (userId: string): Promise<{ canCreate: bool
 // Verificar se o usuário pode exportar dados (limitação do plano free)
 export const canExportData = async (userId: string): Promise<{ canExport: boolean; error: string | null }> => {
   try {
-    const { plan, error } = await getUserPlan(userId);
+    const { isPremium, error } = await isPremiumUser(userId);
     if (error) {
       return { canExport: false, error };
     }
 
     // Apenas usuários premium podem exportar dados
-    const canExport = plan === 'premium';
+    const canExport = isPremium;
 
     return { canExport, error: null };
   } catch (error) {

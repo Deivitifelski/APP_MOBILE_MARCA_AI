@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import {
   Animated,
@@ -17,8 +16,10 @@ interface SubscriptionModalProps {
   title: string;
   message: string;
   onClose: () => void;
+  onCancel?: () => void;
   icon?: keyof typeof Ionicons.glyphMap;
   buttonText?: string;
+  showCancel?: boolean;
 }
 
 export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
@@ -27,10 +28,12 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   title,
   message,
   onClose,
+  onCancel,
   icon,
   buttonText = 'Entendi',
+  showCancel = false,
 }) => {
-  const { colors, isDarkMode } = useTheme();
+  const { colors } = useTheme();
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
   const scaleAnim = React.useRef(new Animated.Value(0.8)).current;
 
@@ -53,6 +56,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
       fadeAnim.setValue(0);
       scaleAnim.setValue(0.8);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   const getIconName = (): keyof typeof Ionicons.glyphMap => {
@@ -86,20 +90,6 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
     }
   };
 
-  const getGradientColors = () => {
-    switch (type) {
-      case 'success':
-        return ['#10B981', '#059669'];
-      case 'error':
-        return ['#EF4444', '#DC2626'];
-      case 'warning':
-        return ['#F59E0B', '#D97706'];
-      case 'info':
-        return ['#3B82F6', '#2563EB'];
-      default:
-        return [colors.primary, colors.primary];
-    }
-  };
 
   if (!visible) return null;
 
@@ -123,25 +113,38 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
             style={[
               styles.modalContainer,
               {
-                backgroundColor: colors.background,
+                backgroundColor: colors.surface,
                 transform: [{ scale: scaleAnim }],
+                borderWidth: 1,
+                borderColor: colors.border,
               },
             ]}
           >
-            {/* Ícone com gradiente */}
+            {/* Botão de Fechar */}
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="close" size={24} color={colors.textSecondary} />
+            </TouchableOpacity>
+
+            {/* Ícone */}
             <View style={styles.iconContainer}>
-              <LinearGradient
-                colors={getGradientColors()}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.iconGradient}
+              <View
+                style={[
+                  styles.iconCircle,
+                  {
+                    backgroundColor: getIconColor() + '20',
+                  }
+                ]}
               >
                 <Ionicons
                   name={getIconName()}
-                  size={64}
-                  color="#FFFFFF"
+                  size={40}
+                  color={getIconColor()}
                 />
-              </LinearGradient>
+              </View>
             </View>
 
             {/* Título */}
@@ -157,37 +160,61 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
             </Text>
 
             {/* Mensagem */}
-            <Text
-              style={[
-                styles.message,
-                {
-                  color: colors.textSecondary,
-                },
-              ]}
-            >
-              {message.split('\n').map((line, index) => (
-                <Text key={index}>
-                  {line}
-                  {index < message.split('\n').length - 1 && '\n'}
-                </Text>
-              ))}
-            </Text>
+            <View style={styles.messageContainer}>
+              {message.split('\n').map((line, index) => {
+                // Destaque para linhas com emojis ou informações importantes
+                const isHighlight = line.includes('💎') || line.includes('💰') || line.includes('📅') || line.includes('🔄');
+                return (
+                  <Text 
+                    key={index}
+                    style={[
+                      styles.message,
+                      {
+                        color: isHighlight ? colors.text : colors.textSecondary,
+                        fontWeight: isHighlight ? '600' : '400',
+                        marginBottom: index < message.split('\n').length - 1 ? 6 : 0,
+                      }
+                    ]}
+                  >
+                    {line}
+                  </Text>
+                );
+              })}
+            </View>
 
-            {/* Botão */}
-            <View style={styles.buttonContainer}>
+            {/* Botões */}
+            <View style={styles.buttonsContainer}>
+              {showCancel && onCancel && (
+                <TouchableOpacity
+                  onPress={onCancel}
+                  activeOpacity={0.8}
+                  style={[
+                    styles.button,
+                    styles.cancelButton,
+                    {
+                      borderColor: colors.border,
+                      marginRight: 8,
+                    }
+                  ]}
+                >
+                  <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>
+                    Cancelar
+                  </Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 onPress={onClose}
                 activeOpacity={0.8}
+                style={[
+                  styles.button,
+                  {
+                    backgroundColor: getIconColor(),
+                    width: showCancel ? undefined : '100%',
+                    flex: showCancel ? 1 : undefined,
+                  }
+                ]}
               >
-                <LinearGradient
-                  colors={getGradientColors()}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.button}
-                >
-                  <Text style={styles.buttonText}>{buttonText}</Text>
-                  <Ionicons name="checkmark" size={20} color="#FFFFFF" style={styles.buttonIcon} />
-                </LinearGradient>
+                <Text style={styles.buttonText}>{buttonText}</Text>
               </TouchableOpacity>
             </View>
           </Animated.View>
@@ -204,78 +231,81 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   modalContainer: {
-    width: '85%',
+    width: '90%',
     maxWidth: 400,
-    borderRadius: 24,
-    padding: 32,
+    borderRadius: 20,
+    padding: 24,
     alignItems: 'center',
+    position: 'relative',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 10,
+      height: 8,
     },
     shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  iconContainer: {
-    marginBottom: 24,
-  },
-  iconGradient: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowRadius: 16,
     elevation: 8,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    textAlign: 'center',
+  closeButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    zIndex: 10,
+    padding: 4,
+  },
+  iconContainer: {
     marginBottom: 16,
   },
-  message: {
-    fontSize: 16,
+  iconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '700',
     textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 32,
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  messageContainer: {
+    width: '100%',
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  message: {
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
     width: '100%',
   },
-  buttonContainer: {
+  buttonsContainer: {
     width: '100%',
+    flexDirection: 'row',
+    marginTop: 4,
   },
   button: {
-    flexDirection: 'row',
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 32,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
     borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+  },
+  cancelButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
   },
   buttonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
-    marginRight: 8,
   },
-  buttonIcon: {
-    marginLeft: 4,
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
