@@ -1,14 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Platform, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Purchases, { PurchasesPackage } from 'react-native-purchases';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SubscriptionModal } from '../components/SubscriptionModal';
 import { getRevenueCatKey } from '../config/revenuecat-keys';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
-import { purchaseSubscription, restorePurchases } from '../services/iapService';
+import { purchaseSubscription } from '../services/iapService';
 import { isPremiumUser } from '../services/supabase/userService';
 
 export default function PlanosPagamentosScreen() {
@@ -18,8 +18,6 @@ export default function PlanosPagamentosScreen() {
   const [packages, setPackages] = useState<PurchasesPackage[]>([]);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
-  const [showInfoModal, setShowInfoModal] = useState(false);
-  const [offeringsInfo, setOfferingsInfo] = useState<any>(null);
   
   // Estados do modal de resposta
   const [modalVisible, setModalVisible] = useState(false);
@@ -27,7 +25,7 @@ export default function PlanosPagamentosScreen() {
   const [modalTitle, setModalTitle] = useState('');
   const [modalMessage, setModalMessage] = useState('');
   const [showCancelButton, setShowCancelButton] = useState(false);
-  const [restoring, setRestoring] = useState(false);
+  const [shouldNavigateBack, setShouldNavigateBack] = useState(false);
 
   useEffect(() => {
     const inicializar = async () => {
@@ -122,37 +120,6 @@ export default function PlanosPagamentosScreen() {
         
         setPackages(offerings.current.availablePackages);
         
-        // Preparar informações para o modal
-        const packagesInfo = offerings.current.availablePackages.map((pkg: PurchasesPackage, index: number) => ({
-        identifier: pkg.identifier,
-        packageType: pkg.packageType,
-        productId: pkg.product.identifier,
-          productTitle: pkg.product.title,
-          productPrice: pkg.product.priceString,
-          productPriceNumber: pkg.product.price,
-          productCurrencyCode: pkg.product.currencyCode,
-          productDescription: pkg.product.description,
-        }));
-        
-        const infoData = {
-          offeringIdentifier: offerings.current.identifier,
-          serverDescription: offerings.current.serverDescription,
-          metadata: offerings.current.metadata || {},
-          packages: packagesInfo,
-        };
-        
-        console.error('📋 [Modal] Dados preparados:', JSON.stringify(infoData, null, 2));
-        console.error('📋 [Modal] Packages count:', infoData.packages.length);
-        console.error('📋 [Modal] Metadata keys:', Object.keys(infoData.metadata));
-        
-        setOfferingsInfo(infoData);
-        
-        // Mostrar modal com as informações após um pequeno delay para garantir que o state foi atualizado
-        setTimeout(() => {
-          console.error('📋 [Modal] Abrindo modal...');
-          setShowInfoModal(true);
-        }, 100);
-        
         offerings.current.availablePackages.forEach((pkg: PurchasesPackage, index: number) => {
           console.error(`📦 Package ${index + 1}:`, JSON.stringify({
             identifier: pkg.identifier,
@@ -166,7 +133,6 @@ export default function PlanosPagamentosScreen() {
       } else {
         console.error('⚠️ [buscarOfertas] Nenhum package disponível');
         setPackages([]);
-        setOfferingsInfo(null);
       }
       setLoading(false);
     } catch (error: any) {
@@ -187,6 +153,10 @@ export default function PlanosPagamentosScreen() {
     setModalTitle(title);
     setModalMessage(message);
     setShowCancelButton(showCancel);
+    // Só marcar para navegar de volta se for sucesso e já estiver marcado
+    if (type !== 'success') {
+      setShouldNavigateBack(false);
+    }
     setModalVisible(true);
   };
 
@@ -289,7 +259,8 @@ export default function PlanosPagamentosScreen() {
           hasPremium: purchaseResult.customerInfo?.entitlements.active['premium'] ? true : false,
         });
 
-        // Mostrar modal de sucesso
+        // Mostrar modal de sucesso e marcar para navegar de volta
+        setShouldNavigateBack(true);
         showModal(
           'success',
           'Assinatura Ativada',
@@ -377,44 +348,41 @@ export default function PlanosPagamentosScreen() {
     }
   };
 
-  // Função para restaurar compras
-  const restaurarCompras = async () => {
-    try {
-      setRestoring(true);
-      console.log('🔄 [restaurarCompras] Iniciando restauração...');
+  // Função para restaurar compras (mantida para uso futuro)
+  // const restaurarCompras = async () => {
+  //   try {
+  //     console.log('🔄 [restaurarCompras] Iniciando restauração...');
 
-      const result = await restorePurchases();
+  //     const result = await restorePurchases();
 
-      if (result.success) {
-        console.log('✅ [restaurarCompras] Compras restauradas com sucesso');
+  //     if (result.success) {
+  //       console.log('✅ [restaurarCompras] Compras restauradas com sucesso');
         
-        showModal(
-          'success',
-          'Compras Restauradas',
-          'Suas compras anteriores foram restauradas com sucesso!'
-        );
+  //       showModal(
+  //         'success',
+  //         'Compras Restauradas',
+  //         'Suas compras anteriores foram restauradas com sucesso!'
+  //       );
 
-        // Recarregar ofertas
-        await buscarOfertas();
-      } else {
-        showModal(
-          'warning',
-          'Nenhuma Compra Encontrada',
-          result.error || 'Não encontramos nenhuma compra anterior para restaurar.'
-        );
-      }
-    } catch (error: any) {
-      console.error('❌ [restaurarCompras] Erro:', error);
+  //       // Recarregar ofertas
+  //       await buscarOfertas();
+  //     } else {
+  //       showModal(
+  //         'warning',
+  //         'Nenhuma Compra Encontrada',
+  //         result.error || 'Não encontramos nenhuma compra anterior para restaurar.'
+  //       );
+  //     }
+  //   } catch (error: any) {
+  //     console.error('❌ [restaurarCompras] Erro:', error);
       
-      showModal(
-        'error',
-        'Erro ao Restaurar',
-        'Não foi possível restaurar suas compras. Tente novamente.'
-      );
-    } finally {
-      setRestoring(false);
-    }
-  };
+  //     showModal(
+  //       'error',
+  //       'Erro ao Restaurar',
+  //       'Não foi possível restaurar suas compras. Tente novamente.'
+  //     );
+  //   }
+  // };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
@@ -433,19 +401,20 @@ export default function PlanosPagamentosScreen() {
           <View style={styles.placeholder} />
         </View>
 
-      <ScrollView 
+      <View 
         style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
       >
         {/* Hero Section */}
         {!loading && packages.length > 0 && (
-          <View style={styles.heroSection}>
+          <View style={[styles.heroSection, { backgroundColor: colors.primary + '08' }]}>
+            <View style={[styles.heroIconContainer, { backgroundColor: colors.primary }]}>
+              <Ionicons name="diamond" size={24} color="#ffffff" />
+            </View>
             <Text style={[styles.heroTitle, { color: colors.text }]}>
-              Escolha seu Plano
+              Assinatura Premium
             </Text>
             <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]}>
-              Desbloqueie todos os recursos premium
+              Recursos ilimitados
             </Text>
           </View>
         )}
@@ -495,12 +464,19 @@ export default function PlanosPagamentosScreen() {
                   {/* Badge */}
                   {isFeatured && (
                     <View style={[styles.badge, { backgroundColor: colors.primary }]}>
+                      <Ionicons name="star" size={10} color="#ffffff" style={{ marginRight: 3 }} />
                       <Text style={styles.badgeText}>RECOMENDADO</Text>
                     </View>
                   )}
 
                   {/* Título e Preço */}
                   <View style={styles.headerSection}>
+                    {isFeatured && (
+                      <View style={[styles.premiumBadge, { backgroundColor: colors.primary + '15' }]}>
+                        <Ionicons name="sparkles" size={12} color={colors.primary} />
+                        <Text style={[styles.premiumBadgeText, { color: colors.primary }]}>Premium</Text>
+                      </View>
+                    )}
                     <Text style={[styles.planName, { color: colors.text }]}>
                       {pkg.product.title}
                     </Text>
@@ -515,23 +491,30 @@ export default function PlanosPagamentosScreen() {
                   </View>
 
                   {/* Divisor */}
-                  <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                  <View style={[styles.divider, { backgroundColor: isFeatured ? colors.primary + '30' : colors.border }]} />
 
                   {/* Benefícios */}
-                  <View style={styles.benefitsList}>
-                    {[
-                      'Acesso completo a todos os recursos',
-                      'Suporte prioritário 24/7',
-                      'Atualizações ilimitadas',
-                      'Sem anúncios'
-                    ].map((benefit, idx) => (
-                      <View key={idx} style={styles.benefitItem}>
-                        <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-                        <Text style={[styles.benefitText, { color: colors.text }]}>
-                          {benefit}
-                        </Text>
-                      </View>
-                    ))}
+                  <View style={styles.benefitsContainer}>
+                    <Text style={[styles.benefitsTitle, { color: colors.text }]}>
+                      Benefícios incluídos:
+                    </Text>
+                    <View style={styles.benefitsList}>
+                      {[
+                        { icon: 'people', text: 'Artistas ilimitados' },
+                        { icon: 'person-add', text: 'Colaboradores ilimitados' },
+                        { icon: 'trending-up', text: 'Exportar finanças' },
+                        { icon: 'calendar', text: 'Exportar agendas' },
+                      ].map((benefit, idx) => (
+                        <View key={idx} style={[styles.benefitItem, { backgroundColor: colors.background }]}>
+                          <View style={[styles.benefitIconContainer, { backgroundColor: colors.success + '20' }]}>
+                            <Ionicons name={benefit.icon as any} size={14} color={colors.success} />
+                          </View>
+                          <Text style={[styles.benefitText, { color: colors.text }]}>
+                            {benefit.text}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
                   </View>
 
                   {/* Botão */}
@@ -539,7 +522,9 @@ export default function PlanosPagamentosScreen() {
                     style={[
                       styles.actionButton,
                       { 
-                        backgroundColor: colors.primary,
+                        backgroundColor: isFeatured ? colors.primary : colors.surface,
+                        borderWidth: isFeatured ? 0 : 2,
+                        borderColor: colors.primary,
                         opacity: purchasing === pkg.identifier ? 0.6 : 1,
                       }
                     ]}
@@ -548,37 +533,25 @@ export default function PlanosPagamentosScreen() {
                     activeOpacity={0.8}
                   >
                     {purchasing === pkg.identifier ? (
-                      <ActivityIndicator size="small" color="#ffffff" />
+                      <ActivityIndicator size="small" color={isFeatured ? "#ffffff" : colors.primary} />
                     ) : (
-                      <Text style={styles.actionButtonText}>
-                        {isFeatured ? 'Começar Agora' : 'Assinar'}
-                      </Text>
+                      <View style={styles.buttonContent}>
+                        <Text style={[styles.actionButtonText, { color: isFeatured ? "#ffffff" : colors.primary }]}>
+                          Assinar
+                        </Text>
+                        {isFeatured && (
+                          <Ionicons name="arrow-forward" size={16} color="#ffffff" style={{ marginLeft: 6 }} />
+                        )}
+                      </View>
                     )}
                   </TouchableOpacity>
                 </View>
               );
             })}
             
-            {/* Botão de Restaurar */}
-            <View style={styles.restoreSection}>
-              <TouchableOpacity
-                onPress={restaurarCompras}
-                disabled={restoring}
-                style={[styles.restoreButton, { borderColor: colors.border }]}
-                activeOpacity={0.7}
-              >
-                {restoring ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <Text style={[styles.restoreButtonText, { color: colors.primary }]}>
-                    Restaurar Compras
-                  </Text>
-                )}
-              </TouchableOpacity>
-            </View>
           </View>
         )}
-      </ScrollView>
+      </View>
 
       {/* Modal de resposta de assinatura */}
       <SubscriptionModal
@@ -586,151 +559,26 @@ export default function PlanosPagamentosScreen() {
         type={modalType}
         title={modalTitle}
         message={modalMessage}
-        onClose={() => setModalVisible(false)}
-        onCancel={() => setModalVisible(false)}
+        onClose={() => {
+          setModalVisible(false);
+          // Se foi uma assinatura com sucesso, voltar para configurações
+          if (shouldNavigateBack && modalType === 'success') {
+            setShouldNavigateBack(false);
+            router.back();
+          }
+        }}
+        onCancel={() => {
+          setModalVisible(false);
+          // Se foi uma assinatura com sucesso, voltar para configurações
+          if (shouldNavigateBack && modalType === 'success') {
+            setShouldNavigateBack(false);
+            router.back();
+          }
+        }}
         showCancel={showCancelButton}
         buttonText="Entendi"
       />
 
-      {/* Modal com informações do RevenueCat */}
-      <Modal
-        visible={showInfoModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => {
-          console.log('📋 [Modal] Fechando modal...');
-          setShowInfoModal(false);
-        }}
-        onShow={() => {
-          console.log('📋 [Modal] Modal exibido!');
-          console.log('📋 [Modal] offeringsInfo:', offeringsInfo ? 'existe' : 'null');
-          if (offeringsInfo) {
-            console.log('📋 [Modal] Packages:', offeringsInfo.packages?.length || 0);
-            console.log('📋 [Modal] Metadata:', Object.keys(offeringsInfo.metadata || {}));
-          }
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
-            {/* Header do Modal */}
-            <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
-                Informações do RevenueCat
-              </Text>
-              <TouchableOpacity onPress={() => setShowInfoModal(false)} style={styles.modalCloseButton}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-                </View>
-
-            {/* Conteúdo do Modal */}
-            <ScrollView 
-              style={styles.modalContent}
-              contentContainerStyle={styles.modalContentContainer}
-              showsVerticalScrollIndicator={true}
-            >
-              {offeringsInfo ? (
-                <>
-                  <Text style={[styles.debugText, { color: colors.textSecondary }]}>
-                    Debug: Modal visível, dados carregados ({offeringsInfo.packages?.length || 0} packages)
-                  </Text>
-                  {/* Informações do Offering */}
-                  <View style={styles.infoSection}>
-                    <Text style={[styles.infoSectionTitle, { color: colors.text }]}>
-                      Offering
-                    </Text>
-                    <View style={[styles.infoCard, { backgroundColor: colors.background }]}>
-                      <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
-                        Identifier:
-                      </Text>
-                      <Text style={[styles.infoValue, { color: colors.text }]}>
-                        {offeringsInfo.offeringIdentifier}
-                      </Text>
-                      
-                      {offeringsInfo.serverDescription && (
-                        <>
-                          <Text style={[styles.infoLabel, { color: colors.textSecondary, marginTop: 12 }]}>
-                            Descrição:
-                          </Text>
-                          <Text style={[styles.infoValue, { color: colors.text }]}>
-                            {offeringsInfo.serverDescription}
-                          </Text>
-                        </>
-                      )}
-                    </View>
-                  </View>
-
-                  {/* Metadados */}
-                  {offeringsInfo.metadata && Object.keys(offeringsInfo.metadata).length > 0 && (
-                    <View style={styles.infoSection}>
-                      <Text style={[styles.infoSectionTitle, { color: colors.text }]}>
-                        Metadados
-                      </Text>
-                      <View style={[styles.infoCard, { backgroundColor: colors.background }]}>
-                        <Text style={[styles.infoValue, { color: colors.text, fontFamily: 'monospace' }]}>
-                          {JSON.stringify(offeringsInfo.metadata, null, 2)}
-                        </Text>
-                      </View>
-                    </View>
-                  )}
-
-                  {/* Packages */}
-                  <View style={styles.infoSection}>
-                    <Text style={[styles.infoSectionTitle, { color: colors.text }]}>
-                      Packages ({offeringsInfo.packages.length})
-                    </Text>
-                    {offeringsInfo.packages.map((pkg: any, index: number) => (
-                      <View key={index} style={[styles.infoCard, { backgroundColor: colors.background, marginBottom: 12 }]}>
-                        <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
-                          Package {index + 1}:
-                        </Text>
-                        <Text style={[styles.infoValue, { color: colors.text, marginTop: 4 }]}>
-                          <Text style={styles.boldText}>Identifier:</Text> {pkg.identifier}
-                        </Text>
-                        <Text style={[styles.infoValue, { color: colors.text }]}>
-                          <Text style={styles.boldText}>Type:</Text> {pkg.packageType}
-                        </Text>
-                        <Text style={[styles.infoValue, { color: colors.text }]}>
-                          <Text style={styles.boldText}>Product ID:</Text> {pkg.productId}
-                        </Text>
-                        <Text style={[styles.infoValue, { color: colors.text }]}>
-                          <Text style={styles.boldText}>Título:</Text> {pkg.productTitle}
-                        </Text>
-                        <Text style={[styles.infoValue, { color: colors.text }]}>
-                          <Text style={styles.boldText}>Preço:</Text> {pkg.productPrice} ({pkg.productCurrencyCode})
-                        </Text>
-                        {pkg.productDescription && (
-                          <Text style={[styles.infoValue, { color: colors.text }]}>
-                            <Text style={styles.boldText}>Descrição:</Text> {pkg.productDescription}
-                      </Text>
-                  )}
-                </View>
-                    ))}
-                  </View>
-                </>
-              ) : (
-                <View style={styles.modalEmptyContainer}>
-                  <Text style={[styles.modalEmptyText, { color: colors.textSecondary }]}>
-                    Nenhuma informação disponível
-                  </Text>
-                  <Text style={[styles.debugText, { color: colors.textSecondary, marginTop: 8 }]}>
-                    Debug: offeringsInfo é null
-                  </Text>
-              </View>
-          )}
-        </ScrollView>
-
-            {/* Botão Fechar */}
-            <View style={[styles.modalFooter, { borderTopColor: colors.border }]}>
-              <TouchableOpacity
-                style={[styles.modalCloseButtonBottom, { backgroundColor: colors.primary }]}
-                onPress={() => setShowInfoModal(false)}
-              >
-                <Text style={styles.modalCloseButtonText}>Fechar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
       </SafeAreaView>
   );
 }
@@ -738,13 +586,14 @@ export default function PlanosPagamentosScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    justifyContent: 'space-between',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     ...Platform.select({
       ios: {
@@ -773,25 +622,46 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-  },
-  contentContainer: {
-    paddingBottom: 32,
+    justifyContent: 'center',
   },
   // Hero Section
   heroSection: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 20,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
     alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 16,
+    marginBottom: 8,
+  },
+  heroIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#667eea',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   heroTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '700',
-    marginBottom: 8,
+    marginBottom: 4,
     textAlign: 'center',
   },
   heroSubtitle: {
-    fontSize: 15,
+    fontSize: 13,
     textAlign: 'center',
     opacity: 0.7,
   },
@@ -861,178 +731,170 @@ const styles = StyleSheet.create({
   },
   // Products
   productsContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    gap: 20,
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    flex: 1,
+    justifyContent: 'center',
   },
   productCard: {
     borderRadius: 16,
-    padding: 24,
+    padding: 16,
     borderWidth: 2,
     position: 'relative',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   featuredCard: {
     borderWidth: 2.5,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#667eea',
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
   badge: {
     position: 'absolute',
-    top: -10,
-    right: 20,
-    paddingHorizontal: 12,
+    top: -8,
+    right: 16,
+    paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   badgeText: {
     color: '#ffffff',
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  premiumBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 16,
+    marginBottom: 8,
+    gap: 4,
+  },
+  premiumBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   headerSection: {
-    marginBottom: 20,
+    marginBottom: 12,
+    alignItems: 'center',
   },
   planName: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
-    marginBottom: 12,
+    marginBottom: 8,
+    textAlign: 'center',
   },
   priceRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
+    justifyContent: 'center',
   },
   productPrice: {
-    fontSize: 36,
+    fontSize: 32,
     fontWeight: '800',
+    letterSpacing: -1,
   },
   pricePeriod: {
-    fontSize: 16,
-    marginLeft: 6,
+    fontSize: 14,
+    marginLeft: 4,
     opacity: 0.7,
+    fontWeight: '500',
   },
   divider: {
     height: 1,
-    marginVertical: 20,
-    opacity: 0.2,
+    marginVertical: 12,
+    opacity: 0.3,
+  },
+  benefitsContainer: {
+    marginBottom: 12,
+  },
+  benefitsTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 8,
   },
   benefitsList: {
-    marginBottom: 24,
-    gap: 12,
+    gap: 6,
   },
   benefitItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  benefitIconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   benefitText: {
-    fontSize: 15,
+    fontSize: 13,
     flex: 1,
+    fontWeight: '500',
   },
   actionButton: {
-    paddingVertical: 16,
+    paddingVertical: 12,
     borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#667eea',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  buttonContent: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   actionButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
-  },
-  // Modal de Informações
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContainer: {
-    width: '90%',
-    maxHeight: '85%',
-    borderRadius: 20,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 12,
-      },
-    }),
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  modalCloseButton: {
-    padding: 4,
-  },
-  modalContent: {
-    flex: 1,
-  },
-  modalContentContainer: {
-    padding: 20,
-  },
-  modalEmptyContainer: {
-    paddingVertical: 40,
-    alignItems: 'center',
-  },
-  modalEmptyText: {
-    fontSize: 16,
-  },
-  debugText: {
-    fontSize: 12,
-    fontStyle: 'italic',
-    marginBottom: 8,
-  },
-  infoSection: {
-    marginBottom: 24,
-  },
-  infoSectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  infoCard: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  infoLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  infoValue: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  boldText: {
-    fontWeight: '700',
-  },
-  modalFooter: {
-    padding: 20,
-    borderTopWidth: 1,
-  },
-  modalCloseButtonBottom: {
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  modalCloseButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
+    letterSpacing: 0.3,
   },
   // Restaurar Compras
   restoreSection: {

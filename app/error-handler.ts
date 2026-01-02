@@ -68,15 +68,29 @@ if (typeof global !== 'undefined') {
     const originalConsoleError = console.error;
     console.error = (...args: any[]) => {
       try {
-        originalConsoleError.apply(console, args);
+        // Usar call ao invés de apply para evitar problemas
+        if (typeof originalConsoleError === 'function') {
+          originalConsoleError(...args);
+        }
         // Você pode adicionar lógica adicional aqui se necessário
       } catch (e) {
-        // Se falhar, pelo menos não quebrar
-        originalConsoleError('Erro ao logar:', e);
+        // Se falhar, pelo menos não quebrar - usar try/catch interno
+        try {
+          if (typeof originalConsoleError === 'function') {
+            originalConsoleError('Erro ao logar:', e);
+          }
+        } catch {
+          // Se ainda falhar, ignorar silenciosamente
+        }
       }
     };
   } catch (e) {
-    console.error('Erro ao configurar console.error:', e);
+    // Se falhar ao configurar, apenas ignorar
+    try {
+      console.error('Erro ao configurar console.error:', e);
+    } catch {
+      // Ignorar se nem isso funcionar
+    }
   }
 }
 
