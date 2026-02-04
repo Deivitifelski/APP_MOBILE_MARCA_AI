@@ -3,21 +3,20 @@ import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import UpgradeModal from '../../../components/UpgradeModal';
 import { useActiveArtistContext } from '../../../contexts/ActiveArtistContext';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { createArtist } from '../../../services/supabase/artistService';
@@ -100,7 +99,6 @@ export default function ArtistProfileScreen() {
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showEstilos, setShowEstilos] = useState(false);
   const [createdArtistName, setCreatedArtistName] = useState('');
@@ -211,9 +209,8 @@ export default function ArtistProfileScreen() {
       }
 
       if (!canCreate) {
-        console.log('⚠️ [ArtistProfileScreen] Usuário atingiu o limite de artistas');
         setLoading(false);
-        setShowUpgradeModal(true);
+        Alert.alert('Limite atingido', 'Você atingiu o limite de 50 artistas.');
         return;
       }
 
@@ -425,14 +422,6 @@ export default function ArtistProfileScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-
-      <UpgradeModal
-        visible={showUpgradeModal}
-        onClose={() => setShowUpgradeModal(false)}
-        title="Seja Premium"
-        message="Desbloqueie recursos avançados, usuários ilimitados, relatórios detalhados e suporte prioritário para sua banda."
-        feature="artists"
-      />
 
       {/* Modal de Seleção de Estilo Musical */}
       <Modal

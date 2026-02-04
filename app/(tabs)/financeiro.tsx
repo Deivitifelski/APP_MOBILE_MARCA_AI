@@ -3,26 +3,24 @@ import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
-  Clipboard,
-  FlatList,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Alert,
+    Clipboard,
+    FlatList,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PermissionModal from '../../components/PermissionModal';
-import UpgradeModal from '../../components/UpgradeModal';
 import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { generateFinancialReport } from '../../services/financialReportService';
 import { getEventsByMonth } from '../../services/supabase/eventService';
 import { deleteStandaloneExpense, getExpensesByEvent, getStandaloneExpensesByArtist } from '../../services/supabase/expenseService';
-import { canExportData } from '../../services/supabase/userService';
 // import * as FileSystem from 'expo-file-system';
 
 interface EventWithExpenses {
@@ -43,7 +41,6 @@ export default function FinanceiroScreen() {
   const [events, setEvents] = useState<EventWithExpenses[]>([]);
   const [standaloneExpenses, setStandaloneExpenses] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -249,21 +246,7 @@ export default function FinanceiroScreen() {
       Alert.alert('Erro', 'Usuário não encontrado. Faça login novamente.');
       return;
     }
-    
-    // Verificar se o usuário pode exportar dados
-    const { canExport, error: canExportError } = await canExportData(currentUserId);
-    
-    if (canExportError) {
-      Alert.alert('Erro', 'Erro ao verificar permissões: ' + canExportError);
-      return;
-    }
 
-    if (!canExport) {
-      setShowUpgradeModal(true);
-      return;
-    }
-    
-    // Abrir modal de exportação
     setShowExportModal(true);
   };
 
@@ -1143,14 +1126,6 @@ export default function FinanceiroScreen() {
         </View>
       </Modal>
 
-      {/* Modal de Upgrade */}
-      <UpgradeModal
-        visible={showUpgradeModal}
-        onClose={() => setShowUpgradeModal(false)}
-        title="Seja Premium"
-        message="Desbloqueie recursos avançados, usuários ilimitados, relatórios detalhados e suporte prioritário para sua banda."
-        feature="finances"
-      />
     </View>
   );
 }

@@ -4,20 +4,19 @@ import Constants from 'expo-constants';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import OptimizedImage from '../../components/OptimizedImage';
-import UpgradeModal from '../../components/UpgradeModal';
 import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { artistImageUpdateService } from '../../services/artistImageUpdateService';
@@ -27,7 +26,7 @@ import { getArtists } from '../../services/supabase/artistService';
 import { deleteAccount, getCurrentUser, logoutUser, updatePassword } from '../../services/supabase/authService';
 import { createFeedback } from '../../services/supabase/feedbackService';
 import { getUserPermissions } from '../../services/supabase/permissionsService';
-import { getUserProfile, isPremiumUser, UserProfile } from '../../services/supabase/userService';
+import { getUserProfile, UserProfile } from '../../services/supabase/userService';
 
 const getRoleLabel = (role?: string) => {
   switch (role) {
@@ -52,8 +51,6 @@ export default function ConfiguracoesScreen() {
   const [hasArtist, setHasArtist] = useState(false);
   const [currentArtist, setCurrentArtist] = useState<any>(null);
   const [userPermissions, setUserPermissions] = useState<any>(null);
-  const [isPremium, setIsPremium] = useState<boolean>(false);
-  const [isLoadingPlan, setIsLoadingPlan] = useState(true);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -69,7 +66,6 @@ export default function ConfiguracoesScreen() {
   });
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [realtimeSubscriptions, setRealtimeSubscriptions] = useState<RealtimeSubscription[]>([]);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
@@ -102,7 +98,6 @@ export default function ConfiguracoesScreen() {
 
   useEffect(() => {
     loadUserProfile();
-    checkUserPlan();
     setupRealtimeSubscriptions();
     
     // Cleanup function
@@ -161,7 +156,6 @@ export default function ConfiguracoesScreen() {
       const userSubscription = subscribeToUsers(user.id, (payload) => {
         // Recarregar dados do usuário quando houver mudanças
         loadUserProfile();
-        checkUserPlan();
       });
 
       setRealtimeSubscriptions([userSubscription]);
@@ -289,13 +283,6 @@ export default function ConfiguracoesScreen() {
   };
 
   const handleCreateNewArtist = () => {
-    // Verificar se o usuário é premium antes de permitir criar novo artista
-    if (!isPremium) {
-      setShowUpgradeModal(true);
-      return;
-    }
-    
-    // Navegar diretamente para a tela de cadastro do artista com parâmetro indicando que veio das configurações
     router.push('/cadastro-artista?fromSettings=true');
   };
 
@@ -541,36 +528,6 @@ export default function ConfiguracoesScreen() {
     }
   };
 
-  const checkUserPlan = async () => {
-    try {
-      setIsLoadingPlan(true);
-      const { user } = await getCurrentUser();
-      
-      if (!user) {
-        setIsPremium(false);
-        return;
-      }
-
-      // Verificar se é premium
-      const { isPremium: premiumStatus, error: premiumError } = await isPremiumUser(user.id);
-      if (premiumError) {
-        setIsPremium(false);
-      } else {
-        setIsPremium(premiumStatus);
-      }
-
-    } catch (error) {
-      setIsPremium(false);
-    } finally {
-      setIsLoadingPlan(false);
-    }
-  };
-
-  const handleCancelPlan = () => {
-    // Navegar para a página de cancelamento do plano
-    router.push('/cancelar-plano');
-  };
-
   const renderSettingItem = (
     icon: string,
     title: string,
@@ -705,13 +662,8 @@ export default function ConfiguracoesScreen() {
               {renderSettingItem(
                 'add-circle',
                 'Criar Novo Artista',
-                isPremium ? 'Criar um novo perfil de artista' : 'Recurso Premium - Criar múltiplos artistas',
-                handleCreateNewArtist,
-                !isPremium ? (
-                  <View style={[dynamicStyles.premiumBadge, { backgroundColor: '#F59E0B' }]}>
-                    <Ionicons name="lock-closed" size={12} color="#fff" />
-                  </View>
-                ) : undefined
+                'Criar um novo perfil de artista',
+                handleCreateNewArtist
               )}
 
               {renderSettingItem(
@@ -792,63 +744,8 @@ export default function ConfiguracoesScreen() {
                 <ActivityIndicator size="small" color={colors.primary} />
               ) : undefined
             )}
-            
-            {/* Status do Plano - apenas para usuários premium */}
-            {!isLoadingPlan && isPremium && (
-              <>
-                {renderSettingItem(
-                  'diamond',
-                  'Status do Plano',
-                  'Plano Premium Ativo',
-                  undefined,
-                  <View style={[
-                    dynamicStyles.planBadge,
-                    { backgroundColor: '#F59E0B' }
-                  ]}>
-                    <Text style={dynamicStyles.planBadgeText}>
-                      PREMIUM
-                    </Text>
-                  </View>
-                )}
-
-                {renderSettingItem(
-                  'close-circle',
-                  'Cancelar Plano Premium',
-                  'Cancelar assinatura premium',
-                  handleCancelPlan
-                )}
-              </>
-            )}
           </View>
         </View>
-
-        {/* Seja Premium - apenas para usuários não premium */}
-        {!isLoadingPlan && !isPremium && (
-          <View style={dynamicStyles.section}>
-            <View style={[dynamicStyles.premiumCard, { backgroundColor: colors.surface }]}>
-              <View style={dynamicStyles.premiumContent}>
-                <View style={dynamicStyles.premiumIcon}>
-                  <Ionicons name="diamond" size={32} color="#F59E0B" />
-                </View>
-                <View style={dynamicStyles.premiumText}>
-                  <Text style={[dynamicStyles.premiumTitle, { color: colors.text }]}>
-                    Seja Premium
-                  </Text>
-                  <Text style={[dynamicStyles.premiumDescription, { color: colors.textSecondary }]}>
-                    Desbloqueie recursos avançados, usuários ilimitados, relatórios detalhados e suporte prioritário para sua banda.
-                  </Text>
-                </View>
-              </View>
-              <TouchableOpacity 
-                style={[dynamicStyles.premiumButton, { backgroundColor: '#F59E0B' }]}
-                onPress={() => router.push('/planos-pagamentos')}
-              >
-                <Text style={dynamicStyles.premiumButtonText}>Assinar Premium</Text>
-                <Ionicons name="arrow-forward" size={16} color="#fff" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
 
         {/* Aplicativo */}
         <View style={dynamicStyles.section}>
@@ -1733,13 +1630,6 @@ export default function ConfiguracoesScreen() {
         </View>
       </Modal>
 
-      {/* Modal de Upgrade Premium */}
-      <UpgradeModal 
-        visible={showUpgradeModal}
-        onClose={() => setShowUpgradeModal(false)}
-        title="Criar Múltiplos Artistas"
-        message="Crie e gerencie vários perfis de artistas com o plano Premium. Desbloqueie recursos avançados como colaboradores ilimitados, relatórios detalhados e suporte prioritário."
-      />
     </View>
   );
 }

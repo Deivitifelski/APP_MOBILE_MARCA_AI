@@ -277,50 +277,22 @@ export const isPremiumUser = async (userId: string): Promise<{ isPremium: boolea
   }
 };
 
-// Verificar se o usuário pode criar mais artistas (limitação do plano free)
+// Verificar se o usuário pode criar mais artistas (todos os recursos liberados - limite alto para todos)
 export const canCreateArtist = async (userId: string): Promise<{ canCreate: boolean; error: string | null }> => {
   try {
-    const { isPremium, error: planError } = await isPremiumUser(userId);
-    if (planError) {
-      console.error('❌ [canCreateArtist] Erro ao obter plano:', planError);
-      return { canCreate: false, error: planError };
-    }
-
-    // Se for premium, pode criar até 50 artistas
-    if (isPremium) {
-      // Verificar quantos artistas o usuário premium já possui
-      const { data, error: countError } = await supabase
-        .from('artist_members')
-        .select('artist_id', { count: 'exact' })
-        .eq('user_id', userId)
-        .eq('role', 'admin'); // Apenas artistas onde o usuário é admin (criador)
-
-      if (countError) {
-        console.error('❌ [canCreateArtist] Erro ao contar artistas:', countError);
-        return { canCreate: false, error: countError.message };
-      }
-
-      const artistCount = data?.length || 0;
-      const canCreate = artistCount < 50;
-      
-      return { canCreate, error: null };
-    }
-
-    // Se for free, verificar quantos artistas já possui através de artist_members
     const { data, error: countError } = await supabase
       .from('artist_members')
       .select('artist_id', { count: 'exact' })
       .eq('user_id', userId)
-      .eq('role', 'admin'); // Apenas artistas onde o usuário é admin (criador)
+      .eq('role', 'admin');
 
     if (countError) {
       console.error('❌ [canCreateArtist] Erro ao contar artistas:', countError);
       return { canCreate: false, error: countError.message };
     }
 
-    // Plano free permite até 2 artistas
     const artistCount = data?.length || 0;
-    const canCreate = artistCount < 2;
+    const canCreate = artistCount < 50;
 
     return { canCreate, error: null };
   } catch (error) {
@@ -329,21 +301,9 @@ export const canCreateArtist = async (userId: string): Promise<{ canCreate: bool
   }
 };
 
-// Verificar se o usuário pode exportar dados (limitação do plano free)
+// Verificar se o usuário pode exportar dados (todos os recursos liberados)
 export const canExportData = async (userId: string): Promise<{ canExport: boolean; error: string | null }> => {
-  try {
-    const { isPremium, error } = await isPremiumUser(userId);
-    if (error) {
-      return { canExport: false, error };
-    }
-
-    // Apenas usuários premium podem exportar dados
-    const canExport = isPremium;
-
-    return { canExport, error: null };
-  } catch (error) {
-    return { canExport: false, error: 'Erro de conexão' };
-  }
+  return { canExport: true, error: null };
 };
 
 // Salvar ou atualizar token FCM do usuário

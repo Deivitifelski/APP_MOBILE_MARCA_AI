@@ -2,25 +2,23 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    Platform,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import PermissionModal from '../components/PermissionModal';
-import UpgradeModal from '../components/UpgradeModal';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { generateEventPDF } from '../services/pdfService';
 import { getEventCreatorName } from '../services/supabase/eventCreatorService';
 import { Event, deleteEvent, getEventById, getEventByIdWithPermissions } from '../services/supabase/eventService';
 import { getTotalExpensesByEvent } from '../services/supabase/expenseService';
-import { canExportData } from '../services/supabase/userService';
 import { useActiveArtist } from '../services/useActiveArtist';
 
 
@@ -36,7 +34,6 @@ export default function DetalhesEventoScreen() {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [creatorName, setCreatorName] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const { activeArtist } = useActiveArtist();
   
@@ -314,21 +311,7 @@ export default function DetalhesEventoScreen() {
 
   const handleExportPDF = async () => {
     if (!event || !currentUserId) return;
-    
-    // Verificar se o usuário pode exportar dados
-    const { canExport, error: canExportError } = await canExportData(currentUserId);
-    
-    if (canExportError) {
-      Alert.alert('Erro', 'Erro ao verificar permissões: ' + canExportError);
-      return;
-    }
 
-    if (!canExport) {
-      console.log('🚫 Usuário não pode exportar - mostrando modal de upgrade');
-      setShowUpgradeModal(true);
-      return;
-    }
-    
     // Modal melhorado para escolher tipo de relatório
     Alert.alert(
       '📄 Exportar Relatório do Evento',
@@ -617,14 +600,6 @@ export default function DetalhesEventoScreen() {
         icon="lock-closed"
       />
 
-      {/* Modal de Upgrade */}
-      <UpgradeModal
-        visible={showUpgradeModal}
-        onClose={() => setShowUpgradeModal(false)}
-        title="Seja Premium"
-        message="Desbloqueie recursos avançados, usuários ilimitados, relatórios detalhados e suporte prioritário para sua banda."
-        feature="export"
-      />
     </SafeAreaView>
   );
 }

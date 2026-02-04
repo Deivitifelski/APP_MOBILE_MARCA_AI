@@ -1,5 +1,6 @@
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { LogBox } from 'react-native';
@@ -16,6 +17,9 @@ import { setupSubscriptionStatusListener } from '../services/iapService';
 import './error-handler';
 import './suppress-logs';
 
+// Esconder a tela de splash (ícone) assim que o app carregar
+SplashScreen.preventAutoHideAsync();
+
 // Desabilitar LogBox para não mostrar logs na tela
 LogBox.ignoreAllLogs(true);
 
@@ -30,9 +34,10 @@ export default function RootLayout() {
     Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
 
     // Configurar listener para mudanças de status da assinatura em tempo real
-    // Este listener detecta automaticamente quando o status muda (renovação, cancelamento, etc)
-    // e sincroniza com o Supabase
     setupSubscriptionStatusListener();
+
+    // Esconder a tela de splash (ícone) imediatamente para não ficar só o ícone na tela
+    SplashScreen.hideAsync();
   }, []);
 
   return (
@@ -67,8 +72,6 @@ export default function RootLayout() {
             <Stack.Screen name="selecionar-artista" options={{ headerShown: false }} />
             <Stack.Screen name="sair-artista" options={{ headerShown: false }} />
             <Stack.Screen name="transferir-propriedade" options={{ headerShown: false }} />
-            <Stack.Screen name="planos-pagamentos" options={{ headerShown: false }} />
-            <Stack.Screen name="cancelar-plano" options={{ headerShown: false }} />
             <Stack.Screen name="screens/auth/LoginScreen" options={{ headerShown: false }} />
             <Stack.Screen name="screens/profile/UserProfileScreen" options={{ headerShown: false }} />
             <Stack.Screen name="screens/profile/ArtistProfileScreen" options={{ headerShown: false }} />

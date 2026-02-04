@@ -2,26 +2,24 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import OptimizedImage from '../components/OptimizedImage';
-import UpgradeModal from '../components/UpgradeModal';
 import { useTheme } from '../contexts/ThemeContext';
 import { checkPendingInvite, createArtistInvite } from '../services/supabase/artistInviteService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { addCollaborator, Collaborator, getCollaborators, removeCollaborator, searchUsers, updateCollaboratorRole } from '../services/supabase/collaboratorService';
 import { deletePendingInviteNotifications } from '../services/supabase/notificationService';
-import { canExportData } from '../services/supabase/userService';
 import { useActiveArtist } from '../services/useActiveArtist';
 
 export default function ColaboradoresArtistaScreen() {
@@ -42,7 +40,6 @@ export default function ColaboradoresArtistaScreen() {
   const [isSearching, setIsSearching] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [isInviting, setIsInviting] = useState(false);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [selectedCollaborator, setSelectedCollaborator] = useState<Collaborator | null>(null);
@@ -258,19 +255,6 @@ export default function ColaboradoresArtistaScreen() {
 
   const handleConfirmInvite = async () => {
     if (!selectedUser || !activeArtist || !currentUserId) return;
-
-    // Verificar se o usuário pode convidar colaboradores (plano premium)
-    const { canExport, error: canExportError } = await canExportData(currentUserId);
-    
-    if (canExportError) {
-      Alert.alert('Erro', 'Erro ao verificar permissões: ' + canExportError);
-      return;
-    }
-
-    if (!canExport) {
-      setShowUpgradeModal(true);
-      return;
-    }
 
     try {
       setIsInviting(true);
@@ -689,25 +673,11 @@ export default function ColaboradoresArtistaScreen() {
           {canAddCollaborators && (
             <TouchableOpacity 
               style={styles.addButton}
-              onPress={async () => {
-                // Verificar se o usuário pode adicionar colaboradores (plano premium)
+              onPress={() => {
                 if (!currentUserId) {
                   Alert.alert('Erro', 'Usuário não encontrado. Faça login novamente.');
                   return;
                 }
-
-                const { canExport, error: canExportError } = await canExportData(currentUserId);
-                
-                if (canExportError) {
-                  Alert.alert('Erro', 'Erro ao verificar permissões: ' + canExportError);
-                  return;
-                }
-
-                if (!canExport) {
-                  setShowUpgradeModal(true);
-                  return;
-                }
-
                 setShowAddModal(true);
               }}
             >
@@ -951,19 +921,6 @@ export default function ColaboradoresArtistaScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
-
-      {/* Modal de Upgrade */}
-      <UpgradeModal
-        visible={showUpgradeModal}
-        onClose={() => setShowUpgradeModal(false)}
-        title="Colaboradores Premium"
-        message="
- Gerenciamento total dos colaboradores:
-• Convites ilimitados e personalizados
-• Controle de permissões
-• Gestão em tempo real"
-        feature="collaborators"
-      />
 
       {/* Modal de Alteração de Permissão */}
       <Modal
