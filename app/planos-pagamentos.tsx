@@ -1,14 +1,27 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import Purchases, { PurchasesPackage } from 'react-native-purchases';
+import {
+    ActivityIndicator,
+    Linking,
+    Platform,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import { PurchasesPackage } from 'react-native-purchases';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SubscriptionModal } from '../components/SubscriptionModal';
-import { getRevenueCatKey } from '../config/revenuecat-keys';
+import { LEGAL_URLS } from '../constants/legal';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
-import { purchaseSubscription } from '../services/iapService';
+import {
+    getAvailableProducts,
+    purchaseSubscription,
+    restorePurchases,
+} from '../services/iapService';
 import { isPremiumUser } from '../services/supabase/userService';
 
 export default function PlanosPagamentosScreen() {
@@ -30,18 +43,10 @@ export default function PlanosPagamentosScreen() {
   useEffect(() => {
     const inicializar = async () => {
       try {
-        // Configurar RevenueCat
-        const apiKey = getRevenueCatKey();
-        console.log('🔄 [RevenueCat] Configurando com chave:', apiKey);
-        
-        // Configurar RevenueCat (a configuração completa é feita no serviço iapService)
-        await Purchases.configure({ apiKey });
-        console.log('✅ [RevenueCat] Configurado com sucesso');
-
-        // Buscar ofertas
+        // Usar iapService para garantir RevenueCat configurado com userId (necessário para iPad/sandbox)
         await buscarOfertas();
       } catch (error: any) {
-        console.error('❌ [RevenueCat] Erro ao inicializar:', error);
+        console.error('❌ [Planos] Erro ao inicializar:', error);
         setLoading(false);
       }
     };
@@ -49,96 +54,55 @@ export default function PlanosPagamentosScreen() {
     inicializar();
   }, []);
 
-  // Função para obter o preço formatado do RevenueCat
-  // O RevenueCat retorna o preço já formatado na moeda local do dispositivo
   const obterPrecoFormatado = (pkg: PurchasesPackage): string => {
-    // Log detalhado do produto (usando console.error para contornar suppress-logs)
-    console.error('💰 [obterPrecoFormatado] Dados do produto:', JSON.stringify({
-      identifier: pkg.identifier,
-      packageType: pkg.packageType,
-      productId: pkg.product.identifier,
-      productTitle: pkg.product.title,
-      productDescription: pkg.product.description,
-      price: pkg.product.price,
-      priceString: pkg.product.priceString,
-      currencyCode: pkg.product.currencyCode,
-      introPrice: pkg.product.introPrice,
-      discounts: pkg.product.discounts,
-    }, null, 2));
-    
-    // Usar o priceString que vem do RevenueCat (já formatado na moeda local)
-    const preco = pkg.product.priceString || '';
-    console.error('✅ [obterPrecoFormatado] Preço formatado retornado:', preco);
-    return preco;
+    return pkg.product.priceString || '';
   };
 
-  // Função para buscar ofertas
+  /** Duração da assinatura para exibição (Apple exige título, duração e preço) */
+  const obterDuracaoAssinatura = (pkg: PurchasesPackage): string => {
+    const id = (pkg.product.identifier || '').toLowerCase();
+    if (id.includes('year') || id.includes('annual') || id.includes('anual')) return 'Assinatura anual com renovação automática';
+    if (id.includes('month') || id.includes('monthly') || id.includes('mensal')) return 'Assinatura mensal com renovação automática';
+    return 'Assinatura com renovação automática';
+  };
+
+  // Função para buscar ofertas (usa iapService para garantir userId e funcionar em iPad/sandbox)
   const buscarOfertas = async () => {
     try {
-      console.error('🔍 [buscarOfertas] Buscando ofertas...');
-      
-      const offerings = await Purchases.getOfferings();
-      console.error('📦 [buscarOfertas] Offerings recebidos:', JSON.stringify({
-        current: offerings.current ? 'existe' : 'não existe',
-        all: Object.keys(offerings.all),
-      }, null, 2));
-
-      if (offerings.current && offerings.current.availablePackages.length > 0) {
-        console.error('✅ [buscarOfertas] Packages encontrados:', offerings.current.availablePackages.length);
-        
-        // Log detalhado de cada package
-        offerings.current.availablePackages.forEach((pkg, index) => {
-          console.error(`📦 [buscarOfertas] Package ${index + 1} completo:`, JSON.stringify({
-            identifier: pkg.identifier,
-            packageType: pkg.packageType,
-            product: {
-              identifier: pkg.product.identifier,
-              description: pkg.product.description,
-              title: pkg.product.title,
-              price: pkg.product.price,
-              priceString: pkg.product.priceString,
-              currencyCode: pkg.product.currencyCode,
-              introPrice: pkg.product.introPrice,
-              subscriptionPeriod: pkg.product.subscriptionPeriod,
-              discounts: pkg.product.discounts,
-            }
-          }, null, 2));
-        });
-        
-        // Log do primeiro package (mais detalhado)
-        const primeiroPacote = offerings.current.availablePackages[0];
-        console.error('🎯 [buscarOfertas] PRIMEIRO PACKAGE DETALHADO:', JSON.stringify({
-          identifier: primeiroPacote.identifier,
-          packageType: primeiroPacote.packageType,
-          productId: primeiroPacote.product.identifier,
-          productTitle: primeiroPacote.product.title,
-          productPrice: primeiroPacote.product.price,
-          productPriceString: primeiroPacote.product.priceString,
-          productCurrencyCode: primeiroPacote.product.currencyCode,
-          productDescription: primeiroPacote.product.description,
-        }, null, 2));
-        
-        setPackages(offerings.current.availablePackages);
-        
-        offerings.current.availablePackages.forEach((pkg: PurchasesPackage, index: number) => {
-          console.error(`📦 Package ${index + 1}:`, JSON.stringify({
-            identifier: pkg.identifier,
-            packageType: pkg.packageType,
-            productId: pkg.product.identifier,
-            productTitle: pkg.product.title,
-            productPrice: pkg.product.priceString,
-            productDescription: pkg.product.description,
-          }, null, 2));
-        });
+      const products = await getAvailableProducts();
+      if (products.length > 0) {
+        setPackages(products);
       } else {
-        console.error('⚠️ [buscarOfertas] Nenhum package disponível');
         setPackages([]);
       }
-      setLoading(false);
     } catch (error: any) {
       console.error('❌ [buscarOfertas] Erro:', error);
       setPackages([]);
+    } finally {
       setLoading(false);
+    }
+  };
+
+  const openPrivacyPolicy = () => {
+    Linking.openURL(LEGAL_URLS.PRIVACY_POLICY).catch(() => {});
+  };
+
+  const openTermsOfUse = () => {
+    Linking.openURL(LEGAL_URLS.TERMS_OF_USE_EULA).catch(() => {});
+  };
+
+  const handleRestorePurchases = async () => {
+    try {
+      const result = await restorePurchases();
+      if (result.success) {
+        showModal('success', 'Compras Restauradas', 'Suas compras anteriores foram restauradas com sucesso!', false);
+        setShouldNavigateBack(true);
+        await buscarOfertas();
+      } else {
+        showModal('warning', 'Nenhuma Compra Encontrada', result.error ?? 'Nenhuma compra anterior encontrada para restaurar.', false);
+      }
+    } catch (error: any) {
+      showModal('error', 'Erro ao Restaurar', 'Não foi possível restaurar suas compras. Tente novamente.', false);
     }
   };
 
@@ -182,38 +146,9 @@ export default function PlanosPagamentosScreen() {
             .eq('id', user.id)
             .single();
 
-          // Buscar o preço real dos offerings do RevenueCat
-          console.error('🔍 [comprar] Buscando preço real dos offerings...');
-          const offerings = await Purchases.getOfferings();
-          const primeiroPacote = offerings.current?.availablePackages[0];
-          
-          console.error('📊 [comprar] Dados do primeiro pacote:', JSON.stringify({
-            existe: !!primeiroPacote,
-            identifier: primeiroPacote?.identifier,
-            productId: primeiroPacote?.product?.identifier,
-            productTitle: primeiroPacote?.product?.title,
-            productPrice: primeiroPacote?.product?.price,
-            productPriceString: primeiroPacote?.product?.priceString,
-            productCurrencyCode: primeiroPacote?.product?.currencyCode,
-          }, null, 2));
-          
-          console.error('📊 [comprar] Dados do packageToBuy:', JSON.stringify({
-            identifier: packageToBuy?.identifier,
-            productId: packageToBuy?.product?.identifier,
-            productTitle: packageToBuy?.product?.title,
-            productPrice: packageToBuy?.product?.price,
-            productPriceString: packageToBuy?.product?.priceString,
-            productCurrencyCode: packageToBuy?.product?.currencyCode,
-          }, null, 2));
-          
-          const precoReal = primeiroPacote?.product?.priceString || packageToBuy?.product?.priceString || '';
-          const packageTitle = primeiroPacote?.product?.title || packageToBuy?.product?.title || 'Premium';
-          
-          console.error('✅ [comprar] Valores finais usados:', JSON.stringify({
-            precoReal,
-            packageTitle,
-          }, null, 2));
-          
+          const precoReal = packageToBuy.product.priceString || '';
+          const packageTitle = packageToBuy.product.title || 'Premium';
+
           // Formatar mensagem com informações claras
           let message = 'Você já possui uma assinatura Premium ativa.';
           
@@ -488,6 +423,9 @@ export default function PlanosPagamentosScreen() {
                         /mês
                       </Text>
                     </View>
+                    <Text style={[styles.durationText, { color: colors.textSecondary }]}>
+                      {obterDuracaoAssinatura(pkg)}
+                    </Text>
                   </View>
 
                   {/* Divisor */}
@@ -548,7 +486,33 @@ export default function PlanosPagamentosScreen() {
                 </View>
               );
             })}
-            
+
+            {/* Links obrigatórios (Diretriz 3.1.2 - Apple) */}
+            <View style={[styles.legalLinksContainer, { borderTopColor: colors.border }]}>
+              <TouchableOpacity onPress={openPrivacyPolicy} style={styles.legalLinkRow}>
+                <Ionicons name="shield-checkmark-outline" size={16} color={colors.primary} />
+                <Text style={[styles.legalLinkText, { color: colors.primary }]}>
+                  Política de Privacidade
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={openTermsOfUse} style={styles.legalLinkRow}>
+                <Ionicons name="document-text-outline" size={16} color={colors.primary} />
+                <Text style={[styles.legalLinkText, { color: colors.primary }]}>
+                  Termos de Uso (EULA)
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Restaurar compras */}
+            <TouchableOpacity
+              style={[styles.restoreButton, { borderColor: colors.border }]}
+              onPress={handleRestorePurchases}
+            >
+              <Ionicons name="refresh-outline" size={18} color={colors.textSecondary} />
+              <Text style={[styles.restoreButtonText, { color: colors.textSecondary }]}>
+                Restaurar compras
+              </Text>
+            </TouchableOpacity>
           </View>
         )}
       </View>
@@ -833,6 +797,41 @@ const styles = StyleSheet.create({
     opacity: 0.7,
     fontWeight: '500',
   },
+  durationText: {
+    fontSize: 12,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  legalLinksContainer: {
+    marginTop: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    gap: 12,
+  },
+  legalLinkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  legalLinkText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  restoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  restoreButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
   divider: {
     height: 1,
     marginVertical: 12,
@@ -895,24 +894,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     letterSpacing: 0.3,
-  },
-  // Restaurar Compras
-  restoreSection: {
-    marginTop: 24,
-    marginBottom: 24,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-  },
-  restoreButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    backgroundColor: 'transparent',
-  },
-  restoreButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
   },
 });
 
