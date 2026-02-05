@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import React, { useEffect, useState } from 'react';
 import {
@@ -152,6 +152,15 @@ export default function FinanceiroScreen() {
       loadFinancialData();
     }
   }, [activeArtist, hasAccess, currentMonth, currentYear]);
+
+  // Recarregar ao voltar para a aba (ex.: após adicionar evento, despesa ou receita)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (activeArtist && hasAccess !== null) {
+        loadFinancialData();
+      }
+    }, [activeArtist?.id, hasAccess, currentMonth, currentYear])
+  );
 
   const loadFinancialData = async () => {
     if (!activeArtist) {

@@ -2,17 +2,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Platform,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    Platform,
+    RefreshControl,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import PermissionModal from '../components/PermissionModal';
@@ -20,19 +20,19 @@ import { useActiveArtistContext } from '../contexts/ActiveArtistContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import {
-  acceptArtistInvite,
-  declineArtistInvite,
+    acceptArtistInvite,
+    declineArtistInvite,
 } from '../services/supabase/artistInviteService';
 import { getArtists } from '../services/supabase/artistService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { getEventById } from '../services/supabase/eventService';
 import {
-  deleteNotification,
-  getUserNotifications,
-  markAllNotificationsAsRead,
-  markNotificationAsRead,
-  Notification,
-  updateNotificationStatus
+    deleteNotification,
+    getUserNotifications,
+    markAllNotificationsAsRead,
+    markNotificationAsRead,
+    Notification,
+    updateNotificationStatus
 } from '../services/supabase/notificationService';
 import { hasPermission } from '../services/supabase/permissionsService';
 import { useNotifications } from '../services/useNotifications';
@@ -579,7 +579,13 @@ export default function NotificacoesScreen() {
           </View>
         ) : (
           <View style={dynamicStyles.content}>
-            {notifications.map((notification) => (
+            {notifications.map((notification) => {
+              const isInvite = notification.type === 'invite';
+              const CardWrapper = isInvite ? View : TouchableOpacity;
+              const cardWrapperProps = isInvite
+                ? { style: styles.notificationContent }
+                : { style: styles.notificationContent, onPress: () => handleNotificationPress(notification), activeOpacity: 0.7 };
+              return (
               <View
                 key={notification.id}
                 style={[
@@ -587,11 +593,7 @@ export default function NotificacoesScreen() {
                   !notification.read && dynamicStyles.unreadNotification
                 ]}
               >
-                <TouchableOpacity
-                  style={styles.notificationContent}
-                  onPress={() => handleNotificationPress(notification)}
-                  activeOpacity={0.7}
-                >
+                <CardWrapper {...cardWrapperProps}>
                   <View style={styles.notificationLeft}>
                     {/* Imagem do usuário com ícone de notificação */}
                     {notification.from_user && (
@@ -727,9 +729,10 @@ export default function NotificacoesScreen() {
                       </TouchableOpacity>
                     )}
                   </View>
-                </TouchableOpacity>
+                </CardWrapper>
               </View>
-            ))}
+            );
+            })}
           </View>
         )}
       </ScrollView>
