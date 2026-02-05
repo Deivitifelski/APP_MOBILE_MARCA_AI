@@ -1,5 +1,5 @@
 import { supabase } from '../../lib/supabase';
-import { clearActiveArtist, getActiveArtist } from '../artistContext';
+import { clearActiveArtist, getActiveArtist, setActiveArtist } from '../artistContext';
 import { getArtistById, getArtists } from './artistService';
 
 export interface LoginResult {
@@ -298,14 +298,30 @@ const getErrorMessage = (errorMessage: string): string => {
   return errorMap[errorMessage] || errorMessage;
 };
 
+// Tipo do artista ativo (compatível com artistContext)
+export interface ActiveArtistForRedirect {
+  id: string;
+  name: string;
+  role: string;
+  profile_url?: string;
+  musical_style?: string;
+  created_at?: string;
+}
+
 // Função auxiliar para verificar artistas e redirecionar adequadamente após login
-export const checkArtistsAndRedirect = async (): Promise<{ shouldRedirectToSelection: boolean }> => {
+export const checkArtistsAndRedirect = async (): Promise<{
+  shouldRedirectToSelection: boolean;
+  /** Quando o usuário tem apenas 1 artista, ele é definido como ativo e retornado aqui */
+  activeArtist?: ActiveArtistForRedirect;
+}> => {
   try {
     const { user, error: userError } = await getCurrentUser();
     
     if (userError || !user) {
       return { shouldRedirectToSelection: false };
     }
+
+    const defaultReturn = { shouldRedirectToSelection: false as const };
 
     // Verificar se já existe um artista salvo no AsyncStorage
     const savedActiveArtist = await getActiveArtist();
@@ -323,7 +339,7 @@ export const checkArtistsAndRedirect = async (): Promise<{ shouldRedirectToSelec
           
           if (userHasAccess) {
             // Artista salvo é válido e usuário tem acesso, não redirecionar
-            return { shouldRedirectToSelection: false };
+            return defaultReturn;
           }
         }
       }
@@ -336,15 +352,31 @@ export const checkArtistsAndRedirect = async (): Promise<{ shouldRedirectToSelec
     const { artists, error: artistsError } = await getArtists(user.id);
     
     if (artistsError || !artists) {
-      return { shouldRedirectToSelection: false };
+      return defaultReturn;
     }
 
-    // Se houver artistas e não houver artista salvo válido, redirecionar para seleção
-    if (artists.length > 0) {
+    // Se não houver artista salvo válido e o usuário tem artistas:
+    // - Apenas 1 artista: definir como ativo e ir direto para a agenda (não mostrar tela de escolha)
+    // - 2 ou mais: redirecionar para a tela de seleção
+    if (artists.length === 1) {
+      const unico = artists[0];
+      const artistToSave: ActiveArtistForRedirect = {
+        id: unico.id,
+        name: unico.name,
+        role: unico.role || 'viewer',
+        profile_url: unico.profile_url,
+        musical_style: unico.musical_style,
+        created_at: unico.created_at,
+      };
+      await setActiveArtist(artistToSave);
+      return { shouldRedirectToSelection: false, activeArtist: artistToSave };
+    }
+
+    if (artists.length >= 2) {
       return { shouldRedirectToSelection: true };
     }
 
-    return { shouldRedirectToSelection: false };
+    return defaultReturn;
   } catch {
     return { shouldRedirectToSelection: false };
   }

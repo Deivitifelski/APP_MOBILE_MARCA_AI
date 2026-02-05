@@ -6,7 +6,9 @@ import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Linking,
     Modal,
+    Platform,
     ScrollView,
     StyleSheet,
     Switch,
@@ -395,6 +397,39 @@ export default function ConfiguracoesScreen() {
     setShowTermsModal(true);
   };
 
+  const PRIVACY_POLICY_URL = 'https://www.freeprivacypolicy.com/live/179f60bd-8cb5-4987-96b7-1c6863cc8a83';
+
+  const handlePrivacyPolicy = async () => {
+    try {
+      const canOpen = await Linking.canOpenURL(PRIVACY_POLICY_URL);
+      if (canOpen) {
+        await Linking.openURL(PRIVACY_POLICY_URL);
+      } else {
+        Alert.alert('Erro', 'Não foi possível abrir o link.');
+      }
+    } catch {
+      Alert.alert('Erro', 'Não foi possível abrir a Política de Privacidade.');
+    }
+  };
+
+  // Avaliar aplicativo: abre na loja (substitua APP_STORE_ID pelo ID do app na App Store Connect para iOS)
+  const APP_STORE_ID = ''; // Ex: '1234567890'
+  const PLAY_STORE_PACKAGE = 'com.marcaai.app';
+
+  const handleRateApp = async () => {
+    try {
+      const url =
+        Platform.OS === 'ios'
+          ? APP_STORE_ID
+            ? `https://apps.apple.com/app/id${APP_STORE_ID}?action=write-review`
+            : `https://apps.apple.com/search?term=Marca%20AI`
+          : `https://play.google.com/store/apps/details?id=${PLAY_STORE_PACKAGE}`;
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Erro', 'Não foi possível abrir a loja.');
+    }
+  };
+
   const handleSecurity = () => {
     setShowPasswordModal(true);
   };
@@ -764,6 +799,20 @@ export default function ConfiguracoesScreen() {
               'Termos de Uso',
               'Termos e condições',
               handleTermsOfUse
+            )}
+
+            {renderSettingItem(
+              'shield-checkmark',
+              'Políticas de Privacidade',
+              'Como tratamos seus dados',
+              handlePrivacyPolicy
+            )}
+
+            {renderSettingItem(
+              'star',
+              'Avaliar aplicativo',
+              'Avalie o MarcaAi na Loja',
+              handleRateApp
             )}
             
             {renderSettingItem(

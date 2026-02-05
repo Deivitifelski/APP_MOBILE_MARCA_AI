@@ -70,6 +70,10 @@ target 'MarcaAI' do
           config.build_settings['SWIFT_INSTALL_OBJC_HEADER'] = 'YES'
         end
       end
+      # Evita erro "no such file or directory" .resp/.dia (sandbox pode impedir criar pastas)
+      target.build_configurations.each do |config|
+        config.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
+      end
     end
   end
 end

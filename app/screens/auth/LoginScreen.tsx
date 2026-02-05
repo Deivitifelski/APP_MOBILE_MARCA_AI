@@ -4,30 +4,31 @@ import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-si
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
-  KeyboardAvoidingView,
-  LogBox,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    KeyboardAvoidingView,
+    LogBox,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AppleSignInButton, { AppleSignInResult } from '../../../components/AppleSignInButton';
 import FCMTokenModal from '../../../components/FCMTokenModal';
 import LogoMarcaAi from '../../../components/LogoMarcaAi';
+import { useActiveArtistContext } from '../../../contexts/ActiveArtistContext';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { supabase } from '../../../lib/supabase';
 import { checkArtistsAndRedirect, getCurrentUser, loginUser, resendConfirmationEmail, sendPasswordResetEmail } from '../../../services/supabase/authService';
 import {
-  checkUserExists,
-  createOrUpdateUserFromApple,
-  createOrUpdateUserFromGoogle,
-  saveFCMToken,
+    checkUserExists,
+    createOrUpdateUserFromApple,
+    createOrUpdateUserFromGoogle,
+    saveFCMToken,
 } from '../../../services/supabase/userService';
 
 // Configurar Google Sign-In (conforme documentação)
@@ -46,6 +47,7 @@ LogBox.ignoreLogs([
 
 export default function LoginScreen() {
   const { colors, isDarkMode } = useTheme();
+  const { setActiveArtist } = useActiveArtistContext();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -253,7 +255,8 @@ export default function LoginScreen() {
       });
 
       // Verificar artistas e redirecionar adequadamente
-      const { shouldRedirectToSelection } = await checkArtistsAndRedirect();
+      const { shouldRedirectToSelection, activeArtist: artistToSet } = await checkArtistsAndRedirect();
+      if (artistToSet) await setActiveArtist(artistToSet);
 
       setTimeout(() => {
         if (shouldRedirectToSelection) {
@@ -319,7 +322,8 @@ export default function LoginScreen() {
             });
             
             // Verificar artistas e redirecionar adequadamente
-            const { shouldRedirectToSelection } = await checkArtistsAndRedirect();
+            const { shouldRedirectToSelection, activeArtist: artistToSet } = await checkArtistsAndRedirect();
+            if (artistToSet) await setActiveArtist(artistToSet);
             
             setTimeout(() => {
               if (shouldRedirectToSelection) {
@@ -393,7 +397,12 @@ export default function LoginScreen() {
             });
             
             // Verificar artistas e redirecionar adequadamente
-            const { shouldRedirectToSelection } = await checkArtistsAndRedirect();
+            const { shouldRedirectToSelection, activeArtist: artistToSet } = await checkArtistsAndRedirect();
+            
+            // Se tinha apenas 1 artista, já foi salvo no AsyncStorage; atualizar o contexto para a agenda usar
+            if (artistToSet) {
+              await setActiveArtist(artistToSet);
+            }
             
             // Navegar após um pequeno delay para garantir que o modal apareça
             setTimeout(() => {
@@ -854,7 +863,8 @@ export default function LoginScreen() {
                   });
                   
                   // Verificar artistas e redirecionar adequadamente
-                  const { shouldRedirectToSelection } = await checkArtistsAndRedirect();
+                  const { shouldRedirectToSelection, activeArtist: artistToSet } = await checkArtistsAndRedirect();
+                  if (artistToSet) await setActiveArtist(artistToSet);
                   
                   // Navegar após um pequeno delay para garantir que o modal apareça
                   setTimeout(() => {
