@@ -1,22 +1,23 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useActiveArtistContext } from '../contexts/ActiveArtistContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { supabase } from '../lib/supabase';
 import { createExpense, createStandaloneExpense } from '../services/supabase/expenseService';
 
 const CATEGORIAS = [
@@ -51,6 +52,35 @@ export default function AdicionarDespesaScreen() {
   const [data, setData] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [canAdd, setCanAdd] = useState<boolean | null>(null);
+
+  // Bloquear visualizador: apenas editor, admin e owner podem adicionar despesa
+  useEffect(() => {
+    const checkRole = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !activeArtist) {
+        setCanAdd(false);
+        return;
+      }
+      const { data } = await supabase
+        .from('artist_members')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('artist_id', activeArtist.id)
+        .single();
+      const role = data?.role;
+      const isViewer = role === 'viewer';
+      setCanAdd(!isViewer);
+      if (isViewer) {
+        Alert.alert(
+          'Acesso restrito',
+          'Apenas gerentes e editores podem adicionar despesas. Entre em contato com um gerente para solicitar mais permissões.',
+          [{ text: 'OK', onPress: () => router.back() }]
+        );
+      }
+    };
+    checkRole();
+  }, [activeArtist?.id]);
 
   const formatarValor = (text: string) => {
     // Remove tudo exceto números
@@ -139,6 +169,15 @@ export default function AdicionarDespesaScreen() {
       setIsLoading(false);
     }
   };
+
+  if (canAdd === false) return null;
+  if (canAdd === null) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+        <ActivityIndicator size="large" color={colors.primary} style={{ flex: 1, justifyContent: 'center' }} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>

@@ -658,13 +658,15 @@ export default function FinanceiroScreen() {
               </TouchableOpacity>
             )}
 
-            {/* Botão Adicionar */}
-            <TouchableOpacity
-              style={styles.headerIconButton}
-              onPress={() => setShowAddModal(true)}
-            >
-              <Ionicons name="add" size={28} color={colors.text} />
-            </TouchableOpacity>
+            {/* Botão Adicionar - apenas editor, admin e owner (bloqueado para visualizador) */}
+            {hasAccess && (
+              <TouchableOpacity
+                style={styles.headerIconButton}
+                onPress={() => setShowAddModal(true)}
+              >
+                <Ionicons name="add" size={28} color={colors.text} />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
         
