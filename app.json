@@ -2,7 +2,7 @@
   "expo": {
     "name": "Marca AI",
     "slug": "APP_MOBILE_MARCA_AI",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "orientation": "portrait",
     "icon": "./assets/images/icone_app_1024.png",
     "scheme": "marcaai",
