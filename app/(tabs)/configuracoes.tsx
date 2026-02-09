@@ -888,15 +888,6 @@ export default function ConfiguracoesScreen() {
 
                   <View style={dynamicStyles.profileModalInfoRow}>
                     <Text style={[dynamicStyles.profileModalInfoLabel, { color: colors.textSecondary }]}>
-                      Plano
-                    </Text>
-                    <Text style={[dynamicStyles.profileModalInfoValueHighlight, { color: colors.primary }]}>
-                      {userProfile.plan_is_active ? 'Premium' : 'Free'}
-                    </Text>
-                  </View>
-
-                  <View style={dynamicStyles.profileModalInfoRow}>
-                    <Text style={[dynamicStyles.profileModalInfoLabel, { color: colors.textSecondary }]}>
                       Atualizado em
                     </Text>
                     <Text style={[dynamicStyles.profileModalInfoValue, { color: colors.text }]}>
@@ -1950,78 +1941,6 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
     fontWeight: '600',
     color: colors.error,
     marginLeft: 8,
-  },
-  premiumCard: {
-    marginHorizontal: 20,
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: isDark ? 0.3 : 0.15,
-    shadowRadius: 8,
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: '#F59E0B',
-  },
-  premiumContent: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  premiumIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#F59E0B20',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  premiumText: {
-    flex: 1,
-  },
-  premiumTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  premiumDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  premiumButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    gap: 8,
-  },
-  premiumButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  planBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    minWidth: 60,
-    alignItems: 'center',
-  },
-  planBadgeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  premiumBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   // Estilos do modal de ajuda
   modalContainer: {

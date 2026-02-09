@@ -4,7 +4,6 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { LogBox } from 'react-native';
-import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AuthDeepLinkHandler from '../components/AuthDeepLinkHandler';
@@ -13,7 +12,6 @@ import { ActiveArtistProvider } from '../contexts/ActiveArtistContext';
 import { PermissionsProvider } from '../contexts/PermissionsContext';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { useColorScheme } from '../hooks/use-color-scheme';
-import { setupSubscriptionStatusListener } from '../services/iapService';
 import './error-handler';
 import './suppress-logs';
 
@@ -31,11 +29,6 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   useEffect(() => {
-    Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
-
-    // Configurar listener para mudanças de status da assinatura em tempo real
-    setupSubscriptionStatusListener();
-
     // Esconder a tela de splash (ícone) imediatamente para não ficar só o ícone na tela
     SplashScreen.hideAsync();
   }, []);

@@ -251,32 +251,6 @@ export const updateUserProfile = async (userId: string, userData: Partial<Create
   }
 };
 
-// Verificar se o usuário tem plano premium
-export const isPremiumUser = async (userId: string): Promise<{ isPremium: boolean; error: string | null }> => {
-  try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('plan_is_active')
-      .eq('id', userId)
-      .single();
-
-    if (error) {
-      // Se a coluna não existir, retornar false como padrão
-      if (error.message.includes('column') && error.message.includes('plan_is_active')) {
-        return { isPremium: false, error: null };
-      }
-      
-      return { isPremium: false, error: error.message };
-    }
-
-    // Se plan_is_active for null ou undefined, retornar false como padrão
-    const isPremium = data?.plan_is_active === true;
-    return { isPremium, error: null };
-  } catch (error) {
-    return { isPremium: false, error: 'Erro de conexão' };
-  }
-};
-
 // Verificar se o usuário pode criar mais artistas (todos os recursos liberados - limite alto para todos)
 export const canCreateArtist = async (userId: string): Promise<{ canCreate: boolean; error: string | null }> => {
   try {

@@ -1,89 +1,91 @@
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { initializeIAP } from '../services/iapService';
 import { setupPushNotificationHandlers } from '../services/pushNotificationHandler';
 import { checkArtistsAndRedirect } from '../services/supabase/authService';
 import { checkUserExists } from '../services/supabase/userService';
 
+const LOADING_TIMEOUT_MS = 8000; // Se não redirecionar em 8s, vai para login
+
 export default function Index() {
+  const hasNavigated = useRef(false);
+
+  const navigateTo = (route: string) => {
+    if (hasNavigated.current) return;
+    hasNavigated.current = true;
+    router.replace(route as any);
+  };
+
   useEffect(() => {
     // ✅ Configurar handlers de notificações push
-    // IMPORTANTE: Adicionar um pequeno delay para garantir que o Firebase foi configurado no AppDelegate
     const firebaseTimer = setTimeout(() => {
       setupPushNotificationHandlers();
     }, 1000);
 
-    // Listener para mudanças no estado de autenticação
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      // Estado de autenticação mudou
-    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {});
 
-    // Pequeno delay para garantir que o AsyncStorage está pronto
+    // Timeout de segurança: se travar, redireciona para login
+    const safetyTimer = setTimeout(() => {
+      if (!hasNavigated.current) {
+        hasNavigated.current = true;
+        router.replace('/login');
+      }
+    }, LOADING_TIMEOUT_MS);
+
     const authTimer = setTimeout(() => {
       checkAuthStatus();
-    }, 500);
+    }, 400);
 
     return () => {
       clearTimeout(firebaseTimer);
       clearTimeout(authTimer);
+      clearTimeout(safetyTimer);
       subscription.unsubscribe();
     };
   }, []);
 
   const checkAuthStatus = async () => {
     try {
-      // Verificar se existe uma sessão ativa
       const { data: { session }, error } = await supabase.auth.getSession();
-      
+
       if (error) {
-        router.replace('/login');
+        navigateTo('/login');
         return;
       }
 
       if (session?.user) {
-        // Verificar se o email foi confirmado
         if (!session.user.email_confirmed_at) {
-          router.replace('/email-confirmation');
+          navigateTo('/email-confirmation');
           return;
         }
 
-        // Verificar se o perfil do usuário está completo
         const userCheck = await checkUserExists(session.user.id);
-        
+
         if (userCheck.error) {
-          router.replace('/login');
+          navigateTo('/login');
           return;
         }
 
         if (!userCheck.exists) {
-          router.replace('/login');
-        } else {
-          // Inicializar RevenueCat
-          // O webhook do RevenueCat atualiza automaticamente a coluna plan_is_active no banco
-          try {
-            await initializeIAP(session.user.id);
-          } catch (error) {
-            console.warn('⚠️ Erro ao inicializar RevenueCat:', error);
-            // Continuar mesmo se houver erro na inicialização do RevenueCat
-          }
-
-          // Verificar artistas e redirecionar adequadamente
-          const { shouldRedirectToSelection } = await checkArtistsAndRedirect();
-          
-          if (shouldRedirectToSelection) {
-            router.replace('/selecionar-artista');
-          } else {
-            router.replace('/(tabs)/agenda');
-          }
+          navigateTo('/login');
+          return;
         }
-      } else {
-        router.replace('/login');
+
+        const { shouldRedirectToSelection } = await checkArtistsAndRedirect();
+
+        if (shouldRedirectToSelection) {
+          navigateTo('/selecionar-artista');
+        } else {
+          navigateTo('/(tabs)/agenda');
+        }
+        return;
       }
+
+      navigateTo('/login');
     } catch {
-      router.replace('/login');
+      navigateTo('/login');
     }
   };
 
