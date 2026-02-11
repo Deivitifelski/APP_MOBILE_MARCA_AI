@@ -16,7 +16,7 @@ const sendNotificationToUsers = async (
 ): Promise<void> => {
   try {
     const response = await fetch(
-      `${SUPABASE_URL}/functions/v1/send_notification_users`,
+      `${SUPABASE_URL}/functions/v1/send-push`,
       {
         method: 'POST',
         headers: {

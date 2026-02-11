@@ -134,15 +134,14 @@ export default function RegisterScreen() {
           const result = await createOrUpdateUserFromGoogle(
             data.user.id,
             {
-              name: response.data.user.name || response.data.user.email,
-              email: response.data.user.email,
+              name: (response.data.user.name || response.data.user.email || 'Usuário').trim(),
+              email: response.data.user.email || '',
               photo: response.data.user.photo || undefined,
             }
           );
 
           if (result.isNewUser) {
-            // Novo usuário - redirecionar para cadastro de usuário
-            router.replace('/cadastro-usuario');
+            router.replace({ pathname: '/(tabs)/agenda', params: { showNewUserModal: '1' } });
           } else {
             // Usuário existente - verificar artistas e redirecionar
             const { shouldRedirectToSelection } = await checkArtistsAndRedirect();
@@ -225,8 +224,7 @@ export default function RegisterScreen() {
       }
 
       if (isNewUser) {
-        // Novo usuário - redirecionar para cadastro de usuário
-        router.replace('/cadastro-usuario');
+        router.replace({ pathname: '/(tabs)/agenda', params: { showNewUserModal: '1' } });
         return;
       }
 

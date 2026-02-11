@@ -3,24 +3,24 @@ import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { getCurrentUser } from '../../../services/supabase/authService';
 import { uploadUserImage } from '../../../services/supabase/imageUploadService';
-import { createUserProfile } from '../../../services/supabase/userService';
+import { createUserProfile, getUserProfile } from '../../../services/supabase/userService';
 
 const estadosBrasil = [
   'Acre', 'Alagoas', 'Amapá', 'Amazonas', 'Bahia', 'Ceará',
@@ -43,6 +43,28 @@ export default function UserProfileScreen() {
   const [showEstados, setShowEstados] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [profileLoaded, setProfileLoaded] = useState(false);
+
+  // Pré-preencher com dados já salvos (ex.: nome/email do Sign in with Apple - não exigir que o usuário digite de novo)
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { user, error: userError } = await getCurrentUser();
+      if (userError || !user || cancelled) return;
+      const { profile, error: profileError } = await getUserProfile(user.id);
+      if (profileError || !profile || cancelled) {
+        setProfileLoaded(true);
+        return;
+      }
+      if (profile.name?.trim()) setName(profile.name.trim());
+      if (profile.phone?.trim()) setPhone(profile.phone.trim());
+      if (profile.city?.trim()) setCity(profile.city.trim());
+      if (profile.state?.trim()) setState(profile.state.trim());
+      if (profile.profile_url?.trim()) setProfileUrl(profile.profile_url.trim());
+      setProfileLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const pickImage = async () => {
     try {
@@ -96,8 +118,9 @@ export default function UserProfileScreen() {
   };
 
   const handleFinalizarCadastro = async () => {
-    if (!name.trim() || !phone.trim() || !city.trim() || !state) {
-      Alert.alert('Erro', 'Por favor, preencha todos os campos obrigatórios');
+    // Telefone, cidade e estado são obrigatórios. Nome não é exigido após Sign in with Apple (já fornecido pelo sistema).
+    if (!phone.trim() || !city.trim() || !state) {
+      Alert.alert('Erro', 'Por favor, preencha telefone, cidade e estado');
       return;
     }
 
@@ -142,7 +165,7 @@ export default function UserProfileScreen() {
       // Salvar os dados do usuário usando o serviço
       const { success, error } = await createUserProfile({
         id: user.id,
-        name: name.trim(),
+        name: (name.trim() || user.user_metadata?.full_name || user.user_metadata?.name || 'Usuário').trim() || 'Usuário',
         email: user.email || '',
         city: city.trim(),
         state: state,
@@ -176,7 +199,7 @@ export default function UserProfileScreen() {
             <View style={styles.header}>
               <Text style={[styles.brandName, { color: colors.primary }]}>MarcaAi</Text>
               <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-                Complete suas informações pessoais
+                Adicione telefone e localização para continuar
               </Text>
             </View>
 
@@ -212,9 +235,9 @@ export default function UserProfileScreen() {
               </TouchableOpacity>
               </View>
 
-              {/* Nome Completo */}
+              {/* Nome (já preenchido se você entrou com Apple ou Google) */}
               <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: colors.text }]}>Nome Completo *</Text>
+                <Text style={[styles.label, { color: colors.text }]}>Nome</Text>
                 <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
                   <Ionicons name="person-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
                   <TextInput
@@ -302,12 +325,12 @@ export default function UserProfileScreen() {
               </View>
 
               <TouchableOpacity
-                style={[styles.finalizarButton, { backgroundColor: colors.primary }, loading && styles.finalizarButtonDisabled]}
+                style={[styles.finalizarButton, { backgroundColor: colors.primary }, (loading || !profileLoaded) && styles.finalizarButtonDisabled]}
                 onPress={handleFinalizarCadastro}
-                disabled={loading}
+                disabled={loading || !profileLoaded}
               >
                 <Text style={styles.finalizarButtonText}>
-                  {loading ? 'Salvando...' : 'Continuar para Artista'}
+                  {loading ? 'Salvando...' : !profileLoaded ? 'Carregando...' : 'Continuar para Artista'}
                 </Text>
               </TouchableOpacity>
 

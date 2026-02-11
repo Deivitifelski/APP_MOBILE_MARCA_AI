@@ -1,18 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
+    Modal,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import OptimizedImage from '../../components/OptimizedImage';
@@ -53,6 +54,51 @@ export default function AgendaScreen() {
   const [showRemovedModal, setShowRemovedModal] = useState(false);
   const [availableArtists, setAvailableArtists] = useState<any[]>([]);
   const [isLoadingArtists, setIsLoadingArtists] = useState(false);
+  const [showNewUserModal, setShowNewUserModal] = useState(false);
+  const [welcomeStep, setWelcomeStep] = useState(0);
+  const params = useLocalSearchParams<{ showNewUserModal?: string }>();
+
+  useEffect(() => {
+    if (params.showNewUserModal === '1') {
+      setShowNewUserModal(true);
+      setWelcomeStep(0);
+    }
+  }, [params.showNewUserModal]);
+
+  const WELCOME_STEPS = [
+    {
+      title: 'Conta criada com sucesso!',
+      subtitle: 'Bem-vindo ao Marca AI. Veja em poucos passos como aproveitar o app.',
+      image: true,
+      icon: null as string | null,
+    },
+    {
+      title: 'Crie seu perfil artista',
+      subtitle: 'Configure seu nome artístico, foto e informações. Você pode gerenciar vários artistas ou bandas.',
+      image: false,
+      icon: 'person-outline' as const,
+    },
+    {
+      title: 'Gerencie seus eventos',
+      subtitle: 'Organize shows, ensaios e compromissos na agenda. Crie eventos, defina datas e convide sua equipe.',
+      image: false,
+      icon: 'calendar-outline' as const,
+    },
+    {
+      title: 'Controle financeiro',
+      subtitle: 'Acompanhe receitas, despesas e lucros por evento. Relatórios simples para você tomar melhores decisões.',
+      image: false,
+      icon: 'wallet-outline' as const,
+    },
+    {
+      title: 'Pronto para começar',
+      subtitle: 'Para gerenciar um artista, crie um perfil de artista ou aguarde um convite de outro usuário.',
+      image: false,
+      icon: 'rocket-outline' as const,
+    },
+  ];
+  const totalWelcomeSteps = WELCOME_STEPS.length;
+
   const closeDayModal = () => {
     setShowDayModal(false);
     setSelectedDay(null);
@@ -1032,6 +1078,96 @@ export default function AgendaScreen() {
         </View>
       </Modal>
 
+      {/* Modal: Boas-vindas passo a passo (Apple/Google) */}
+      <Modal
+        visible={showNewUserModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowNewUserModal(false)}
+      >
+        <View style={styles.removedModalOverlay}>
+          <View style={[styles.welcomeModalContent, { backgroundColor: colors.surface }]}>
+            {/* Conteúdo do step atual */}
+            <ScrollView
+              style={styles.welcomeModalScroll}
+              contentContainerStyle={styles.welcomeModalScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {WELCOME_STEPS[welcomeStep].image ? (
+                <View style={styles.welcomeModalImageWrap}>
+                  <Image
+                    source={require('../../assets/images/icone_app.png')}
+                    style={styles.welcomeModalImage}
+                    resizeMode="contain"
+                  />
+                </View>
+              ) : (
+                <View style={[styles.welcomeModalIconWrap, { backgroundColor: colors.primary + '20' }]}>
+                  <Ionicons
+                    name={WELCOME_STEPS[welcomeStep].icon as any}
+                    size={56}
+                    color={colors.primary}
+                  />
+                </View>
+              )}
+              <Text style={[styles.welcomeModalStepTitle, { color: colors.text }]}>
+                {WELCOME_STEPS[welcomeStep].title}
+              </Text>
+              <Text style={[styles.welcomeModalStepSubtitle, { color: colors.textSecondary }]}>
+                {WELCOME_STEPS[welcomeStep].subtitle}
+              </Text>
+            </ScrollView>
+
+            {/* Indicadores de passo */}
+            <View style={styles.welcomeModalDots}>
+              {WELCOME_STEPS.map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.welcomeModalDot,
+                    { backgroundColor: i === welcomeStep ? colors.primary : colors.border },
+                  ]}
+                />
+              ))}
+            </View>
+
+            {/* Botões: navegação ou ações finais */}
+            {welcomeStep < totalWelcomeSteps - 1 ? (
+              <View style={styles.welcomeModalNavButtons}>
+                {welcomeStep > 0 ? (
+                  <TouchableOpacity
+                    style={[styles.welcomeModalNavButtonSecondary, { borderColor: colors.border }]}
+                    onPress={() => setWelcomeStep((s) => s - 1)}
+                  >
+                    <Ionicons name="arrow-back" size={20} color={colors.text} />
+                    <Text style={[styles.welcomeModalNavButtonSecondaryText, { color: colors.text }]}>Voltar</Text>
+                  </TouchableOpacity>
+                ) : null}
+                <TouchableOpacity
+                  style={[
+                    styles.welcomeModalNavButtonPrimary,
+                    { backgroundColor: colors.primary },
+                    welcomeStep === 0 ? styles.welcomeModalNavButtonFull : null,
+                  ]}
+                  onPress={() => setWelcomeStep((s) => s + 1)}
+                >
+                  <Text style={styles.welcomeModalNavButtonPrimaryText}>Próximo</Text>
+                  <Ionicons name="arrow-forward" size={20} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.welcomeModalButtonDone, { backgroundColor: colors.primary }]}
+                onPress={() => setShowNewUserModal(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.welcomeModalButtonDoneText}>Pronto</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </Modal>
+
       <PermissionModal
         visible={showPermissionModal}
         onClose={() => setShowPermissionModal(false)}
@@ -1639,6 +1775,149 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 24,
+  },
+  welcomeModalContent: {
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '85%',
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  welcomeModalScroll: {
+    maxHeight: 340,
+  },
+  welcomeModalScrollContent: {
+    paddingBottom: 16,
+    alignItems: 'center',
+  },
+  welcomeModalImageWrap: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    overflow: 'hidden',
+    marginBottom: 20,
+    backgroundColor: 'transparent',
+  },
+  welcomeModalImage: {
+    width: '100%',
+    height: '100%',
+  },
+  welcomeModalIconWrap: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  welcomeModalStepTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 8,
+  },
+  welcomeModalStepSubtitle: {
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
+    paddingHorizontal: 4,
+  },
+  welcomeModalDots: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    marginVertical: 16,
+  },
+  welcomeModalDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  welcomeModalNavButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+  },
+  welcomeModalNavButtonSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  welcomeModalNavButtonSecondaryText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  welcomeModalNavButtonPrimary: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  welcomeModalNavButtonFull: {
+    flex: 1,
+  },
+  welcomeModalNavButtonPrimaryText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  welcomeModalButtonDone: {
+    width: '100%',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  welcomeModalButtonDoneText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  newUserModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  newUserModalButtonSecondary: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  newUserModalButtonSecondaryText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  newUserModalButtonPrimary: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  newUserModalButtonPrimaryText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   removedModalLoading: {
     alignItems: 'center',

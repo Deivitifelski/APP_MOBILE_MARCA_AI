@@ -57,11 +57,6 @@ export default function LoginScreen() {
   const [showEmailConfirmationModal, setShowEmailConfirmationModal] = useState(false);
   const [emailConfirmationError, setEmailConfirmationError] = useState<string>('');
   const [resendingEmail, setResendingEmail] = useState(false);
-  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
-  const [userName, setUserName] = useState('');
-  const [welcomeProvider, setWelcomeProvider] = useState<'google' | 'apple' | null>(null);
-  const [welcomeName, setWelcomeName] = useState('');
-  const [welcomeEmail, setWelcomeEmail] = useState('');
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [sendingResetEmail, setSendingResetEmail] = useState(false);
@@ -236,17 +231,13 @@ export default function LoginScreen() {
           undefined,
       });
 
-      setWelcomeProvider('apple');
-      setWelcomeName(finalName);
-      setWelcomeEmail(emailToPersist);
-      setUserName(displayName);
-
       if (!result.success) {
         throw new Error(result.error || 'Erro ao salvar o usuário Apple');
       }
 
       if (isNewUser) {
-        setShowWelcomeModal(true);
+        getFCMToken().catch(() => {});
+        router.replace({ pathname: '/(tabs)/agenda', params: { showNewUserModal: '1' } });
         return;
       }
 
@@ -268,12 +259,6 @@ export default function LoginScreen() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const resetWelcomeContext = () => {
-    setWelcomeProvider(null);
-    setWelcomeName('');
-    setWelcomeEmail('');
   };
 
   const handleAppleError = (error: Error) => {
@@ -302,20 +287,15 @@ export default function LoginScreen() {
           const result = await createOrUpdateUserFromGoogle(
             data.user.id,
             {
-              name: response.data.user.name || response.data.user.email,
-              email: response.data.user.email,
+              name: (response.data.user.name || response.data.user.email || 'Usuário').trim(),
+              email: response.data.user.email || '',
               photo: response.data.user.photo || undefined,
             }
           );
 
           if (result.isNewUser) {
-            const googleName = response.data.user.name || response.data.user.email || 'Usuário';
-            const googleEmail = response.data.user.email || '';
-            setUserName(googleName);
-            setWelcomeProvider('google');
-            setWelcomeName(response.data.user.name || '');
-            setWelcomeEmail(googleEmail);
-            setShowWelcomeModal(true);
+            getFCMToken().catch(() => {});
+            router.replace({ pathname: '/(tabs)/agenda', params: { showNewUserModal: '1' } });
           } else {
             getFCMToken().catch((error) => {
               console.error('Erro ao buscar token FCM:', error);
@@ -781,122 +761,6 @@ export default function LoginScreen() {
         </View>
       </Modal>
 
-      {/* Modal de Boas-Vindas após Login com Google */}
-      <Modal
-        visible={showWelcomeModal}
-        transparent
-        animationType="slide"
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContainer, { backgroundColor: colors.surface, maxWidth: 450 }]}>
-            <View style={styles.modalHeader}>
-              <View style={[styles.modalIcon, { backgroundColor: isDarkMode ? 'rgba(102, 126, 234, 0.15)' : 'rgba(102, 126, 234, 0.1)' }]}>
-                <Ionicons name="sparkles" size={40} color={colors.primary} />
-              </View>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
-                Bem-vindo, {userName}! 🎉
-              </Text>
-              <Text style={[styles.modalSubtitle, { color: colors.textSecondary, marginTop: 8 }]}>
-                {welcomeProvider === 'apple'
-                  ? 'Você está conectado com sua conta Apple'
-                  : 'Você está conectado com sua conta Google'}
-              </Text>
-              {!welcomeName && welcomeEmail ? (
-                <Text style={[styles.modalSubtitle, { color: colors.textSecondary, marginTop: 4 }]}>
-                  Email: {welcomeEmail}
-                </Text>
-              ) : null}
-            </View>
-
-            {/* Informação sobre o app */}
-            <View style={styles.welcomeInfoContainer}>
-              <Text style={[styles.welcomeTitle, { color: colors.text }]}>
-                Como funciona o Marca AI
-              </Text>
-              
-              <View style={styles.welcomeFeature}>
-                <View style={[styles.welcomeFeatureIcon, { backgroundColor: isDarkMode ? 'rgba(102, 126, 234, 0.15)' : 'rgba(102, 126, 234, 0.1)' }]}>
-                  <Ionicons name="person-outline" size={24} color={colors.primary} />
-                </View>
-                <View style={styles.welcomeFeatureContent}>
-                  <Text style={[styles.welcomeFeatureTitle, { color: colors.text }]}>Crie seu Perfil Artista</Text>
-                  <Text style={[styles.welcomeFeatureText, { color: colors.textSecondary }]}>
-                    Configure seu nome artístico e foto de perfil
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.welcomeFeature}>
-                <View style={[styles.welcomeFeatureIcon, { backgroundColor: isDarkMode ? 'rgba(102, 126, 234, 0.15)' : 'rgba(102, 126, 234, 0.1)' }]}>
-                  <Ionicons name="calendar-outline" size={24} color={colors.primary} />
-                </View>
-                <View style={styles.welcomeFeatureContent}>
-                  <Text style={[styles.welcomeFeatureTitle, { color: colors.text }]}>Gerencie Eventos</Text>
-                  <Text style={[styles.welcomeFeatureText, { color: colors.textSecondary }]}>
-                    Organize shows, ensaios e compromissos
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.welcomeFeature}>
-                <View style={[styles.welcomeFeatureIcon, { backgroundColor: isDarkMode ? 'rgba(102, 126, 234, 0.15)' : 'rgba(102, 126, 234, 0.1)' }]}>
-                  <Ionicons name="cash-outline" size={24} color={colors.primary} />
-                </View>
-                <View style={styles.welcomeFeatureContent}>
-                  <Text style={[styles.welcomeFeatureTitle, { color: colors.text }]}>Controle Financeiro</Text>
-                  <Text style={[styles.welcomeFeatureText, { color: colors.textSecondary }]}>
-                    Acompanhe receitas, despesas e lucros
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalCancelButton, { backgroundColor: colors.background, borderColor: colors.border }]}
-                onPress={async () => {
-                  setShowWelcomeModal(false);
-                  resetWelcomeContext();
-                  // Buscar token FCM e mostrar modal (não navegar ainda, o modal vai aparecer)
-                  getFCMToken().catch((error) => {
-                    console.error('Erro ao buscar token FCM:', error);
-                  });
-                  
-                  // Verificar artistas e redirecionar adequadamente
-                  const { shouldRedirectToSelection, activeArtist: artistToSet } = await checkArtistsAndRedirect();
-                  if (artistToSet) await setActiveArtist(artistToSet);
-                  
-                  // Navegar após um pequeno delay para garantir que o modal apareça
-                  setTimeout(() => {
-                    if (shouldRedirectToSelection) {
-                      router.replace('/selecionar-artista');
-                    } else {
-                      router.replace('/(tabs)/agenda');
-                    }
-                  }, 100);
-                }}
-              >
-                <Text style={[styles.modalCancelText, { color: colors.textSecondary }]}>Pular</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.modalContinueButton, { backgroundColor: colors.primary }]}
-                onPress={() => {
-                  setShowWelcomeModal(false);
-                  resetWelcomeContext();
-                  router.replace('/cadastro-artista');
-                }}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Ionicons name="musical-notes" size={18} color="#FFFFFF" />
-                  <Text style={styles.modalContinueText}>Criar Artista</Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
       {/* Modal de Esqueceu a Senha */}
       <Modal
         visible={showForgotPasswordModal}
@@ -1228,40 +1092,6 @@ const styles = StyleSheet.create({
   },
   emailInfoText: {
     flex: 1,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  welcomeInfoContainer: {
-    marginBottom: 24,
-  },
-  welcomeTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  welcomeFeature: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-    gap: 12,
-  },
-  welcomeFeatureIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  welcomeFeatureContent: {
-    flex: 1,
-  },
-  welcomeFeatureTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  welcomeFeatureText: {
     fontSize: 14,
     lineHeight: 20,
   },

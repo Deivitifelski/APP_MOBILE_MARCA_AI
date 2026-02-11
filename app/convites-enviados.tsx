@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
+import { formatDateBrazil } from '../lib/dateUtils';
 import { ArtistInvite, cancelArtistInvite, getArtistInvitesSent } from '../services/supabase/artistInviteService';
 import { getCurrentUser } from '../services/supabase/authService';
 
@@ -132,26 +133,6 @@ export default function ConvitesEnviadosScreen() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    // Se a string não tem timezone, assumir que é UTC
-    let date;
-    if (dateString.endsWith('Z') || dateString.includes('+') || dateString.includes('-')) {
-      date = new Date(dateString);
-    } else {
-      // Se não tem timezone, assumir UTC
-      date = new Date(dateString + 'Z');
-    }
-    
-    return date.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      timeZone: 'America/Sao_Paulo'
-    });
-  };
-
   const renderInvite = ({ item }: { item: ArtistInvite }) => (
     <View style={[styles.inviteCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       {/* Header: Usuário e Status */}
@@ -198,7 +179,7 @@ export default function ConvitesEnviadosScreen() {
           <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
           <Text style={[styles.detailText, { color: colors.text }]}>
             <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Enviado em: </Text>
-            {formatDate(item.created_at)}
+            {formatDateBrazil(item.created_at)}
           </Text>
         </View>
 
@@ -207,7 +188,7 @@ export default function ConvitesEnviadosScreen() {
             <Ionicons name="checkmark-circle-outline" size={16} color={colors.textSecondary} />
             <Text style={[styles.detailText, { color: colors.text }]}>
               <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Respondido em: </Text>
-              {formatDate(item.responded_at)}
+              {formatDateBrazil(item.responded_at)}
             </Text>
           </View>
         )}

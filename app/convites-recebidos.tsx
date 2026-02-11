@@ -12,6 +12,7 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { formatDateBrazil } from '../lib/dateUtils';
 import { acceptArtistInvite, ArtistInvite, declineArtistInvite, getArtistInvitesReceived } from '../services/supabase/artistInviteService';
 import { getCurrentUser } from '../services/supabase/authService';
 
@@ -169,17 +170,6 @@ export default function ConvitesRecebidosScreen() {
     );
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
@@ -229,11 +219,11 @@ export default function ConvitesRecebidosScreen() {
           <Text style={styles.label}>Convidado por:</Text> {item.from_user?.name || 'Usuário não encontrado'}
         </Text>
         <Text style={styles.inviteDate}>
-          <Text style={styles.label}>Recebido em:</Text> {formatDate(item.created_at)}
+          <Text style={styles.label}>Recebido em:</Text> {formatDateBrazil(item.created_at)}
         </Text>
         {item.responded_at && (
           <Text style={styles.responseDate}>
-            <Text style={styles.label}>Respondido em:</Text> {formatDate(item.responded_at)}
+            <Text style={styles.label}>Respondido em:</Text> {formatDateBrazil(item.responded_at)}
           </Text>
         )}
       </View>
