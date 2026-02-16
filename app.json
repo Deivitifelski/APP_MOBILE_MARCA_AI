@@ -38,10 +38,10 @@
     },
     "android": {
       "package": "com.marcaai.app",
-      "icon": "./assets/images/icone_app_1024.png",
+      "icon": "./assets/images/icone_512x512.png",
       "adaptiveIcon": {
         "backgroundColor": "#6B8CE8",
-        "foregroundImage": "./assets/images/icone_app_1024.png"
+        "foregroundImage": "./assets/images/icone_512x512.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
