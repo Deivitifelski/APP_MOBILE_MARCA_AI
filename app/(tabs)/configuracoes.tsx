@@ -414,7 +414,7 @@ export default function ConfiguracoesScreen() {
 
   // Avaliar aplicativo: abre na loja (substitua APP_STORE_ID pelo ID do app na App Store Connect para iOS)
   const APP_STORE_ID = ''; // Ex: '1234567890'
-  const PLAY_STORE_PACKAGE = 'com.marcaai.app';
+  const PLAY_STORE_PACKAGE = 'com.organizei.marcaai';
 
   const handleRateApp = async () => {
     try {
