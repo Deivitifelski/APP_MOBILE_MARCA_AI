@@ -182,9 +182,11 @@ export default function NotificacoesScreen() {
       }
     }
 
-    // Navegar baseado no tipo de notificação
+    // Navegar baseado no tipo de notificação (basic não navega)
     try {
       switch (notification.type) {
+        case 'basic':
+          return;
         case 'invite':
           router.push('/convites-recebidos');
           break;
@@ -432,6 +434,8 @@ export default function NotificacoesScreen() {
     switch (type) {
       case 'invite':
         return 'mail';
+      case 'basic':
+        return 'mail-open-outline';
       case 'update':
         return 'person-add';
       case 'delete':
@@ -454,6 +458,8 @@ export default function NotificacoesScreen() {
     switch (type) {
       case 'invite':
         return '#3B82F6';
+      case 'basic':
+        return '#6B7280';
       case 'update':
         return '#10B981';
       case 'delete':
@@ -581,10 +587,12 @@ export default function NotificacoesScreen() {
           <View style={dynamicStyles.content}>
             {notifications.map((notification) => {
               const isInvite = notification.type === 'invite';
-              const CardWrapper = isInvite ? View : TouchableOpacity;
-              const cardWrapperProps = isInvite
-                ? { style: styles.notificationContent }
-                : { style: styles.notificationContent, onPress: () => handleNotificationPress(notification), activeOpacity: 0.7 };
+              const isBasic = notification.type === 'basic';
+              const isClickable = !isInvite && !isBasic;
+              const CardWrapper = isClickable ? TouchableOpacity : View;
+              const cardWrapperProps = isClickable
+                ? { style: styles.notificationContent, onPress: () => handleNotificationPress(notification), activeOpacity: 0.7 }
+                : { style: styles.notificationContent };
               return (
               <View
                 key={notification.id}
