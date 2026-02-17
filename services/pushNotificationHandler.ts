@@ -1,5 +1,5 @@
 import messaging from '@react-native-firebase/messaging';
-import { Platform, Alert } from 'react-native';
+import { Platform } from 'react-native';
 
 /**
  * Configura todos os handlers de notificações push para iOS e Android
@@ -37,33 +37,9 @@ export const setupPushNotificationHandlers = () => {
   // Quando o app está aberto e uma notificação chega
   const unsubscribeForeground = messaging().onMessage(async remoteMessage => {
     console.log('📬 Notificação recebida em FOREGROUND:', remoteMessage);
-
     if (remoteMessage.notification) {
       const { title, body } = remoteMessage.notification;
-
-      // No iOS, precisamos mostrar manualmente quando o app está em foreground
-      if (Platform.OS === 'ios') {
-        Alert.alert(
-          title || 'Nova Notificação',
-          body || 'Você tem uma nova notificação',
-          [
-            {
-              text: 'Ver',
-              onPress: () => {
-                // Navegar para a tela de notificações se necessário
-                console.log('Usuário clicou em "Ver"');
-              },
-            },
-            {
-              text: 'OK',
-              style: 'cancel',
-            },
-          ]
-        );
-      } else {
-        // Android mostra automaticamente, mas podemos customizar aqui
-        console.log('Notificação em foreground (Android):', title, body);
-      }
+      console.log('Foreground:', title, body);
     }
   });
 
