@@ -587,8 +587,8 @@ export default function NotificacoesScreen() {
           <View style={dynamicStyles.content}>
             {notifications.map((notification) => {
               const isInvite = notification.type === 'invite';
-              const isBasic = notification.type === 'basic';
-              const isClickable = !isInvite && !isBasic;
+              // basic e demais: clicável (basic só marca como lida; outros navegam)
+              const isClickable = !isInvite;
               const CardWrapper = isClickable ? TouchableOpacity : View;
               const cardWrapperProps = isClickable
                 ? { style: styles.notificationContent, onPress: () => handleNotificationPress(notification), activeOpacity: 0.7 }
@@ -839,7 +839,7 @@ export default function NotificacoesScreen() {
               style={[
                 styles.acceptedInfoCard,
                 {
-                  backgroundColor: colors.card || colors.surface,
+                  backgroundColor: colors.surface,
                   borderColor: colors.border,
                 },
               ]}
@@ -882,7 +882,7 @@ export default function NotificacoesScreen() {
               style={[
                 styles.acceptedPermissionsBox,
                 {
-                  backgroundColor: colors.card || colors.surface,
+                  backgroundColor: colors.surface,
                   borderColor: colors.border,
                 },
               ]}
