@@ -435,7 +435,7 @@ export default function NotificacoesScreen() {
       case 'invite':
         return 'mail';
       case 'basic':
-        return 'mail-open-outline';
+        return 'archive-outline';
       case 'update':
         return 'person-add';
       case 'delete':
