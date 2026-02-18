@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { setAppIconBadge } from '../services/appIconBadge';
 import { setupPushNotificationHandlers } from '../services/pushNotificationHandler';
 import { checkArtistsAndRedirect } from '../services/supabase/authService';
 import { checkUserExists } from '../services/supabase/userService';
@@ -75,6 +76,7 @@ export default function Index() {
 
         const { shouldRedirectToSelection } = await checkArtistsAndRedirect();
 
+        setAppIconBadge(0);
         if (shouldRedirectToSelection) {
           navigateTo('/selecionar-artista');
         } else {

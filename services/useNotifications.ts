@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { setAppIconBadge } from './appIconBadge';
 import { getUnreadNotificationCount } from './supabase/notificationService';
 import { getCurrentUser } from './supabase/authService';
 import { subscribeToNotifications, RealtimeSubscription } from './realtimeService';
@@ -16,6 +17,7 @@ export const useNotifications = () => {
       
       if (userError || !user) {
         setUnreadCount(0);
+        await setAppIconBadge(0);
         return;
       }
 
@@ -24,11 +26,14 @@ export const useNotifications = () => {
       
       if (error) {
         setUnreadCount(0);
+        await setAppIconBadge(0);
       } else {
         setUnreadCount(count);
+        await setAppIconBadge(count);
       }
     } catch (error) {
       setUnreadCount(0);
+      await setAppIconBadge(0);
     } finally {
       setIsLoading(false);
     }

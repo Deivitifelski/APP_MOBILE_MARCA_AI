@@ -3,7 +3,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
-import { LogBox } from 'react-native';
+import { AppState, LogBox } from 'react-native';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AuthDeepLinkHandler from '../components/AuthDeepLinkHandler';
@@ -29,8 +29,18 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   useEffect(() => {
-    // Esconder a tela de splash (ícone) imediatamente para não ficar só o ícone na tela
     SplashScreen.hideAsync();
+  }, []);
+
+  // Zerar badge do ícone ao abrir o app (mount) e ao voltar ao foreground
+  useEffect(() => {
+    const { setAppIconBadge } = require('../services/appIconBadge');
+    setAppIconBadge(0);
+
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setAppIconBadge(0);
+    });
+    return () => sub.remove();
   }, []);
 
   return (

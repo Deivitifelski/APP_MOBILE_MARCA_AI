@@ -21,6 +21,7 @@ import PermissionModal from '../../components/PermissionModal';
 import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
+import { setAppIconBadge } from '../../services/appIconBadge';
 import { artistImageUpdateService } from '../../services/artistImageUpdateService';
 import { cacheService } from '../../services/cacheService';
 import { getArtists } from '../../services/supabase/artistService';
@@ -64,6 +65,13 @@ export default function AgendaScreen() {
       setWelcomeStep(0);
     }
   }, [params.showNewUserModal]);
+
+  // Ao entrar na tela Agenda, zerar o badge do ícone do app
+  useFocusEffect(
+    React.useCallback(() => {
+      setAppIconBadge(0);
+    }, [])
+  );
 
   const WELCOME_STEPS = [
     {
