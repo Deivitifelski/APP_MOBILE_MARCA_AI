@@ -31,12 +31,12 @@ import {
     saveFCMToken,
 } from '../../../services/supabase/userService';
 
-// Configurar Google Sign-In (conforme documentação)
+// Configurar Google Sign-In: webClientId obrigatório (Android + Supabase). iosClientId só no iOS.
 GoogleSignin.configure({
   webClientId: '169304206053-i5bm2l2sofd011muqr66ddm2dosn5bn9.apps.googleusercontent.com',
-  iosClientId: '169304206053-642isf3lub3ds2thkiupcje9r7lo7dh7.apps.googleusercontent.com',
-  // Android Client ID será configurado após adicionar SHA-1 no Google Cloud Console
-  // Veja o guia: RESOLVER_ERRO_DEVELOPER_ERROR_ANDROID.md
+  ...(Platform.OS === 'ios' && {
+    iosClientId: '169304206053-642isf3lub3ds2thkiupcje9r7lo7dh7.apps.googleusercontent.com',
+  }),
 });
 
 // Ignorar erros de rede no console
@@ -316,20 +316,29 @@ export default function LoginScreen() {
         }
       }
     } catch (error: any) {
-      if (error.code === statusCodes.IN_PROGRESS) {
+      const code = error?.code ?? '';
+      const msg = error?.message ?? '';
+      if (code === statusCodes.IN_PROGRESS) {
         Alert.alert('Atenção', 'Login já em andamento');
-      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+      } else if (code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
         Alert.alert('Erro', 'Google Play Services não disponível');
-      } else if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-        console.log('Login com Google cancelado pelo usuário');
-      } else if (error.code === '10' || error.message?.includes('DEVELOPER_ERROR')) {
+      } else if (code === statusCodes.SIGN_IN_CANCELLED) {
+        // Usuário cancelou, não mostrar alerta
+      } else if (Platform.OS === 'android' && (code === '10' || String(msg).includes('DEVELOPER_ERROR'))) {
+        console.error('Login Google Android (config):', code, msg);
         Alert.alert(
-          'Erro de Configuração',
-          'O app não está configurado corretamente para login com Google. Por favor, verifique se o SHA-1 está configurado no Google Cloud Console.\n\nVeja o guia: RESOLVER_ERRO_DEVELOPER_ERROR_ANDROID.md'
+          'Erro de configuração (Android)',
+          'Login com Google não está configurado para este app. No Google Cloud Console (APIs & Services > Credentials) crie um cliente OAuth 2.0 do tipo Android com:\n\n• Nome do pacote: com.marcaaipro.app\n• SHA-1 do seu keystore (veja o guia no projeto: GOOGLE_LOGIN_ANDROID.md)'
+        );
+      } else if (code === '8' || String(msg).toUpperCase().includes('INTERNAL_ERROR')) {
+        console.error('Login Google INTERNAL_ERROR:', code, msg, error);
+        Alert.alert(
+          'Erro de configuração',
+          'Falha interna no login com Google. Geralmente é pacote ou SHA-1 incorretos no Google Cloud, ou google-services.json ausente/incorreto.\n\nConfira o guia GOOGLE_LOGIN_ANDROID.md no projeto e verifique:\n• Pacote: com.marcaaipro.app\n• SHA-1 do keystore no Console\n• google-services.json em android/app (se usar Firebase)'
         );
       } else {
-        console.error('Erro no login com Google:', error);
-        Alert.alert('Erro', error?.message || 'Erro ao fazer login com Google');
+        console.error('Erro no login com Google:', { code, message: msg, error });
+        Alert.alert('Erro', msg || 'Erro ao fazer login com Google');
       }
     } finally {
       setLoading(false);

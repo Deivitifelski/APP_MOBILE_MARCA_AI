@@ -1,4 +1,5 @@
-package com.organizei.marcaai
+package com.marcaaipro.app
+
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

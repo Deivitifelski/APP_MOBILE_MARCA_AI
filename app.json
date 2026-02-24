@@ -37,7 +37,8 @@
       }
     },
     "android": {
-      "package": "com.marcaai.app",
+      "package": "com.marcaaipro.app",
+      "googleServicesFile": "./android/app/google-services.json",
       "icon": "./assets/images/icone_512x512.png",
       "adaptiveIcon": {
         "backgroundColor": "#6B8CE8",

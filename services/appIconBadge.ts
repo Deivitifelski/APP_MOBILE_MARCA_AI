@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 
 /**
  * Atualiza o badge do ícone do app (home). Zerar ao abrir: setAppIconBadge(0).
- * iOS: usa PushNotificationIOS (nativo). Android: no-op (badge não é padrão).
+ * iOS: PushNotificationIOS (nativo). Android: expo-notifications (só importa no Android, evita crash no iOS).
  */
 export const setAppIconBadge = async (count: number): Promise<void> => {
   if (Platform.OS === 'ios') {
@@ -11,6 +11,15 @@ export const setAppIconBadge = async (count: number): Promise<void> => {
       PushNotificationIOS.setApplicationIconBadgeNumber(count);
     } catch {
       // pacote não instalado ou não linkado
+    }
+    return;
+  }
+  if (Platform.OS === 'android') {
+    try {
+      const Notifications = await import('expo-notifications');
+      await Notifications.setBadgeCountAsync(count);
+    } catch {
+      // expo-notifications não linkado ou launcher não suporta badge
     }
   }
 };
