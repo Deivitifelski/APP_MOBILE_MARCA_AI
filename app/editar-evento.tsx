@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -996,9 +997,9 @@ const styles = StyleSheet.create({
       width: 0,
       height: -5,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowOpacity: Platform.OS === 'android' ? 0 : 0.25,
+    shadowRadius: Platform.OS === 'android' ? 0 : 20,
+    elevation: Platform.OS === 'android' ? 0 : 10,
   },
   modalHandle: {
     width: 40,
@@ -1127,9 +1128,9 @@ const styles = StyleSheet.create({
       width: 0,
       height: 4,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: Platform.OS === 'android' ? 0 : 0.3,
+    shadowRadius: Platform.OS === 'android' ? 0 : 8,
+    elevation: Platform.OS === 'android' ? 0 : 4,
   },
   modalConfirmText: {
     fontSize: 16,

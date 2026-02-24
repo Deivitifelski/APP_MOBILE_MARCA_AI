@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Platform,
     RefreshControl,
     ScrollView,
     StyleSheet,
@@ -406,9 +407,9 @@ const styles = StyleSheet.create({
       width: 0,
       height: 1,
     },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowOpacity: Platform.OS === 'android' ? 0 : 0.05,
+    shadowRadius: Platform.OS === 'android' ? 0 : 2,
+    elevation: Platform.OS === 'android' ? 0 : 1,
   },
   inviteHeader: {
     padding: 16,

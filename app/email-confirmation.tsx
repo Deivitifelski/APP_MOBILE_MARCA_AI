@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -251,9 +252,9 @@ const createDynamicStyles = (colors: any) => StyleSheet.create({
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOpacity: Platform.OS === 'android' ? 0 : 0.25,
+    shadowRadius: Platform.OS === 'android' ? 0 : 3.84,
+    elevation: Platform.OS === 'android' ? 0 : 5,
   },
   primaryButtonText: {
     color: '#fff',

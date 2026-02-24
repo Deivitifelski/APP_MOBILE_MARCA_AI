@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { setAppIconBadge } from '../services/appIconBadge';
 import { setupPushNotificationHandlers } from '../services/pushNotificationHandler';
@@ -128,9 +128,9 @@ const styles = StyleSheet.create({
       width: 0,
       height: 8,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 10,
+    shadowOpacity: Platform.OS === 'android' ? 0 : 0.3,
+    shadowRadius: Platform.OS === 'android' ? 0 : 16,
+    elevation: Platform.OS === 'android' ? 0 : 10,
   },
   logoText: {
     fontSize: 72,

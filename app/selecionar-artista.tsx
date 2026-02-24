@@ -10,6 +10,7 @@ import {
   RefreshControl,
   Image,
   Modal,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -402,9 +403,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOpacity: Platform.OS === 'android' ? 0 : 0.1,
+    shadowRadius: Platform.OS === 'android' ? 0 : 3.84,
+    elevation: Platform.OS === 'android' ? 0 : 5,
   },
   introTitle: {
     fontSize: 18,
@@ -429,9 +430,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOpacity: Platform.OS === 'android' ? 0 : 0.1,
+    shadowRadius: Platform.OS === 'android' ? 0 : 3.84,
+    elevation: Platform.OS === 'android' ? 0 : 5,
     borderWidth: 1,
   },
   artistCardActive: {
@@ -478,9 +479,9 @@ const styles = StyleSheet.create({
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: Platform.OS === 'android' ? 0 : 0.3,
+    shadowRadius: Platform.OS === 'android' ? 0 : 4,
+    elevation: Platform.OS === 'android' ? 0 : 3,
   },
   avatarText: {
     color: '#fff',
@@ -615,9 +616,9 @@ const styles = StyleSheet.create({
   modalButtonConfirm: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: Platform.OS === 'android' ? 0 : 0.1,
+    shadowRadius: Platform.OS === 'android' ? 0 : 4,
+    elevation: Platform.OS === 'android' ? 0 : 3,
   },
   modalButtonText: {
     fontSize: 16,

@@ -6,6 +6,7 @@ import {
   Modal,
   TouchableOpacity,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
@@ -45,9 +46,9 @@ export default function PermissionModal({
         width: 0,
         height: 2,
       },
-      shadowOpacity: 0.25,
-      shadowRadius: 3.84,
-      elevation: 5,
+      shadowOpacity: Platform.OS === 'android' ? 0 : 0.25,
+      shadowRadius: Platform.OS === 'android' ? 0 : 3.84,
+      elevation: Platform.OS === 'android' ? 0 : 5,
     },
     iconContainer: {
       alignItems: 'center',

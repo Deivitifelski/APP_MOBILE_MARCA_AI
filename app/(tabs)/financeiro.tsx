@@ -7,6 +7,7 @@ import {
     Clipboard,
     FlatList,
     Modal,
+    Platform,
     ScrollView,
     StyleSheet,
     Text,
@@ -792,9 +793,9 @@ export default function FinanceiroScreen() {
             </Text>
             
             {standaloneIncome.length > 0 ? (
-              <View style={[styles.standaloneExpensesContainer, { backgroundColor: colors.surface }]}>
+              <View style={[styles.standaloneExpensesContainer, Platform.OS !== 'android' && { backgroundColor: colors.surface }]}>
                 {standaloneIncome.map((income) => (
-                <View key={income.id} style={[styles.standaloneExpenseItem, { borderBottomColor: colors.border }]}>
+                <View key={income.id} style={[styles.standaloneExpenseItem, Platform.OS === 'android' ? { backgroundColor: colors.surface } : { borderBottomColor: colors.border }]}>
                   <View style={styles.standaloneExpenseInfo}>
                     <View style={styles.standaloneExpenseHeader}>
                       <Text style={[styles.standaloneExpenseDescription, { color: colors.text }]}>
@@ -859,9 +860,9 @@ export default function FinanceiroScreen() {
             </Text>
             
             {standaloneExpensesOnly.length > 0 ? (
-              <View style={[styles.standaloneExpensesContainer, { backgroundColor: colors.surface }]}>
+              <View style={[styles.standaloneExpensesContainer, Platform.OS !== 'android' && { backgroundColor: colors.surface }]}>
                 {standaloneExpensesOnly.map((expense) => (
-                  <View key={expense.id} style={[styles.standaloneExpenseItem, { borderBottomColor: colors.border }]}>
+                  <View key={expense.id} style={[styles.standaloneExpenseItem, Platform.OS === 'android' ? { backgroundColor: colors.surface } : { borderBottomColor: colors.border }]}>
                     <View style={styles.standaloneExpenseInfo}>
                       <View style={styles.standaloneExpenseHeader}>
                         <Text style={[styles.standaloneExpenseDescription, { color: colors.text }]}>
@@ -1210,18 +1211,15 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   summaryCard: {
-    borderRadius: 12,
-    padding: 20,
+    borderRadius: Platform.OS === 'android' ? 16 : 12,
+    padding: Platform.OS === 'android' ? 16 : 20,
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: Platform.OS === 'android' ? 16 : 15,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOffset: { width: 0, height: Platform.OS === 'android' ? 4 : 2 },
+    shadowOpacity: Platform.OS === 'android' ? 0 : 0.1,
+    shadowRadius: Platform.OS === 'android' ? 0 : 3.84,
+    elevation: Platform.OS === 'android' ? 0 : 5,
   },
   summaryLabel: {
     fontSize: 16,
@@ -1237,17 +1235,14 @@ const styles = StyleSheet.create({
   },
   summaryItem: {
     flex: 1,
-    borderRadius: 12,
+    borderRadius: Platform.OS === 'android' ? 16 : 12,
     padding: 16,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOffset: { width: 0, height: Platform.OS === 'android' ? 4 : 2 },
+    shadowOpacity: Platform.OS === 'android' ? 0 : 0.1,
+    shadowRadius: Platform.OS === 'android' ? 0 : 3.84,
+    elevation: Platform.OS === 'android' ? 0 : 5,
   },
   summaryItemLabel: {
     fontSize: 14,
@@ -1266,17 +1261,14 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   transactionCard: {
-    borderRadius: 12,
+    borderRadius: Platform.OS === 'android' ? 16 : 12,
     padding: 16,
-    marginBottom: 12,
+    marginBottom: Platform.OS === 'android' ? 16 : 12,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOffset: { width: 0, height: Platform.OS === 'android' ? 4 : 2 },
+    shadowOpacity: Platform.OS === 'android' ? 0 : 0.1,
+    shadowRadius: Platform.OS === 'android' ? 0 : 3.84,
+    elevation: Platform.OS === 'android' ? 0 : 5,
   },
   transactionHeader: {
     flexDirection: 'row',
@@ -1319,17 +1311,15 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   eventCard: {
-    borderRadius: 12,
+    borderRadius: Platform.OS === 'android' ? 16 : 12,
     padding: 16,
-    marginBottom: 12,
+    marginBottom: Platform.OS === 'android' ? 16 : 12,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOffset: { width: 0, height: Platform.OS === 'android' ? 4 : 2 },
+    shadowOpacity: Platform.OS === 'android' ? 0 : 0.1,
+    shadowRadius: Platform.OS === 'android' ? 0 : 3.84,
+    elevation: Platform.OS === 'android' ? 0 : 6,
+    overflow: 'hidden',
   },
   eventHeader: {
     flexDirection: 'row',
@@ -1436,16 +1426,15 @@ const styles = StyleSheet.create({
   },
   noArtistCard: {
     borderRadius: 16,
-    padding: 30,
+    padding: Platform.OS === 'android' ? 16 : 30,
+    marginBottom: Platform.OS === 'android' ? 16 : 0,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: Platform.OS === 'android' ? 0 : 0.1,
+    shadowRadius: Platform.OS === 'android' ? 0 : 8,
+    elevation: Platform.OS === 'android' ? 0 : 8,
+    overflow: Platform.OS === 'android' ? 'hidden' : ('visible' as const),
     maxWidth: 400,
     width: '100%',
   },
@@ -1498,16 +1487,15 @@ const styles = StyleSheet.create({
   },
   noAccessCard: {
     borderRadius: 16,
-    padding: 30,
+    padding: Platform.OS === 'android' ? 16 : 30,
+    marginBottom: Platform.OS === 'android' ? 16 : 0,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: Platform.OS === 'android' ? 0 : 0.1,
+    shadowRadius: Platform.OS === 'android' ? 0 : 8,
+    elevation: Platform.OS === 'android' ? 0 : 8,
+    overflow: Platform.OS === 'android' ? 'hidden' : ('visible' as const),
     maxWidth: 400,
     width: '100%',
   },
@@ -1569,9 +1557,9 @@ const styles = StyleSheet.create({
       width: 0,
       height: -4,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 10,
+    shadowOpacity: Platform.OS === 'android' ? 0 : 0.25,
+    shadowRadius: Platform.OS === 'android' ? 0 : 12,
+    elevation: Platform.OS === 'android' ? 0 : 10,
   },
   exportModalHeader: {
     flexDirection: 'row',
@@ -1659,15 +1647,29 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   standaloneExpensesContainer: {
-    borderRadius: 12,
-    padding: 16,
     marginTop: 12,
+    ...(Platform.OS !== 'android' && { borderRadius: 12, padding: 16 }),
   },
+  // No Android: mesmo modelo do card de Receitas/Despesas avulsas
   standaloneExpenseItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
+    ...(Platform.OS === 'android'
+      ? {
+          borderRadius: 16,
+          marginBottom: 16,
+          padding: 16,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0,
+          shadowRadius: 0,
+          elevation: 0,
+          overflow: 'hidden' as const,
+        }
+      : {
+          paddingVertical: 12,
+          borderBottomWidth: 1,
+        }),
   },
   standaloneExpenseInfo: {
     flex: 1,
