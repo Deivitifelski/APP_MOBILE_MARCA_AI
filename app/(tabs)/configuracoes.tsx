@@ -47,7 +47,6 @@ export default function ConfiguracoesScreen() {
   const { isDarkMode, toggleDarkMode, colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { activeArtist, refreshActiveArtist, clearArtist } = useActiveArtistContext();
-  const [notifications, setNotifications] = useState(true);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [hasArtist, setHasArtist] = useState(false);
@@ -730,19 +729,6 @@ export default function ConfiguracoesScreen() {
           <Text style={dynamicStyles.sectionTitle}>Preferências</Text>
           
           <View style={dynamicStyles.settingsCard}>
-            {renderSettingItem(
-              'notifications',
-              'Notificações',
-              'Receber notificações sobre shows',
-              undefined,
-              <Switch
-                value={notifications}
-                onValueChange={setNotifications}
-                trackColor={{ false: '#f0f0f0', true: '#667eea' }}
-                thumbColor={notifications ? '#fff' : '#f4f3f4'}
-              />
-            )}
-            
             {renderSettingItem(
               'moon',
               'Modo Escuro',
