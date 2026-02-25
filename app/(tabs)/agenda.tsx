@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -67,10 +67,18 @@ export default function AgendaScreen() {
     }
   }, [params.showNewUserModal]);
 
-  // Ao entrar na tela Agenda, zerar o badge do ícone do app
+  // Bloquear segundo toque: por tempo (debounce) e por ref até sair da tela
+  const isNavigatingToEventRef = useRef(false);
+  const lastEventPressAtRef = useRef(0);
+  const DEBOUNCE_MS = 800;
+
+  // Ao entrar na tela Agenda, zerar o badge do ícone do app; ao sair, liberar toque de novo
   useFocusEffect(
     React.useCallback(() => {
       setAppIconBadge(0);
+      return () => {
+        isNavigatingToEventRef.current = false;
+      };
     }, [])
   );
 
@@ -299,20 +307,26 @@ export default function AgendaScreen() {
   }, [artistImageUpdated]);
 
   const handleEventPress = async (eventId: string) => {
+    const now = Date.now();
+    if (now - lastEventPressAtRef.current < DEBOUNCE_MS) return;
+    if (isNavigatingToEventRef.current) return;
+    lastEventPressAtRef.current = now;
+    isNavigatingToEventRef.current = true;
+
     if (!activeArtist) {
+      isNavigatingToEventRef.current = false;
       Alert.alert('Erro', 'Nenhum artista selecionado.');
       return;
     }
 
-    // ✅ VERIFICAR PERMISSÃO ATUALIZADA DO BANCO (sempre que clicar)
     try {
       const { user } = await getCurrentUser();
       if (!user) {
+        isNavigatingToEventRef.current = false;
         Alert.alert('Erro', 'Usuário não encontrado');
         return;
       }
 
-      // Buscar role atual do usuário DIRETO DO BANCO
       const { data: memberData, error: roleError } = await supabase
         .from('artist_members')
         .select('role')
@@ -321,23 +335,24 @@ export default function AgendaScreen() {
         .single();
 
       if (roleError || !memberData) {
+        isNavigatingToEventRef.current = false;
         Alert.alert('Erro', 'Você não tem acesso a este artista');
         return;
       }
 
       const userRole = memberData.role;
-
-      // Viewer não pode ver detalhes (apenas editor, admin, owner)
       const allowedRoles = ['editor', 'admin', 'owner'];
       const canViewDetails = allowedRoles.includes(userRole);
-      
+
       if (!canViewDetails) {
+        isNavigatingToEventRef.current = false;
         setShowPermissionModal(true);
         return;
       }
-      
+
       router.push(`/detalhes-evento?eventId=${eventId}`);
     } catch (error) {
+      isNavigatingToEventRef.current = false;
       Alert.alert('Erro', 'Erro ao verificar permissões');
     }
   };
