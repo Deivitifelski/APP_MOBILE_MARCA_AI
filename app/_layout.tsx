@@ -79,13 +79,11 @@ export default function RootLayout() {
       if (state === 'active') {
         zeroBadge();
         if (delayTimer) clearTimeout(delayTimer);
-        // No iOS o sistema pode reaplicar o badge ao abrir por notificação; zerar de novo após um instante
-        if (Platform.OS === 'ios') {
-          delayTimer = setTimeout(() => {
-            zeroBadge();
-            delayTimer = null;
-          }, 400);
-        }
+        // iOS e Android: zerar de novo após um instante (sistema/launcher pode reaplicar o badge ao abrir por notificação)
+        delayTimer = setTimeout(() => {
+          zeroBadge();
+          delayTimer = null;
+        }, 400);
       }
     });
     return () => {
