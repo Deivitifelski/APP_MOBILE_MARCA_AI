@@ -109,32 +109,8 @@ const upsertSocialUserProfile = async (
     }
 
     if (exists) {
-      const updatePayload: { name?: string; email?: string; profile_url?: string | null; updated_at: string } = {
-        updated_at: new Date().toISOString(),
-      };
-
-      if (socialData.name) {
-        updatePayload.name = socialData.name;
-      }
-
-      if (socialData.email) {
-        updatePayload.email = socialData.email;
-      }
-
-      if (socialData.photo !== undefined) {
-        updatePayload.profile_url = socialData.photo;
-      }
-
-      const { error: updateError } = await supabase
-        .from('users')
-        .update(updatePayload)
-        .eq('id', userId);
-
-      if (updateError) {
-        console.error('❌ [Social User] Erro ao atualizar usuário:', updateError);
-        return { success: false, error: updateError.message };
-      }
-
+      // Usuário já existe: não sobrescrever dados. Apple só traz nome no primeiro login;
+      // nos próximos fullName vem vazio. Manter os dados do banco intactos.
       return { success: true, error: null, isNewUser: false };
     }
 
