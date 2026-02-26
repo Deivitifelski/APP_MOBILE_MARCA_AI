@@ -46,6 +46,7 @@ export default function RootLayout() {
   }, []);
 
   // Zerar badge ao abrir o app e sempre que voltar ao foreground (iOS e Android)
+  // Inclui: ao abrir pelo ícone, ao trocar de app de volta, ao abrir por notificação
   useEffect(() => {
     const { setAppIconBadge } = require('../services/appIconBadge');
     const { Platform } = require('react-native');
@@ -71,11 +72,26 @@ export default function RootLayout() {
     };
 
     setupBadge();
+    zeroBadge();
 
+    let delayTimer: ReturnType<typeof setTimeout> | null = null;
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') zeroBadge();
+      if (state === 'active') {
+        zeroBadge();
+        if (delayTimer) clearTimeout(delayTimer);
+        // No iOS o sistema pode reaplicar o badge ao abrir por notificação; zerar de novo após um instante
+        if (Platform.OS === 'ios') {
+          delayTimer = setTimeout(() => {
+            zeroBadge();
+            delayTimer = null;
+          }, 400);
+        }
+      }
     });
-    return () => sub.remove();
+    return () => {
+      if (delayTimer) clearTimeout(delayTimer);
+      sub.remove();
+    };
   }, []);
 
   return (
