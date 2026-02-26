@@ -12,6 +12,7 @@ import {
     ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
     TouchableWithoutFeedback,
     View
@@ -57,6 +58,10 @@ export default function AgendaScreen() {
   const [showDeletedEventModal, setShowDeletedEventModal] = useState(false);
   const [availableArtists, setAvailableArtists] = useState<any[]>([]);
   const [isLoadingArtists, setIsLoadingArtists] = useState(false);
+  const [showArtistPickerModal, setShowArtistPickerModal] = useState(false);
+  const [artistPickerList, setArtistPickerList] = useState<any[]>([]);
+  const [artistPickerSearch, setArtistPickerSearch] = useState('');
+  const [isLoadingArtistPicker, setIsLoadingArtistPicker] = useState(false);
   const [showNewUserModal, setShowNewUserModal] = useState(false);
   const [welcomeStep, setWelcomeStep] = useState(0);
   const params = useLocalSearchParams<{ showNewUserModal?: string }>();
@@ -544,6 +549,69 @@ export default function AgendaScreen() {
     router.push('/cadastro-artista');
   };
 
+  const openArtistPickerModal = async () => {
+    setShowArtistPickerModal(true);
+    setArtistPickerSearch('');
+    setIsLoadingArtistPicker(true);
+    try {
+      const { user, error: userError } = await getCurrentUser();
+      if (userError || !user) {
+        setArtistPickerList([]);
+        return;
+      }
+      const { artists, error } = await getArtists(user.id);
+      setArtistPickerList(error || !artists ? [] : artists);
+    } catch {
+      setArtistPickerList([]);
+    } finally {
+      setIsLoadingArtistPicker(false);
+    }
+  };
+
+  const closeArtistPickerModal = () => {
+    setShowArtistPickerModal(false);
+    setArtistPickerSearch('');
+    setArtistPickerList([]);
+  };
+
+  const handleSelectArtistFromPicker = async (artist: any) => {
+    try {
+      await setActiveArtist({
+        id: artist.id,
+        name: artist.name,
+        role: artist.role || 'viewer',
+        profile_url: artist.profile_url,
+        musical_style: artist.musical_style,
+        created_at: artist.created_at
+      });
+      closeArtistPickerModal();
+    } catch (error) {
+      console.error('Erro ao selecionar artista:', error);
+      Alert.alert('Erro', 'Não foi possível alterar o artista. Tente novamente.');
+    }
+  };
+
+  const handleCreateArtistFromPicker = () => {
+    closeArtistPickerModal();
+    router.push('/cadastro-artista');
+  };
+
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case 'owner': return 'Gerente';
+      case 'admin': return 'Administrador';
+      case 'editor': return 'Editor';
+      case 'viewer': return 'Visualizador';
+      default: return role;
+    }
+  };
+
+  const filteredArtistPickerList = useMemo(() => {
+    const q = artistPickerSearch.trim().toLowerCase();
+    if (!q) return artistPickerList;
+    return artistPickerList.filter((a) => (a.name || '').toLowerCase().includes(q));
+  }, [artistPickerList, artistPickerSearch]);
+
   const navigateMonth = (direction: 'prev' | 'next') => {
     const newDate = new Date(currentDate);
     if (direction === 'prev') {
@@ -812,21 +880,23 @@ export default function AgendaScreen() {
         {activeArtist && (
           <View style={styles.artistHeader}>
             <View style={styles.artistInfo}>
-              <OptimizedImage
-                imageUrl={activeArtist.profile_url || ''}
-                style={[styles.artistAvatar, { borderColor: colors.border }]}
-                cacheKey={`artist_${activeArtist.id}`}
-                fallbackIcon="musical-notes"
-                fallbackIconSize={24}
-                fallbackIconColor={colors.primary}
-                showLoadingIndicator={false}
-                onLoadSuccess={() => {
-                  setImageLoadError(false);
-                }}
-                onLoadError={(error) => {
-                  setImageLoadError(true);
-                }}
-              />
+              <TouchableOpacity onPress={openArtistPickerModal} activeOpacity={0.8}>
+                <OptimizedImage
+                  imageUrl={activeArtist.profile_url || ''}
+                  style={[styles.artistAvatar, { borderColor: colors.border }]}
+                  cacheKey={`artist_${activeArtist.id}`}
+                  fallbackIcon="musical-notes"
+                  fallbackIconSize={24}
+                  fallbackIconColor={colors.primary}
+                  showLoadingIndicator={false}
+                  onLoadSuccess={() => {
+                    setImageLoadError(false);
+                  }}
+                  onLoadError={(error) => {
+                    setImageLoadError(true);
+                  }}
+                />
+              </TouchableOpacity>
               <View style={styles.artistDetails}>
                 <View style={styles.artistNameRow}>
                   <Text style={[styles.artistName, { color: colors.text }]}>{activeArtist.name}</Text>
@@ -1374,6 +1444,124 @@ export default function AgendaScreen() {
                 </TouchableOpacity>
               )}
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal: Selecionar Artista (ao clicar na imagem do artista) */}
+      <Modal
+        visible={showArtistPickerModal}
+        transparent
+        animationType="slide"
+        onRequestClose={closeArtistPickerModal}
+      >
+        <View style={styles.artistPickerOverlay}>
+          <TouchableWithoutFeedback onPress={closeArtistPickerModal}>
+            <View style={StyleSheet.absoluteFill} />
+          </TouchableWithoutFeedback>
+          <View style={[styles.artistPickerContent, { backgroundColor: colors.surface }]}>
+                <View style={[styles.artistPickerHeader, { borderBottomColor: colors.border }]}>
+                  <Text style={[styles.artistPickerTitle, { color: colors.text }]}>Selecionar artista</Text>
+                  <TouchableOpacity onPress={closeArtistPickerModal} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                    <Ionicons name="close" size={28} color={colors.text} />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={[styles.artistPickerSearchWrap, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <Ionicons name="search" size={20} color={colors.textSecondary} />
+                  <TextInput
+                    style={[styles.artistPickerSearchInput, { color: colors.text }]}
+                    placeholder="Buscar artista..."
+                    placeholderTextColor={colors.textSecondary}
+                    value={artistPickerSearch}
+                    onChangeText={setArtistPickerSearch}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  {artistPickerSearch.length > 0 && (
+                    <TouchableOpacity onPress={() => setArtistPickerSearch('')}>
+                      <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {isLoadingArtistPicker ? (
+                  <View style={styles.artistPickerLoading}>
+                    <ActivityIndicator size="large" color={colors.primary} />
+                    <Text style={[styles.artistPickerLoadingText, { color: colors.textSecondary }]}>Carregando artistas...</Text>
+                  </View>
+                ) : (
+                  <ScrollView
+                    style={styles.artistPickerList}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    {filteredArtistPickerList.length === 0 ? (
+                      <View style={styles.artistPickerEmpty}>
+                        <Ionicons name="musical-notes-outline" size={48} color={colors.textSecondary} />
+                        <Text style={[styles.artistPickerEmptyText, { color: colors.textSecondary }]}>
+                          {artistPickerSearch.trim() ? 'Nenhum artista encontrado.' : 'Você ainda não tem artistas.'}
+                        </Text>
+                      </View>
+                    ) : (
+                      filteredArtistPickerList.map((artist) => {
+                        const isActive = activeArtist?.id === artist.id;
+                        return (
+                          <TouchableOpacity
+                            key={artist.id}
+                            style={[
+                              styles.artistPickerCard,
+                              { backgroundColor: colors.background, borderColor: isActive ? colors.primary : colors.border },
+                              isActive && { borderWidth: 2 }
+                            ]}
+                            onPress={() => !isActive && handleSelectArtistFromPicker(artist)}
+                            disabled={isActive}
+                          >
+                            <View style={styles.artistPickerCardInner}>
+                              {artist.profile_url ? (
+                                <OptimizedImage
+                                  imageUrl={artist.profile_url}
+                                  style={[styles.artistPickerAvatar, { borderColor: colors.border }]}
+                                  cacheKey={`artist_${artist.id}`}
+                                  fallbackIcon="musical-notes"
+                                  fallbackIconSize={20}
+                                  fallbackIconColor={colors.primary}
+                                />
+                              ) : (
+                                <View style={[styles.artistPickerAvatarPlaceholder, { backgroundColor: colors.primary }]}>
+                                  <Ionicons name="musical-notes" size={20} color="#fff" />
+                                </View>
+                              )}
+                              <View style={styles.artistPickerCardDetails}>
+                                <Text style={[styles.artistPickerCardName, { color: colors.text }, isActive && { color: colors.primary }]}>
+                                  {artist.name}
+                                </Text>
+                                <Text style={[styles.artistPickerCardRole, { color: colors.textSecondary }]}>
+                                  {getRoleLabel(artist.role || 'viewer')}
+                                </Text>
+                              </View>
+                            </View>
+                            {isActive ? (
+                              <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
+                            ) : (
+                              <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })
+                    )}
+                  </ScrollView>
+                )}
+
+                <View style={[styles.artistPickerFooter, { borderTopColor: colors.border }]}>
+                  <TouchableOpacity
+                    style={[styles.artistPickerCreateButton, { backgroundColor: colors.primary }]}
+                    onPress={handleCreateArtistFromPicker}
+                  >
+                    <Ionicons name="add-circle" size={22} color="#fff" />
+                    <Text style={styles.artistPickerCreateButtonText}>Criar artista</Text>
+                  </TouchableOpacity>
+                </View>
           </View>
         </View>
       </Modal>
@@ -2140,6 +2328,126 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   removedModalButtonTextSecondary: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  // Modal: Selecionar Artista (ao clicar na imagem)
+  artistPickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  artistPickerContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '85%',
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+  },
+  artistPickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+  },
+  artistPickerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  artistPickerSearchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 8,
+  },
+  artistPickerSearchInput: {
+    flex: 1,
+    fontSize: 16,
+    paddingVertical: 0,
+  },
+  artistPickerLoading: {
+    paddingVertical: 40,
+    alignItems: 'center',
+  },
+  artistPickerLoadingText: {
+    marginTop: 12,
+    fontSize: 15,
+  },
+  artistPickerList: {
+    maxHeight: 320,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+  },
+  artistPickerEmpty: {
+    paddingVertical: 40,
+    alignItems: 'center',
+  },
+  artistPickerEmptyText: {
+    fontSize: 15,
+    textAlign: 'center',
+  },
+  artistPickerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+  },
+  artistPickerCardInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  artistPickerAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 12,
+    borderWidth: 1,
+  },
+  artistPickerAvatarPlaceholder: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  artistPickerCardDetails: {
+    flex: 1,
+  },
+  artistPickerCardName: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  artistPickerCardRole: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  artistPickerFooter: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+  },
+  artistPickerCreateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+  },
+  artistPickerCreateButtonText: {
+    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },
