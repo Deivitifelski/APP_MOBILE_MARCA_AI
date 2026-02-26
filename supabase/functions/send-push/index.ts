@@ -113,6 +113,9 @@ serve(async (req) => {
       }
       console.log(`[FCM-SEND] Usuário: ${user.id} | Badge: ${badgeNum} | Token: ${token}`);
 
+      // Incluir badge no data para o handler em background (Android) atualizar o ícone
+      const dataWithBadge = { ...fcmData, badge: String(badgeNum) };
+
       const payload: Record<string, unknown> = {
         message: {
           token,
@@ -120,10 +123,10 @@ serve(async (req) => {
             title: title || "Nova atualização",
             body: message || "Confira as novidades do seu artista.",
           },
-          data: fcmData,
+          data: dataWithBadge,
           android: {
             priority: "high",
-            notification: { sound: "default" },
+            notification: { sound: "default", channelId: "default" },
           },
           apns: {
             payload: {

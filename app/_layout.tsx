@@ -14,6 +14,8 @@ import { ThemeProvider } from '../contexts/ThemeContext';
 import { useColorScheme } from '../hooks/use-color-scheme';
 import './error-handler';
 import './suppress-logs';
+// Registrar handler de background para badge no Android (antes de qualquer componente)
+import '../services/backgroundMessageHandler';
 
 // Esconder a tela de splash (ícone) assim que o app carregar
 SplashScreen.preventAutoHideAsync();
@@ -32,13 +34,32 @@ export default function RootLayout() {
     SplashScreen.hideAsync();
   }, []);
 
-  // Zerar badge do ícone ao abrir o app (mount) e ao voltar ao foreground
+  // Canal Android com showBadge para o contador no ícone; zerar badge ao abrir/foreground
   useEffect(() => {
-    const { setAppIconBadge } = require('../services/appIconBadge');
-    setAppIconBadge(0);
+    const setupBadge = async () => {
+      const { setAppIconBadge } = require('../services/appIconBadge');
+      const { Platform } = require('react-native');
+      if (Platform.OS === 'android') {
+        try {
+          const Notifications = await import('expo-notifications');
+          await Notifications.setNotificationChannelAsync('default', {
+            name: 'Padrão',
+            importance: Notifications.AndroidImportance.DEFAULT,
+            showBadge: true,
+          });
+        } catch {
+          // ignora se falhar
+        }
+      }
+      setAppIconBadge(0);
+    };
+    setupBadge();
 
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') setAppIconBadge(0);
+      if (state === 'active') {
+        const { setAppIconBadge } = require('../services/appIconBadge');
+        setAppIconBadge(0);
+      }
     });
     return () => sub.remove();
   }, []);

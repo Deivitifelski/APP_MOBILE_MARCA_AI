@@ -60,6 +60,8 @@ export interface Event {
   contractor_phone?: string;
   confirmed: boolean;
   tag: 'ensaio' | 'evento' | 'reunião';
+  ativo?: boolean;
+  update_ativo?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -190,13 +192,14 @@ export const createEvent = async (eventData: CreateEventData): Promise<{ success
   }
 };
 
-// Buscar eventos do artista
+// Buscar eventos do artista (apenas ativos)
 export const getEventsByArtist = async (artistId: string): Promise<{ success: boolean; error: string | null; events?: Event[] }> => {
   try {
     const { data, error } = await supabase
       .from('events')
       .select('*')
       .eq('artist_id', artistId)
+      .eq('ativo', true)
       .order('event_date', { ascending: true });
 
     if (error) {
@@ -238,17 +241,22 @@ export const getEventsByMonth = async (artistId: string, year: number, month: nu
   }
 };
 
-// Buscar evento por ID
+// Buscar evento por ID (só retorna se ativo = true; evento "deletado" = não encontrado)
 export const getEventById = async (eventId: string): Promise<{ success: boolean; error: string | null; event?: Event }> => {
   try {
     const { data, error } = await supabase
       .from('events')
       .select('*')
       .eq('id', eventId)
-      .single();
+      .eq('ativo', true)
+      .maybeSingle();
 
     if (error) {
       return { success: false, error: error.message };
+    }
+
+    if (!data) {
+      return { success: false, error: 'Evento não encontrado' };
     }
 
     return { success: true, error: null, event: data };
@@ -307,28 +315,32 @@ export const updateEvent = async (eventId: string, eventData: UpdateEventData, u
   }
 };
 
-// Deletar evento
+// Deletar evento (soft delete: ativo = false, update_ativo = agora)
 export const deleteEvent = async (eventId: string, userId?: string): Promise<{ success: boolean; error: string | null }> => {
   try {
-    // Buscar o evento antes de deletar para obter informações necessárias
-    const eventResult = await getEventById(eventId);
-    if (!eventResult.success || !eventResult.event) {
+    const { data: eventRow, error: fetchError } = await supabase
+      .from('events')
+      .select('id, name, artist_id')
+      .eq('id', eventId)
+      .maybeSingle();
+
+    if (fetchError || !eventRow) {
       return { success: false, error: 'Evento não encontrado' };
     }
 
-    const eventName = eventResult.event.name;
-    const artistId = eventResult.event.artist_id;
+    const eventName = eventRow.name;
+    const artistId = eventRow.artist_id;
+    const now = new Date().toISOString();
 
     const { error } = await supabase
       .from('events')
-      .delete()
+      .update({ ativo: false, update_ativo: now, updated_at: now })
       .eq('id', eventId);
 
     if (error) {
       return { success: false, error: error.message };
     }
 
-    // Enviar notificações push para todos os membros do artista (exceto quem deletou)
     if (userId) {
       await sendNotificationToUsers(
         artistId,
