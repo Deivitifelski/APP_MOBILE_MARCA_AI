@@ -18,7 +18,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AppleSignInButton, { AppleSignInResult } from '../../../components/AppleSignInButton';
-import FCMTokenModal from '../../../components/FCMTokenModal';
 import LogoMarcaAi from '../../../components/LogoMarcaAi';
 import { useActiveArtistContext } from '../../../contexts/ActiveArtistContext';
 import { useTheme } from '../../../contexts/ThemeContext';
@@ -60,9 +59,6 @@ export default function LoginScreen() {
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [sendingResetEmail, setSendingResetEmail] = useState(false);
-  const [fcmToken, setFcmToken] = useState<string | null>(null);
-  const [showTokenModal, setShowTokenModal] = useState(false);
-
   // Solicitar permissões ao carregar a tela de login
   useEffect(() => {
     const requestPermissions = async () => {
@@ -142,9 +138,6 @@ export default function LoginScreen() {
       
       if (token) {
         console.log('✅ Token FCM obtido com sucesso!');
-        setFcmToken(token);
-        
-        // Salvar token no banco de dados
         const { user } = await getCurrentUser();
         if (user) {
           const saveResult = await saveFCMToken(user.id, token);
@@ -154,8 +147,6 @@ export default function LoginScreen() {
             console.error('❌ Erro ao salvar token FCM:', saveResult.error);
           }
         }
-        
-        setShowTokenModal(true); // Mostrar modal apenas se obteve o token com sucesso
       } else {
         console.log('⚠️ Token FCM não disponível');
         // Não mostrar modal se não obteve token
@@ -176,9 +167,6 @@ export default function LoginScreen() {
           const token = await messaging().getToken();
           if (token) {
             console.log('✅ Token FCM obtido após novo registro!');
-            setFcmToken(token);
-            
-            // Salvar token no banco de dados
             const { user } = await getCurrentUser();
             if (user) {
               const saveResult = await saveFCMToken(user.id, token);
@@ -188,8 +176,6 @@ export default function LoginScreen() {
                 console.error('❌ Erro ao salvar token FCM:', saveResult.error);
               }
             }
-            
-            setShowTokenModal(true); // Mostrar modal apenas se obteve o token com sucesso
             return;
           }
         } catch (retryError: any) {
@@ -198,8 +184,7 @@ export default function LoginScreen() {
         }
       }
       
-      // Não mostrar modal se deu erro
-      console.log('⚠️ Não foi possível obter o token FCM - modal não será exibido');
+      console.log('⚠️ Não foi possível obter o token FCM');
     }
   };
 
@@ -841,12 +826,6 @@ export default function LoginScreen() {
         </View>
       </Modal>
 
-      {/* Modal de Token FCM */}
-      <FCMTokenModal
-        visible={showTokenModal}
-        token={fcmToken}
-        onClose={() => setShowTokenModal(false)}
-      />
     </SafeAreaView>
   );
 }
