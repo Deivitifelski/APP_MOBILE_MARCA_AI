@@ -221,6 +221,7 @@ export const getEventsByMonth = async (artistId: string, year: number, month: nu
       .from('events')
       .select('*')
       .eq('artist_id', artistId)
+      .eq('ativo', true)
       .gte('event_date', startDate)
       .lte('event_date', endDate)
       .order('event_date', { ascending: true });

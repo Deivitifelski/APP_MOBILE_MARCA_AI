@@ -3,6 +3,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
     Alert,
+    Modal,
     Platform,
     ScrollView,
     StatusBar,
@@ -35,6 +36,7 @@ export default function DetalhesEventoScreen() {
   const [creatorName, setCreatorName] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
+  const [showDeletedModal, setShowDeletedModal] = useState(false);
   const { activeArtist } = useActiveArtist();
   
   // Estados para controle de acesso
@@ -136,7 +138,7 @@ export default function DetalhesEventoScreen() {
           }
         }
       } else {
-        Alert.alert('Erro', eventResult.error || 'Erro ao carregar evento');
+        setShowDeletedModal(true);
       }
 
       if (expensesResult.success) {
@@ -600,6 +602,34 @@ export default function DetalhesEventoScreen() {
         icon="lock-closed"
       />
 
+      {/* Modal quando evento foi deletado */}
+      <Modal
+        visible={showDeletedModal}
+        transparent
+        animationType="fade"
+      >
+        <View style={styles.deletedModalOverlay}>
+          <View style={[styles.deletedModalContent, { backgroundColor: colors.card }]}>
+            <Ionicons name="trash-outline" size={48} color={colors.textSecondary} style={{ marginBottom: 16 }} />
+            <Text style={[styles.deletedModalTitle, { color: colors.text }]}>
+              Evento não encontrado
+            </Text>
+            <Text style={[styles.deletedModalMessage, { color: colors.textSecondary }]}>
+              Este evento pode já ter sido deletado. A agenda será atualizada.
+            </Text>
+            <TouchableOpacity
+              style={[styles.deletedModalButton, { backgroundColor: colors.primary }]}
+              onPress={() => {
+                setShowDeletedModal(false);
+                router.back();
+              }}
+            >
+              <Text style={styles.deletedModalButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -810,5 +840,41 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
     lineHeight: 16,
+  },
+  deletedModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  deletedModalContent: {
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 320,
+    alignItems: 'center',
+  },
+  deletedModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  deletedModalMessage: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  deletedModalButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  deletedModalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

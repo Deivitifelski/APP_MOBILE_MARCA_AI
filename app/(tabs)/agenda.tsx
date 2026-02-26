@@ -27,7 +27,7 @@ import { artistImageUpdateService } from '../../services/artistImageUpdateServic
 import { cacheService } from '../../services/cacheService';
 import { getArtists } from '../../services/supabase/artistService';
 import { getCurrentUser } from '../../services/supabase/authService';
-import { getEventsByMonthWithRole } from '../../services/supabase/eventService';
+import { getEventById, getEventsByMonthWithRole } from '../../services/supabase/eventService';
 import { useNotifications } from '../../services/useNotifications';
 
 const months = [
@@ -54,6 +54,7 @@ export default function AgendaScreen() {
   const [showDayModal, setShowDayModal] = useState(false);
   const [isCalendarVisible, setIsCalendarVisible] = useState(false);
   const [showRemovedModal, setShowRemovedModal] = useState(false);
+  const [showDeletedEventModal, setShowDeletedEventModal] = useState(false);
   const [availableArtists, setAvailableArtists] = useState<any[]>([]);
   const [isLoadingArtists, setIsLoadingArtists] = useState(false);
   const [showNewUserModal, setShowNewUserModal] = useState(false);
@@ -283,6 +284,41 @@ export default function AgendaScreen() {
     setImageLoadError(false);
   }, [activeArtist?.profile_url]);
 
+  // Realtime: escutar mudanças na tabela events do artista e atualizar agenda
+  useEffect(() => {
+    if (!activeArtist) return;
+
+    const artistId = activeArtist.id;
+    const refreshAgenda = () => {
+      cacheService.invalidateEventsCache(artistId, currentMonth, currentYear);
+      loadEvents(true);
+    };
+
+    const channel = supabase
+      .channel(`events-realtime:${artistId}:${currentYear}-${currentMonth}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'events',
+          filter: `artist_id=eq.${artistId}`,
+        },
+        refreshAgenda
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('📡 Realtime events: inscrito');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.warn('📡 Realtime events: erro - verifique se executou habilitar-realtime-events.sql');
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeArtist?.id, currentMonth, currentYear]);
+
   // Recarregar eventos quando a tela receber foco (ex: voltar de adicionar/editar evento)
   useFocusEffect(
     React.useCallback(() => {
@@ -347,6 +383,15 @@ export default function AgendaScreen() {
       if (!canViewDetails) {
         isNavigatingToEventRef.current = false;
         setShowPermissionModal(true);
+        return;
+      }
+
+      const eventResult = await getEventById(eventId);
+      if (!eventResult.success || !eventResult.event) {
+        isNavigatingToEventRef.current = false;
+        setShowDeletedEventModal(true);
+        cacheService.invalidateEventsCache(activeArtist.id, currentYear, currentMonth);
+        loadEvents(true);
         return;
       }
 
@@ -1200,6 +1245,32 @@ export default function AgendaScreen() {
         icon="lock-closed"
       />
 
+      {/* Modal: Evento não encontrado (deletado) */}
+      <Modal
+        visible={showDeletedEventModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeletedEventModal(false)}
+      >
+        <View style={styles.deletedEventModalOverlay}>
+          <View style={[styles.deletedEventModalContent, { backgroundColor: colors.surface }]}>
+            <Ionicons name="trash-outline" size={48} color={colors.textSecondary} style={{ marginBottom: 16 }} />
+            <Text style={[styles.deletedEventModalTitle, { color: colors.text }]}>
+              Evento não encontrado
+            </Text>
+            <Text style={[styles.deletedEventModalMessage, { color: colors.textSecondary }]}>
+              Este evento pode já ter sido deletado. A agenda foi atualizada.
+            </Text>
+            <TouchableOpacity
+              style={[styles.deletedEventModalButton, { backgroundColor: colors.primary }]}
+              onPress={() => setShowDeletedEventModal(false)}
+            >
+              <Text style={styles.deletedEventModalButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Modal: Usuário Removido do Artista */}
       <Modal
         visible={showRemovedModal}
@@ -1752,6 +1823,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     marginTop: 12,
+  },
+  // Modal: Evento não encontrado (deletado)
+  deletedEventModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  deletedEventModalContent: {
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 320,
+    alignItems: 'center',
+  },
+  deletedEventModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  deletedEventModalMessage: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  deletedEventModalButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  deletedEventModalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   // Estilos do Modal de Remoção
   removedModalOverlay: {
