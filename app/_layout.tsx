@@ -2,10 +2,11 @@ import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } fro
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AppState, LogBox } from 'react-native';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import AppSplashScreen from '../components/AppSplashScreen';
 import AuthDeepLinkHandler from '../components/AuthDeepLinkHandler';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { ActiveArtistProvider } from '../contexts/ActiveArtistContext';
@@ -27,39 +28,52 @@ export const unstable_settings = {
   anchor: '(tabs)',
 };
 
+const SPLASH_VISIBLE_MS = 1200;
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
-    SplashScreen.hideAsync();
+    (async () => {
+      await SplashScreen.hideAsync();
+    })();
   }, []);
 
-  // Canal Android com showBadge para o contador no ícone; zerar badge ao abrir/foreground
   useEffect(() => {
+    const t = setTimeout(() => setShowSplash(false), SPLASH_VISIBLE_MS);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Zerar badge ao abrir o app e sempre que voltar ao foreground (iOS e Android)
+  useEffect(() => {
+    const { setAppIconBadge } = require('../services/appIconBadge');
+    const { Platform } = require('react-native');
+
+    const zeroBadge = () => {
+      setAppIconBadge(0).catch(() => {});
+    };
+
     const setupBadge = async () => {
-      const { setAppIconBadge } = require('../services/appIconBadge');
-      const { Platform } = require('react-native');
       if (Platform.OS === 'android') {
         try {
           const Notifications = await import('expo-notifications');
           await Notifications.setNotificationChannelAsync('default', {
             name: 'Padrão',
-            importance: Notifications.AndroidImportance.DEFAULT,
+            importance: Notifications.AndroidImportance.HIGH,
             showBadge: true,
           });
         } catch {
           // ignora se falhar
         }
       }
-      setAppIconBadge(0);
+      await setAppIconBadge(0).catch(() => {});
     };
+
     setupBadge();
 
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') {
-        const { setAppIconBadge } = require('../services/appIconBadge');
-        setAppIconBadge(0);
-      }
+      if (state === 'active') zeroBadge();
     });
     return () => sub.remove();
   }, []);
@@ -72,6 +86,7 @@ export default function RootLayout() {
             <PermissionsProvider>
               <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
                 <AuthDeepLinkHandler />
+                {showSplash && <AppSplashScreen />}
                 <Stack>
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="login" options={{ headerShown: false }} />

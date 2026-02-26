@@ -41,10 +41,10 @@ export const setupPushNotificationHandlers = () => {
       const { title, body } = remoteMessage.notification;
       console.log('Foreground:', title, body);
     }
-    // Atualizar badge do ícone (contagem do servidor) ao receber push
+    // App aberto: manter badge sempre zerado (usuário já está vendo)
     try {
-      const { syncAppIconBadgeWithServer } = await import('./appIconBadge');
-      await syncAppIconBadgeWithServer();
+      const { setAppIconBadge } = await import('./appIconBadge');
+      await setAppIconBadge(0);
     } catch {
       // ignora se falhar
     }

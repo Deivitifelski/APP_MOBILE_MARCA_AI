@@ -11,7 +11,10 @@
     "splash": {
       "image": "./assets/images/icone_app_1024.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#f8f9fa",
+      "dark": {
+        "backgroundColor": "#1a1a1a"
+      }
     },
     "ios": {
       "usesAppleSignIn": true,
@@ -89,9 +92,9 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/icone_app_1024.png",
-          "imageWidth": 200,
+          "imageWidth": 1,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#f8f9fa",
           "dark": {
             "backgroundColor": "#1a1a1a"
           }
