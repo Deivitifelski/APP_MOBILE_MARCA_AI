@@ -11,8 +11,7 @@ import AuthDeepLinkHandler from '../components/AuthDeepLinkHandler';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { ActiveArtistProvider } from '../contexts/ActiveArtistContext';
 import { PermissionsProvider } from '../contexts/PermissionsContext';
-import { ThemeProvider } from '../contexts/ThemeContext';
-import { useColorScheme } from '../hooks/use-color-scheme';
+import { ThemeProvider, useTheme } from '../contexts/ThemeContext';
 import './error-handler';
 import './suppress-logs';
 // Registrar handler de background para badge no Android (antes de qualquer componente)
@@ -30,8 +29,18 @@ export const unstable_settings = {
 
 const SPLASH_VISIBLE_MS = 1200;
 
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
+function NavigationAndStack() {
+  const { isDarkMode } = useTheme();
+  return (
+    <NavigationThemeProvider value={isDarkMode ? DarkTheme : DefaultTheme}>
+      <AuthDeepLinkHandler />
+      <RootLayoutContent />
+      <StatusBar style={isDarkMode ? 'light' : 'dark'} />
+    </NavigationThemeProvider>
+  );
+}
+
+function RootLayoutContent() {
   const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
@@ -93,46 +102,50 @@ export default function RootLayout() {
   }, []);
 
   return (
+    <>
+      {showSplash && <AppSplashScreen />}
+      <Stack>
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="login" options={{ headerShown: false }} />
+        <Stack.Screen name="register" options={{ headerShown: false }} />
+        <Stack.Screen name="email-confirmation" options={{ headerShown: false }} />
+        <Stack.Screen name="reset-password" options={{ headerShown: false }} />
+        <Stack.Screen name="cadastro-usuario" options={{ headerShown: false }} />
+        <Stack.Screen name="cadastro-artista" options={{ headerShown: false }} />
+        <Stack.Screen name="adicionar-evento" options={{ headerShown: false }} />
+        <Stack.Screen name="editar-evento" options={{ headerShown: false }} />
+        <Stack.Screen name="detalhes-evento" options={{ headerShown: false }} />
+        <Stack.Screen name="adicionar-despesa" options={{ headerShown: false }} />
+        <Stack.Screen name="adicionar-receita" options={{ headerShown: false }} />
+        <Stack.Screen name="despesas-evento" options={{ headerShown: false }} />
+        <Stack.Screen name="notificacoes" options={{ headerShown: false }} />
+        <Stack.Screen name="editar-usuario" options={{ headerShown: false }} />
+        <Stack.Screen name="editar-artista" options={{ headerShown: false }} />
+        <Stack.Screen name="configuracoes-artista" options={{ headerShown: false }} />
+        <Stack.Screen name="colaboradores-artista" options={{ headerShown: false }} />
+        <Stack.Screen name="convites-enviados" options={{ headerShown: false }} />
+        <Stack.Screen name="convites-recebidos" options={{ headerShown: false }} />
+        <Stack.Screen name="selecionar-artista" options={{ headerShown: false }} />
+        <Stack.Screen name="sair-artista" options={{ headerShown: false }} />
+        <Stack.Screen name="transferir-propriedade" options={{ headerShown: false }} />
+        <Stack.Screen name="screens/auth/LoginScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="screens/profile/UserProfileScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="screens/profile/ArtistProfileScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+      </Stack>
+    </>
+  );
+}
+
+export default function RootLayout() {
+  return (
     <ErrorBoundary>
       <SafeAreaProvider>
         <ThemeProvider>
           <ActiveArtistProvider>
             <PermissionsProvider>
-              <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-                <AuthDeepLinkHandler />
-                {showSplash && <AppSplashScreen />}
-                <Stack>
-            <Stack.Screen name="index" options={{ headerShown: false }} />
-            <Stack.Screen name="login" options={{ headerShown: false }} />
-            <Stack.Screen name="register" options={{ headerShown: false }} />
-            <Stack.Screen name="email-confirmation" options={{ headerShown: false }} />
-            <Stack.Screen name="reset-password" options={{ headerShown: false }} />
-            <Stack.Screen name="cadastro-usuario" options={{ headerShown: false }} />
-            <Stack.Screen name="cadastro-artista" options={{ headerShown: false }} />
-            <Stack.Screen name="adicionar-evento" options={{ headerShown: false }} />
-            <Stack.Screen name="editar-evento" options={{ headerShown: false }} />
-            <Stack.Screen name="detalhes-evento" options={{ headerShown: false }} />
-            <Stack.Screen name="adicionar-despesa" options={{ headerShown: false }} />
-            <Stack.Screen name="adicionar-receita" options={{ headerShown: false }} />
-            <Stack.Screen name="despesas-evento" options={{ headerShown: false }} />
-            <Stack.Screen name="notificacoes" options={{ headerShown: false }} />
-            <Stack.Screen name="editar-usuario" options={{ headerShown: false }} />
-            <Stack.Screen name="editar-artista" options={{ headerShown: false }} />
-            <Stack.Screen name="configuracoes-artista" options={{ headerShown: false }} />
-            <Stack.Screen name="colaboradores-artista" options={{ headerShown: false }} />
-            <Stack.Screen name="convites-enviados" options={{ headerShown: false }} />
-            <Stack.Screen name="convites-recebidos" options={{ headerShown: false }} />
-            <Stack.Screen name="selecionar-artista" options={{ headerShown: false }} />
-            <Stack.Screen name="sair-artista" options={{ headerShown: false }} />
-            <Stack.Screen name="transferir-propriedade" options={{ headerShown: false }} />
-            <Stack.Screen name="screens/auth/LoginScreen" options={{ headerShown: false }} />
-            <Stack.Screen name="screens/profile/UserProfileScreen" options={{ headerShown: false }} />
-            <Stack.Screen name="screens/profile/ArtistProfileScreen" options={{ headerShown: false }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-                </Stack>
-                <StatusBar style="auto" />
-              </NavigationThemeProvider>
+              <NavigationAndStack />
             </PermissionsProvider>
           </ActiveArtistProvider>
         </ThemeProvider>
