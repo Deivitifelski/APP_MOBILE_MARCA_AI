@@ -39,6 +39,15 @@ interface DespesaForm {
   valor: string;
 }
 
+/** Máscara (XX) XXXXX-XXXX para celular brasileiro (11 dígitos). */
+function maskPhone(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  if (digits.length === 0) return '';
+  if (digits.length <= 2) return `(${digits}`;
+  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
 // Componente para seleção de data
 const DatePickerComponent = ({ 
   selectedDate, 
@@ -661,12 +670,8 @@ export default function AdicionarEventoScreen() {
           <TextInput
             style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
             value={form.telefoneContratante}
-            onChangeText={(text) => {
-              // Aceitar apenas números e caracteres especiais de telefone: + - ( ) espaço
-              const cleaned = text.replace(/[^0-9+\-() ]/g, '');
-              updateForm('telefoneContratante', cleaned);
-            }}
-            placeholder="Ex: (21) 99999-9999"
+            onChangeText={(text) => updateForm('telefoneContratante', maskPhone(text))}
+            placeholder="(21) 99999-9999"
             placeholderTextColor={colors.textSecondary}
             keyboardType="phone-pad"
             autoCorrect={false}

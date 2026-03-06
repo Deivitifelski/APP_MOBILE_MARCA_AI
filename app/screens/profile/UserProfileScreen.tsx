@@ -215,11 +215,8 @@ export default function UserProfileScreen() {
               >
                 {profileUrl ? (
                   <Image 
-                    source={{ 
-                      uri: `${profileUrl}${profileUrl.includes('?') ? '&' : '?'}t=${Date.now()}`,
-                      cache: 'reload'
-                    }} 
-                    style={styles.photo} 
+                    source={{ uri: profileUrl }} 
+                    style={styles.photo}
                   />
                 ) : (
                   <View style={[styles.photoPlaceholder, { backgroundColor: colors.background, borderColor: colors.border }]}>

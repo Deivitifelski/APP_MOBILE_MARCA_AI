@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../contexts/ThemeContext';
 import { getExpensesByEvent, getTotalExpensesByEvent, deleteExpense, Expense } from '../services/supabase/expenseService';
 
@@ -53,6 +53,13 @@ export default function DespesasEventoScreen() {
   useEffect(() => {
     loadExpenses();
   }, [eventId]);
+
+  // Recarregar despesas ao voltar da tela de adicionar despesa (ou de qualquer navegação)
+  useFocusEffect(
+    useCallback(() => {
+      loadExpenses();
+    }, [eventId])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
