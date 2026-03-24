@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     Modal,
     Platform,
@@ -14,14 +15,158 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import PermissionModal from '../components/PermissionModal';
+import { usePermissions } from '../contexts/PermissionsContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { generateEventPDF } from '../services/pdfService';
 import { getEventCreatorName } from '../services/supabase/eventCreatorService';
-import { Event, deleteEvent, getEventById, getEventByIdWithPermissions } from '../services/supabase/eventService';
-import { getTotalExpensesByEvent } from '../services/supabase/expenseService';
+import {
+    Event,
+    createEventWithPermissions,
+    deleteEvent,
+    getEventById,
+    getEventByIdWithPermissions,
+} from '../services/supabase/eventService';
+import { getExpensesByEvent, getTotalExpensesByEvent } from '../services/supabase/expenseService';
 import { useActiveArtist } from '../services/useActiveArtist';
 
+function parseEventDateToLocalDate(eventDate: string): Date {
+    const [y, m, d] = eventDate.split('-').map(Number);
+    return new Date(y, m - 1, d);
+}
+
+function formatLocalDateToISO(d: Date): string {
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, '0');
+    const da = String(d.getDate()).padStart(2, '0');
+    return `${y}-${mo}-${da}`;
+}
+
+const CLONE_MONTH_NAMES = [
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
+];
+const CLONE_WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+type ThemeColors = ReturnType<typeof useTheme>['colors'];
+
+function CloneEventMonthCalendar({
+  selectedDate,
+  onSelectDate,
+  colors,
+}: {
+  selectedDate: Date;
+  onSelectDate: (d: Date) => void;
+  colors: ThemeColors;
+}) {
+  const [viewYear, setViewYear] = useState(() => selectedDate.getFullYear());
+  const [viewMonth, setViewMonth] = useState(() => selectedDate.getMonth());
+
+  useEffect(() => {
+    setViewYear(selectedDate.getFullYear());
+    setViewMonth(selectedDate.getMonth());
+  }, [selectedDate.getTime()]);
+
+  const goPrevMonth = () => {
+    if (viewMonth === 0) {
+      setViewMonth(11);
+      setViewYear((y) => y - 1);
+    } else {
+      setViewMonth((m) => m - 1);
+    }
+  };
+
+  const goNextMonth = () => {
+    if (viewMonth === 11) {
+      setViewMonth(0);
+      setViewYear((y) => y + 1);
+    } else {
+      setViewMonth((m) => m + 1);
+    }
+  };
+
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const firstDayWeekday = new Date(viewYear, viewMonth, 1).getDay();
+  const cells: { day: number | null }[] = [];
+  for (let i = 0; i < firstDayWeekday; i++) {
+    cells.push({ day: null });
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push({ day: d });
+  }
+
+  const isDaySelected = (day: number) =>
+    selectedDate.getFullYear() === viewYear &&
+    selectedDate.getMonth() === viewMonth &&
+    selectedDate.getDate() === day;
+
+  return (
+    <View style={styles.cloneCalendarWrap}>
+      <View style={styles.cloneMonthNav}>
+        <TouchableOpacity onPress={goPrevMonth} hitSlop={12} style={styles.cloneMonthNavBtn} accessibilityLabel="Mês anterior">
+          <Ionicons name="chevron-back" size={22} color={colors.primary} />
+        </TouchableOpacity>
+        <Text style={[styles.cloneMonthNavTitle, { color: colors.text }]}>
+          {CLONE_MONTH_NAMES[viewMonth]} {viewYear}
+        </Text>
+        <TouchableOpacity onPress={goNextMonth} hitSlop={12} style={styles.cloneMonthNavBtn} accessibilityLabel="Próximo mês">
+          <Ionicons name="chevron-forward" size={22} color={colors.primary} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.cloneWeekdayRow}>
+        {CLONE_WEEKDAYS.map((w) => (
+          <Text key={w} style={[styles.cloneWeekdayCell, { color: colors.textSecondary }]}>
+            {w}
+          </Text>
+        ))}
+      </View>
+
+      <View style={styles.cloneDaysGrid}>
+        {cells.map((cell, index) => (
+          <TouchableOpacity
+            key={index}
+            style={[
+              styles.cloneDayCell,
+              { backgroundColor: colors.background },
+              cell.day && isDaySelected(cell.day) ? { backgroundColor: colors.primary } : null,
+              !cell.day ? styles.cloneDayCellEmpty : null,
+            ]}
+            disabled={!cell.day}
+            onPress={() => {
+              if (cell.day) {
+                onSelectDate(new Date(viewYear, viewMonth, cell.day));
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            {cell.day ? (
+              <Text
+                style={[
+                  styles.cloneDayCellText,
+                  { color: colors.text },
+                  isDaySelected(cell.day) && styles.cloneDayCellTextSelected,
+                ]}
+              >
+                {cell.day}
+              </Text>
+            ) : null}
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+}
 
 export default function DetalhesEventoScreen() {
   const { colors, isDarkMode } = useTheme();
@@ -37,7 +182,11 @@ export default function DetalhesEventoScreen() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [showDeletedModal, setShowDeletedModal] = useState(false);
+  const [showCloneModal, setShowCloneModal] = useState(false);
+  const [cloneTargetDate, setCloneTargetDate] = useState(() => new Date());
+  const [isCloning, setIsCloning] = useState(false);
   const { activeArtist } = useActiveArtist();
+  const { canCreateEvents } = usePermissions();
   
   // Estados para controle de acesso
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
@@ -311,6 +460,68 @@ export default function DetalhesEventoScreen() {
     }
   };
 
+  const openCloneModal = () => {
+    if (!canCreateEvents) return;
+    if (!event) return;
+    setCloneTargetDate(parseEventDateToLocalDate(event.event_date));
+    setShowCloneModal(true);
+  };
+
+  const confirmCloneEvent = async () => {
+    if (!canCreateEvents || !event || !currentUserId) return;
+    setIsCloning(true);
+    try {
+      const expensesRes = await getExpensesByEvent(event.id);
+      const expenses =
+        expensesRes.success && expensesRes.expenses?.length
+          ? expensesRes.expenses.map((e) => ({
+              name: e.name?.trim() ? e.name : 'Despesa',
+              value: Number(e.value) || 0,
+              receipt_url: e.receipt_url || undefined,
+            }))
+          : undefined;
+
+      const newDateStr = formatLocalDateToISO(cloneTargetDate);
+
+      const result = await createEventWithPermissions(
+        {
+          artist_id: event.artist_id,
+          user_id: currentUserId,
+          name: event.name,
+          description: event.description,
+          event_date: newDateStr,
+          start_time: event.start_time,
+          end_time: event.end_time,
+          value: event.value,
+          city: event.city,
+          contractor_phone: event.contractor_phone,
+          confirmed: event.confirmed,
+          tag: event.tag,
+          expenses,
+        },
+        currentUserId
+      );
+
+      if (result.success && result.event) {
+        setShowCloneModal(false);
+        Alert.alert('Evento duplicado', 'As mesmas informações foram salvas na nova data.', [
+          {
+            text: 'OK',
+            onPress: () => router.replace('/(tabs)/agenda'),
+          },
+        ]);
+      } else {
+        Alert.alert('Erro', result.error || 'Não foi possível duplicar o evento.');
+      }
+    } catch {
+      Alert.alert('Erro', 'Não foi possível duplicar o evento.');
+    } finally {
+      setIsCloning(false);
+    }
+  };
+
+  const cloneDateLabel = formatDate(formatLocalDateToISO(cloneTargetDate));
+
   const handleExportPDF = async () => {
     if (!event || !currentUserId) return;
 
@@ -558,6 +769,17 @@ export default function DetalhesEventoScreen() {
             <Ionicons name="chevron-forward" size={20} color={colors.warning} />
           </TouchableOpacity>
 
+          {canCreateEvents ? (
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={openCloneModal}
+            >
+              <Ionicons name="copy-outline" size={24} color={colors.primary} />
+              <Text style={[styles.actionButtonText, { color: colors.text }]}>Duplicar evento</Text>
+              <Ionicons name="chevron-forward" size={20} color={colors.primary} />
+            </TouchableOpacity>
+          ) : null}
+
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={handleManageExpenses}
@@ -592,6 +814,66 @@ export default function DetalhesEventoScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Duplicar evento: escolher nova data */}
+      <Modal
+        visible={showCloneModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!isCloning) setShowCloneModal(false);
+        }}
+      >
+        <View style={styles.deletedModalOverlay}>
+          <View style={[styles.cloneModalContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <ScrollView
+              style={styles.cloneModalScroll}
+              contentContainerStyle={styles.cloneModalScrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={[styles.cloneModalIcon, { backgroundColor: `${colors.primary}22` }]}>
+                <Ionicons name="calendar-outline" size={32} color={colors.primary} />
+              </View>
+              <Text style={[styles.cloneModalTitle, { color: colors.text }]}>Duplicar evento</Text>
+              <Text style={[styles.cloneModalSubtitle, { color: colors.textSecondary }]}>
+                Navegue pelos meses e toque no dia desejado. Serão copiados nome, horários, local, descrição, tag, status e as despesas cadastradas (valores e comprovantes).
+              </Text>
+
+              <Text style={[styles.cloneSelectedDateLabel, { color: colors.textSecondary }]}>Data selecionada</Text>
+              <Text style={[styles.cloneDatePreview, { color: colors.text }]}>{cloneDateLabel}</Text>
+
+              <CloneEventMonthCalendar
+                selectedDate={cloneTargetDate}
+                onSelectDate={setCloneTargetDate}
+                colors={colors}
+              />
+            </ScrollView>
+
+            <View style={styles.cloneModalActions}>
+              <TouchableOpacity
+                style={[styles.cloneModalBtnSecondary, { borderColor: colors.border }]}
+                onPress={() => !isCloning && setShowCloneModal(false)}
+                disabled={isCloning}
+              >
+                <Text style={[styles.cloneModalBtnSecondaryText, { color: colors.textSecondary }]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.cloneModalBtnPrimary, { backgroundColor: colors.primary }]}
+                onPress={() => void confirmCloneEvent()}
+                disabled={isCloning}
+                activeOpacity={0.85}
+              >
+                {isCloning ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.cloneModalBtnPrimaryText}>Duplicar</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Modal de Permissão */}
       <PermissionModal
@@ -873,6 +1155,146 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   deletedModalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  cloneModalContent: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
+    width: '100%',
+    maxWidth: 360,
+    maxHeight: '88%',
+    borderWidth: 1,
+    alignItems: 'stretch',
+  },
+  cloneModalScroll: {
+    flexGrow: 0,
+    maxHeight: 420,
+  },
+  cloneModalScrollContent: {
+    paddingBottom: 8,
+    alignItems: 'stretch',
+  },
+  cloneModalIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignSelf: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  cloneModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  cloneModalSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginBottom: 14,
+  },
+  cloneSelectedDateLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  cloneDatePreview: {
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 14,
+  },
+  cloneCalendarWrap: {
+    width: '100%',
+  },
+  cloneMonthNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  cloneMonthNavBtn: {
+    padding: 8,
+    borderRadius: 8,
+  },
+  cloneMonthNavTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    flex: 1,
+    textAlign: 'center',
+  },
+  cloneWeekdayRow: {
+    flexDirection: 'row',
+    marginBottom: 6,
+    paddingHorizontal: 2,
+  },
+  cloneWeekdayCell: {
+    width: '14.28%',
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  cloneDaysGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+  },
+  cloneDayCell: {
+    width: '14.28%',
+    aspectRatio: 1,
+    marginBottom: 6,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cloneDayCellEmpty: {
+    backgroundColor: 'transparent',
+  },
+  cloneDayCellText: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  cloneDayCellTextSelected: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  cloneModalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 12,
+    paddingTop: 4,
+  },
+  cloneModalBtnSecondary: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cloneModalBtnSecondaryText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  cloneModalBtnPrimary: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  cloneModalBtnPrimaryText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',

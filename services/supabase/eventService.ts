@@ -390,7 +390,10 @@ export const getEventsWithPermissions = async (artistId: string, userId: string)
 };
 
 // Criar evento com verificação de permissões
-export const createEventWithPermissions = async (eventData: CreateEventData, userId: string): Promise<{ success: boolean; error: string | null }> => {
+export const createEventWithPermissions = async (
+  eventData: CreateEventData,
+  userId: string
+): Promise<{ success: boolean; error: string | null; event?: Event }> => {
   try {
     // Verificar se o usuário tem permissão para criar eventos
     const canCreate = await hasPermission(userId, eventData.artist_id, 'canCreateEvents');
@@ -398,7 +401,6 @@ export const createEventWithPermissions = async (eventData: CreateEventData, use
       return { success: false, error: 'Sem permissão para criar eventos' };
     }
 
-    // Criar o evento
     return await createEvent(eventData);
   } catch (error) {
     console.error('Erro ao criar evento:', error);
