@@ -1,6 +1,6 @@
 import { supabase } from '../../lib/supabase';
 import { clearActiveArtist, getActiveArtist, setActiveArtist } from '../artistContext';
-import { getArtistById, getArtists } from './artistService';
+import { getArtists } from './artistService';
 
 export interface LoginResult {
   data: {
@@ -309,50 +309,42 @@ export interface ActiveArtistForRedirect {
 }
 
 // Função auxiliar para verificar artistas e redirecionar adequadamente após login
-export const checkArtistsAndRedirect = async (): Promise<{
+/** Passe `userId` quando já tiver o usuário (ex.: sessão no splash) para evitar `getCurrentUser()` extra. */
+export const checkArtistsAndRedirect = async (userId?: string): Promise<{
   shouldRedirectToSelection: boolean;
   /** Quando o usuário tem apenas 1 artista, ele é definido como ativo e retornado aqui */
   activeArtist?: ActiveArtistForRedirect;
 }> => {
   try {
-    const { user, error: userError } = await getCurrentUser();
-    
-    if (userError || !user) {
-      return { shouldRedirectToSelection: false };
+    let userIdToUse: string;
+
+    if (userId) {
+      userIdToUse = userId;
+    } else {
+      const { user, error: userError } = await getCurrentUser();
+
+      if (userError || !user) {
+        return { shouldRedirectToSelection: false };
+      }
+      userIdToUse = user.id;
     }
 
     const defaultReturn = { shouldRedirectToSelection: false as const };
 
-    // Verificar se já existe um artista salvo no AsyncStorage
     const savedActiveArtist = await getActiveArtist();
-    
-    if (savedActiveArtist) {
-      // Validar se o artista salvo ainda existe e o usuário ainda tem acesso
-      const { artist, error: artistError } = await getArtistById(savedActiveArtist.id);
-      
-      if (!artistError && artist) {
-        // Verificar se o usuário ainda tem acesso a este artista
-        const { artists, error: artistsError } = await getArtists(user.id);
-        
-        if (!artistsError && artists) {
-          const userHasAccess = artists.some(a => a.id === savedActiveArtist.id);
-          
-          if (userHasAccess) {
-            // Artista salvo é válido e usuário tem acesso, não redirecionar
-            return defaultReturn;
-          }
-        }
-      }
-      
-      // Artista salvo não é mais válido, limpar
-      await clearActiveArtist();
-    }
+    // Uma única busca de artistas (evita getArtistById + getArtists em sequência)
+    const { artists, error: artistsError } = await getArtists(userIdToUse);
 
-    // Buscar artistas do usuário
-    const { artists, error: artistsError } = await getArtists(user.id);
-    
     if (artistsError || !artists) {
       return defaultReturn;
+    }
+
+    if (savedActiveArtist) {
+      const userHasAccess = artists.some((a) => a.id === savedActiveArtist.id);
+      if (userHasAccess) {
+        return defaultReturn;
+      }
+      await clearActiveArtist();
     }
 
     // Se não houver artista salvo válido e o usuário tem artistas:

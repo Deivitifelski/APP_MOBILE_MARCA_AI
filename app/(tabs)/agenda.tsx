@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import NetInfo from '@react-native-community/netinfo';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -30,6 +31,7 @@ import { getArtists } from '../../services/supabase/artistService';
 import { getCurrentUser } from '../../services/supabase/authService';
 import { getEventById, getEventsByMonthWithRole } from '../../services/supabase/eventService';
 import { useNotifications } from '../../services/useNotifications';
+import { isLikelyNetworkFailure } from '../../utils/isLikelyNetworkFailure';
 
 const months = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -65,6 +67,10 @@ export default function AgendaScreen() {
   const [showNewUserModal, setShowNewUserModal] = useState(false);
   const [welcomeStep, setWelcomeStep] = useState(0);
   const params = useLocalSearchParams<{ showNewUserModal?: string }>();
+  const [showNoConnectionModal, setShowNoConnectionModal] = useState(false);
+  const [isRetryingConnection, setIsRetryingConnection] = useState(false);
+
+  const retryAgendaConnectionRef = useRef<() => Promise<void>>(async () => undefined);
 
   useEffect(() => {
     if (params.showNewUserModal === '1') {
@@ -416,65 +422,145 @@ export default function AgendaScreen() {
     setRefreshing(false);
   };
 
-  const loadEvents = async (isInitialLoad = true) => {
+  const loadEvents = async (isInitialLoad = true): Promise<boolean> => {
     if (!activeArtist) {
       setEvents([]);
-      return;
+      return true;
     }
-    
+
+    const cacheKeyArtist = activeArtist.id;
     try {
-      // Verificar cache primeiro
-      const cacheKey = `events_${activeArtist.id}_${currentYear}_${currentMonth}`;
-      const cachedEvents = await cacheService.getEventsData<any[]>(activeArtist.id, currentYear, currentMonth);
-      
+      const cachedEvents = await cacheService.getEventsData<any[]>(
+        cacheKeyArtist,
+        currentYear,
+        currentMonth
+      );
+
       if (cachedEvents && !isInitialLoad) {
-        // Usar dados do cache para atualizações silenciosas
         setEvents(cachedEvents);
-        return;
+        return true;
       }
-      
-      // Carregar dados frescos do servidor COM FILTRAGEM POR ROLE
-      const result = await getEventsByMonthWithRole(activeArtist.id, currentYear, currentMonth);
-      
+
+      const result = await getEventsByMonthWithRole(
+        activeArtist.id,
+        currentYear,
+        currentMonth
+      );
+
       if (result.success) {
         const eventsData = result.events || [];
         setEvents(eventsData);
         setLastUpdate(new Date());
-        
-        // Salvar no cache
-        await cacheService.setEventsData(activeArtist.id, currentYear, currentMonth, eventsData);
-      } else {
-        // Verificar se é o erro de acesso negado (P0001)
-        const isAccessDenied = 
-          result.errorCode === 'P0001' || 
-          (result.error && (
-            result.error.includes('Usuário não tem acesso a este artista') ||
-            result.error.includes('não tem acesso')
-          ));
-        
-        if (isAccessDenied) {
-          // Usuário foi removido, mostrar modal
-          await handleUserRemovedFromArtist();
+        await cacheService.setEventsData(
+          activeArtist.id,
+          currentYear,
+          currentMonth,
+          eventsData
+        );
+        setShowNoConnectionModal(false);
+        return true;
+      }
+
+      const isAccessDenied =
+        result.errorCode === 'P0001' ||
+        (result.error &&
+          (result.error.includes('Usuário não tem acesso a este artista') ||
+            result.error.includes('não tem acesso')));
+
+      if (isAccessDenied) {
+        await handleUserRemovedFromArtist();
+        return true;
+      }
+
+      if (isLikelyNetworkFailure(null, result.error)) {
+        if (cachedEvents) {
+          setEvents(cachedEvents);
         } else {
           setEvents([]);
         }
+        setShowNoConnectionModal(true);
+        return false;
       }
+
+      setEvents([]);
+      return true;
     } catch (error: any) {
-      // Verificar se é erro do Supabase com código P0001
-      const isAccessDenied = 
-        error?.code === 'P0001' || 
-        (error?.message && (
-          error.message.includes('Usuário não tem acesso a este artista') ||
-          error.message.includes('não tem acesso')
-        ));
-      
+      const isAccessDenied =
+        error?.code === 'P0001' ||
+        (error?.message &&
+          (error.message.includes('Usuário não tem acesso a este artista') ||
+            error.message.includes('não tem acesso')));
+
       if (isAccessDenied) {
         await handleUserRemovedFromArtist();
-      } else {
-        setEvents([]);
+        return true;
       }
+
+      if (isLikelyNetworkFailure(error)) {
+        const cachedEvents = await cacheService.getEventsData<any[]>(
+          cacheKeyArtist,
+          currentYear,
+          currentMonth
+        );
+        if (cachedEvents) {
+          setEvents(cachedEvents);
+        } else {
+          setEvents([]);
+        }
+        setShowNoConnectionModal(true);
+        return false;
+      }
+
+      setEvents([]);
+      return true;
     }
   };
+
+  const retryAgendaConnection = async () => {
+    setIsRetryingConnection(true);
+    try {
+      await refreshActiveArtist();
+      await loadUnreadCount();
+      await checkIfUserHasArtists();
+      if (activeArtist) {
+        await checkUserRole();
+        const ok = await loadEvents(true);
+        if (ok) {
+          setShowNoConnectionModal(false);
+        }
+      } else {
+        setShowNoConnectionModal(false);
+      }
+    } finally {
+      setIsRetryingConnection(false);
+    }
+  };
+
+  useEffect(() => {
+    retryAgendaConnectionRef.current = retryAgendaConnection;
+  });
+
+  useEffect(() => {
+    const unsub = NetInfo.addEventListener((state) => {
+      const offline =
+        state.isConnected === false || state.isInternetReachable === false;
+      if (offline) {
+        setShowNoConnectionModal(true);
+        return;
+      }
+      const online =
+        state.isConnected === true && state.isInternetReachable !== false;
+      if (online) {
+        setShowNoConnectionModal((open) => {
+          if (open) {
+            setTimeout(() => void retryAgendaConnectionRef.current(), 0);
+          }
+          return open;
+        });
+      }
+    });
+    return () => unsub();
+  }, []);
 
   const handleUserRemovedFromArtist = async () => {
     try {
@@ -1213,6 +1299,48 @@ export default function AgendaScreen() {
                 Nenhum evento para este dia.
               </Text>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showNoConnectionModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowNoConnectionModal(false)}
+      >
+        <View style={styles.removedModalOverlay}>
+          <View style={[styles.removedModalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.removedModalIcon, { backgroundColor: `${colors.primary}22` }]}>
+              <Ionicons name="cloud-offline-outline" size={40} color={colors.primary} />
+            </View>
+            <Text style={[styles.removedModalTitle, { color: colors.text }]}>
+              Sem conexão com a internet
+            </Text>
+            <Text style={[styles.removedModalMessage, { color: colors.textSecondary }]}>
+              Não foi possível carregar as informações da agenda. Verifique sua rede e tente novamente.
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.deletedEventModalButton,
+                {
+                  backgroundColor: colors.primary,
+                  width: '100%',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minHeight: 48,
+                },
+              ]}
+              onPress={() => void retryAgendaConnection()}
+              disabled={isRetryingConnection}
+              activeOpacity={0.85}
+            >
+              {isRetryingConnection ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.deletedEventModalButtonText}>Tentar novamente</Text>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>

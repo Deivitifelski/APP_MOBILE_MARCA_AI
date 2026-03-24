@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { getActiveArtist, setActiveArtist as saveToStorage, clearActiveArtist } from '../services/artistContext';
 import { getArtistById, getArtists } from '../services/supabase/artistService';
 import { getCurrentUser } from '../services/supabase/authService';
+import { isLikelyNetworkFailure } from '../utils/isLikelyNetworkFailure';
 
 export interface ActiveArtist {
   id: string;
@@ -51,35 +52,46 @@ export const ActiveArtistProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [activeArtist?.id]);
 
   const loadArtistFromStorage = async () => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
       const saved = await getActiveArtist();
-      
-      if (saved) {
-        // Validar se o artista ainda existe no banco
-        const { artist, error } = await getArtistById(saved.id);
-        
-        if (!error && artist) {
-          const normalizedArtist: ActiveArtist = {
-            id: artist.id,
-            name: artist.name,
-            role: saved.role,
-            profile_url: artist.profile_url || saved.profile_url,
-            musical_style: artist.musical_style || saved.musical_style,
-            created_at: artist.created_at || saved.created_at,
-          };
 
-          await saveToStorage(normalizedArtist);
-          setActiveArtistState(normalizedArtist);
-        } else {
-          // Artista não existe mais, limpar
-          await clearActiveArtist();
-          setActiveArtistState(null);
-        }
+      if (!saved) {
+        setActiveArtistState(null);
+        return;
+      }
+
+      const fromStorage: ActiveArtist = {
+        id: saved.id,
+        name: saved.name,
+        role: saved.role,
+        profile_url: saved.profile_url,
+        musical_style: saved.musical_style,
+        created_at: saved.created_at,
+      };
+      setActiveArtistState(fromStorage);
+      setIsLoading(false);
+
+      const { artist, error } = await getArtistById(saved.id);
+
+      if (!error && artist) {
+        const normalizedArtist: ActiveArtist = {
+          id: artist.id,
+          name: artist.name,
+          role: saved.role,
+          profile_url: artist.profile_url || saved.profile_url,
+          musical_style: artist.musical_style || saved.musical_style,
+          created_at: artist.created_at || saved.created_at,
+        };
+        await saveToStorage(normalizedArtist);
+        setActiveArtistState(normalizedArtist);
+      } else if (error && isLikelyNetworkFailure(null, error)) {
+        // Sem rede: mantém o que já veio do storage
       } else {
+        await clearActiveArtist();
         setActiveArtistState(null);
       }
-    } catch (error) {
+    } catch {
       setActiveArtistState(null);
     } finally {
       setIsLoading(false);
