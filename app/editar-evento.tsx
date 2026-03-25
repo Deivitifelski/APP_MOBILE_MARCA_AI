@@ -17,7 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
-import { uploadEventContractFile } from '../services/supabase/eventContractUploadService';
+import { removeEventContractByUrl, uploadEventContractFile } from '../services/supabase/eventContractUploadService';
 import { getEventById, updateEvent, UpdateEventData } from '../services/supabase/eventService';
 
 interface EventoForm {
@@ -253,12 +253,28 @@ export default function EditarEventoScreen() {
   const [isLoadingEvent, setIsLoadingEvent] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [remoteContractUrl, setRemoteContractUrl] = useState<string | null>(null);
+  const [remoteContractFileName, setRemoteContractFileName] = useState<string | null>(null);
   const [pendingContract, setPendingContract] = useState<{
     uri: string;
     name: string;
     mime: string | null;
   } | null>(null);
   const [removeContractRequested, setRemoveContractRequested] = useState(false);
+
+  const getContractDisplayName = (url: string) => {
+    const last = url.split('?')[0]?.split('#')[0]?.split('/').pop() || 'contrato';
+    const decoded = (() => {
+      try {
+        return decodeURIComponent(last);
+      } catch {
+        return last;
+      }
+    })();
+
+    const m = decoded.match(/^\d+_([^_]+)_[a-z0-9]{6,}\.([a-z0-9]{1,8})$/i);
+    if (m) return `${m[1]}.${m[2]}`;
+    return decoded;
+  };
 
   // Obter usuário atual
   useEffect(() => {
@@ -303,6 +319,7 @@ export default function EditarEventoScreen() {
           tag: event.tag || 'evento', // Carregar tag existente ou usar padrão
         });
         setRemoteContractUrl(event.contract_url ?? null);
+        setRemoteContractFileName((event as any)?.contract_file_name ?? null);
         setPendingContract(null);
         setRemoveContractRequested(false);
       } else {
@@ -368,6 +385,7 @@ export default function EditarEventoScreen() {
     setIsLoading(true);
 
     try {
+      const oldUrl = remoteContractUrl ?? null;
       const updateData: UpdateEventData = {
         name: form.nome.trim(),
         description: form.descricao.trim() || undefined,
@@ -391,13 +409,33 @@ export default function EditarEventoScreen() {
           return;
         }
         updateData.contract_url = uploaded.url;
+        updateData.contract_file_name = pendingContract.name ?? null;
       } else if (removeContractRequested) {
         updateData.contract_url = null;
+        updateData.contract_file_name = null;
       }
 
       const result = await updateEvent(eventId, updateData, currentUserId || undefined);
 
       if (result.success) {
+        if (pendingContract && oldUrl) {
+          const removed = await removeEventContractByUrl(oldUrl);
+          if (!removed.success) {
+            Alert.alert(
+              'Aviso',
+              `Contrato atualizado, mas não foi possível remover o arquivo antigo do Storage.${removed.error ? ` Detalhes: ${removed.error}` : ''}`
+            );
+          }
+        }
+        if (removeContractRequested && oldUrl) {
+          const removed = await removeEventContractByUrl(oldUrl);
+          if (!removed.success) {
+            Alert.alert(
+              'Aviso',
+              `Contrato removido do evento, mas não foi possível remover o arquivo do Storage.${removed.error ? ` Detalhes: ${removed.error}` : ''}`
+            );
+          }
+        }
         Alert.alert(
           'Sucesso',
           'Evento atualizado com sucesso!',
@@ -783,7 +821,7 @@ export default function EditarEventoScreen() {
               <View style={styles.contractActionsRow}>
                 <Ionicons name="document-attach-outline" size={22} color={colors.primary} />
                 <Text style={[styles.contractPickedName, { color: colors.text }]} numberOfLines={1}>
-                  Contrato anexado
+                  {remoteContractFileName || getContractDisplayName(remoteContractUrl)}
                 </Text>
               </View>
               <View style={styles.contractBtnRow}>

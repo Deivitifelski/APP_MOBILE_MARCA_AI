@@ -512,6 +512,7 @@ export default function AdicionarEventoScreen() {
       const artistId = activeArtist?.id || artists[0].id;
 
       let contractUrl: string | undefined;
+      let contractFileName: string | undefined;
       if (contractUri) {
         const upload = await uploadEventContractFile(contractUri, {
           mimeType: contractMime,
@@ -522,6 +523,7 @@ export default function AdicionarEventoScreen() {
           return;
         }
         contractUrl = upload.url;
+        contractFileName = contractName ?? undefined;
       }
 
       // Preparar despesas
@@ -546,6 +548,7 @@ export default function AdicionarEventoScreen() {
         confirmed: form.status === 'confirmado',
         tag: form.tag,
         contract_url: contractUrl ?? null,
+        contract_file_name: contractFileName ?? null,
         expenses: expensesData
       };
 

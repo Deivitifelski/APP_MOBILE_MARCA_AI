@@ -64,6 +64,8 @@ export interface Event {
   update_ativo?: string | null;
   /** URL pública do arquivo de contrato (Storage) */
   contract_url?: string | null;
+  /** Nome original do arquivo anexado */
+  contract_file_name?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -93,6 +95,7 @@ export interface CreateEventData {
   tag?: 'ensaio' | 'evento' | 'reunião';
   expenses?: CreateExpenseData[];
   contract_url?: string | null;
+  contract_file_name?: string | null;
 }
 
 export interface CreateExpenseData {
@@ -113,6 +116,7 @@ export interface UpdateEventData {
   confirmed?: boolean;
   tag?: 'ensaio' | 'evento' | 'reunião';
   contract_url?: string | null;
+  contract_file_name?: string | null;
 }
 
 // Criar evento com despesas
@@ -141,6 +145,7 @@ export const createEvent = async (eventData: CreateEventData): Promise<{ success
         confirmed: eventData.confirmed || false,
         tag: eventData.tag || 'evento', // Default para 'evento' se não especificado
         contract_url: eventData.contract_url ?? null,
+        contract_file_name: eventData.contract_file_name ?? null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })

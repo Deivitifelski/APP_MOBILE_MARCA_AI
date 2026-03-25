@@ -32,7 +32,7 @@ import {
     getEventByIdWithPermissions,
     updateEvent,
 } from '../services/supabase/eventService';
-import { uploadEventContractFile } from '../services/supabase/eventContractUploadService';
+import { removeEventContractByUrl, uploadEventContractFile } from '../services/supabase/eventContractUploadService';
 import { getExpensesByEvent, getTotalExpensesByEvent } from '../services/supabase/expenseService';
 import { useActiveArtist } from '../services/useActiveArtist';
 
@@ -193,6 +193,7 @@ export default function DetalhesEventoScreen() {
   const [isCloning, setIsCloning] = useState(false);
   const [openingContract, setOpeningContract] = useState(false);
   const [isSavingContract, setIsSavingContract] = useState(false);
+  const [pickedContractName, setPickedContractName] = useState<string | null>(null);
   const { activeArtist } = useActiveArtist();
   
   // Estados para controle de acesso
@@ -399,6 +400,7 @@ export default function DetalhesEventoScreen() {
     if (!handleRestrictedAction('gerenciar contrato')) return;
 
     try {
+      const oldUrl = event.contract_url ?? null;
       const picked = await DocumentPicker.getDocumentAsync({
         type: ['application/pdf', 'image/*'],
         copyToCacheDirectory: true,
@@ -407,6 +409,7 @@ export default function DetalhesEventoScreen() {
       if (picked.canceled || !picked.assets?.[0]) return;
 
       const asset = picked.assets[0];
+      setPickedContractName(asset.name ?? 'documento');
       setIsSavingContract(true);
       const upload = await uploadEventContractFile(asset.uri, {
         fileName: asset.name,
@@ -418,7 +421,7 @@ export default function DetalhesEventoScreen() {
         return;
       }
 
-      const updateData: UpdateEventData = { contract_url: upload.url };
+      const updateData: UpdateEventData = { contract_url: upload.url, contract_file_name: asset.name ?? null };
       const result = await updateEvent(event.id, updateData, currentUserId);
       if (!result.success) {
         Alert.alert('Erro', result.error || 'Não foi possível salvar o contrato no evento.');
@@ -426,12 +429,41 @@ export default function DetalhesEventoScreen() {
       }
 
       await loadEventData(false);
-      Alert.alert('Sucesso', event.contract_url ? 'Contrato substituído com sucesso.' : 'Contrato anexado com sucesso.');
+      if (oldUrl) {
+        const removed = await removeEventContractByUrl(oldUrl);
+        if (!removed.success) {
+          Alert.alert(
+            'Aviso',
+            `Contrato atualizado, mas não foi possível remover o arquivo antigo do Storage.${removed.error ? ` Detalhes: ${removed.error}` : ''}`
+          );
+        }
+      }
+      Alert.alert(
+        'Sucesso',
+        `${event.contract_url ? 'Contrato substituído' : 'Contrato anexado'}: ${asset.name ?? 'arquivo'}`
+      );
     } catch {
       Alert.alert('Erro', 'Não foi possível selecionar o arquivo.');
     } finally {
       setIsSavingContract(false);
+      setPickedContractName(null);
     }
+  };
+
+  const getContractDisplayName = (url: string) => {
+    const last = url.split('?')[0]?.split('#')[0]?.split('/').pop() || 'contrato';
+    const decoded = (() => {
+      try {
+        return decodeURIComponent(last);
+      } catch {
+        return last;
+      }
+    })();
+
+    // Padrão atual: <ts>_<base>_<rand>.<ext>
+    const m = decoded.match(/^\d+_([^_]+)_[a-z0-9]{6,}\.([a-z0-9]{1,8})$/i);
+    if (m) return `${m[1]}.${m[2]}`;
+    return decoded;
   };
 
   const removeContract = async () => {
@@ -448,12 +480,22 @@ export default function DetalhesEventoScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              const oldUrl = event.contract_url ?? null;
               setIsSavingContract(true);
-              const updateData: UpdateEventData = { contract_url: null };
+              const updateData: UpdateEventData = { contract_url: null, contract_file_name: null };
               const result = await updateEvent(event.id, updateData, currentUserId);
               if (!result.success) {
                 Alert.alert('Erro', result.error || 'Não foi possível remover o contrato.');
                 return;
+              }
+              if (oldUrl) {
+                const removed = await removeEventContractByUrl(oldUrl);
+                if (!removed.success) {
+                  Alert.alert(
+                    'Aviso',
+                    `Contrato removido do evento, mas não foi possível remover o arquivo do Storage.${removed.error ? ` Detalhes: ${removed.error}` : ''}`
+                  );
+                }
               }
               await loadEventData(false);
             } finally {
@@ -793,7 +835,9 @@ export default function DetalhesEventoScreen() {
                   <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={[styles.detailText, { color: colors.text, marginLeft: 0 }]}>Contrato</Text>
                     <Text style={[styles.contractHint, { color: colors.textSecondary }]}>
-                      Toque para baixar ou compartilhar
+                      {isSavingContract && pickedContractName
+                        ? `Selecionado: ${pickedContractName}`
+                        : `Arquivo: ${event.contract_file_name || getContractDisplayName(event.contract_url)}`}
                     </Text>
                   </View>
                   {openingContract ? (
