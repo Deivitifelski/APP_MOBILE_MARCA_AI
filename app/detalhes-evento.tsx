@@ -15,7 +15,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import PermissionModal from '../components/PermissionModal';
-import { usePermissions } from '../contexts/PermissionsContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { generateEventPDF } from '../services/pdfService';
@@ -186,11 +185,11 @@ export default function DetalhesEventoScreen() {
   const [cloneTargetDate, setCloneTargetDate] = useState(() => new Date());
   const [isCloning, setIsCloning] = useState(false);
   const { activeArtist } = useActiveArtist();
-  const { canCreateEvents } = usePermissions();
   
   // Estados para controle de acesso
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [isCheckingAccess, setIsCheckingAccess] = useState(true);
+  const [canCreateEventsPermission, setCanCreateEventsPermission] = useState(false);
 
   // Obter usuário atual
   useEffect(() => {
@@ -212,6 +211,7 @@ export default function DetalhesEventoScreen() {
     if (!activeArtist || !currentUserId) {
       setHasAccess(null);
       setIsCheckingAccess(false);
+      setCanCreateEventsPermission(false);
       return;
     }
 
@@ -229,6 +229,7 @@ export default function DetalhesEventoScreen() {
       if (error) {
         setHasAccess(false);
         setIsCheckingAccess(false);
+        setCanCreateEventsPermission(false);
         return;
       }
 
@@ -237,11 +238,14 @@ export default function DetalhesEventoScreen() {
       // ✅ Ocultar valores APENAS para viewers
       const isViewer = userRole === 'viewer';
       const hasPermission = !isViewer; // Todos menos viewer têm acesso
+      const canCreate = ['owner', 'admin', 'editor'].includes(userRole);
       
       setHasAccess(hasPermission);
+      setCanCreateEventsPermission(canCreate);
       setIsCheckingAccess(false);
     } catch (error) {
       setHasAccess(false);
+      setCanCreateEventsPermission(false);
       setIsCheckingAccess(false);
     }
   };
@@ -461,14 +465,14 @@ export default function DetalhesEventoScreen() {
   };
 
   const openCloneModal = () => {
-    if (!canCreateEvents) return;
+    if (!canCreateEventsPermission) return;
     if (!event) return;
     setCloneTargetDate(parseEventDateToLocalDate(event.event_date));
     setShowCloneModal(true);
   };
 
   const confirmCloneEvent = async () => {
-    if (!canCreateEvents || !event || !currentUserId) return;
+    if (!canCreateEventsPermission || !event || !currentUserId) return;
     setIsCloning(true);
     try {
       const expensesRes = await getExpensesByEvent(event.id);
@@ -755,7 +759,7 @@ export default function DetalhesEventoScreen() {
               <Text style={[styles.actionButtonText, { color: colors.text }]}>
                 {isGeneratingPDF ? 'Gerando Relatório...' : 'Exportar Relatório'}
               </Text>
-              <Ionicons name="chevron-forward" size={20} color="#9C27B0" />
+              <Ionicons name="chevron-forward" size={20} color={colors.text} />
             </TouchableOpacity>
           )}
 
@@ -766,17 +770,17 @@ export default function DetalhesEventoScreen() {
             <Ionicons name="create" size={24} color={colors.warning} />
             <Text style={[styles.actionButtonText, { color: colors.text }]}>Editar Evento</Text>
             {!hasAccess && <Ionicons name="lock-closed" size={16} color={colors.textSecondary} style={{ marginLeft: 8 }} />}
-            <Ionicons name="chevron-forward" size={20} color={colors.warning} />
+            <Ionicons name="chevron-forward" size={20} color={colors.text} />
           </TouchableOpacity>
 
-          {canCreateEvents ? (
+          {canCreateEventsPermission ? (
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
               onPress={openCloneModal}
             >
               <Ionicons name="copy-outline" size={24} color={colors.primary} />
               <Text style={[styles.actionButtonText, { color: colors.text }]}>Duplicar evento</Text>
-              <Ionicons name="chevron-forward" size={20} color={colors.primary} />
+              <Ionicons name="chevron-forward" size={20} color={colors.text} />
             </TouchableOpacity>
           ) : null}
 
@@ -787,7 +791,7 @@ export default function DetalhesEventoScreen() {
             <Ionicons name="receipt" size={24} color={colors.primary} />
             <Text style={[styles.actionButtonText, { color: colors.text }]}>Gerenciar Despesas</Text>
             {!hasAccess && <Ionicons name="lock-closed" size={16} color={colors.textSecondary} style={{ marginLeft: 8 }} />}
-            <Ionicons name="chevron-forward" size={20} color={colors.primary} />
+            <Ionicons name="chevron-forward" size={20} color={colors.text} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -797,7 +801,7 @@ export default function DetalhesEventoScreen() {
             <Ionicons name="add-circle" size={24} color={colors.success} />
             <Text style={[styles.actionButtonText, { color: colors.text }]}>Adicionar Despesa</Text>
             {!hasAccess && <Ionicons name="lock-closed" size={16} color={colors.textSecondary} style={{ marginLeft: 8 }} />}
-            <Ionicons name="chevron-forward" size={20} color={colors.success} />
+            <Ionicons name="chevron-forward" size={20} color={colors.text} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -810,7 +814,7 @@ export default function DetalhesEventoScreen() {
               {isDeleting ? 'Deletando...' : 'Deletar Evento'}
             </Text>
             {!hasAccess && <Ionicons name="lock-closed" size={16} color={colors.textSecondary} style={{ marginLeft: 8 }} />}
-            <Ionicons name="chevron-forward" size={20} color={colors.error} />
+            <Ionicons name="chevron-forward" size={20} color={colors.text} />
           </TouchableOpacity>
         </View>
       </ScrollView>

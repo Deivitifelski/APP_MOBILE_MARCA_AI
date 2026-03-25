@@ -218,6 +218,16 @@ export default function AgendaScreen() {
 
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
+  const todayFormatted = (() => {
+    const d = new Date();
+    const s = d.toLocaleDateString('pt-BR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  })();
   const eventsByDate = useMemo(() => {
     const map: Record<string, any[]> = {};
     events.forEach(event => {
@@ -1048,6 +1058,13 @@ export default function AgendaScreen() {
             <Ionicons name="chevron-forward" size={24} color={colors.primary} />
           </TouchableOpacity>
         </View>
+
+        <View style={[styles.todayRow, { backgroundColor: colors.secondary + '55' }]}>
+          <Ionicons name="today-outline" size={17} color={colors.primary} />
+          <Text style={[styles.todayText, { color: colors.textSecondary }]} numberOfLines={2}>
+            Hoje · {todayFormatted}
+          </Text>
+        </View>
       </View>
 
       <ScrollView 
@@ -1762,6 +1779,21 @@ const styles = StyleSheet.create({
   monthYear: {
     fontSize: 18,
     fontWeight: '600',
+  },
+  todayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+  },
+  todayText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
   },
   content: {
     flex: 1,
