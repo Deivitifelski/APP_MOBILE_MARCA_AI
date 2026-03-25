@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -18,6 +19,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useTheme } from '../contexts/ThemeContext';
 import { getArtists } from '../services/supabase/artistService';
 import { getCurrentUser } from '../services/supabase/authService';
+import { uploadEventContractFile } from '../services/supabase/eventContractUploadService';
 import { createEvent, CreateExpenseData } from '../services/supabase/eventService';
 import { useActiveArtist } from '../services/useActiveArtist';
 
@@ -443,7 +445,33 @@ export default function AdicionarEventoScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdEvent, setCreatedEvent] = useState<any>(null);
+  const [contractUri, setContractUri] = useState<string | null>(null);
+  const [contractName, setContractName] = useState<string | null>(null);
+  const [contractMime, setContractMime] = useState<string | null>(null);
   const { activeArtist } = useActiveArtist();
+
+  const pickContract = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      setContractUri(asset.uri);
+      setContractName(asset.name ?? 'documento');
+      setContractMime(asset.mimeType ?? null);
+    } catch {
+      Alert.alert('Erro', 'Não foi possível selecionar o arquivo.');
+    }
+  };
+
+  const clearContract = () => {
+    setContractUri(null);
+    setContractName(null);
+    setContractMime(null);
+  };
 
   const handleSave = async () => {
     // Validações básicas - apenas Nome, Valor e Data são obrigatórios
@@ -483,6 +511,19 @@ export default function AdicionarEventoScreen() {
 
       const artistId = activeArtist?.id || artists[0].id;
 
+      let contractUrl: string | undefined;
+      if (contractUri) {
+        const upload = await uploadEventContractFile(contractUri, {
+          mimeType: contractMime,
+          fileName: contractName,
+        });
+        if (!upload.success || !upload.url) {
+          Alert.alert('Erro', upload.error || 'Não foi possível enviar o contrato.');
+          return;
+        }
+        contractUrl = upload.url;
+      }
+
       // Preparar despesas
       const expensesData: CreateExpenseData[] = despesas
         .filter(despesa => despesa.nome.trim() && despesa.valor.trim())
@@ -504,6 +545,7 @@ export default function AdicionarEventoScreen() {
         contractor_phone: form.telefoneContratante.trim() || undefined,
         confirmed: form.status === 'confirmado',
         tag: form.tag,
+        contract_url: contractUrl ?? null,
         expenses: expensesData
       };
 
@@ -854,6 +896,34 @@ export default function AdicionarEventoScreen() {
               </Text>
             </TouchableOpacity>
           </View>
+        </View>
+
+        {/* Contrato (opcional) */}
+        <View style={styles.inputGroup}>
+          <Text style={[styles.label, { color: colors.text }]}>Contrato (opcional)</Text>
+          <Text style={[styles.helperText, { color: colors.textSecondary }]}>
+            Anexe PDF ou imagem do contrato. Você poderá abrir ou compartilhar nos detalhes do evento.
+          </Text>
+          {contractUri ? (
+            <View style={[styles.contractPickedRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Ionicons name="document-text-outline" size={22} color={colors.primary} />
+              <Text style={[styles.contractPickedName, { color: colors.text }]} numberOfLines={1}>
+                {contractName || 'Arquivo selecionado'}
+              </Text>
+              <TouchableOpacity onPress={clearContract} hitSlop={12}>
+                <Ionicons name="close-circle" size={22} color={colors.error} />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[styles.contractPickBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={pickContract}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="cloud-upload-outline" size={22} color={colors.primary} />
+              <Text style={[styles.contractPickBtnText, { color: colors.text }]}>Escolher arquivo</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Seção de Despesas */}
@@ -1291,6 +1361,39 @@ const styles = StyleSheet.create({
   emptyDespesasSubtext: {
     fontSize: 14,
     textAlign: 'center',
+  },
+  helperText: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  contractPickBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  contractPickBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  contractPickedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  contractPickedName: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
   },
   modalOverlay: {
     flex: 1,

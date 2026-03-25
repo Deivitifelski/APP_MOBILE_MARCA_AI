@@ -1,5 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Linking from 'expo-linking';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -21,11 +25,14 @@ import { generateEventPDF } from '../services/pdfService';
 import { getEventCreatorName } from '../services/supabase/eventCreatorService';
 import {
     Event,
+    UpdateEventData,
     createEventWithPermissions,
     deleteEvent,
     getEventById,
     getEventByIdWithPermissions,
+    updateEvent,
 } from '../services/supabase/eventService';
+import { uploadEventContractFile } from '../services/supabase/eventContractUploadService';
 import { getExpensesByEvent, getTotalExpensesByEvent } from '../services/supabase/expenseService';
 import { useActiveArtist } from '../services/useActiveArtist';
 
@@ -184,6 +191,8 @@ export default function DetalhesEventoScreen() {
   const [showCloneModal, setShowCloneModal] = useState(false);
   const [cloneTargetDate, setCloneTargetDate] = useState(() => new Date());
   const [isCloning, setIsCloning] = useState(false);
+  const [openingContract, setOpeningContract] = useState(false);
+  const [isSavingContract, setIsSavingContract] = useState(false);
   const { activeArtist } = useActiveArtist();
   
   // Estados para controle de acesso
@@ -385,6 +394,77 @@ export default function DetalhesEventoScreen() {
     return true;
   };
 
+  const addOrReplaceContract = async () => {
+    if (!event || !currentUserId) return;
+    if (!handleRestrictedAction('gerenciar contrato')) return;
+
+    try {
+      const picked = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (picked.canceled || !picked.assets?.[0]) return;
+
+      const asset = picked.assets[0];
+      setIsSavingContract(true);
+      const upload = await uploadEventContractFile(asset.uri, {
+        fileName: asset.name,
+        mimeType: asset.mimeType ?? null,
+      });
+
+      if (!upload.success || !upload.url) {
+        Alert.alert('Erro', upload.error || 'Não foi possível enviar o contrato.');
+        return;
+      }
+
+      const updateData: UpdateEventData = { contract_url: upload.url };
+      const result = await updateEvent(event.id, updateData, currentUserId);
+      if (!result.success) {
+        Alert.alert('Erro', result.error || 'Não foi possível salvar o contrato no evento.');
+        return;
+      }
+
+      await loadEventData(false);
+      Alert.alert('Sucesso', event.contract_url ? 'Contrato substituído com sucesso.' : 'Contrato anexado com sucesso.');
+    } catch {
+      Alert.alert('Erro', 'Não foi possível selecionar o arquivo.');
+    } finally {
+      setIsSavingContract(false);
+    }
+  };
+
+  const removeContract = async () => {
+    if (!event || !currentUserId || !event.contract_url) return;
+    if (!handleRestrictedAction('gerenciar contrato')) return;
+
+    Alert.alert(
+      'Remover contrato',
+      'Deseja remover o contrato deste evento?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Remover',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsSavingContract(true);
+              const updateData: UpdateEventData = { contract_url: null };
+              const result = await updateEvent(event.id, updateData, currentUserId);
+              if (!result.success) {
+                Alert.alert('Erro', result.error || 'Não foi possível remover o contrato.');
+                return;
+              }
+              await loadEventData(false);
+            } finally {
+              setIsSavingContract(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleEditEvent = () => {
     if (!handleRestrictedAction('editar')) return;
     router.push({
@@ -501,6 +581,7 @@ export default function DetalhesEventoScreen() {
           contractor_phone: event.contractor_phone,
           confirmed: event.confirmed,
           tag: event.tag,
+          contract_url: event.contract_url ?? null,
           expenses,
         },
         currentUserId
@@ -621,6 +702,32 @@ export default function DetalhesEventoScreen() {
 
   const profit = (event.value || 0) - totalExpenses;
 
+  const openContractFile = async () => {
+    if (!event.contract_url) return;
+    try {
+      setOpeningContract(true);
+      const rawName = event.contract_url.split('/').pop() || 'contrato';
+      const safeName = decodeURIComponent(rawName).replace(/[^a-zA-Z0-9._-]/g, '_') || 'contrato';
+      const baseDir = FileSystem.cacheDirectory ?? '';
+      const localUri = `${baseDir}${safeName}`;
+      const { uri } = await FileSystem.downloadAsync(event.contract_url, localUri);
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(uri);
+      } else {
+        await Linking.openURL(event.contract_url);
+      }
+    } catch {
+      try {
+        await Linking.openURL(event.contract_url);
+      } catch {
+        Alert.alert('Erro', 'Não foi possível abrir o arquivo.');
+      }
+    } finally {
+      setOpeningContract(false);
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 }]}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
@@ -673,6 +780,75 @@ export default function DetalhesEventoScreen() {
               <Ionicons name="call" size={20} color={colors.primary} />
               <Text style={[styles.detailText, { color: colors.text }]}>{event.contractor_phone || 'Não informado'}</Text>
             </View>
+
+            {event.contract_url ? (
+              <View style={styles.contractSection}>
+                <TouchableOpacity
+                  style={styles.contractRow}
+                  onPress={() => void openContractFile()}
+                  disabled={openingContract}
+                  activeOpacity={0.75}
+                >
+                  <Ionicons name="document-attach-outline" size={20} color={colors.primary} />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={[styles.detailText, { color: colors.text, marginLeft: 0 }]}>Contrato</Text>
+                    <Text style={[styles.contractHint, { color: colors.textSecondary }]}>
+                      Toque para baixar ou compartilhar
+                    </Text>
+                  </View>
+                  {openingContract ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <Ionicons name="download-outline" size={22} color={colors.text} />
+                  )}
+                </TouchableOpacity>
+
+                {hasAccess ? (
+                  <View style={styles.contractActionsRow}>
+                    <TouchableOpacity
+                      style={[styles.contractActionBtn, { borderColor: colors.border }]}
+                      onPress={() => void addOrReplaceContract()}
+                      disabled={isSavingContract}
+                    >
+                      <Ionicons name="refresh-outline" size={16} color={colors.text} />
+                      <Text style={[styles.contractActionText, { color: colors.text }]}>Substituir</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.contractActionBtn, { borderColor: colors.error }]}
+                      onPress={() => void removeContract()}
+                      disabled={isSavingContract}
+                    >
+                      <Ionicons name="trash-outline" size={16} color={colors.error} />
+                      <Text style={[styles.contractActionText, { color: colors.error }]}>Excluir</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+              </View>
+            ) : (
+              <View style={styles.contractSection}>
+                <View style={styles.contractRow}>
+                  <Ionicons name="document-attach-outline" size={20} color={colors.textSecondary} />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={[styles.detailText, { color: colors.textSecondary, marginLeft: 0 }]}>Contrato</Text>
+                    <Text style={[styles.contractHint, { color: colors.textSecondary }]}>Nenhum contrato anexado</Text>
+                </View>
+                </View>
+                {hasAccess ? (
+                  <TouchableOpacity
+                    style={[styles.contractActionBtn, { borderColor: colors.border, alignSelf: 'flex-start' }]}
+                    onPress={() => void addOrReplaceContract()}
+                    disabled={isSavingContract}
+                  >
+                    {isSavingContract ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <Ionicons name="add-circle-outline" size={16} color={colors.primary} />
+                    )}
+                    <Text style={[styles.contractActionText, { color: colors.primary }]}>Adicionar contrato</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            )}
 
             {event.tag && (
               <View style={styles.detailRow}>
@@ -1013,6 +1189,36 @@ const styles = StyleSheet.create({
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  contractRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  contractSection: {
+    gap: 10,
+  },
+  contractActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginLeft: 32,
+  },
+  contractActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+  },
+  contractActionText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  contractHint: {
+    fontSize: 12,
+    marginTop: 2,
   },
   detailText: {
     fontSize: 16,

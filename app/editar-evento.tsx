@@ -1,20 +1,23 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
+import * as Linking from 'expo-linking';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Alert,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    Alert,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
+import { uploadEventContractFile } from '../services/supabase/eventContractUploadService';
 import { getEventById, updateEvent, UpdateEventData } from '../services/supabase/eventService';
 
 interface EventoForm {
@@ -249,6 +252,13 @@ export default function EditarEventoScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingEvent, setIsLoadingEvent] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [remoteContractUrl, setRemoteContractUrl] = useState<string | null>(null);
+  const [pendingContract, setPendingContract] = useState<{
+    uri: string;
+    name: string;
+    mime: string | null;
+  } | null>(null);
+  const [removeContractRequested, setRemoveContractRequested] = useState(false);
 
   // Obter usuário atual
   useEffect(() => {
@@ -292,6 +302,9 @@ export default function EditarEventoScreen() {
           descricao: event.description || '',
           tag: event.tag || 'evento', // Carregar tag existente ou usar padrão
         });
+        setRemoteContractUrl(event.contract_url ?? null);
+        setPendingContract(null);
+        setRemoveContractRequested(false);
       } else {
         Alert.alert('Erro', result.error || 'Erro ao carregar evento');
         router.back();
@@ -311,6 +324,30 @@ export default function EditarEventoScreen() {
   useEffect(() => {
     loadEventData();
   }, [loadEventData]);
+
+  const pickContractFile = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      setPendingContract({
+        uri: asset.uri,
+        name: asset.name ?? 'documento',
+        mime: asset.mimeType ?? null,
+      });
+      setRemoveContractRequested(false);
+    } catch {
+      Alert.alert('Erro', 'Não foi possível selecionar o arquivo.');
+    }
+  };
+
+  const clearPendingContract = () => {
+    setPendingContract(null);
+  };
 
   const handleSave = async () => {
     if (!form.nome.trim()) {
@@ -343,6 +380,20 @@ export default function EditarEventoScreen() {
         confirmed: form.status === 'confirmado',
         tag: form.tag,
       };
+
+      if (pendingContract) {
+        const uploaded = await uploadEventContractFile(pendingContract.uri, {
+          mimeType: pendingContract.mime,
+          fileName: pendingContract.name,
+        });
+        if (!uploaded.success || !uploaded.url) {
+          Alert.alert('Erro', uploaded.error || 'Não foi possível enviar o contrato.');
+          return;
+        }
+        updateData.contract_url = uploaded.url;
+      } else if (removeContractRequested) {
+        updateData.contract_url = null;
+      }
 
       const result = await updateEvent(eventId, updateData, currentUserId || undefined);
 
@@ -697,6 +748,82 @@ export default function EditarEventoScreen() {
           </View>
         </View>
 
+        {/* Contrato */}
+        <View style={styles.inputGroup}>
+          <Text style={[styles.label, { color: colors.text }]}>Contrato (opcional)</Text>
+          <Text style={[styles.helperText, { color: colors.textSecondary }]}>
+            PDF ou imagem. Nos detalhes do evento é possível abrir ou compartilhar o arquivo.
+          </Text>
+          {pendingContract ? (
+            <View style={[styles.contractPickedRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Ionicons name="document-text-outline" size={22} color={colors.primary} />
+              <Text style={[styles.contractPickedName, { color: colors.text }]} numberOfLines={1}>
+                Novo: {pendingContract.name}
+              </Text>
+              <TouchableOpacity onPress={clearPendingContract} hitSlop={12}>
+                <Ionicons name="close-circle" size={22} color={colors.error} />
+              </TouchableOpacity>
+            </View>
+          ) : removeContractRequested ? (
+            <View style={[styles.contractPickedRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.contractPickedName, { color: colors.textSecondary }]}>
+                Contrato será removido ao salvar
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setRemoveContractRequested(false);
+                }}
+                hitSlop={12}
+              >
+                <Text style={{ color: colors.primary, fontWeight: '600' }}>Desfazer</Text>
+              </TouchableOpacity>
+            </View>
+          ) : remoteContractUrl ? (
+            <View style={[styles.contractActionsCol, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <View style={styles.contractActionsRow}>
+                <Ionicons name="document-attach-outline" size={22} color={colors.primary} />
+                <Text style={[styles.contractPickedName, { color: colors.text }]} numberOfLines={1}>
+                  Contrato anexado
+                </Text>
+              </View>
+              <View style={styles.contractBtnRow}>
+                <TouchableOpacity
+                  style={[styles.contractMiniBtn, { borderColor: colors.border }]}
+                  onPress={() => void Linking.openURL(remoteContractUrl)}
+                >
+                  <Ionicons name="open-outline" size={18} color={colors.primary} />
+                  <Text style={[styles.contractMiniBtnText, { color: colors.primary }]}>Abrir</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.contractMiniBtn, { borderColor: colors.border }]}
+                  onPress={pickContractFile}
+                >
+                  <Ionicons name="refresh-outline" size={18} color={colors.text} />
+                  <Text style={[styles.contractMiniBtnText, { color: colors.text }]}>Substituir</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.contractMiniBtn, { borderColor: colors.error }]}
+                  onPress={() => {
+                    setRemoveContractRequested(true);
+                  }}
+                >
+                  <Ionicons name="trash-outline" size={18} color={colors.error} />
+                  <Text style={[styles.contractMiniBtnText, { color: colors.error }]}>Remover</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[styles.contractPickBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={pickContractFile}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="cloud-upload-outline" size={22} color={colors.primary} />
+              <Text style={[styles.contractPickBtnText, { color: colors.text }]}>Anexar contrato</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
         {/* Botões */}
         <View style={styles.buttonContainer}>
           <TouchableOpacity
@@ -984,6 +1111,69 @@ const styles = StyleSheet.create({
   },
   saveButtonDisabled: {
     backgroundColor: '#ccc',
+  },
+  helperText: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  contractPickBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  contractPickBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  contractPickedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  contractPickedName: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  contractActionsCol: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    gap: 10,
+  },
+  contractActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  contractBtnRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+  },
+  contractMiniBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  contractMiniBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   textArea: {
     height: 100,

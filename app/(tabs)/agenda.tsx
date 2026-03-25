@@ -810,6 +810,12 @@ export default function AgendaScreen() {
     }
   };
 
+  const formatEventValueBRL = (value: number | string) => {
+    const n = typeof value === 'string' ? parseFloat(value) : Number(value);
+    if (Number.isNaN(n)) return 'R$ 0,00';
+    return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+
   const renderShow = ({ item }: { item: any }) => {
     // Proteção: não renderizar se não houver artista ativo
     if (!activeArtist) {
@@ -856,7 +862,9 @@ export default function AgendaScreen() {
             
             <View style={styles.showDetailItem}>
               <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
-              <Text style={[styles.showTime, { color: colors.textSecondary }]}>{item.start_time}</Text>
+              <Text style={[styles.showTime, { color: colors.textSecondary }]}>
+                {typeof item.start_time === 'string' ? item.start_time.slice(0, 5) : item.start_time}
+              </Text>
             </View>
             
             {item.city && (
@@ -868,7 +876,7 @@ export default function AgendaScreen() {
             
             {item.value !== null && item.value !== undefined ? (
               <Text style={[styles.showValue, { color: colors.primary }]}>
-                R$ {item.value.toLocaleString('pt-BR')}
+                {formatEventValueBRL(item.value)}
               </Text>
             ) : (
               <View style={styles.lockedValueContainer}>
@@ -1305,7 +1313,7 @@ export default function AgendaScreen() {
                     color={colors.textSecondary}
                   />
                   <Text style={[styles.dayEventTime, { color: colors.textSecondary }]}>
-                    {event.start_time}
+                    {typeof event.start_time === 'string' ? event.start_time.slice(0, 5) : event.start_time}
                   </Text>
                 </View>
               </TouchableOpacity>
