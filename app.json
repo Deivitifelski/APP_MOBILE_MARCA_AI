@@ -41,7 +41,7 @@
     },
     "android": {
       "package": "com.marcaaipro.app",
-      "versionCode": 12,
+      "versionCode": 13,
       "googleServicesFile": "./android/app/google-services.json",
       "icon": "./assets/images/icone_512x512.png",
       "adaptiveIcon": {
