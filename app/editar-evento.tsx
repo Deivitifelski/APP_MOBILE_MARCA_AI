@@ -233,14 +233,21 @@ export default function EditarEventoScreen() {
   const params = useLocalSearchParams();
   const eventId = params.eventId as string;
 
+  const createDefaultTime = (hour: number, minute: number = 0) => {
+    const time = new Date();
+    time.setHours(hour, minute, 0, 0);
+    return time;
+  };
+
   const [form, setForm] = useState<EventoForm>({
     nome: '',
     valor: '',
     cidade: '',
     telefoneContratante: '',
     data: new Date(),
-    horarioInicio: new Date(),
-    horarioFim: new Date(),
+    // 00:00/00:00 significa "horário não definido"
+    horarioInicio: createDefaultTime(0, 0),
+    horarioFim: createDefaultTime(0, 0),
     status: 'a_confirmar',
     descricao: '',
     tag: 'evento', // Valor padrão
@@ -393,8 +400,9 @@ export default function EditarEventoScreen() {
         city: form.cidade.trim() || undefined,
         contractor_phone: form.telefoneContratante.trim() || undefined,
         event_date: form.data.toISOString().split('T')[0],
-        start_time: form.horarioInicio.toISOString().substring(11, 19),
-        end_time: form.horarioFim.toISOString().substring(11, 19),
+        // Importante: manter padrão do banco (HH:MM) para não gerar "mudanças" falsas no histórico
+        start_time: form.horarioInicio.toTimeString().split(' ')[0].substring(0, 5),
+        end_time: form.horarioFim.toTimeString().split(' ')[0].substring(0, 5),
         confirmed: form.status === 'confirmado',
         tag: form.tag,
       };

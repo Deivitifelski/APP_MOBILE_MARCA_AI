@@ -430,8 +430,9 @@ export default function AdicionarEventoScreen() {
     cidade: '',
     telefoneContratante: '',
     data: initialDate,
-    horarioInicio: createDefaultTime(20, 0), // 20:00
-    horarioFim: createDefaultTime(23, 0), // 23:00
+    // 00:00/00:00 significa "horário não definido"
+    horarioInicio: createDefaultTime(0, 0),
+    horarioFim: createDefaultTime(0, 0),
     status: 'confirmado',
     descricao: '',
     tag: 'evento', // Valor padrão

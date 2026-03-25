@@ -265,6 +265,19 @@ export default function AgendaScreen() {
 
     return weeks;
   }, [currentMonth, currentYear]);
+
+  const toHHMM = (t: any): string => {
+    if (!t) return '';
+    if (typeof t === 'string') return t.slice(0, 5);
+    return String(t).slice(0, 5);
+  };
+
+  const hasDefinedTime = (start: any, end: any) => {
+    const s = toHHMM(start) || '00:00';
+    const e = toHHMM(end) || '00:00';
+    // 00:00/00:00 = "não definido"
+    return !(s === '00:00' && e === '00:00');
+  };
   const todayString = useMemo(() => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -860,12 +873,15 @@ export default function AgendaScreen() {
               )}
             </View>
             
-            <View style={styles.showDetailItem}>
-              <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
-              <Text style={[styles.showTime, { color: colors.textSecondary }]}>
-                {typeof item.start_time === 'string' ? item.start_time.slice(0, 5) : item.start_time}
-              </Text>
-            </View>
+            {hasDefinedTime(item.start_time, item.end_time) ? (
+              <View style={styles.showDetailItem}>
+                <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
+                <Text style={[styles.showTime, { color: colors.textSecondary }]}>
+                  {toHHMM(item.start_time)}
+                  {toHHMM(item.end_time) && toHHMM(item.end_time) !== toHHMM(item.start_time) ? ` - ${toHHMM(item.end_time)}` : ''}
+                </Text>
+              </View>
+            ) : null}
             
             {item.city && (
               <View style={styles.showDetailItem}>
@@ -1307,14 +1323,19 @@ export default function AgendaScreen() {
                   </Text>
                 </View>
                 <View style={styles.dayEventMeta}>
-                  <Ionicons
-                    name="time-outline"
-                    size={16}
-                    color={colors.textSecondary}
-                  />
-                  <Text style={[styles.dayEventTime, { color: colors.textSecondary }]}>
-                    {typeof event.start_time === 'string' ? event.start_time.slice(0, 5) : event.start_time}
-                  </Text>
+                  {hasDefinedTime(event.start_time, event.end_time) ? (
+                    <>
+                      <Ionicons
+                        name="time-outline"
+                        size={16}
+                        color={colors.textSecondary}
+                      />
+                      <Text style={[styles.dayEventTime, { color: colors.textSecondary }]}>
+                        {toHHMM(event.start_time)}
+                        {toHHMM(event.end_time) && toHHMM(event.end_time) !== toHHMM(event.start_time) ? ` - ${toHHMM(event.end_time)}` : ''}
+                      </Text>
+                    </>
+                  ) : null}
                 </View>
               </TouchableOpacity>
             ))}

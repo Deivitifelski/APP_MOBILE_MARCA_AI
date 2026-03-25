@@ -50,6 +50,7 @@ export interface Event {
   id: string;
   artist_id: string;
   created_by: string;
+  updated_by?: string | null;
   name: string;
   description?: string;
   event_date: string;
@@ -117,6 +118,7 @@ export interface UpdateEventData {
   tag?: 'ensaio' | 'evento' | 'reunião';
   contract_url?: string | null;
   contract_file_name?: string | null;
+  updated_by?: string | null;
 }
 
 // Criar evento com despesas
@@ -134,6 +136,7 @@ export const createEvent = async (eventData: CreateEventData): Promise<{ success
       .insert({
         artist_id: eventData.artist_id,
         created_by: eventData.user_id, // Quem criou o evento
+        updated_by: eventData.user_id,
         name: eventData.name,
         description: eventData.description || null,
         event_date: eventData.event_date,
@@ -288,6 +291,7 @@ export const updateEvent = async (eventId: string, eventData: UpdateEventData, u
       .from('events')
       .update({
         ...eventData,
+        updated_by: userId ?? eventData.updated_by ?? null,
         updated_at: new Date().toISOString()
       })
       .eq('id', eventId)
@@ -344,7 +348,7 @@ export const deleteEvent = async (eventId: string, userId?: string): Promise<{ s
 
     const { error } = await supabase
       .from('events')
-      .update({ ativo: false, update_ativo: now, updated_at: now })
+      .update({ ativo: false, update_ativo: now, updated_at: now, updated_by: userId ?? null })
       .eq('id', eventId);
 
     if (error) {

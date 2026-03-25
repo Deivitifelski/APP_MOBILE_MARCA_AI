@@ -19,9 +19,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import PermissionModal from '../components/PermissionModal';
+import OptimizedImage from '../components/OptimizedImage';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { generateEventPDF } from '../services/pdfService';
+import { getEventAuditLog, type EventAuditLogRow } from '../services/supabase/eventAuditService';
 import { getEventCreatorName } from '../services/supabase/eventCreatorService';
 import {
     Event,
@@ -194,6 +196,8 @@ export default function DetalhesEventoScreen() {
   const [openingContract, setOpeningContract] = useState(false);
   const [isSavingContract, setIsSavingContract] = useState(false);
   const [pickedContractName, setPickedContractName] = useState<string | null>(null);
+  const [auditLogs, setAuditLogs] = useState<EventAuditLogRow[]>([]);
+  const [showAudit, setShowAudit] = useState(false);
   const { activeArtist } = useActiveArtist();
   
   // Estados para controle de acesso
@@ -292,6 +296,14 @@ export default function DetalhesEventoScreen() {
         }
         
         setEvent(finalEvent);
+
+        // Histórico de alterações (não bloqueia a tela se falhar)
+        try {
+          const audit = await getEventAuditLog(eventId, 40);
+          if (!audit.error) setAuditLogs(audit.logs.filter((l) => l.action !== 'create'));
+        } catch {
+          // ignorar
+        }
         
         // Buscar nome do criador do evento
         if (finalEvent.created_by) {
@@ -338,6 +350,140 @@ export default function DetalhesEventoScreen() {
 
   const formatTime = (timeString: string) => {
     return timeString.substring(0, 5); // HH:MM
+  };
+
+  const formatAuditDateTime = (iso: string) => {
+    const d = new Date(iso);
+    return d.toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const fieldLabel: Record<string, string> = {
+    name: 'Nome',
+    description: 'Descrição',
+    value: 'Valor',
+    event_date: 'Data',
+    start_time: 'Horário',
+    end_time: 'Horário',
+    city: 'Cidade',
+    contractor_phone: 'Telefone',
+    confirmed: 'Status',
+    tag: 'Tipo',
+    contract_url: 'Contrato',
+    contract_file_name: 'Contrato',
+    ativo: 'Ativo',
+  };
+
+  const formatAuditChangeLines = (log: EventAuditLogRow): string[] => {
+    if (log.action === 'create') return [];
+    if (!log.changed_fields?.length) return ['Atualização'];
+
+    // Agrupar mudanças de horário (start/end) para não poluir
+    const changed = new Set(log.changed_fields);
+
+    const toHHMM = (v: any) => {
+      if (v == null) return '';
+      const s = String(v).trim();
+      if (!s) return '';
+      return s.slice(0, 5);
+    };
+
+    const formatTimeRange = (start: any, end: any) => {
+      const s = toHHMM(start);
+      const e = toHHMM(end);
+      if (s && e) return `${s} - ${e}`;
+      if (s) return s;
+      if (e) return e;
+      return '—';
+    };
+
+    // Despesas (registradas via triggers em event_expenses)
+    if (log.action === 'expense_add') {
+      const name = (log.new_data as any)?.expense_name || 'Despesa';
+      const value = (log.new_data as any)?.expense_value;
+      const valueTxt = value != null ? formatCurrency(value) : '';
+      return [`Despesa adicionada: ${name}${valueTxt ? ` (${valueTxt})` : ''}`];
+    }
+    if (log.action === 'expense_update') {
+      const oldName = (log.old_data as any)?.expense_name || 'Despesa';
+      const newName = (log.new_data as any)?.expense_name || 'Despesa';
+      const oldVal = (log.old_data as any)?.expense_value;
+      const newVal = (log.new_data as any)?.expense_value;
+      const nameChanged = oldName !== newName;
+      const valChanged = oldVal !== newVal;
+      const lines: string[] = ['Despesa editada'];
+      if (nameChanged) lines.push(`Nome: ${oldName} → ${newName}`);
+      if (valChanged) {
+        const o = oldVal != null ? formatCurrency(oldVal) : '—';
+        const n = newVal != null ? formatCurrency(newVal) : '—';
+        lines.push(`Valor: ${o} → ${n}`);
+      }
+      return lines;
+    }
+    if (log.action === 'expense_delete') {
+      const name = (log.old_data as any)?.expense_name || 'Despesa';
+      const value = (log.old_data as any)?.expense_value;
+      const valueTxt = value != null ? formatCurrency(value) : '';
+      return [`Despesa removida: ${name}${valueTxt ? ` (${valueTxt})` : ''}`];
+    }
+
+    // Contrato: mensagem específica (anexado/substituído/excluído)
+    const contractChanged = changed.has('contract_url') || changed.has('contract_file_name');
+    if (contractChanged) {
+      const oldUrl = (log.old_data as any)?.contract_url;
+      const newUrl = (log.new_data as any)?.contract_url;
+      const newName = (log.new_data as any)?.contract_file_name;
+
+      if (!newUrl) return ['Contrato excluído'];
+      if (!oldUrl) return [`Contrato anexado: ${newName || 'arquivo'}`];
+      if (oldUrl && newUrl && oldUrl !== newUrl) {
+        if (newName) return [`Contrato substituído: ${newName}`];
+        return ['Contrato substituído'];
+      }
+    }
+
+    const parts: string[] = [];
+
+    if (changed.has('start_time') || changed.has('end_time')) {
+      const oldStart = (log.old_data as any)?.start_time;
+      const oldEnd = (log.old_data as any)?.end_time;
+      const newStart = (log.new_data as any)?.start_time;
+      const newEnd = (log.new_data as any)?.end_time;
+      const oldTxt = formatTimeRange(oldStart, oldEnd);
+      const newTxt = formatTimeRange(newStart, newEnd);
+      parts.push(`Horário: ${oldTxt} → ${newTxt}`);
+    }
+
+    for (const f of log.changed_fields) {
+      if (f === 'start_time' || f === 'end_time' || f === 'contract_url' || f === 'contract_file_name') continue;
+      const label = fieldLabel[f] || f;
+      const oldV = (log.old_data as any)?.[f];
+      const newV = (log.new_data as any)?.[f];
+
+      if (f === 'value') {
+        const oldTxt = oldV != null ? formatCurrency(oldV) : '—';
+        const newTxt = newV != null ? formatCurrency(newV) : '—';
+        parts.push(`${label}: ${oldTxt} → ${newTxt}`);
+      } else if (f === 'event_date') {
+        const oldTxt = oldV ? formatDate(String(oldV)) : '—';
+        const newTxt = newV ? formatDate(String(newV)) : '—';
+        parts.push(`${label}: ${oldTxt} → ${newTxt}`);
+      } else if (f === 'confirmed') {
+        const oldTxt = oldV ? 'Confirmado' : 'A Confirmar';
+        const newTxt = newV ? 'Confirmado' : 'A Confirmar';
+        parts.push(`${label}: ${oldTxt} → ${newTxt}`);
+      } else {
+        const oldTxt = oldV == null || oldV === '' ? '—' : String(oldV);
+        const newTxt = newV == null || newV === '' ? '—' : String(newV);
+        parts.push(`${label}: ${oldTxt} → ${newTxt}`);
+      }
+    }
+    return parts;
   };
 
   const formatCurrency = (value: number | string) => {
@@ -965,7 +1111,72 @@ export default function DetalhesEventoScreen() {
           )}
         </View>
 
+        {/* Histórico de edições */}
+        <View style={[styles.financialCard, { backgroundColor: colors.surface }]}>
+          <TouchableOpacity
+            onPress={() => setShowAudit((v) => !v)}
+            activeOpacity={0.8}
+            style={styles.auditHeaderRow}
+          >
+            <Text style={[styles.financialTitle, { color: colors.text, marginBottom: 0 }]}>Histórico de edições</Text>
+            <View style={styles.auditHeaderRight}>
+              <Text style={[styles.contractHint, { color: colors.textSecondary }]}>
+                {hasAccess ? (auditLogs.length > 0 ? `${auditLogs.length} alterações` : 'sem alterações') : 'restrito'}
+              </Text>
+              <Ionicons name={showAudit ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textSecondary} />
+            </View>
+          </TouchableOpacity>
 
+          {showAudit ? (
+            !hasAccess ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 }}>
+                <Ionicons name="lock-closed" size={16} color={colors.textSecondary} />
+                <Text style={[styles.contractHint, { color: colors.textSecondary }]}>
+                  O histórico é visível apenas para gerentes e editores.
+                </Text>
+              </View>
+            ) : auditLogs.length === 0 ? (
+              <Text style={[styles.detailText, { color: colors.textSecondary, marginLeft: 0, marginTop: 10 }]}>
+                Nenhuma alteração registrada ainda.
+              </Text>
+            ) : (
+              <View style={{ gap: 10, marginTop: 10 }}>
+                {auditLogs.map((log) => (
+                  <View
+                    key={log.id}
+                    style={{
+                      paddingVertical: 8,
+                      borderBottomWidth: 1,
+                      borderBottomColor: colors.border,
+                    }}
+                  >
+                    <View style={styles.auditRow}>
+                      <OptimizedImage
+                        imageUrl={log.actor_profile_url || ''}
+                        style={styles.auditAvatar}
+                        cacheKey={`audit_${log.actor_user_id || log.id}`}
+                        fallbackIcon="person"
+                        fallbackIconSize={14}
+                        fallbackIconColor="#FFFFFF"
+                        showLoadingIndicator={false}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.detailText, { color: colors.text, marginLeft: 0, fontWeight: '600' }]}>
+                          {(log.actor_name || 'Usuário') + ' • ' + formatAuditDateTime(log.created_at)}
+                        </Text>
+                        {formatAuditChangeLines(log).map((line, idx) => (
+                          <Text key={`${log.id}_${idx}`} style={[styles.contractHint, { color: colors.textSecondary }]}>
+                            * {line}
+                          </Text>
+                        ))}
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )
+          ) : null}
+        </View>
 
         {/* Ações */}
         <View style={styles.actionsContainer}>
@@ -1263,6 +1474,28 @@ const styles = StyleSheet.create({
   contractHint: {
     fontSize: 12,
     marginTop: 2,
+  },
+  auditRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  auditAvatar: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#667eea',
+    marginTop: 2,
+  },
+  auditHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  auditHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   detailText: {
     fontSize: 16,
