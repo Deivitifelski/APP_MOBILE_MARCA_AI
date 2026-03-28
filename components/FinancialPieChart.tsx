@@ -40,8 +40,11 @@ export default function FinancialPieChart({
     );
   }
 
-  const barHeight = Math.max(40, Math.round(size * 0.2));
-  const maxColH = Math.min(160, Math.max(100, Math.round(size * 0.65)));
+  const barHeight =
+    variant === 'detailed'
+      ? Math.max(28, Math.round(size * 0.14))
+      : Math.max(36, Math.round(size * 0.18));
+  const maxColH = Math.min(112, Math.max(72, Math.round(size * 0.48)));
 
   const horizontalBar = (
     <View
@@ -79,10 +82,10 @@ export default function FinancialPieChart({
     );
   }
 
-  /* detailed: colunas + barra + total */
+  /* detailed: colunas + barra + total (mais estreito, sem borda na barra) */
   return (
-    <View style={styles.wrap}>
-      <View style={[styles.columnsWrap, { height: maxColH + 8 }]}>
+    <View style={[styles.wrap, styles.wrapNarrow]}>
+      <View style={[styles.columnsWrap, { height: maxColH + 4 }]}>
         {positive.map((slice, i) => {
           const h = Math.max(10, (slice.value / total) * maxColH);
           return (
@@ -110,12 +113,19 @@ export default function FinancialPieChart({
   );
 }
 
+
 const styles = StyleSheet.create({
   wrap: {
     width: '100%',
     alignItems: 'stretch',
-    paddingVertical: 4,
-    gap: 16,
+    paddingVertical: 2,
+    gap: 12,
+  },
+  wrapNarrow: {
+    alignSelf: 'center',
+    width: '72%',
+    maxWidth: 248,
+    gap: 10,
   },
   caption: {
     fontSize: 12,
@@ -126,31 +136,32 @@ const styles = StyleSheet.create({
     width: '100%',
     flexDirection: 'row',
     overflow: 'hidden',
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 0,
   },
   columnsWrap: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 4,
+    gap: 5,
+    paddingHorizontal: 2,
   },
   columnCell: {
     flex: 1,
-    maxWidth: 56,
+    maxWidth: 36,
     alignItems: 'center',
     justifyContent: 'flex-end',
     height: '100%',
   },
   columnBar: {
     width: '100%',
-    borderRadius: 10,
-    minHeight: 8,
+    maxWidth: 32,
+    borderRadius: 6,
+    minHeight: 6,
   },
   totalLine: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     textAlign: 'center',
-    marginTop: 4,
+    marginTop: 2,
   },
 });

@@ -817,7 +817,7 @@ export default function FinanceiroScreen() {
 
         {hasAccess && activeArtist && (
           <View style={styles.goalSection}>
-            <View style={[styles.goalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[styles.goalCard, { backgroundColor: colors.surface }]}>
               <View style={styles.goalHeaderRow}>
                 <Text style={[styles.goalTitle, { color: colors.text }]}>Meta de receita do mês</Text>
                 <TouchableOpacity onPress={openGoalModal} hitSlop={12}>
@@ -1963,9 +1963,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   goalCard: {
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 0,
   },
   goalHeaderRow: {
     flexDirection: 'row',
@@ -2007,15 +2007,15 @@ const styles = StyleSheet.create({
   detailsButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    borderRadius: 16,
-    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    gap: 10,
   },
   detailsButtonIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },

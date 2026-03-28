@@ -284,15 +284,7 @@ export default function FinanceiroDetalhesScreen() {
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
         >
-          <View
-            style={[
-              styles.chartCard,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-              },
-            ]}
-          >
+          <View style={[styles.chartCard, { backgroundColor: colors.surface }]}>
             <View style={styles.chartCardHeader}>
               <View style={[styles.chartIconWrap, { backgroundColor: colors.primary + '22' }]}>
                 <Ionicons name="bar-chart" size={22} color={colors.primary} />
@@ -310,10 +302,10 @@ export default function FinanceiroDetalhesScreen() {
             <View style={[styles.chartInner, { backgroundColor: colors.background }]}>
               <FinancialPieChart
                 slices={pieSlices}
-                size={260}
+                size={200}
                 variant="detailed"
                 totalLabel={formatCurrency(pieTotal)}
-                strokeColor={isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}
+                strokeColor={isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'}
               />
             </View>
 
@@ -352,7 +344,7 @@ export default function FinanceiroDetalhesScreen() {
           <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 22 }]}>
             Resumo do mês
           </Text>
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={[styles.card, { backgroundColor: colors.surface }]}>
             <Row label="Receita total" value={formatCurrency(totals.totalRevenueWithIncome)} colors={colors} strong />
             <Row label="Despesas totais" value={formatCurrency(totals.totalExpenses)} colors={colors} />
             <Row
@@ -367,7 +359,7 @@ export default function FinanceiroDetalhesScreen() {
           <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 22 }]}>
             Maiores despesas
           </Text>
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={[styles.card, { backgroundColor: colors.surface }]}>
             {topExpenses.length === 0 ? (
               <Text style={{ color: colors.textSecondary }}>Nenhuma despesa neste mês.</Text>
             ) : (
@@ -393,7 +385,7 @@ export default function FinanceiroDetalhesScreen() {
           <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 22 }]}>
             Maiores lucros por evento
           </Text>
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, marginBottom: 32 }]}>
+          <View style={[styles.card, { backgroundColor: colors.surface, marginBottom: 32 }]}>
             {topProfits.length === 0 ? (
               <Text style={{ color: colors.textSecondary }}>Nenhum evento neste mês.</Text>
             ) : (
@@ -479,21 +471,21 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 17, fontWeight: '700', marginBottom: 8 },
   hint: { fontSize: 13, marginBottom: 12, lineHeight: 18 },
   chartCard: {
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 0,
     marginBottom: 4,
   },
   chartCardHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
-    marginBottom: 14,
+    gap: 10,
+    marginBottom: 10,
   },
   chartIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -501,10 +493,10 @@ const styles = StyleSheet.create({
   chartCardTitle: { fontSize: 18, fontWeight: '700', marginBottom: 4 },
   chartCardSub: { fontSize: 13, lineHeight: 18 },
   chartInner: {
-    borderRadius: 14,
-    paddingVertical: 18,
-    paddingHorizontal: 12,
-    marginBottom: 8,
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    marginBottom: 6,
   },
   legendSectionTitle: {
     fontSize: 12,
@@ -521,18 +513,18 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 6,
   },
-  card: { borderRadius: 14, padding: 16, borderWidth: StyleSheet.hairlineWidth },
+  card: { borderRadius: 10, padding: 14, borderWidth: 0 },
   dot: { width: 10, height: 10, borderRadius: 5, marginTop: 2 },
   legendLabel: { flex: 1, fontSize: 14, fontWeight: '600' },
   legendVal: { fontSize: 14, fontWeight: '700' },
   legendTrack: {
-    height: 6,
-    borderRadius: 3,
+    height: 4,
+    borderRadius: 2,
     overflow: 'hidden',
   },
   legendFill: {
     height: '100%',
-    borderRadius: 3,
+    borderRadius: 2,
   },
   legendPct: { fontSize: 12, marginTop: 4 },
   summaryRow: {
