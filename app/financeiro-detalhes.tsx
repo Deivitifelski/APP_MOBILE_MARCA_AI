@@ -310,13 +310,12 @@ export default function FinanceiroDetalhesScreen() {
               </View>
             </View>
 
-            <View style={[styles.chartInner, { backgroundColor: colors.background }]}>
+            <View style={styles.chartInner}>
               <FinancialPieChart
                 slices={pieSlices}
                 size={200}
                 variant="detailed"
                 totalLabel={formatCurrency(pieTotal)}
-                strokeColor={isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'}
               />
             </View>
 
@@ -335,14 +334,6 @@ export default function FinanceiroDetalhesScreen() {
                     <Text style={[styles.legendVal, { color: colors.text }]}>
                       {formatCurrency(sl.value)}
                     </Text>
-                  </View>
-                  <View style={[styles.legendTrack, { backgroundColor: colors.border }]}>
-                    <View
-                      style={[
-                        styles.legendFill,
-                        { width: `${Math.min(100, pct)}%`, backgroundColor: sl.color },
-                      ]}
-                    />
                   </View>
                   <Text style={[styles.legendPct, { color: colors.textSecondary }]}>
                     {pct.toFixed(1)}% do total
@@ -571,10 +562,9 @@ const styles = StyleSheet.create({
   chartCardTitle: { fontSize: 18, fontWeight: '700', marginBottom: 4 },
   chartCardSub: { fontSize: 13, lineHeight: 18 },
   chartInner: {
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    marginBottom: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 0,
+    marginBottom: 4,
   },
   legendSectionTitle: {
     fontSize: 12,
@@ -595,16 +585,7 @@ const styles = StyleSheet.create({
   dot: { width: 10, height: 10, borderRadius: 5, marginTop: 2 },
   legendLabel: { flex: 1, fontSize: 14, fontWeight: '600' },
   legendVal: { fontSize: 14, fontWeight: '700' },
-  legendTrack: {
-    height: 4,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  legendFill: {
-    height: '100%',
-    borderRadius: 2,
-  },
-  legendPct: { fontSize: 12, marginTop: 4 },
+  legendPct: { fontSize: 12, marginTop: 2 },
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

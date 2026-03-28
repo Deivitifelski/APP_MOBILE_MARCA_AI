@@ -12,7 +12,6 @@ type Props = {
   slices: PieSlice[];
   size?: number;
   emptyLabel?: string;
-  strokeColor?: string;
   /** compact = só barra horizontal; detailed = colunas + barra (tela de detalhes) */
   variant?: 'compact' | 'detailed';
   /** Ex.: "R$ 58.349,13" — aparece abaixo do gráfico em detailed */
@@ -23,12 +22,10 @@ export default function FinancialPieChart({
   slices,
   size = 200,
   emptyLabel = 'Sem dados para exibir',
-  strokeColor,
   variant = 'compact',
   totalLabel,
 }: Props) {
   const { colors } = useTheme();
-  const borderCol = strokeColor ?? (colors.border || 'rgba(0,0,0,0.12)');
   const total = slices.reduce((s, x) => s + Math.max(0, x.value), 0);
   const positive = slices.filter((x) => x.value > 0);
 
@@ -42,7 +39,7 @@ export default function FinancialPieChart({
 
   const barHeight =
     variant === 'detailed'
-      ? Math.max(28, Math.round(size * 0.14))
+      ? Math.max(30, Math.round(size * 0.16))
       : Math.max(36, Math.round(size * 0.18));
   const maxColH = Math.min(112, Math.max(72, Math.round(size * 0.48)));
 
@@ -53,7 +50,6 @@ export default function FinancialPieChart({
         {
           height: barHeight,
           borderRadius: barHeight / 2,
-          borderColor: borderCol,
           backgroundColor: colors.background,
         },
       ]}
@@ -64,7 +60,6 @@ export default function FinancialPieChart({
           style={{
             flex: Math.max(slice.value, 1e-9),
             backgroundColor: slice.color,
-            marginRight: i < positive.length - 1 ? StyleSheet.hairlineWidth * 2 : 0,
           }}
         />
       ))}
@@ -122,9 +117,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   wrapNarrow: {
-    alignSelf: 'center',
-    width: '72%',
-    maxWidth: 248,
+    alignSelf: 'stretch',
+    width: '100%',
     gap: 10,
   },
   caption: {
@@ -159,9 +153,9 @@ const styles = StyleSheet.create({
     minHeight: 6,
   },
   totalLine: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
     textAlign: 'center',
-    marginTop: 2,
+    marginTop: 6,
   },
 });
