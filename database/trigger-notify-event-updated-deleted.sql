@@ -17,11 +17,12 @@ DECLARE
   notif_title text;
   notif_message text;
 BEGIN
-  editor_id := NEW.created_by;
+  -- Quem editou/deletou: updated_by (preenchido pelo app). created_by é só o autor original.
+  editor_id := COALESCE(NEW.updated_by, NEW.created_by);
   target_artist_id := NEW.artist_id;
 
   IF editor_id IS NULL THEN
-    RAISE NOTICE 'AVISO: created_by é NULL no evento %. Notificações não serão criadas.', NEW.id;
+    RAISE NOTICE 'AVISO: updated_by e created_by são NULL no evento %. Notificações não serão criadas.', NEW.id;
     RETURN NEW;
   END IF;
 

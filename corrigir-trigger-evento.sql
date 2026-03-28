@@ -85,13 +85,12 @@ DECLARE
   target_artist_id uuid;
   notification_count integer;
 BEGIN
-  -- Obter IDs
-  editor_id := NEW.created_by;  -- Quem editou (usando created_by como referência)
+  -- Obter IDs: updated_by = quem fez o UPDATE no app; created_by = só o criador original
+  editor_id := COALESCE(NEW.updated_by, NEW.created_by);
   target_artist_id := NEW.artist_id;
 
-  -- ✅ VALIDAÇÃO: Se created_by for NULL, não criar notificações
   IF editor_id IS NULL THEN
-    RAISE NOTICE 'AVISO: created_by é NULL no evento %. Notificações não serão criadas.', NEW.id;
+    RAISE NOTICE 'AVISO: updated_by e created_by são NULL no evento %. Notificações não serão criadas.', NEW.id;
     RETURN NEW;
   END IF;
 

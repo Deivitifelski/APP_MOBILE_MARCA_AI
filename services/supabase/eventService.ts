@@ -440,8 +440,8 @@ export const updateEventWithPermissions = async (eventId: string, eventData: Upd
     // Atualizar o evento (passa userId para enviar notificações)
     const result = await updateEvent(eventId, eventData, userId);
 
-    // O trigger notify_event_updated() no banco (se existir) já cria as notificações
-    // automaticamente para todos os colaboradores (exceto quem editou)
+    // O trigger notify_event_updated() no banco deve usar NEW.updated_by (não created_by)
+    // em from_user_id, senão a notificação aparece como se o criador tivesse editado.
 
     return result;
   } catch (error) {
