@@ -1,8 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import * as Sharing from 'expo-sharing';
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   ScrollView,
   StatusBar,
@@ -18,6 +20,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { formatCalendarDate } from '../lib/dateUtils';
 import { supabase } from '../lib/supabase';
 import { getEventsByMonth } from '../services/supabase/eventService';
+import { generateFinanceiroDetalhesPdf } from '../services/financeiroDetalhesPdfService';
 import { getExpensesByEvent, getStandaloneExpensesByArtist } from '../services/supabase/expenseService';
 
 const MONTHS = [
@@ -48,6 +51,8 @@ export default function FinanceiroDetalhesScreen() {
   const [standalone, setStandalone] = useState<any[]>([]);
   const [nameByUserId, setNameByUserId] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const exportLockRef = useRef(false);
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const checkAccess = useCallback(async () => {
     if (!activeArtist) {
@@ -230,6 +235,38 @@ export default function FinanceiroDetalhesScreen() {
 
   const pieTotal = pieSlices.reduce((s, x) => s + x.value, 0);
 
+  const handleExportPdf = useCallback(async () => {
+    if (!activeArtist || exportLockRef.current) return;
+    exportLockRef.current = true;
+    setExportingPdf(true);
+    try {
+      const result = await generateFinanceiroDetalhesPdf({
+        artistName: activeArtist.name,
+        month,
+        year,
+        pieSlices,
+        pieTotal,
+        totals,
+        topExpenses,
+        topProfits,
+      });
+      if (!result.success || !result.uri) {
+        Alert.alert('Erro', result.error || 'Não foi possível gerar o PDF.');
+        return;
+      }
+      await Sharing.shareAsync(result.uri, {
+        mimeType: 'application/pdf',
+        dialogTitle: 'Exportar detalhes financeiros',
+        UTI: 'com.adobe.pdf',
+      });
+    } catch (e) {
+      Alert.alert('Erro', e instanceof Error ? e.message : 'Falha ao exportar.');
+    } finally {
+      exportLockRef.current = false;
+      setExportingPdf(false);
+    }
+  }, [activeArtist, month, year, pieSlices, pieTotal, totals, topExpenses, topProfits]);
+
   if (!activeArtist) {
     return (
       <SafeAreaView style={[styles.root, { backgroundColor: colors.background }]}>
@@ -283,7 +320,19 @@ export default function FinanceiroDetalhesScreen() {
         <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
           Detalhes · {MONTHS[month]}/{year}
         </Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity
+          onPress={() => void handleExportPdf()}
+          style={styles.headerExportBtn}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          disabled={loading || exportingPdf}
+          accessibilityLabel="Exportar PDF com gráficos e resumo"
+        >
+          {exportingPdf ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Ionicons name="share-outline" size={22} color={colors.primary} />
+          )}
+        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -534,6 +583,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   backBtn: { padding: 8, width: 40 },
+  headerExportBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   title: { flex: 1, fontSize: 17, fontWeight: '700', textAlign: 'center' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   scroll: { padding: 16, paddingBottom: Platform.OS === 'ios' ? 40 : 24 },
