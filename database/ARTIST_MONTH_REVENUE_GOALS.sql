@@ -1,5 +1,9 @@
 -- Meta de receita do mês por artista (compartilhada entre todos os membros).
--- Execute no SQL Editor do Supabase após revisar nomes de schema/tabelas.
+-- Tabela: meta_mensal_artista
+-- Execute no SQL Editor do Supabase.
+--
+-- Se você JÁ tinha criado a tabela artist_month_revenue_goals, rode antes:
+--   database/RENOMEAR_TABELA_META_ARTISTA.sql
 
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -9,7 +13,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TABLE IF NOT EXISTS artist_month_revenue_goals (
+CREATE TABLE IF NOT EXISTS meta_mensal_artista (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   artist_id UUID NOT NULL REFERENCES artists(id) ON DELETE CASCADE,
   year SMALLINT NOT NULL CHECK (year >= 2000 AND year <= 2100),
@@ -20,53 +24,56 @@ CREATE TABLE IF NOT EXISTS artist_month_revenue_goals (
   UNIQUE (artist_id, year, month)
 );
 
-CREATE INDEX IF NOT EXISTS idx_artist_month_revenue_goals_artist
-  ON artist_month_revenue_goals(artist_id);
+CREATE INDEX IF NOT EXISTS idx_meta_mensal_artista_artist
+  ON meta_mensal_artista(artist_id);
 
-COMMENT ON TABLE artist_month_revenue_goals IS 'Meta de receita mensal do artista; visível a todos os membros; edição por editor/admin/owner.';
+COMMENT ON TABLE meta_mensal_artista IS 'Meta de receita mensal do artista; visível a todos os membros; edição por editor/admin/owner.';
 
-DROP TRIGGER IF EXISTS trg_artist_month_revenue_goals_updated_at ON artist_month_revenue_goals;
-CREATE TRIGGER trg_artist_month_revenue_goals_updated_at
-  BEFORE UPDATE ON artist_month_revenue_goals
+DROP TRIGGER IF EXISTS trg_meta_mensal_artista_updated_at ON meta_mensal_artista;
+CREATE TRIGGER trg_meta_mensal_artista_updated_at
+  BEFORE UPDATE ON meta_mensal_artista
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
-ALTER TABLE artist_month_revenue_goals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE meta_mensal_artista ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS artist_month_goal_select ON artist_month_revenue_goals;
-DROP POLICY IF EXISTS artist_month_goal_insert ON artist_month_revenue_goals;
-DROP POLICY IF EXISTS artist_month_goal_update ON artist_month_revenue_goals;
-DROP POLICY IF EXISTS artist_month_goal_delete ON artist_month_revenue_goals;
+DROP POLICY IF EXISTS meta_mensal_artista_select ON meta_mensal_artista;
+DROP POLICY IF EXISTS meta_mensal_artista_insert ON meta_mensal_artista;
+DROP POLICY IF EXISTS meta_mensal_artista_update ON meta_mensal_artista;
+DROP POLICY IF EXISTS meta_mensal_artista_delete ON meta_mensal_artista;
+-- Nomes antigos (se o script anterior já foi aplicado com outra tabela)
+DROP POLICY IF EXISTS artist_month_goal_select ON meta_mensal_artista;
+DROP POLICY IF EXISTS artist_month_goal_insert ON meta_mensal_artista;
+DROP POLICY IF EXISTS artist_month_goal_update ON meta_mensal_artista;
+DROP POLICY IF EXISTS artist_month_goal_delete ON meta_mensal_artista;
 
--- Qualquer membro do artista pode ver a meta
-CREATE POLICY artist_month_goal_select ON artist_month_revenue_goals
+CREATE POLICY meta_mensal_artista_select ON meta_mensal_artista
   FOR SELECT
   USING (
     EXISTS (
       SELECT 1 FROM artist_members am
-      WHERE am.artist_id = artist_month_revenue_goals.artist_id
+      WHERE am.artist_id = meta_mensal_artista.artist_id
         AND am.user_id = auth.uid()
     )
   );
 
--- Editor, admin e owner podem criar/atualizar/remover
-CREATE POLICY artist_month_goal_insert ON artist_month_revenue_goals
+CREATE POLICY meta_mensal_artista_insert ON meta_mensal_artista
   FOR INSERT
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM artist_members am
-      WHERE am.artist_id = artist_month_revenue_goals.artist_id
+      WHERE am.artist_id = meta_mensal_artista.artist_id
         AND am.user_id = auth.uid()
         AND am.role IN ('editor', 'admin', 'owner')
     )
   );
 
-CREATE POLICY artist_month_goal_update ON artist_month_revenue_goals
+CREATE POLICY meta_mensal_artista_update ON meta_mensal_artista
   FOR UPDATE
   USING (
     EXISTS (
       SELECT 1 FROM artist_members am
-      WHERE am.artist_id = artist_month_revenue_goals.artist_id
+      WHERE am.artist_id = meta_mensal_artista.artist_id
         AND am.user_id = auth.uid()
         AND am.role IN ('editor', 'admin', 'owner')
     )
@@ -74,18 +81,18 @@ CREATE POLICY artist_month_goal_update ON artist_month_revenue_goals
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM artist_members am
-      WHERE am.artist_id = artist_month_revenue_goals.artist_id
+      WHERE am.artist_id = meta_mensal_artista.artist_id
         AND am.user_id = auth.uid()
         AND am.role IN ('editor', 'admin', 'owner')
     )
   );
 
-CREATE POLICY artist_month_goal_delete ON artist_month_revenue_goals
+CREATE POLICY meta_mensal_artista_delete ON meta_mensal_artista
   FOR DELETE
   USING (
     EXISTS (
       SELECT 1 FROM artist_members am
-      WHERE am.artist_id = artist_month_revenue_goals.artist_id
+      WHERE am.artist_id = meta_mensal_artista.artist_id
         AND am.user_id = auth.uid()
         AND am.role IN ('editor', 'admin', 'owner')
     )

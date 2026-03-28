@@ -7,7 +7,7 @@ export async function getArtistMonthRevenueGoal(
 ): Promise<{ goal: number | null; error: string | null }> {
   try {
     const { data, error } = await supabase
-      .from('artist_month_revenue_goals')
+      .from('meta_mensal_artista')
       .select('goal_amount')
       .eq('artist_id', artistId)
       .eq('year', year)
@@ -41,7 +41,7 @@ export async function upsertArtistMonthRevenueGoal(
     return { success: false, error: 'Valor inválido' };
   }
   try {
-    const { error } = await supabase.from('artist_month_revenue_goals').upsert(
+    const { error } = await supabase.from('meta_mensal_artista').upsert(
       {
         artist_id: artistId,
         year,
@@ -69,7 +69,7 @@ export async function deleteArtistMonthRevenueGoal(
 ): Promise<{ success: boolean; error: string | null }> {
   try {
     const { error } = await supabase
-      .from('artist_month_revenue_goals')
+      .from('meta_mensal_artista')
       .delete()
       .eq('artist_id', artistId)
       .eq('year', year)
