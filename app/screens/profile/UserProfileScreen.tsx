@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
@@ -18,6 +19,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { dispatchResetToLogin } from '../../../lib/resetToLoginStack';
 import { getCurrentUser } from '../../../services/supabase/authService';
 import { uploadUserImage } from '../../../services/supabase/imageUploadService';
 import { createUserProfile, getUserProfile } from '../../../services/supabase/userService';
@@ -32,6 +34,7 @@ const estadosBrasil = [
 ];
 
 export default function UserProfileScreen() {
+  const navigation = useNavigation();
   const { colors } = useTheme();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -136,7 +139,7 @@ export default function UserProfileScreen() {
       
       if (userError || !user) {
         Alert.alert('Erro', 'Usuário não encontrado. Faça login novamente.');
-        router.replace('/login');
+        dispatchResetToLogin(navigation);
         return;
       }
 
@@ -334,7 +337,7 @@ export default function UserProfileScreen() {
               {/* Link para voltar ao login */}
               <TouchableOpacity
                 style={styles.loginLink}
-                onPress={() => router.replace('/login')}
+                onPress={() => dispatchResetToLogin(navigation)}
               >
                 <Text style={[styles.loginLinkText, { color: colors.primary }]}>
                   Voltar ao login

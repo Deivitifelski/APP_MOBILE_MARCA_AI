@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { setStringAsync } from 'expo-clipboard';
 import Constants from 'expo-constants';
 import { router, useFocusEffect } from 'expo-router';
@@ -29,6 +30,7 @@ import { deleteAccount, getCurrentUser, logoutUser, updatePassword } from '../..
 import { createFeedback } from '../../services/supabase/feedbackService';
 import { getUserPermissions } from '../../services/supabase/permissionsService';
 import { getUserProfile, UserProfile } from '../../services/supabase/userService';
+import { dispatchResetToLogin } from '../../lib/resetToLoginStack';
 
 const getRoleLabel = (role?: string) => {
   switch (role) {
@@ -44,6 +46,7 @@ const getRoleLabel = (role?: string) => {
 };
 
 export default function ConfiguracoesScreen() {
+  const navigation = useNavigation();
   const { isDarkMode, toggleDarkMode, colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { activeArtist, refreshActiveArtist, clearArtist } = useActiveArtistContext();
@@ -305,7 +308,7 @@ export default function ConfiguracoesScreen() {
       console.warn('cleanupSessionAndRedirect:', error);
     }
 
-    router.replace('/login');
+    dispatchResetToLogin(navigation);
   };
 
   const confirmLogout = async () => {

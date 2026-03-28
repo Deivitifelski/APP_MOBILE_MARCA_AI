@@ -23,8 +23,10 @@ SplashScreen.preventAutoHideAsync();
 // Desabilitar LogBox para não mostrar logs na tela
 LogBox.ignoreAllLogs(true);
 
+// Iniciar sempre em `index` (gate de auth). Se o anchor for `(tabs)`, o Stack nativo
+// monta a agenda por baixo do login e o botão Voltar do Android expõe telas protegidas.
 export const unstable_settings = {
-  anchor: '(tabs)',
+  anchor: 'index',
 };
 
 const SPLASH_VISIBLE_MS = 1200;
@@ -106,7 +108,10 @@ function RootLayoutContent() {
       {showSplash && <AppSplashScreen />}
       <Stack>
         <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="login" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="login"
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
         <Stack.Screen name="register" options={{ headerShown: false }} />
         <Stack.Screen name="email-confirmation" options={{ headerShown: false }} />
         <Stack.Screen name="reset-password" options={{ headerShown: false }} />
@@ -128,7 +133,6 @@ function RootLayoutContent() {
         <Stack.Screen name="selecionar-artista" options={{ headerShown: false }} />
         <Stack.Screen name="sair-artista" options={{ headerShown: false }} />
         <Stack.Screen name="transferir-propriedade" options={{ headerShown: false }} />
-        <Stack.Screen name="screens/auth/LoginScreen" options={{ headerShown: false }} />
         <Stack.Screen name="screens/profile/UserProfileScreen" options={{ headerShown: false }} />
         <Stack.Screen name="screens/profile/ArtistProfileScreen" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

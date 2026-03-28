@@ -1,10 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import messaging from '@react-native-firebase/messaging';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
-import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useNavigation, type NavigationProp, type ParamListBase } from '@react-navigation/native';
+import { router, useFocusEffect } from 'expo-router';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
     Alert,
+    BackHandler,
     KeyboardAvoidingView,
     LogBox,
     Modal,
@@ -29,6 +31,7 @@ import {
     createOrUpdateUserFromGoogle,
     saveFCMToken,
 } from '../../../services/supabase/userService';
+import { sanitizeLoginParentStackIfNeeded } from '../../../lib/resetToLoginStack';
 
 // Configurar Google Sign-In: webClientId obrigatório (Android + Supabase). iosClientId só no iOS.
 GoogleSignin.configure({
@@ -45,6 +48,7 @@ LogBox.ignoreLogs([
 ]);
 
 export default function LoginScreen() {
+  const navigation = useNavigation();
   const { colors, isDarkMode } = useTheme();
   const { setActiveArtist } = useActiveArtistContext();
   const [email, setEmail] = useState('');
@@ -59,6 +63,78 @@ export default function LoginScreen() {
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [sendingResetEmail, setSendingResetEmail] = useState(false);
+
+  const modalStateRef = useRef({
+    showCompleteProfileModal,
+    showNoInternetModal,
+    showEmailConfirmationModal,
+    showForgotPasswordModal,
+  });
+  modalStateRef.current = {
+    showCompleteProfileModal,
+    showNoInternetModal,
+    showEmailConfirmationModal,
+    showForgotPasswordModal,
+  };
+
+  const nav = navigation as NavigationProp<ParamListBase>;
+
+  // Android: primeira abertura pode deixar `(tabs)` na pilha; limpa antes do usuário apertar Voltar.
+  useLayoutEffect(() => {
+    if (Platform.OS !== 'android') return;
+    sanitizeLoginParentStackIfNeeded(nav);
+  }, [nav]);
+
+  // Android: na tela de login não deve existir “voltar” para agenda/tabs; Voltar sai do app.
+  // Se algum modal estiver aberto, fecha o modal em vez de sair.
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== 'android') {
+        return undefined;
+      }
+      sanitizeLoginParentStackIfNeeded(nav);
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        const m = modalStateRef.current;
+        if (m.showCompleteProfileModal) {
+          setShowCompleteProfileModal(false);
+          return true;
+        }
+        if (m.showNoInternetModal) {
+          setShowNoInternetModal(false);
+          return true;
+        }
+        if (m.showEmailConfirmationModal) {
+          setShowEmailConfirmationModal(false);
+          return true;
+        }
+        if (m.showForgotPasswordModal) {
+          setShowForgotPasswordModal(false);
+          return true;
+        }
+        BackHandler.exitApp();
+        return true;
+      });
+      return () => sub.remove();
+    }, [nav])
+  );
+
+  // O Stack nativo processa POP antes de handlers genéricos: bloqueia voltar para rota anterior (ex.: agenda).
+  useEffect(() => {
+    const sub = navigation.addListener('beforeRemove', (e) => {
+      const type = (e.data as { action?: { type?: string } }).action?.type;
+      if (type === 'REPLACE' || type === 'RESET' || type === 'NAVIGATE' || type === 'JUMP_TO') {
+        return;
+      }
+      if (type === 'POP' || type === 'GO_BACK') {
+        e.preventDefault();
+        if (Platform.OS === 'android') {
+          BackHandler.exitApp();
+        }
+      }
+    });
+    return sub;
+  }, [navigation]);
+
   // Solicitar permissões ao carregar a tela de login
   useEffect(() => {
     const requestPermissions = async () => {
@@ -664,6 +740,7 @@ export default function LoginScreen() {
         visible={showNoInternetModal}
         transparent
         animationType="fade"
+        onRequestClose={() => setShowNoInternetModal(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
@@ -703,6 +780,7 @@ export default function LoginScreen() {
         visible={showEmailConfirmationModal}
         transparent
         animationType="fade"
+        onRequestClose={() => setShowEmailConfirmationModal(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
@@ -760,6 +838,7 @@ export default function LoginScreen() {
         visible={showForgotPasswordModal}
         transparent
         animationType="fade"
+        onRequestClose={() => setShowForgotPasswordModal(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>

@@ -1,6 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import NetInfo from '@react-native-community/netinfo';
+import { useNavigation } from '@react-navigation/native';
 import { router } from 'expo-router';
+import { dispatchResetToLogin } from '../lib/resetToLoginStack';
 import { StatusBar } from 'expo-status-bar';
 import type { Session } from '@supabase/supabase-js';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -28,6 +30,7 @@ function isNetOffline(state: { isConnected: boolean | null; isInternetReachable:
 }
 
 export default function Index() {
+  const navigation = useNavigation();
   const hasNavigated = useRef(false);
   const safetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showOfflineModal, setShowOfflineModal] = useState(false);
@@ -67,8 +70,12 @@ export default function Index() {
   );
 
   const goToLogin = useCallback(() => {
-    navigateTo('/login');
-  }, [navigateTo]);
+    if (hasNavigated.current) return;
+    hasNavigated.current = true;
+    clearSafetyTimer();
+    setShowOfflineModal(false);
+    dispatchResetToLogin(navigation);
+  }, [clearSafetyTimer, navigation]);
 
   /** Evita mandar para login sem rede (mensagem de erro nem sempre indica rede). */
   const goToLoginUnlessOffline = useCallback(async () => {

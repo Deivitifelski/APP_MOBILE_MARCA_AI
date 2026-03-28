@@ -444,7 +444,7 @@ export default function RegisterScreen() {
                 <Text style={[dynamicStyles.loginText, { color: colors.textSecondary }]}>
                   Já tem uma conta?{' '}
                 </Text>
-                <Link href="/login" asChild>
+                <Link href="/login" replace asChild>
                   <TouchableOpacity>
                     <Text style={[dynamicStyles.loginLink, { color: colors.primary }]}>
                       Faça login

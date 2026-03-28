@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -15,9 +16,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LogoMarcaAi from '../components/LogoMarcaAi';
 import { useTheme } from '../contexts/ThemeContext';
+import { dispatchResetToLogin } from '../lib/resetToLoginStack';
 import { updatePassword } from '../services/supabase/authService';
 
 export default function ResetPasswordScreen() {
+  const navigation = useNavigation();
   const { colors } = useTheme();
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -59,7 +62,7 @@ export default function ResetPasswordScreen() {
           [
             {
               text: 'OK',
-              onPress: () => router.replace('/login'),
+              onPress: () => dispatchResetToLogin(navigation),
             },
           ]
         );
@@ -167,7 +170,7 @@ export default function ResetPasswordScreen() {
 
               <TouchableOpacity
                 style={styles.backToLogin}
-                onPress={() => router.replace('/login')}
+                onPress={() => dispatchResetToLogin(navigation)}
                 disabled={loading}
               >
                 <Ionicons name="arrow-back-outline" size={20} color={colors.primary} />

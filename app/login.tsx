@@ -1,3 +1,3 @@
-import LoginScreen from './screens/auth/LoginScreen';
+import LoginScreen from './screens/auth/_LoginScreen';
 
 export default LoginScreen;

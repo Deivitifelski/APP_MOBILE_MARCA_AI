@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -13,8 +14,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
+import { dispatchResetToLogin } from '../lib/resetToLoginStack';
 
 export default function EmailConfirmationScreen() {
+  const navigation = useNavigation();
   const { colors } = useTheme();
   const [isResending, setIsResending] = useState(false);
   const [email, setEmail] = useState('');
@@ -73,12 +76,11 @@ export default function EmailConfirmationScreen() {
   };
 
   const handleGoToLogin = () => {
-    router.replace('/login');
+    dispatchResetToLogin(navigation);
   };
 
   const handleCheckEmail = () => {
-    // Redirecionar para login
-    router.replace('/login');
+    dispatchResetToLogin(navigation);
   };
 
   const dynamicStyles = createDynamicStyles(colors);
