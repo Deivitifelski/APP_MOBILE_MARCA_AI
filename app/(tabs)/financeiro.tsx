@@ -851,21 +851,29 @@ export default function FinanceiroScreen() {
                   Defina um valor (ex.: R$ 10.000) para acompanhar o quanto da meta você já faturou neste mês.
                 </Text>
               )}
-              <TouchableOpacity
-                style={[styles.detailsButton, { borderColor: colors.primary }]}
-                onPress={() =>
-                  router.push({
-                    pathname: '/financeiro-detalhes',
-                    params: { month: String(currentMonth), year: String(currentYear) },
-                  })
-                }
-                activeOpacity={0.85}
-              >
-                <Ionicons name="pie-chart-outline" size={22} color={colors.primary} />
-                <Text style={[styles.detailsButtonText, { color: colors.primary }]}>Ver detalhes</Text>
-                <Ionicons name="chevron-forward" size={20} color={colors.primary} />
-              </TouchableOpacity>
             </View>
+
+            <TouchableOpacity
+              style={[styles.detailsButton, { backgroundColor: colors.primary + '18' }]}
+              onPress={() =>
+                router.push({
+                  pathname: '/financeiro-detalhes',
+                  params: { month: String(currentMonth), year: String(currentYear) },
+                })
+              }
+              activeOpacity={0.85}
+            >
+              <View style={[styles.detailsButtonIconCircle, { backgroundColor: colors.primary + '28' }]}>
+                <Ionicons name="analytics-outline" size={22} color={colors.primary} />
+              </View>
+              <View style={styles.detailsButtonTextWrap}>
+                <Text style={[styles.detailsButtonTitle, { color: colors.text }]}>Ver detalhes</Text>
+                <Text style={[styles.detailsButtonSub, { color: colors.textSecondary }]}>
+                  Gráficos, legenda e maiores despesas e lucros
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={22} color={colors.textSecondary} />
+            </TouchableOpacity>
           </View>
         )}
 
@@ -1951,10 +1959,11 @@ const styles = StyleSheet.create({
   goalSection: {
     paddingHorizontal: 16,
     marginTop: 8,
-    marginBottom: 8,
+    marginBottom: 12,
+    gap: 12,
   },
   goalCard: {
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 16,
     borderWidth: StyleSheet.hairlineWidth,
   },
@@ -1998,17 +2007,29 @@ const styles = StyleSheet.create({
   detailsButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    gap: 12,
   },
-  detailsButtonText: {
-    fontSize: 15,
-    fontWeight: '700',
+  detailsButtonIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailsButtonTextWrap: {
     flex: 1,
+  },
+  detailsButtonTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  detailsButtonSub: {
+    fontSize: 12,
+    marginTop: 3,
+    lineHeight: 16,
   },
   goalModalOverlay: {
     flex: 1,

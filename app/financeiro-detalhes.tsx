@@ -284,39 +284,75 @@ export default function FinanceiroDetalhesScreen() {
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Receita por responsável pelos eventos
-          </Text>
-          <Text style={[styles.hint, { color: colors.textSecondary }]}>
-            A barra e a legenda mostram o cachê dos eventos por colaborador (quem cadastrou). Receitas avulsas aparecem separadas.
-          </Text>
+          <View
+            style={[
+              styles.chartCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            <View style={styles.chartCardHeader}>
+              <View style={[styles.chartIconWrap, { backgroundColor: colors.primary + '22' }]}>
+                <Ionicons name="bar-chart" size={22} color={colors.primary} />
+              </View>
+              <View style={styles.chartCardHeaderText}>
+                <Text style={[styles.chartCardTitle, { color: colors.text }]}>
+                  Distribuição da receita
+                </Text>
+                <Text style={[styles.chartCardSub, { color: colors.textSecondary }]}>
+                  Por colaborador que cadastrou o evento; receitas avulsas em fatia separada.
+                </Text>
+              </View>
+            </View>
 
-          <View style={[styles.card, { backgroundColor: colors.surface }]}>
-            <FinancialPieChart
-              slices={pieSlices}
-              size={220}
-              strokeColor={isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}
-            />
+            <View style={[styles.chartInner, { backgroundColor: colors.background }]}>
+              <FinancialPieChart
+                slices={pieSlices}
+                size={260}
+                variant="detailed"
+                totalLabel={formatCurrency(pieTotal)}
+                strokeColor={isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}
+              />
+            </View>
+
+            <Text style={[styles.legendSectionTitle, { color: colors.textSecondary }]}>
+              Legenda
+            </Text>
             {pieSlices.map((sl, i) => {
               const pct = pieTotal > 0 ? (sl.value / pieTotal) * 100 : 0;
               return (
-                <View key={i} style={styles.legendRow}>
-                  <View style={[styles.dot, { backgroundColor: sl.color }]} />
-                  <Text style={[styles.legendLabel, { color: colors.text }]} numberOfLines={1}>
-                    {sl.label}
-                  </Text>
-                  <Text style={[styles.legendVal, { color: colors.textSecondary }]}>
-                    {formatCurrency(sl.value)} ({pct.toFixed(1)}%)
+                <View key={i} style={styles.legendBlock}>
+                  <View style={styles.legendTopRow}>
+                    <View style={[styles.dot, { backgroundColor: sl.color }]} />
+                    <Text style={[styles.legendLabel, { color: colors.text }]} numberOfLines={2}>
+                      {sl.label}
+                    </Text>
+                    <Text style={[styles.legendVal, { color: colors.text }]}>
+                      {formatCurrency(sl.value)}
+                    </Text>
+                  </View>
+                  <View style={[styles.legendTrack, { backgroundColor: colors.border }]}>
+                    <View
+                      style={[
+                        styles.legendFill,
+                        { width: `${Math.min(100, pct)}%`, backgroundColor: sl.color },
+                      ]}
+                    />
+                  </View>
+                  <Text style={[styles.legendPct, { color: colors.textSecondary }]}>
+                    {pct.toFixed(1)}% do total
                   </Text>
                 </View>
               );
             })}
           </View>
 
-          <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 24 }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 22 }]}>
             Resumo do mês
           </Text>
-          <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Row label="Receita total" value={formatCurrency(totals.totalRevenueWithIncome)} colors={colors} strong />
             <Row label="Despesas totais" value={formatCurrency(totals.totalExpenses)} colors={colors} />
             <Row
@@ -328,10 +364,10 @@ export default function FinanceiroDetalhesScreen() {
             />
           </View>
 
-          <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 24 }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 22 }]}>
             Maiores despesas
           </Text>
-          <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             {topExpenses.length === 0 ? (
               <Text style={{ color: colors.textSecondary }}>Nenhuma despesa neste mês.</Text>
             ) : (
@@ -354,10 +390,10 @@ export default function FinanceiroDetalhesScreen() {
             )}
           </View>
 
-          <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 24 }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 22 }]}>
             Maiores lucros por evento
           </Text>
-          <View style={[styles.card, { backgroundColor: colors.surface, marginBottom: 32 }]}>
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, marginBottom: 32 }]}>
             {topProfits.length === 0 ? (
               <Text style={{ color: colors.textSecondary }}>Nenhum evento neste mês.</Text>
             ) : (
@@ -440,13 +476,65 @@ const styles = StyleSheet.create({
   title: { flex: 1, fontSize: 17, fontWeight: '700', textAlign: 'center' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   scroll: { padding: 16, paddingBottom: Platform.OS === 'ios' ? 40 : 24 },
-  sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 6 },
+  sectionTitle: { fontSize: 17, fontWeight: '700', marginBottom: 8 },
   hint: { fontSize: 13, marginBottom: 12, lineHeight: 18 },
-  card: { borderRadius: 14, padding: 16 },
-  legendRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 8 },
-  dot: { width: 10, height: 10, borderRadius: 5 },
-  legendLabel: { flex: 1, fontSize: 14 },
-  legendVal: { fontSize: 13, fontWeight: '600' },
+  chartCard: {
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 4,
+  },
+  chartCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 14,
+  },
+  chartIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chartCardHeaderText: { flex: 1 },
+  chartCardTitle: { fontSize: 18, fontWeight: '700', marginBottom: 4 },
+  chartCardSub: { fontSize: 13, lineHeight: 18 },
+  chartInner: {
+    borderRadius: 14,
+    paddingVertical: 18,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+  },
+  legendSectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginTop: 8,
+    marginBottom: 10,
+  },
+  legendBlock: { marginBottom: 14 },
+  legendTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  card: { borderRadius: 14, padding: 16, borderWidth: StyleSheet.hairlineWidth },
+  dot: { width: 10, height: 10, borderRadius: 5, marginTop: 2 },
+  legendLabel: { flex: 1, fontSize: 14, fontWeight: '600' },
+  legendVal: { fontSize: 14, fontWeight: '700' },
+  legendTrack: {
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  legendFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  legendPct: { fontSize: 12, marginTop: 4 },
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
