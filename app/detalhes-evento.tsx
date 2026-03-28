@@ -22,7 +22,6 @@ import PermissionModal from '../components/PermissionModal';
 import OptimizedImage from '../components/OptimizedImage';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
-import { generateEventPDF } from '../services/pdfService';
 import { getEventAuditLog, type EventAuditLogRow } from '../services/supabase/eventAuditService';
 import { getEventCreatorName } from '../services/supabase/eventCreatorService';
 import {
@@ -37,6 +36,7 @@ import {
 import { removeEventContractByUrl, uploadEventContractFile } from '../services/supabase/eventContractUploadService';
 import { getExpensesByEvent, getTotalExpensesByEvent } from '../services/supabase/expenseService';
 import { useActiveArtist } from '../services/useActiveArtist';
+import { promptAndShareEvent } from '../utils/eventShare';
 
 function parseEventDateToLocalDate(eventDate: string): Date {
     const [y, m, d] = eventDate.split('-').map(Number);
@@ -185,7 +185,6 @@ export default function DetalhesEventoScreen() {
   const [totalExpenses, setTotalExpenses] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [creatorName, setCreatorName] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
@@ -795,57 +794,13 @@ export default function DetalhesEventoScreen() {
 
   const cloneDateLabel = formatDate(formatLocalDateToISO(cloneTargetDate));
 
-  const handleExportPDF = async () => {
-    if (!event || !currentUserId) return;
-
-    // Modal melhorado para escolher tipo de relatório
-    Alert.alert(
-      '📄 Exportar Relatório do Evento',
-      `Evento: ${event.name}\n\nEscolha o tipo de relatório que deseja gerar:`,
-      [
-        {
-          text: '💰 Com Valores Financeiros',
-          onPress: () => generateReport(true),
-          style: 'default'
-        },
-        {
-          text: '🔒 Sem Valores Financeiros',
-          onPress: () => generateReport(false),
-          style: 'default'
-        },
-        {
-          text: '❌ Cancelar',
-          style: 'cancel'
-        }
-      ],
-      { cancelable: true }
-    );
-  };
-
-  const generateReport = async (includeFinancials: boolean) => {
+  const handleCompartilharEvento = () => {
     if (!event) return;
-    
-    setIsGeneratingPDF(true);
-    
-    try {
-      const result = await generateEventPDF({
-        event,
-        totalExpenses,
-        creatorName: creatorName || undefined,
-        artistName: activeArtist?.name || undefined,
-        includeFinancials
-      });
-      
-      if (!result.success) {
-        Alert.alert('❌ Erro ao Gerar Relatório', result.error || 'Ocorreu um erro inesperado. Tente novamente.');
-      }
-    } catch (error) {
-      Alert.alert('❌ Erro ao Gerar Relatório', 'Ocorreu um erro inesperado ao gerar o relatório. Verifique sua conexão e tente novamente.');
-    } finally {
-      setIsGeneratingPDF(false);
-    }
+    promptAndShareEvent(event, {
+      hasFinancialAccess: hasAccess === true,
+      artistDisplayName: activeArtist?.name,
+    });
   };
-
 
 
   if (isLoading) {
@@ -1180,19 +1135,14 @@ export default function DetalhesEventoScreen() {
 
         {/* Ações */}
         <View style={styles.actionsContainer}>
-          {hasAccess && (
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              onPress={handleExportPDF}
-              disabled={isGeneratingPDF}
-            >
-              <Ionicons name="document-text" size={24} color="#9C27B0" />
-              <Text style={[styles.actionButtonText, { color: colors.text }]}>
-                {isGeneratingPDF ? 'Gerando Relatório...' : 'Exportar Relatório'}
-              </Text>
-              <Ionicons name="chevron-forward" size={20} color={colors.text} />
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={handleCompartilharEvento}
+          >
+            <Ionicons name="share-outline" size={24} color={colors.primary} />
+            <Text style={[styles.actionButtonText, { color: colors.text }]}>Compartilhar</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.text} />
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}

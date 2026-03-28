@@ -278,6 +278,18 @@ export default function AgendaScreen() {
     // 00:00/00:00 = "não definido"
     return !(s === '00:00' && e === '00:00');
   };
+
+  const formatDisplayDate = (dateString: string | null) => {
+    if (!dateString) return '';
+    const [y, m, d] = dateString.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    return date.toLocaleDateString('pt-BR', {
+      weekday: 'long',
+      day: '2-digit',
+      month: 'long',
+    });
+  };
+
   const todayString = useMemo(() => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -841,12 +853,12 @@ export default function AgendaScreen() {
     const dayOfWeek = eventDate.toLocaleDateString('pt-BR', { weekday: 'short' });
     
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         style={[
-          styles.showCard, 
-          { 
-            backgroundColor: colors.surface
-          }
+          styles.showCard,
+          {
+            backgroundColor: colors.surface,
+          },
         ]}
         onPress={() => handleEventPress(item.id)}
         activeOpacity={hasFinancialAccess ? 0.7 : 1}
@@ -856,7 +868,7 @@ export default function AgendaScreen() {
             <Text style={styles.showDateNumber}>{day}</Text>
             <Text style={styles.showDateText}>{dayOfWeek}</Text>
           </View>
-          
+
           <View style={styles.showInfoSection}>
             <View style={styles.showHeaderRow}>
               <View style={styles.eventNameContainer}>
@@ -872,7 +884,7 @@ export default function AgendaScreen() {
                 </View>
               )}
             </View>
-            
+
             {hasDefinedTime(item.start_time, item.end_time) ? (
               <View style={styles.showDetailItem}>
                 <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
@@ -882,14 +894,14 @@ export default function AgendaScreen() {
                 </Text>
               </View>
             ) : null}
-            
+
             {item.city && (
               <View style={styles.showDetailItem}>
                 <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
                 <Text style={[styles.showLocation, { color: colors.textSecondary }]}>{item.city}</Text>
               </View>
             )}
-            
+
             {item.value !== null && item.value !== undefined ? (
               <Text style={[styles.showValue, { color: colors.primary }]}>
                 {formatEventValueBRL(item.value)}
@@ -903,23 +915,13 @@ export default function AgendaScreen() {
               </View>
             )}
           </View>
-          
+
           <View style={styles.showArrowSection}>
             <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
           </View>
         </View>
       </TouchableOpacity>
     );
-  };
-  const formatDisplayDate = (dateString: string | null) => {
-    if (!dateString) return '';
-    const [year, month, day] = dateString.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    return date.toLocaleDateString('pt-BR', {
-      weekday: 'long',
-      day: '2-digit',
-      month: 'long'
-    });
   };
   const handleDayPress = async (dateString: string | null) => {
     if (!dateString) return;
