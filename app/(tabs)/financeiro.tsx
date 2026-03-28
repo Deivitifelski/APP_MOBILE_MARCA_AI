@@ -28,10 +28,10 @@ import {
 import { supabase } from '../../lib/supabase';
 import { generateFinancialReport } from '../../services/financialReportService';
 import {
-    clearFinancialGoal,
-    getFinancialGoal,
-    setFinancialGoal,
-} from '../../services/financialGoalStorage';
+  deleteArtistMonthRevenueGoal,
+  getArtistMonthRevenueGoal,
+  upsertArtistMonthRevenueGoal,
+} from '../../services/supabase/artistMonthRevenueGoalService';
 import { getEventsByMonth } from '../../services/supabase/eventService';
 import { deleteStandaloneExpense, getExpensesByEvent, getStandaloneExpensesByArtist } from '../../services/supabase/expenseService';
 // import * as FileSystem from 'expo-file-system';
@@ -163,21 +163,23 @@ export default function FinanceiroScreen() {
     }
   };
 
-  // Meta de receita do mês (local)
+  const loadMonthRevenueGoal = React.useCallback(async () => {
+    if (!activeArtist?.id || !currentUserId) {
+      setMonthRevenueGoal(null);
+      return;
+    }
+    const { goal } = await getArtistMonthRevenueGoal(
+      activeArtist.id,
+      currentYear,
+      currentMonth
+    );
+    setMonthRevenueGoal(goal);
+  }, [activeArtist?.id, currentUserId, currentYear, currentMonth]);
+
+  // Meta de receita do mês (Supabase — mesma meta para todos os membros do artista)
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!activeArtist) {
-        setMonthRevenueGoal(null);
-        return;
-      }
-      const g = await getFinancialGoal(activeArtist.id, currentYear, currentMonth);
-      if (!cancelled) setMonthRevenueGoal(g);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeArtist?.id, currentYear, currentMonth]);
+    void loadMonthRevenueGoal();
+  }, [loadMonthRevenueGoal]);
 
   // ✅ Carregar dados financeiros (eventos sempre, valores só com permissão)
   useEffect(() => {
@@ -192,7 +194,10 @@ export default function FinanceiroScreen() {
       if (activeArtist && hasAccess !== null) {
         loadFinancialData();
       }
-    }, [activeArtist?.id, hasAccess, currentMonth, currentYear])
+      if (activeArtist?.id && currentUserId) {
+        void loadMonthRevenueGoal();
+      }
+    }, [activeArtist?.id, hasAccess, currentMonth, currentYear, currentUserId, loadMonthRevenueGoal])
   );
 
   const loadFinancialData = async () => {
@@ -482,21 +487,50 @@ export default function FinanceiroScreen() {
   };
 
   const saveGoalFromModal = async () => {
-    if (!activeArtist) return;
+    if (!activeArtist || !currentUserId) {
+      Alert.alert('Sessão', 'Entre na conta para salvar a meta.');
+      return;
+    }
     const raw = extractNumericValueString(goalInputText);
     const n = raw ? parseFloat(raw) : NaN;
     if (!Number.isFinite(n) || n <= 0) {
       Alert.alert('Valor inválido', 'Informe um valor maior que zero.');
       return;
     }
-    await setFinancialGoal(activeArtist.id, currentYear, currentMonth, n);
+    const { success, error } = await upsertArtistMonthRevenueGoal(
+      activeArtist.id,
+      currentYear,
+      currentMonth,
+      n,
+      currentUserId
+    );
+    if (!success) {
+      const friendly =
+        error && /row-level security|RLS|permission denied|violates row-level/i.test(error)
+          ? 'Apenas editores, administradores e donos do artista podem alterar a meta.'
+          : error || 'Tente novamente.';
+      Alert.alert('Não foi possível salvar', friendly);
+      return;
+    }
     setMonthRevenueGoal(n);
     setShowGoalModal(false);
   };
 
   const removeGoal = async () => {
-    if (!activeArtist) return;
-    await clearFinancialGoal(activeArtist.id, currentYear, currentMonth);
+    if (!activeArtist || !currentUserId) return;
+    const { success, error } = await deleteArtistMonthRevenueGoal(
+      activeArtist.id,
+      currentYear,
+      currentMonth
+    );
+    if (!success) {
+      const friendly =
+        error && /row-level security|RLS|permission denied|violates row-level/i.test(error)
+          ? 'Apenas editores, administradores e donos do artista podem remover a meta.'
+          : error || 'Tente novamente.';
+      Alert.alert('Não foi possível remover', friendly);
+      return;
+    }
     setMonthRevenueGoal(null);
     setShowGoalModal(false);
   };
@@ -1143,8 +1177,8 @@ export default function FinanceiroScreen() {
           <View style={[styles.goalModalCard, { backgroundColor: colors.surface }]}>
             <Text style={[styles.goalModalTitle, { color: colors.text }]}>Meta de receita</Text>
             <Text style={[styles.goalModalSub, { color: colors.textSecondary }]}>
-              Valor total que você quer faturar em {months[currentMonth]} de {currentYear} (eventos + receitas
-              avulsas).
+              Meta de {months[currentMonth]} de {currentYear} (eventos + receitas avulsas). Todos os membros do
+              artista veem a mesma meta.
             </Text>
             <TextInput
               style={[
