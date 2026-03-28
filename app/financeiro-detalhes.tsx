@@ -149,12 +149,17 @@ export default function FinanceiroDetalhesScreen() {
     const standaloneExpensesTotal = standaloneExpensesOnly.reduce((s, x) => s + (x.value || 0), 0);
     const totalRevenueWithIncome = totalRevenue + standaloneIncomeTotal;
     const totalExpenses = eventsExpenses + standaloneExpensesTotal;
+    const eventCount = events.length;
+    const expenseEntriesCount =
+      events.reduce((s, e) => s + e.expenses.length, 0) + standaloneExpensesOnly.length;
     return {
       totalRevenue,
       standaloneIncomeTotal,
       totalRevenueWithIncome,
       totalExpenses,
       netProfit: totalRevenueWithIncome - totalExpenses,
+      eventCount,
+      expenseEntriesCount,
     };
   }, [events, standaloneIncome, standaloneExpensesOnly]);
 
@@ -354,6 +359,16 @@ export default function FinanceiroDetalhesScreen() {
               valueColor={totals.netProfit >= 0 ? colors.success : colors.error}
               strong
             />
+            <CountInline
+              label="Total de eventos"
+              count={totals.eventCount}
+              colors={colors}
+            />
+            <CountInline
+              label="Total de despesas"
+              count={totals.expenseEntriesCount}
+              colors={colors}
+            />
           </View>
 
           <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 22 }]}>
@@ -455,6 +470,23 @@ function Row({
   );
 }
 
+function CountInline({
+  label,
+  count,
+  colors,
+}: {
+  label: string;
+  count: number;
+  colors: RowColors;
+}) {
+  return (
+    <View style={styles.countInlineRow}>
+      <Text style={[styles.countInlineLabel, { color: colors.textSecondary }]}>{label}</Text>
+      <Text style={[styles.countInlineNum, { color: colors.text }]}>{count}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
   header: {
@@ -532,6 +564,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 8,
+  },
+  countInlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+    marginTop: 2,
+  },
+  countInlineLabel: {
+    fontSize: 13,
+    flex: 1,
+    paddingRight: 8,
+  },
+  countInlineNum: {
+    fontSize: 11,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+    minWidth: 24,
+    textAlign: 'right',
   },
   summaryLabel: { fontSize: 15 },
   summaryValue: { fontSize: 15 },
