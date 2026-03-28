@@ -53,12 +53,12 @@ export function buildEventShareMessage(
   hasFinancialAccess: boolean
 ): string {
   const lines: string[] = [];
-  lines.push('**DETALHES DO EVENTO**');
+  lines.push('*DETALHES DO EVENTO*');
   lines.push('');
 
   if (nonEmptyString(artistDisplayName)) {
     const name = artistDisplayName.trim();
-    lines.push(`Artista: **${name}**`);
+    lines.push(`Artista: *${name}*`);
   }
 
   const eventTitle = nonEmptyString(item?.name) ? item.name.trim() : 'Evento';
