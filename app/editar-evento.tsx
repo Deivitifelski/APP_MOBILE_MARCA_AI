@@ -19,6 +19,10 @@ import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { removeEventContractByUrl, uploadEventContractFile } from '../services/supabase/eventContractUploadService';
 import { getEventById, updateEvent, UpdateEventData } from '../services/supabase/eventService';
+import {
+  extractNumericValueString,
+  formatCurrencyBRLInput,
+} from '../utils/currencyBRLInput';
 
 interface EventoForm {
   nome: string;
@@ -315,7 +319,7 @@ export default function EditarEventoScreen() {
 
         setForm({
           nome: event.name,
-          valor: event.value ? formatCurrency((event.value * 100).toString()) : '',
+          valor: event.value ? formatCurrencyBRLInput((event.value * 100).toString()) : '',
           cidade: event.city || '',
           telefoneContratante: maskPhone(event.contractor_phone || ''),
           data: eventDate,
@@ -383,7 +387,7 @@ export default function EditarEventoScreen() {
       return;
     }
 
-    const numericValue = extractNumericValue(form.valor);
+    const numericValue = extractNumericValueString(form.valor);
     if (!numericValue || isNaN(parseFloat(numericValue))) {
       Alert.alert('Erro', 'Valor deve ser um número válido');
       return;
@@ -497,33 +501,6 @@ export default function EditarEventoScreen() {
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
-  const formatCurrency = (value: string) => {
-    // Remove tudo que não é dígito
-    const numericValue = value.replace(/\D/g, '');
-    
-    // Se não há valor, retorna vazio
-    if (!numericValue) return '';
-    
-    // Limita a 11 dígitos (999.999.999,99)
-    const limitedValue = numericValue.slice(0, 11);
-    
-    // Converte para número e divide por 100 para ter centavos
-    const amount = parseInt(limitedValue) / 100;
-    
-    // Formata como moeda brasileira
-    return amount.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
-  };
-
-  const extractNumericValue = (formattedValue: string) => {
-    const numericValue = formattedValue.replace(/\D/g, '');
-    return numericValue ? (parseInt(numericValue) / 100).toString() : '';
-  };
-
   if (isLoadingEvent) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -574,7 +551,7 @@ export default function EditarEventoScreen() {
             style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
             value={form.valor}
             onChangeText={(text) => {
-              const formatted = formatCurrency(text);
+              const formatted = formatCurrencyBRLInput(text);
               updateForm('valor', formatted);
             }}
             placeholder="R$ 0,00"

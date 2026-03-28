@@ -22,6 +22,10 @@ import { getCurrentUser } from '../services/supabase/authService';
 import { uploadEventContractFile } from '../services/supabase/eventContractUploadService';
 import { createEvent, CreateExpenseData } from '../services/supabase/eventService';
 import { useActiveArtist } from '../services/useActiveArtist';
+import {
+  extractNumericValueString,
+  formatCurrencyBRLInput,
+} from '../utils/currencyBRLInput';
 
 interface EventoForm {
   nome: string;
@@ -486,7 +490,7 @@ export default function AdicionarEventoScreen() {
     }
 
     // Extrair valor numérico do texto formatado
-    const numericValue = extractNumericValue(form.valor);
+    const numericValue = extractNumericValueString(form.valor);
     if (!numericValue || isNaN(parseFloat(numericValue))) {
       Alert.alert('Erro', 'Valor deve ser um número válido');
       return;
@@ -583,35 +587,6 @@ export default function AdicionarEventoScreen() {
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
-  // Função para formatar valor em Real
-  const formatCurrency = (value: string) => {
-    // Remove tudo que não é dígito
-    const numericValue = value.replace(/\D/g, '');
-    
-    // Se não há valor, retorna vazio
-    if (!numericValue) return '';
-    
-    // Limita a 11 dígitos (999.999.999,99)
-    const limitedValue = numericValue.slice(0, 11);
-    
-    // Converte para número e divide por 100 para ter centavos
-    const amount = parseInt(limitedValue) / 100;
-    
-    // Formata como moeda brasileira
-    return amount.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
-  };
-
-  // Função para extrair valor numérico do texto formatado
-  const extractNumericValue = (formattedValue: string) => {
-    const numericValue = formattedValue.replace(/\D/g, '');
-    return numericValue ? (parseInt(numericValue) / 100).toString() : '';
-  };
-
   const addDespesa = () => {
     setDespesas(prev => [...prev, { nome: '', valor: '' }]);
   };
@@ -682,7 +657,7 @@ export default function AdicionarEventoScreen() {
             style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
             value={form.valor}
             onChangeText={(text) => {
-              const formatted = formatCurrency(text);
+              const formatted = formatCurrencyBRLInput(text);
               updateForm('valor', formatted);
             }}
             placeholder="R$ 0,00"
@@ -965,7 +940,7 @@ export default function AdicionarEventoScreen() {
                   <Text style={[styles.despesaLabel, { color: colors.text }]}>Valor (R$) *</Text>
                   <TextInput
                     style={[styles.despesaInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
-                    value={despesa.valor ? formatCurrency(despesa.valor) : ''}
+                    value={despesa.valor ? formatCurrencyBRLInput(despesa.valor) : ''}
                     onChangeText={(text) => {
                       const numericValue = text.replace(/\D/g, '').slice(0, 11);
                       updateDespesa(index, 'valor', numericValue);

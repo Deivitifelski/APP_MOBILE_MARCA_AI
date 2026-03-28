@@ -20,6 +20,11 @@ import PermissionModal from '../../components/PermissionModal';
 import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { formatCalendarDate } from '../../lib/dateUtils';
+import {
+  extractNumericValueString,
+  formatCurrencyBRLFromAmount,
+  formatCurrencyBRLInput,
+} from '../../utils/currencyBRLInput';
 import { supabase } from '../../lib/supabase';
 import { generateFinancialReport } from '../../services/financialReportService';
 import {
@@ -468,14 +473,18 @@ export default function FinanceiroScreen() {
       : 0;
 
   const openGoalModal = () => {
-    setGoalInputText(monthRevenueGoal != null ? String(monthRevenueGoal) : '');
+    setGoalInputText(
+      monthRevenueGoal != null && monthRevenueGoal > 0
+        ? formatCurrencyBRLFromAmount(monthRevenueGoal)
+        : ''
+    );
     setShowGoalModal(true);
   };
 
   const saveGoalFromModal = async () => {
     if (!activeArtist) return;
-    const raw = goalInputText.replace(/\./g, '').replace(',', '.').trim();
-    const n = parseFloat(raw);
+    const raw = extractNumericValueString(goalInputText);
+    const n = raw ? parseFloat(raw) : NaN;
     if (!Number.isFinite(n) || n <= 0) {
       Alert.alert('Valor inválido', 'Informe um valor maior que zero.');
       return;
@@ -1134,7 +1143,8 @@ export default function FinanceiroScreen() {
           <View style={[styles.goalModalCard, { backgroundColor: colors.surface }]}>
             <Text style={[styles.goalModalTitle, { color: colors.text }]}>Meta de receita</Text>
             <Text style={[styles.goalModalSub, { color: colors.textSecondary }]}>
-              Valor total que você quer faturar em {months[currentMonth]} de {currentYear} (eventos + receitas avulsas).
+              Valor total que você quer faturar em {months[currentMonth]} de {currentYear} (eventos + receitas
+              avulsas).
             </Text>
             <TextInput
               style={[
@@ -1142,10 +1152,12 @@ export default function FinanceiroScreen() {
                 { color: colors.text, borderColor: colors.border, backgroundColor: colors.background },
               ]}
               value={goalInputText}
-              onChangeText={setGoalInputText}
-              keyboardType="decimal-pad"
-              placeholder="Ex.: 10000"
+              onChangeText={(text) => setGoalInputText(formatCurrencyBRLInput(text))}
+              placeholder="R$ 0,00"
               placeholderTextColor={colors.textSecondary}
+              keyboardType="numeric"
+              autoCorrect={false}
+              autoCapitalize="none"
             />
             <TouchableOpacity
               style={[styles.goalModalPrimary, { backgroundColor: colors.primary }]}
