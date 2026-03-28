@@ -11,6 +11,7 @@ import {
     ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
     View
 } from 'react-native';
@@ -20,6 +21,11 @@ import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { generateFinancialReport } from '../../services/financialReportService';
+import {
+    clearFinancialGoal,
+    getFinancialGoal,
+    setFinancialGoal,
+} from '../../services/financialGoalStorage';
 import { getEventsByMonth } from '../../services/supabase/eventService';
 import { deleteStandaloneExpense, getExpensesByEvent, getStandaloneExpensesByArtist } from '../../services/supabase/expenseService';
 // import * as FileSystem from 'expo-file-system';
@@ -29,6 +35,7 @@ interface EventWithExpenses {
   name: string;
   event_date: string;
   value?: number;
+  created_by?: string;
   expenses: any[];
   totalExpenses: number;
   city?: string;
@@ -52,6 +59,9 @@ export default function FinanceiroScreen() {
   // Estados para controle de acesso
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [isCheckingAccess, setIsCheckingAccess] = useState(true);
+  const [monthRevenueGoal, setMonthRevenueGoal] = useState<number | null>(null);
+  const [showGoalModal, setShowGoalModal] = useState(false);
+  const [goalInputText, setGoalInputText] = useState('');
 
   const currentMonth = selectedDate.getMonth();
   const currentYear = selectedDate.getFullYear();
@@ -146,6 +156,22 @@ export default function FinanceiroScreen() {
       setIsCheckingAccess(false);
     }
   };
+
+  // Meta de receita do mês (local)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!activeArtist) {
+        setMonthRevenueGoal(null);
+        return;
+      }
+      const g = await getFinancialGoal(activeArtist.id, currentYear, currentMonth);
+      if (!cancelled) setMonthRevenueGoal(g);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeArtist?.id, currentYear, currentMonth]);
 
   // ✅ Carregar dados financeiros (eventos sempre, valores só com permissão)
   useEffect(() => {
@@ -440,6 +466,39 @@ export default function FinanceiroScreen() {
   const totalRevenueWithIncome = totalRevenue + standaloneIncomeTotal;
   const netProfit = totalRevenueWithIncome - totalExpenses;
 
+  const goalProgress =
+    monthRevenueGoal != null && monthRevenueGoal > 0
+      ? Math.min(1, totalRevenueWithIncome / monthRevenueGoal)
+      : 0;
+  const goalPercentLabel =
+    monthRevenueGoal != null && monthRevenueGoal > 0
+      ? Math.min(999, Math.round((totalRevenueWithIncome / monthRevenueGoal) * 100))
+      : 0;
+
+  const openGoalModal = () => {
+    setGoalInputText(monthRevenueGoal != null ? String(monthRevenueGoal) : '');
+    setShowGoalModal(true);
+  };
+
+  const saveGoalFromModal = async () => {
+    if (!activeArtist) return;
+    const raw = goalInputText.replace(/\./g, '').replace(',', '.').trim();
+    const n = parseFloat(raw);
+    if (!Number.isFinite(n) || n <= 0) {
+      Alert.alert('Valor inválido', 'Informe um valor maior que zero.');
+      return;
+    }
+    await setFinancialGoal(activeArtist.id, currentYear, currentMonth, n);
+    setMonthRevenueGoal(n);
+    setShowGoalModal(false);
+  };
+
+  const removeGoal = async () => {
+    if (!activeArtist) return;
+    await clearFinancialGoal(activeArtist.id, currentYear, currentMonth);
+    setMonthRevenueGoal(null);
+    setShowGoalModal(false);
+  };
 
   const handleDeleteStandaloneExpense = async (expenseId: string) => {
     if (!hasAccess) {
@@ -756,6 +815,60 @@ export default function FinanceiroScreen() {
           </View>
         )}
 
+        {hasAccess && activeArtist && (
+          <View style={styles.goalSection}>
+            <View style={[styles.goalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <View style={styles.goalHeaderRow}>
+                <Text style={[styles.goalTitle, { color: colors.text }]}>Meta de receita do mês</Text>
+                <TouchableOpacity onPress={openGoalModal} hitSlop={12}>
+                  <Text style={[styles.goalLink, { color: colors.primary }]}>
+                    {monthRevenueGoal != null ? 'Editar' : 'Definir'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {monthRevenueGoal != null && monthRevenueGoal > 0 ? (
+                <>
+                  <View style={[styles.progressTrack, { backgroundColor: colors.background }]}>
+                    <View
+                      style={[
+                        styles.progressFill,
+                        {
+                          width: `${goalProgress * 100}%`,
+                          backgroundColor: goalProgress >= 1 ? colors.success : colors.primary,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={[styles.goalStats, { color: colors.textSecondary }]}>
+                    {formatCurrency(totalRevenueWithIncome)} de {formatCurrency(monthRevenueGoal)} ({goalPercentLabel}%)
+                  </Text>
+                  {goalProgress >= 1 ? (
+                    <Text style={[styles.goalCongrats, { color: colors.success }]}>Meta atingida</Text>
+                  ) : null}
+                </>
+              ) : (
+                <Text style={[styles.goalHint, { color: colors.textSecondary }]}>
+                  Defina um valor (ex.: R$ 10.000) para acompanhar o quanto da meta você já faturou neste mês.
+                </Text>
+              )}
+              <TouchableOpacity
+                style={[styles.detailsButton, { borderColor: colors.primary }]}
+                onPress={() =>
+                  router.push({
+                    pathname: '/financeiro-detalhes',
+                    params: { month: String(currentMonth), year: String(currentYear) },
+                  })
+                }
+                activeOpacity={0.85}
+              >
+                <Ionicons name="pie-chart-outline" size={22} color={colors.primary} />
+                <Text style={[styles.detailsButtonText, { color: colors.primary }]}>Ver detalhes</Text>
+                <Ionicons name="chevron-forward" size={20} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Lista de eventos */}
         <View style={styles.eventsSection}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
@@ -1000,6 +1113,52 @@ export default function FinanceiroScreen() {
         message="Apenas gerentes e editores podem visualizar os detalhes e valores financeiros dos eventos. Entre em contato com um gerente para solicitar mais permissões."
         icon="lock-closed"
       />
+
+      <Modal
+        visible={showGoalModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowGoalModal(false)}
+      >
+        <View style={styles.goalModalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFillObject}
+            activeOpacity={1}
+            onPress={() => setShowGoalModal(false)}
+          />
+          <View style={[styles.goalModalCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.goalModalTitle, { color: colors.text }]}>Meta de receita</Text>
+            <Text style={[styles.goalModalSub, { color: colors.textSecondary }]}>
+              Valor total que você quer faturar em {months[currentMonth]} de {currentYear} (eventos + receitas avulsas).
+            </Text>
+            <TextInput
+              style={[
+                styles.goalModalInput,
+                { color: colors.text, borderColor: colors.border, backgroundColor: colors.background },
+              ]}
+              value={goalInputText}
+              onChangeText={setGoalInputText}
+              keyboardType="decimal-pad"
+              placeholder="Ex.: 10000"
+              placeholderTextColor={colors.textSecondary}
+            />
+            <TouchableOpacity
+              style={[styles.goalModalPrimary, { backgroundColor: colors.primary }]}
+              onPress={() => void saveGoalFromModal()}
+            >
+              <Text style={styles.goalModalPrimaryText}>Salvar</Text>
+            </TouchableOpacity>
+            {monthRevenueGoal != null ? (
+              <TouchableOpacity style={styles.goalModalRemove} onPress={() => void removeGoal()}>
+                <Text style={[styles.goalModalRemoveText, { color: colors.error }]}>Remover meta</Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity style={styles.goalModalCancel} onPress={() => setShowGoalModal(false)}>
+              <Text style={[styles.goalModalCancelText, { color: colors.textSecondary }]}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Modal de Exportação */}
       <Modal
@@ -1788,6 +1947,121 @@ const styles = StyleSheet.create({
   addModalCancelText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  goalSection: {
+    paddingHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  goalCard: {
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  goalHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  goalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    flex: 1,
+  },
+  goalLink: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  progressTrack: {
+    height: 10,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 6,
+  },
+  goalStats: {
+    fontSize: 13,
+    marginTop: 8,
+  },
+  goalCongrats: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 6,
+  },
+  goalHint: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  detailsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  detailsButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    flex: 1,
+  },
+  goalModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  goalModalCard: {
+    borderRadius: 16,
+    padding: 20,
+  },
+  goalModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  goalModalSub: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 14,
+  },
+  goalModalInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 17,
+    marginBottom: 16,
+  },
+  goalModalPrimary: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  goalModalPrimaryText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  goalModalRemove: {
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  goalModalRemoveText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  goalModalCancel: {
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  goalModalCancelText: {
+    fontSize: 15,
   },
 });
 

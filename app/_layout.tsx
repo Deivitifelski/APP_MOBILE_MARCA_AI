@@ -123,6 +123,7 @@ function RootLayoutContent() {
         <Stack.Screen name="adicionar-despesa" options={{ headerShown: false }} />
         <Stack.Screen name="adicionar-receita" options={{ headerShown: false }} />
         <Stack.Screen name="despesas-evento" options={{ headerShown: false }} />
+        <Stack.Screen name="financeiro-detalhes" options={{ headerShown: false }} />
         <Stack.Screen name="notificacoes" options={{ headerShown: false }} />
         <Stack.Screen name="editar-usuario" options={{ headerShown: false }} />
         <Stack.Screen name="editar-artista" options={{ headerShown: false }} />
