@@ -3,6 +3,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Alert } from 'react-native';
+import { formatCalendarDate } from '../lib/dateUtils';
 import { Event } from '../services/supabase/eventService';
 
 interface EventPDFData {
@@ -31,13 +32,6 @@ export const generateEventPDF = async (data: EventPDFData): Promise<{ success: b
     
     // Calcular lucro
     const profit = (event.value || 0) - totalExpenses;
-    
-    // Formatar data
-    const formatDate = (dateString: string) => {
-      const [year, month, day] = dateString.split('-').map(Number);
-      const date = new Date(year, month - 1, day);
-      return date.toLocaleDateString('pt-BR');
-    };
     
     // Formatar hora
     const formatTime = (timeString: string) => {
@@ -178,7 +172,7 @@ export const generateEventPDF = async (data: EventPDFData): Promise<{ success: b
           </div>
           <div class="info-row">
             <div class="info-label">Data:</div>
-            <div class="info-value">${formatDate(event.event_date)}</div>
+            <div class="info-value">${formatCalendarDate(event.event_date)}</div>
           </div>
           <div class="info-row">
             <div class="info-label">Horário:</div>
@@ -296,7 +290,7 @@ export const generateEventPDF = async (data: EventPDFData): Promise<{ success: b
 
 📋 INFORMAÇÕES DO EVENTO
 Nome: ${event.name}
-Data: ${formatDate(event.event_date)}
+Data: ${formatCalendarDate(event.event_date)}
 Horário: ${formatTime(event.start_time)} às ${formatTime(event.end_time)}
 Local: ${event.city || 'Não informado'}
 Contato: ${event.contractor_phone || 'Não informado'}
@@ -365,7 +359,7 @@ ${event.description ? `📝 DESCRIÇÃO\n${event.description}` : ''}
 
 📋 INFORMAÇÕES DO EVENTO
 Nome: ${event.name}
-Data: ${formatDate(event.event_date)}
+Data: ${formatCalendarDate(event.event_date)}
 Horário: ${formatTime(event.start_time)} às ${formatTime(event.end_time)}
 Local: ${event.city || 'Não informado'}
 Contato: ${event.contractor_phone || 'Não informado'}
@@ -411,13 +405,6 @@ ${event.description ? `📝 DESCRIÇÃO\n${event.description}` : ''}
 export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success: boolean; error?: string }> => {
   try {
     const { events, month, year, artistName, includeFinancials = true } = data;
-    
-    // Formatar data
-    const formatDate = (dateString: string) => {
-      const [y, m, d] = dateString.split('-').map(Number);
-      const date = new Date(y, m - 1, d);
-      return date.toLocaleDateString('pt-BR');
-    };
     
     // Formatar hora
     const formatTime = (timeString: string) => {
@@ -783,7 +770,7 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
                 return `
                 <tr>
                   <td><strong>${event.name}</strong></td>
-                  <td>${formatDate(event.event_date)}</td>
+                  <td>${formatCalendarDate(event.event_date)}</td>
                   ${includeFinancials ? `
                   <td style="text-align: right;">${formatNumber(event.value || 0)}</td>
                   <td style="text-align: right;">${formatNumber(eventExpenses)}</td>
@@ -810,7 +797,7 @@ export const generateAgendaPDF = async (data: AgendaPDFData): Promise<{ success:
             return `
             <div class="expense-card">
               <div class="expense-card-title">
-                Evento: ${event.name} - ${formatDate(event.event_date)}
+                Evento: ${event.name} - ${formatCalendarDate(event.event_date)}
               </div>
               <table class="expense-table">
                 <thead>

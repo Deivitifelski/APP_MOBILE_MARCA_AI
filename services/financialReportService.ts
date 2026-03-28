@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { formatCalendarDate } from '../lib/dateUtils';
 
 interface EventWithExpenses {
   id: string;
@@ -77,13 +78,6 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
       despesaTotal: totalExpensesWithStandalone,
       lucroLiquido: netProfit
     });
-    
-    // Formatar data
-    const formatDate = (dateString: string) => {
-      const [year, month, day] = dateString.split('-').map(Number);
-      const date = new Date(year, month - 1, day);
-      return date.toLocaleDateString('pt-BR');
-    };
     
     // Obter dia da semana
     const getDayOfWeek = (dateString: string) => {
@@ -383,7 +377,7 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
         ${includeFinancials ? events.map((event, index) => `
           <div class="event-card">
             <div class="event-card-title">
-              ${index + 1}. ${event.name} - ${formatDate(event.event_date)}
+              ${index + 1}. ${event.name} - ${formatCalendarDate(event.event_date)}
             </div>
             <table class="event-table">
               <thead>
@@ -425,7 +419,7 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
                 <td class="event-label">${event.name}</td>
                 <td class="event-value" style="text-align: center;">
                   <strong>${getDayOfWeek(event.event_date)}</strong><br/>
-                  ${formatDate(event.event_date)}
+                  ${formatCalendarDate(event.event_date)}
                 </td>
                 <td class="event-value" style="text-align: center;">${event.city || '-'}</td>
               </tr>
@@ -449,7 +443,7 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
             ${standaloneIncome.map(income => `
             <tr>
               <td class="event-label">${income.description}</td>
-              <td class="event-value" style="text-align: center;">${formatDate(income.date)}</td>
+              <td class="event-value" style="text-align: center;">${formatCalendarDate(income.date)}</td>
               <td class="event-value">R$ ${formatNumber(Math.abs(income.value))}</td>
             </tr>
             `).join('')}
@@ -476,7 +470,7 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
             ${standaloneExpenses.map(expense => `
             <tr>
               <td class="event-label">${expense.description}</td>
-              <td class="event-value" style="text-align: center;">${formatDate(expense.date)}</td>
+              <td class="event-value" style="text-align: center;">${formatCalendarDate(expense.date)}</td>
               <td class="event-value">R$ ${formatNumber(expense.value)}</td>
             </tr>
             `).join('')}

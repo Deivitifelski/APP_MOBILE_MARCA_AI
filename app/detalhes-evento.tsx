@@ -21,6 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import PermissionModal from '../components/PermissionModal';
 import OptimizedImage from '../components/OptimizedImage';
 import { useTheme } from '../contexts/ThemeContext';
+import { formatCalendarDate } from '../lib/dateUtils';
 import { supabase } from '../lib/supabase';
 import { getEventAuditLog, type EventAuditLogRow } from '../services/supabase/eventAuditService';
 import { getEventCreatorName } from '../services/supabase/eventCreatorService';
@@ -340,12 +341,7 @@ export default function DetalhesEventoScreen() {
   );
 
 
-  const formatDate = (dateString: string) => {
-    // Parse da data sem conversão de fuso horário
-    const [year, month, day] = dateString.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    return date.toLocaleDateString('pt-BR');
-  };
+  const formatDate = (dateString: string) => formatCalendarDate(dateString);
 
   const formatTime = (timeString: string) => {
     return timeString.substring(0, 5); // HH:MM

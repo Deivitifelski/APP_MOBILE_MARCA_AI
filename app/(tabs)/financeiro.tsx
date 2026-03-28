@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PermissionModal from '../../components/PermissionModal';
 import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { formatCalendarDate } from '../../lib/dateUtils';
 import { supabase } from '../../lib/supabase';
 import { generateFinancialReport } from '../../services/financialReportService';
 import {
@@ -266,9 +267,7 @@ export default function FinanceiroScreen() {
     if (!dateString) {
       return 'Data não informada';
     }
-    const [year, month, day] = dateString.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    return date.toLocaleDateString('pt-BR');
+    return formatCalendarDate(dateString);
   };
 
 
@@ -336,13 +335,6 @@ export default function FinanceiroScreen() {
     if (!activeArtist) return;
     
     setShowExportModal(false);
-
-    // Formatar data
-    const formatDate = (dateString: string) => {
-      const [year, month, day] = dateString.split('-').map(Number);
-      const date = new Date(year, month - 1, day);
-      return date.toLocaleDateString('pt-BR');
-    };
 
     // Obter dia da semana
     const getDayOfWeek = (dateString: string) => {
@@ -817,42 +809,6 @@ export default function FinanceiroScreen() {
 
         {hasAccess && activeArtist && (
           <View style={styles.goalSection}>
-            <View style={[styles.goalCard, { backgroundColor: colors.surface }]}>
-              <View style={styles.goalHeaderRow}>
-                <Text style={[styles.goalTitle, { color: colors.text }]}>Meta de receita do mês</Text>
-                <TouchableOpacity onPress={openGoalModal} hitSlop={12}>
-                  <Text style={[styles.goalLink, { color: colors.primary }]}>
-                    {monthRevenueGoal != null ? 'Editar' : 'Definir'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              {monthRevenueGoal != null && monthRevenueGoal > 0 ? (
-                <>
-                  <View style={[styles.progressTrack, { backgroundColor: colors.background }]}>
-                    <View
-                      style={[
-                        styles.progressFill,
-                        {
-                          width: `${goalProgress * 100}%`,
-                          backgroundColor: goalProgress >= 1 ? colors.success : colors.primary,
-                        },
-                      ]}
-                    />
-                  </View>
-                  <Text style={[styles.goalStats, { color: colors.textSecondary }]}>
-                    {formatCurrency(totalRevenueWithIncome)} de {formatCurrency(monthRevenueGoal)} ({goalPercentLabel}%)
-                  </Text>
-                  {goalProgress >= 1 ? (
-                    <Text style={[styles.goalCongrats, { color: colors.success }]}>Meta atingida</Text>
-                  ) : null}
-                </>
-              ) : (
-                <Text style={[styles.goalHint, { color: colors.textSecondary }]}>
-                  Defina um valor (ex.: R$ 10.000) para acompanhar o quanto da meta você já faturou neste mês.
-                </Text>
-              )}
-            </View>
-
             <TouchableOpacity
               style={[styles.detailsButton, { backgroundColor: colors.primary + '18' }]}
               onPress={() =>
@@ -874,6 +830,47 @@ export default function FinanceiroScreen() {
               </View>
               <Ionicons name="chevron-forward" size={22} color={colors.textSecondary} />
             </TouchableOpacity>
+
+            {monthRevenueGoal != null && monthRevenueGoal > 0 ? (
+              <View style={[styles.goalCard, { backgroundColor: colors.surface }]}>
+                <View style={styles.goalHeaderRow}>
+                  <Text style={[styles.goalTitle, { color: colors.text }]}>Meta de receita do mês</Text>
+                  <TouchableOpacity onPress={openGoalModal} hitSlop={12}>
+                    <Text style={[styles.goalLink, { color: colors.primary }]}>Editar</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={[styles.progressTrack, { backgroundColor: colors.background }]}>
+                  <View
+                    style={[
+                      styles.progressFill,
+                      {
+                        width: `${goalProgress * 100}%`,
+                        backgroundColor: goalProgress >= 1 ? colors.success : colors.primary,
+                      },
+                    ]}
+                  />
+                </View>
+                <Text style={[styles.goalStats, { color: colors.textSecondary }]}>
+                  {formatCurrency(totalRevenueWithIncome)} de {formatCurrency(monthRevenueGoal)} ({goalPercentLabel}%)
+                </Text>
+                {goalProgress >= 1 ? (
+                  <Text style={[styles.goalCongrats, { color: colors.success }]}>Meta atingida</Text>
+                ) : null}
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.goalCompactRow, { backgroundColor: colors.surface }]}
+                onPress={openGoalModal}
+                activeOpacity={0.75}
+                hitSlop={{ top: 4, bottom: 4 }}
+              >
+                <Ionicons name="flag-outline" size={17} color={colors.textSecondary} />
+                <Text style={[styles.goalCompactLabel, { color: colors.textSecondary }]}>
+                  Meta de receita do mês
+                </Text>
+                <Text style={[styles.goalCompactAction, { color: colors.primary }]}>Definir</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -2000,9 +1997,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 6,
   },
-  goalHint: {
+  goalCompactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    gap: 10,
+  },
+  goalCompactLabel: {
+    flex: 1,
     fontSize: 13,
-    lineHeight: 18,
+  },
+  goalCompactAction: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   detailsButton: {
     flexDirection: 'row',

@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import FinancialPieChart, { PieSlice } from '../components/FinancialPieChart';
 import { useActiveArtistContext } from '../contexts/ActiveArtistContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { formatCalendarDate } from '../lib/dateUtils';
 import { supabase } from '../lib/supabase';
 import { getEventsByMonth } from '../services/supabase/eventService';
 import { getExpensesByEvent, getStandaloneExpensesByArtist } from '../services/supabase/expenseService';
@@ -152,6 +153,10 @@ export default function FinanceiroDetalhesScreen() {
     const eventCount = events.length;
     const expenseEntriesCount =
       events.reduce((s, e) => s + e.expenses.length, 0) + standaloneExpensesOnly.length;
+    const totalEventProfits = events.reduce(
+      (s, e) => s + (e.value || 0) - e.totalExpenses,
+      0
+    );
     return {
       totalRevenue,
       standaloneIncomeTotal,
@@ -160,6 +165,7 @@ export default function FinanceiroDetalhesScreen() {
       netProfit: totalRevenueWithIncome - totalExpenses,
       eventCount,
       expenseEntriesCount,
+      totalEventProfits,
     };
   }, [events, standaloneIncome, standaloneExpensesOnly]);
 
@@ -378,22 +384,38 @@ export default function FinanceiroDetalhesScreen() {
             {topExpenses.length === 0 ? (
               <Text style={{ color: colors.textSecondary }}>Nenhuma despesa neste mês.</Text>
             ) : (
-              topExpenses.map((row, i) => (
+              <>
+                {topExpenses.map((row, i) => (
+                  <View
+                    key={`${row.name}-${i}`}
+                    style={[styles.listRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.listName, { color: colors.text }]} numberOfLines={2}>
+                        {row.name}
+                      </Text>
+                      <Text style={[styles.listSub, { color: colors.textSecondary }]} numberOfLines={1}>
+                        {row.source}
+                      </Text>
+                    </View>
+                    <Text style={[styles.listValue, { color: colors.error }]}>{formatCurrency(row.value)}</Text>
+                  </View>
+                ))}
                 <View
-                  key={`${row.name}-${i}`}
-                  style={[styles.listRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}
+                  style={[
+                    styles.listRow,
+                    styles.listTotalFooter,
+                    { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+                  ]}
                 >
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.listName, { color: colors.text }]} numberOfLines={2}>
-                      {row.name}
-                    </Text>
-                    <Text style={[styles.listSub, { color: colors.textSecondary }]} numberOfLines={1}>
-                      {row.source}
-                    </Text>
+                    <Text style={[styles.listName, { color: colors.text, fontWeight: '700' }]}>Total</Text>
                   </View>
-                  <Text style={[styles.listValue, { color: colors.error }]}>{formatCurrency(row.value)}</Text>
+                  <Text style={[styles.listValue, { color: colors.error, fontWeight: '700' }]}>
+                    {formatCurrency(totals.totalExpenses)}
+                  </Text>
                 </View>
-              ))
+              </>
             )}
           </View>
 
@@ -404,29 +426,53 @@ export default function FinanceiroDetalhesScreen() {
             {topProfits.length === 0 ? (
               <Text style={{ color: colors.textSecondary }}>Nenhum evento neste mês.</Text>
             ) : (
-              topProfits.map((row, i) => (
+              <>
+                {topProfits.map((row, i) => (
+                  <View
+                    key={`${row.name}-${i}`}
+                    style={[styles.listRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.listName, { color: colors.text }]} numberOfLines={2}>
+                        {row.name}
+                      </Text>
+                      <Text style={[styles.listSub, { color: colors.textSecondary }]} numberOfLines={1}>
+                        {formatCalendarDate(row.date)}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.listValue,
+                        { color: row.profit >= 0 ? colors.success : colors.error },
+                      ]}
+                    >
+                      {formatCurrency(row.profit)}
+                    </Text>
+                  </View>
+                ))}
                 <View
-                  key={`${row.name}-${i}`}
-                  style={[styles.listRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}
+                  style={[
+                    styles.listRow,
+                    styles.listTotalFooter,
+                    { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+                  ]}
                 >
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.listName, { color: colors.text }]} numberOfLines={2}>
-                      {row.name}
-                    </Text>
-                    <Text style={[styles.listSub, { color: colors.textSecondary }]} numberOfLines={1}>
-                      {row.date}
-                    </Text>
+                    <Text style={[styles.listName, { color: colors.text, fontWeight: '700' }]}>Total</Text>
                   </View>
                   <Text
                     style={[
                       styles.listValue,
-                      { color: row.profit >= 0 ? colors.success : colors.error },
+                      {
+                        fontWeight: '700',
+                        color: totals.totalEventProfits >= 0 ? colors.success : colors.error,
+                      },
                     ]}
                   >
-                    {formatCurrency(row.profit)}
+                    {formatCurrency(totals.totalEventProfits)}
                   </Text>
                 </View>
-              ))
+              </>
             )}
           </View>
         </ScrollView>
@@ -587,6 +633,7 @@ const styles = StyleSheet.create({
   summaryLabel: { fontSize: 15 },
   summaryValue: { fontSize: 15 },
   listRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 12 },
+  listTotalFooter: { paddingTop: 4 },
   listName: { fontSize: 15, fontWeight: '600' },
   listSub: { fontSize: 12, marginTop: 2 },
   listValue: { fontSize: 15, fontWeight: '700' },
