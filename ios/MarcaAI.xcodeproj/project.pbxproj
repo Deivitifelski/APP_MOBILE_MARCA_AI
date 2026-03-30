@@ -294,22 +294,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-MarcaAI/Pods-MarcaAI-frameworks.sh\"
-
-# Ensure embedded prebuilt frameworks have dSYMs in Archive
-if [ \"${CONFIGURATION}\" = \"Release\" ] && [ -n \"${DWARF_DSYM_FOLDER_PATH}\" ]; then
-  for FW in React.framework ReactNativeDependencies.framework hermes.framework; do
-    BIN=\"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/${FW}/${FW%.framework}\"
-    if [ -f \"$BIN\" ]; then
-      OUT=\"${DWARF_DSYM_FOLDER_PATH}/${FW}.dSYM\"
-      rm -rf \"$OUT\"
-      if command -v dsymutil >/dev/null 2>&1; then
-        dsymutil \"$BIN\" -o \"$OUT\" || true
-      fi
-    fi
-  done
-fi
-";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-MarcaAI/Pods-MarcaAI-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 		4C63F6B6745025BE83D5568C /* [CP-User] [RNFB] Core Configuration */ = {

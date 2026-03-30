@@ -105,7 +105,7 @@ export interface EnviarConviteParticipacaoInput {
   artistaQueConvidaId: string;
   artistaConvidadoId: string;
   usuarioQueEnviaId: string;
-  funcaoParticipacao?: string | null;
+  funcaoParticipacao: string;
   mensagem?: string | null;
   nomeEvento: string;
   dataEvento: string;
@@ -138,12 +138,15 @@ export async function enviarConviteParticipacao(
     if (input.cacheValor == null || Number(input.cacheValor) <= 0) {
       return { success: false, error: 'Informe o cachê do convite (obrigatório).' };
     }
-    const { data, error } = await supabase.rpc('rpc_enviar_convite_participacao_evento', {
+    if (!input.funcaoParticipacao?.trim()) {
+      return { success: false, error: 'Informe a função do participante (obrigatório).' };
+    }
+    const { data, error } = await supabase.rpc('rpc_app_enviar_convite_participacao_evento', {
       p_evento_origem_id: input.eventoOrigemId,
       p_artista_convidado_id: input.artistaConvidadoId,
       p_cache_valor: Number(input.cacheValor),
       p_telefone_contratante: input.telefoneContratante?.trim() || null,
-      p_funcao_participacao: input.funcaoParticipacao?.trim() || null,
+      p_funcao_participacao: input.funcaoParticipacao.trim(),
       p_mensagem: input.mensagem?.trim() || null,
     });
 
@@ -228,7 +231,7 @@ export async function recusarConviteParticipacao(
   options?: { motivo?: string | null; usuarioRecusouId?: string | null }
 ): Promise<{ success: boolean; error: string | null }> {
   try {
-    const { data, error } = await supabase.rpc('rpc_recusar_convite_participacao_evento', {
+    const { data, error } = await supabase.rpc('rpc_app_recusar_convite_participacao_evento', {
       p_convite_id: conviteId,
       p_motivo: options?.motivo?.trim() || null,
     });
@@ -246,7 +249,7 @@ export async function cancelarConviteParticipacao(
   conviteId: string
 ): Promise<{ success: boolean; error: string | null }> {
   try {
-    const { data, error } = await supabase.rpc('rpc_cancelar_convite_pendente_participacao_evento', {
+    const { data, error } = await supabase.rpc('rpc_app_cancelar_convite_pendente_participacao_evento', {
       p_convite_id: conviteId,
     });
     if (error) return { success: false, error: error.message };
@@ -269,7 +272,7 @@ export async function cancelarParticipacaoAceita(
     const motivoLimpo = motivo?.trim() || '';
     if (!motivoLimpo) return { success: false, error: 'Informe o motivo do cancelamento.' };
 
-    const { data, error } = await supabase.rpc('rpc_cancelar_participacao_aceita_evento', {
+    const { data, error } = await supabase.rpc('rpc_app_cancelar_participacao_aceita_evento', {
       p_convite_id: conviteId,
       p_motivo: motivoLimpo,
     });
@@ -295,7 +298,7 @@ export async function aceitarConviteParticipacao(
     void artistaConvidadoId;
     void options;
 
-    const { data, error } = await supabase.rpc('rpc_aceitar_convite_participacao_evento', {
+    const { data, error } = await supabase.rpc('rpc_app_aceitar_convite_participacao_evento', {
       p_convite_id: conviteId,
     });
     if (error) return { success: false, error: error.message };

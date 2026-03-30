@@ -9,6 +9,7 @@ import {
     ActivityIndicator,
     Alert,
     FlatList,
+    Keyboard,
     Modal,
     Platform,
     ScrollView,
@@ -17,6 +18,7 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
+    TouchableWithoutFeedback,
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -230,7 +232,7 @@ export default function DetalhesEventoScreen() {
   const [participationSearchLoading, setParticipationSearchLoading] = useState(false);
   const [participationSearchError, setParticipationSearchError] = useState<string | null>(null);
   const [inviteMessageDraft, setInviteMessageDraft] = useState('');
-  const [inviteCacheDraft, setInviteCacheDraft] = useState('');
+  const [inviteCacheDraft, setInviteCacheDraft] = useState('R$ 0,00');
   const [inviteWhatsappDraft, setInviteWhatsappDraft] = useState('');
   const [inviteFunctionDraft, setInviteFunctionDraft] = useState('');
   const [selectedArtistToInvite, setSelectedArtistToInvite] = useState<{ id: string; name: string } | null>(null);
@@ -353,13 +355,18 @@ export default function DetalhesEventoScreen() {
         setParticipationSearchLoading(true);
         setParticipationSearchError(null);
         const { artists, error } = await buscarArtistasParaConvite(participationSearch, event.artist_id);
-        setParticipationSearchResults(artists);
+        const convidadosBloqueados = new Set(
+          participationInvites
+            .filter((c) => c.status === 'pendente' || c.status === 'aceito')
+            .map((c) => c.artista_convidado_id)
+        );
+        setParticipationSearchResults(artists.filter((a) => !convidadosBloqueados.has(a.id)));
         setParticipationSearchError(error);
         setParticipationSearchLoading(false);
       })();
     }, 400);
     return () => clearTimeout(t);
-  }, [participationSearch, showParticipationModal, event?.artist_id]);
+  }, [participationSearch, showParticipationModal, event?.artist_id, participationInvites]);
 
   const labelConviteParticipacaoStatus = (s: string) => {
     switch (s) {
@@ -376,12 +383,24 @@ export default function DetalhesEventoScreen() {
     }
   };
 
+  const getConviteStatusDateLabel = (c: ConviteParticipacaoEventoRow): string | null => {
+    const iso = c.status === 'pendente' ? c.criado_em : c.respondido_em;
+    if (!iso) return null;
+    const prefixo = c.status === 'pendente' ? 'Enviado em' : 'Respondido em';
+    return `${prefixo}: ${formatAuditDateTime(iso)}`;
+  };
+
   const submitParticipationInvite = async () => {
     if (!event || !activeArtist || !selectedArtistToInvite || !currentUserId) return;
     const cacheDigits = extractNumericValueString(inviteCacheDraft);
     const cacheNumerico = cacheDigits ? Number(cacheDigits) : NaN;
+    const funcaoLimpa = inviteFunctionDraft.trim();
     if (!inviteCacheDraft.trim() || Number.isNaN(cacheNumerico) || cacheNumerico <= 0) {
       Alert.alert('Cachê obrigatório', 'Informe um valor de cachê válido para enviar o convite.');
+      return;
+    }
+    if (!funcaoLimpa) {
+      Alert.alert('Função obrigatória', 'Informe a função do participante para enviar o convite.');
       return;
     }
     if (event.artist_id !== activeArtist.id) return;
@@ -392,7 +411,7 @@ export default function DetalhesEventoScreen() {
       artistaConvidadoId: selectedArtistToInvite.id,
       usuarioQueEnviaId: currentUserId,
       mensagem: inviteMessageDraft.trim() || null,
-      funcaoParticipacao: inviteFunctionDraft.trim() || null,
+      funcaoParticipacao: funcaoLimpa,
       nomeEvento: event.name,
       dataEvento: event.event_date,
       horaInicio: event.start_time,
@@ -408,7 +427,7 @@ export default function DetalhesEventoScreen() {
       setShowParticipationModal(false);
       setSelectedArtistToInvite(null);
       setInviteMessageDraft('');
-      setInviteCacheDraft('');
+      setInviteCacheDraft('R$ 0,00');
       setInviteWhatsappDraft('');
       setInviteFunctionDraft('');
       void loadParticipationInvites(event.id);
@@ -442,7 +461,7 @@ export default function DetalhesEventoScreen() {
     setSelectedArtistToInvite(null);
     setParticipationSearch('');
     setInviteMessageDraft('');
-    setInviteCacheDraft(event?.value != null ? String(event.value) : '');
+    setInviteCacheDraft('R$ 0,00');
     setInviteWhatsappDraft(event?.contractor_phone ?? '');
     setInviteFunctionDraft('');
     setParticipationSearchError(null);
@@ -1344,7 +1363,7 @@ export default function DetalhesEventoScreen() {
           ) : null}
         </View>
 
-        {participationInvites.some((c) => c.status === 'aceito' || c.status === 'recusado' || c.status === 'cancelado') ? (
+        {participationInvites.some((c) => c.status === 'aceito' || c.status === 'recusado' || c.status === 'cancelado' || c.status === 'pendente') ? (
           <View style={[styles.financialCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <TouchableOpacity
               onPress={() => setShowParticipants((v) => !v)}
@@ -1354,7 +1373,7 @@ export default function DetalhesEventoScreen() {
               <Text style={[styles.financialTitle, { color: colors.text, marginBottom: 0 }]}>Artistas convidados</Text>
               <View style={styles.auditHeaderRight}>
                 <Text style={[styles.contractHint, { color: colors.textSecondary }]}>
-                  {participationInvites.filter((c) => c.status === 'aceito' || c.status === 'recusado' || c.status === 'cancelado').length}{' '}
+                  {participationInvites.filter((c) => c.status === 'aceito' || c.status === 'recusado' || c.status === 'cancelado' || c.status === 'pendente').length}{' '}
                   participantes
                 </Text>
                 <Ionicons name={showParticipants ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textSecondary} />
@@ -1363,12 +1382,18 @@ export default function DetalhesEventoScreen() {
             {showParticipants ? (
               <View style={{ gap: 10, marginTop: 10 }}>
                 {participationInvites
-                  .filter((c) => c.status === 'aceito' || c.status === 'recusado' || c.status === 'cancelado')
+                  .filter((c) => c.status === 'aceito' || c.status === 'recusado' || c.status === 'cancelado' || c.status === 'pendente')
                   .map((c) => {
                     const nome = participationInviteeNames[c.artista_convidado_id] || 'Artista';
                     const funcao = c.funcao_participacao?.trim() || 'Participante';
                     const statusColor =
-                      c.status === 'aceito' ? colors.success : c.status === 'cancelado' ? colors.warning : colors.error;
+                      c.status === 'aceito'
+                        ? colors.success
+                        : c.status === 'cancelado'
+                          ? colors.warning
+                          : c.status === 'pendente'
+                            ? colors.primary
+                            : colors.error;
                     return (
                       <View key={c.id} style={[styles.participantCard, { borderColor: colors.border }]}>
                         <OptimizedImage
@@ -1387,6 +1412,11 @@ export default function DetalhesEventoScreen() {
                           <Text style={[styles.participantStatus, { color: statusColor }]}>
                             {labelConviteParticipacaoStatus(c.status)}
                           </Text>
+                          {getConviteStatusDateLabel(c) ? (
+                            <Text style={[styles.participantReason, { color: colors.textSecondary }]}>
+                              {getConviteStatusDateLabel(c)}
+                            </Text>
+                          ) : null}
                           {c.status === 'cancelado' && c.motivo_cancelamento ? (
                             <Text style={[styles.participantReason, { color: colors.textSecondary }]}>
                               Motivo: {c.motivo_cancelamento}
@@ -1396,6 +1426,11 @@ export default function DetalhesEventoScreen() {
                             <Text style={[styles.participantReason, { color: colors.textSecondary }]}>
                               Motivo: {c.mensagem}
                             </Text>
+                          ) : null}
+                          {c.status === 'pendente' ? (
+                            <TouchableOpacity onPress={() => cancelParticipationInviteRow(c)} style={{ marginTop: 6 }}>
+                              <Text style={{ color: colors.error, fontSize: 13, fontWeight: '600' }}>Cancelar convite</Text>
+                            </TouchableOpacity>
                           ) : null}
                         </View>
                       </View>
@@ -1550,19 +1585,23 @@ export default function DetalhesEventoScreen() {
         animationType="fade"
         onRequestClose={() => !sendingParticipationInvite && setShowParticipationModal(false)}
       >
-        <View style={styles.participationInviteModalOverlay}>
-          <View style={[styles.participationInviteModalCard, { backgroundColor: colors.surface }]}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.participationInviteModalOverlay}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <View style={[styles.participationInviteModalCard, { backgroundColor: colors.surface }]}>
             <Text style={[styles.participationInviteModalTitle, { color: colors.text }]}>Convidar colaborador</Text>
             <Text style={[styles.participationInviteModalSub, { color: colors.textSecondary }]}>
               Busque pelo nome do perfil artístico (mín. 2 letras). É necessário ter conta no Marca AI.
             </Text>
-            {participationInvites.length > 0 ? (
+            {participationInvites.some((c) => c.status === 'pendente') ? (
               <ScrollView
                 style={styles.participationInviteList}
                 nestedScrollEnabled
                 keyboardShouldPersistTaps="handled"
               >
-                {participationInvites.map((c) => (
+                {participationInvites
+                  .filter((c) => c.status === 'pendente')
+                  .map((c) => (
                   <View
                     key={c.id}
                     style={[styles.participationInviteRow, { borderBottomColor: colors.border }]}
@@ -1573,6 +1612,11 @@ export default function DetalhesEventoScreen() {
                     <Text style={[styles.participationInviteStatus, { color: colors.textSecondary }]}>
                       {labelConviteParticipacaoStatus(c.status)}
                     </Text>
+                    {getConviteStatusDateLabel(c) ? (
+                      <Text style={[styles.participationInviteStatus, { color: colors.textSecondary }]}>
+                        {getConviteStatusDateLabel(c)}
+                      </Text>
+                    ) : null}
                     {c.status === 'aceito' ? (
                       <Text style={[styles.participationInviteStatus, { color: colors.textSecondary }]}>
                         Função: {c.funcao_participacao?.trim() || 'Participante'}
@@ -1699,7 +1743,7 @@ export default function DetalhesEventoScreen() {
                       marginBottom: 8,
                     },
                   ]}
-                  placeholder="Função do participante (opcional)"
+                  placeholder="Função do participante (obrigatório)"
                   placeholderTextColor={colors.textSecondary}
                   value={inviteFunctionDraft}
                   onChangeText={setInviteFunctionDraft}
@@ -1751,8 +1795,10 @@ export default function DetalhesEventoScreen() {
                 )}
               </TouchableOpacity>
             </View>
+              </View>
+            </TouchableWithoutFeedback>
           </View>
-        </View>
+        </TouchableWithoutFeedback>
       </Modal>
 
       {/* Modal de Permissão */}

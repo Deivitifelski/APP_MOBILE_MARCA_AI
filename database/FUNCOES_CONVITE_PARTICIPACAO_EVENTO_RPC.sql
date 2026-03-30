@@ -121,6 +121,11 @@ BEGIN
     RETURN;
   END IF;
 
+  IF NULLIF(TRIM(p_funcao_participacao), '') IS NULL THEN
+    RETURN QUERY SELECT false, 'Função do participante é obrigatória.', NULL::UUID;
+    RETURN;
+  END IF;
+
   SELECT * INTO v_event
   FROM events e
   WHERE e.id = p_evento_origem_id
@@ -175,7 +180,7 @@ BEGIN
       v_event.city,
       NULLIF(TRIM(p_telefone_contratante), ''),
       v_event.description,
-      NULLIF(TRIM(p_funcao_participacao), ''),
+      TRIM(p_funcao_participacao),
       v_uid
     )
     RETURNING id INTO convite_id;
@@ -583,4 +588,122 @@ GRANT EXECUTE ON FUNCTION public.rpc_aceitar_convite_participacao_evento(UUID) T
 GRANT EXECUTE ON FUNCTION public.rpc_recusar_convite_participacao_evento(UUID, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_cancelar_convite_pendente_participacao_evento(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_cancelar_participacao_aceita_evento(UUID, TEXT) TO authenticated;
+
+-- =====================================================
+-- Camada estável para o app (evita problemas de assinatura/cache)
+-- =====================================================
+
+-- Remove assinatura antiga de compatibilidade, se existir no banco.
+DROP FUNCTION IF EXISTS public.rpc_enviar_convite_participacao_evento(UUID, NUMERIC, UUID, TEXT, TEXT, TEXT);
+
+CREATE OR REPLACE FUNCTION public.rpc_app_enviar_convite_participacao_evento(
+  p_evento_origem_id UUID,
+  p_artista_convidado_id UUID,
+  p_cache_valor NUMERIC,
+  p_telefone_contratante TEXT DEFAULT NULL,
+  p_funcao_participacao TEXT DEFAULT NULL,
+  p_mensagem TEXT DEFAULT NULL
+)
+RETURNS TABLE (
+  success BOOLEAN,
+  error TEXT,
+  convite_id UUID
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT *
+  FROM public.rpc_enviar_convite_participacao_evento(
+    p_evento_origem_id => p_evento_origem_id,
+    p_artista_convidado_id => p_artista_convidado_id,
+    p_cache_valor => p_cache_valor,
+    p_telefone_contratante => p_telefone_contratante,
+    p_funcao_participacao => p_funcao_participacao,
+    p_mensagem => p_mensagem
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.rpc_app_aceitar_convite_participacao_evento(
+  p_convite_id UUID
+)
+RETURNS TABLE (
+  success BOOLEAN,
+  error TEXT,
+  evento_id UUID,
+  despesa_id UUID
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT *
+  FROM public.rpc_aceitar_convite_participacao_evento(
+    p_convite_id => p_convite_id
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.rpc_app_recusar_convite_participacao_evento(
+  p_convite_id UUID,
+  p_motivo TEXT DEFAULT NULL
+)
+RETURNS TABLE (
+  success BOOLEAN,
+  error TEXT
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT *
+  FROM public.rpc_recusar_convite_participacao_evento(
+    p_convite_id => p_convite_id,
+    p_motivo => p_motivo
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.rpc_app_cancelar_convite_pendente_participacao_evento(
+  p_convite_id UUID
+)
+RETURNS TABLE (
+  success BOOLEAN,
+  error TEXT
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT *
+  FROM public.rpc_cancelar_convite_pendente_participacao_evento(
+    p_convite_id => p_convite_id
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.rpc_app_cancelar_participacao_aceita_evento(
+  p_convite_id UUID,
+  p_motivo TEXT
+)
+RETURNS TABLE (
+  success BOOLEAN,
+  error TEXT
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT *
+  FROM public.rpc_cancelar_participacao_aceita_evento(
+    p_convite_id => p_convite_id,
+    p_motivo => p_motivo
+  );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.rpc_app_enviar_convite_participacao_evento(UUID, UUID, NUMERIC, TEXT, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_app_aceitar_convite_participacao_evento(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_app_recusar_convite_participacao_evento(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_app_cancelar_convite_pendente_participacao_evento(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_app_cancelar_participacao_aceita_evento(UUID, TEXT) TO authenticated;
+
+-- Ajuda o PostgREST a recarregar schema cache (quando suportado).
+NOTIFY pgrst, 'reload schema';
 

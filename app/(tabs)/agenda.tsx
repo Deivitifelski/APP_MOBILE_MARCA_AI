@@ -7,6 +7,8 @@ import {
     Alert,
     FlatList,
     Image,
+    Keyboard,
+    KeyboardAvoidingView,
     Modal,
     Platform,
     RefreshControl,
@@ -74,6 +76,9 @@ export default function AgendaScreen() {
   const [selectedInviteEventInfo, setSelectedInviteEventInfo] = useState<any | null>(null);
   const [inviteCancelReason, setInviteCancelReason] = useState('');
   const [isCancellingInviteParticipation, setIsCancellingInviteParticipation] = useState(false);
+  const [invitePartnerByConviteId, setInvitePartnerByConviteId] = useState<Record<string, { name: string; profile_url: string | null }>>({});
+  const [selectedInvitePartner, setSelectedInvitePartner] = useState<{ name: string; profile_url: string | null } | null>(null);
+  const [conviteIdByEventId, setConviteIdByEventId] = useState<Record<string, string>>({});
 
   const retryAgendaConnectionRef = useRef<() => Promise<void>>(async () => undefined);
 
@@ -304,6 +309,90 @@ export default function AgendaScreen() {
     refreshActiveArtist();
     loadUnreadCount();
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadConviteIdsByEvent = async () => {
+      const eventIds = events.map((e) => e?.id).filter((v): v is string => typeof v === 'string' && v.length > 0);
+      if (eventIds.length === 0) {
+        if (!cancelled) setConviteIdByEventId({});
+        return;
+      }
+
+      const { data } = await supabase
+        .from('events')
+        .select('id, convite_participacao_id')
+        .in('id', eventIds);
+
+      const map: Record<string, string> = {};
+      (data || []).forEach((row: any) => {
+        if (row?.id && row?.convite_participacao_id) {
+          map[row.id] = row.convite_participacao_id;
+        }
+      });
+      if (!cancelled) setConviteIdByEventId(map);
+    };
+    void loadConviteIdsByEvent();
+    return () => {
+      cancelled = true;
+    };
+  }, [events]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadInvitePartners = async () => {
+      const conviteIds = Array.from(
+        new Set(
+          events
+            .map((e) => e?.convite_participacao_id || conviteIdByEventId[e?.id])
+            .filter((v): v is string => typeof v === 'string' && v.length > 0)
+        )
+      );
+      if (conviteIds.length === 0) {
+        if (!cancelled) setInvitePartnerByConviteId({});
+        return;
+      }
+
+      const { data: convites, error: convErr } = await supabase
+        .from('convite_participacao_evento')
+        .select('id, artista_que_convidou_id')
+        .in('id', conviteIds);
+
+      if (convErr || !convites?.length) return;
+
+      const artistIds = Array.from(
+        new Set(
+          convites
+            .map((c: any) => c.artista_que_convidou_id)
+            .filter((v: any): v is string => typeof v === 'string' && v.length > 0)
+        )
+      );
+      if (artistIds.length === 0) return;
+
+      const { data: artists } = await supabase
+        .from('artists')
+        .select('id, name, profile_url')
+        .in('id', artistIds);
+
+      const artistMap: Record<string, { name: string; profile_url: string | null }> = {};
+      (artists || []).forEach((a: any) => {
+        artistMap[a.id] = { name: a.name || 'Artista', profile_url: a.profile_url ?? null };
+      });
+
+      const nextMap: Record<string, { name: string; profile_url: string | null }> = {};
+      (convites || []).forEach((c: any) => {
+        const inviter = artistMap[c.artista_que_convidou_id];
+        if (inviter) nextMap[c.id] = inviter;
+      });
+
+      if (!cancelled) setInvitePartnerByConviteId(nextMap);
+    };
+
+    void loadInvitePartners();
+    return () => {
+      cancelled = true;
+    };
+  }, [events, conviteIdByEventId]);
 
   // Escutar notificações de atualização da imagem do artista
   useEffect(() => {
@@ -854,6 +943,56 @@ export default function AgendaScreen() {
     }
   };
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadSelectedInvitePartner = async () => {
+      const conviteId = selectedInviteEventInfo?.convite_participacao_id;
+      if (!conviteId) {
+        setSelectedInvitePartner(null);
+        return;
+      }
+
+      const fromMap = invitePartnerByConviteId[conviteId];
+      if (fromMap) {
+        setSelectedInvitePartner(fromMap);
+        return;
+      }
+
+      const { data: convite } = await supabase
+        .from('convite_participacao_evento')
+        .select('artista_que_convidou_id')
+        .eq('id', conviteId)
+        .maybeSingle();
+
+      const inviterArtistId = convite?.artista_que_convidou_id;
+      if (!inviterArtistId) {
+        if (!cancelled) setSelectedInvitePartner(null);
+        return;
+      }
+
+      const { data: artist } = await supabase
+        .from('artists')
+        .select('name, profile_url')
+        .eq('id', inviterArtistId)
+        .maybeSingle();
+
+      if (!cancelled) {
+        setSelectedInvitePartner({
+          name: artist?.name || 'Artista',
+          profile_url: artist?.profile_url ?? null,
+        });
+      }
+    };
+
+    if (showInviteEventInfoModal) {
+      void loadSelectedInvitePartner();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showInviteEventInfoModal, selectedInviteEventInfo?.convite_participacao_id, invitePartnerByConviteId]);
+
   const getTagColor = (tag: string) => {
     switch (tag) {
       case 'ensaio':
@@ -918,6 +1057,20 @@ export default function AgendaScreen() {
             <View style={styles.showHeaderRow}>
               <View style={styles.eventNameContainer}>
                 <Text style={[styles.showName, { color: colors.text }]}>{item.name}</Text>
+                {(item.convite_participacao_id || conviteIdByEventId[item.id]) ? (
+                  <View style={[styles.collabInlineBadge, { backgroundColor: `${colors.primary}12`, borderColor: `${colors.primary}30` }]}>
+                    <OptimizedImage
+                      imageUrl={invitePartnerByConviteId[item.convite_participacao_id || conviteIdByEventId[item.id]]?.profile_url || ''}
+                      style={styles.collabInlineAvatar}
+                      cacheKey={`collab_inline_${item.convite_participacao_id || conviteIdByEventId[item.id] || item.id}`}
+                      fallbackIcon="person"
+                      fallbackIconSize={10}
+                      fallbackIconColor="#FFFFFF"
+                      showLoadingIndicator={false}
+                    />
+                    <Ionicons name="git-network-outline" size={10} color={colors.primary} />
+                  </View>
+                ) : null}
                 {!hasFinancialAccess && (
                   <Ionicons name="lock-closed" size={14} color={colors.textSecondary} style={{ marginLeft: 6 }} />
                 )}
@@ -1442,64 +1595,105 @@ export default function AgendaScreen() {
         visible={showInviteEventInfoModal}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowInviteEventInfoModal(false)}
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setShowInviteEventInfoModal(false);
+        }}
       >
-        <View style={styles.deletedEventModalOverlay}>
-          <View style={[styles.deletedEventModalContent, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, maxWidth: 360 }]}>
-            <Text style={[styles.deletedEventModalTitle, { color: colors.text }]}>Evento de participação</Text>
-            {selectedInviteEventInfo ? (
-              <View style={{ width: '100%' }}>
-                <Text style={[styles.inviteInfoLine, { color: colors.text }]}>Evento: {selectedInviteEventInfo.name}</Text>
-                <Text style={[styles.inviteInfoLine, { color: colors.textSecondary }]}>
-                  Horário: {selectedInviteEventInfo.start_time?.slice(0, 5)}–{selectedInviteEventInfo.end_time?.slice(0, 5)}
-                </Text>
-                {selectedInviteEventInfo.city ? (
-                  <Text style={[styles.inviteInfoLine, { color: colors.textSecondary }]}>Local: {selectedInviteEventInfo.city}</Text>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.deletedEventModalOverlay}>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width: '100%', alignItems: 'center' }}>
+              <View style={[styles.deletedEventModalContent, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, maxWidth: 360 }]}>
+                <Text style={[styles.deletedEventModalTitle, { color: colors.text }]}>Evento de participação</Text>
+                {selectedInviteEventInfo ? (
+                  <ScrollView
+                    style={{ width: '100%' }}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {selectedInviteEventInfo.convite_participacao_id ? (
+                      <View style={[styles.inviterRow, { backgroundColor: `${colors.primary}12`, borderColor: `${colors.primary}30` }]}>
+                        <OptimizedImage
+                          imageUrl={selectedInvitePartner?.profile_url || ''}
+                          style={styles.inviterAvatar}
+                          cacheKey={`invite_modal_${selectedInviteEventInfo.convite_participacao_id}`}
+                          fallbackIcon="person"
+                          fallbackIconSize={18}
+                          fallbackIconColor="#FFFFFF"
+                          showLoadingIndicator={false}
+                        />
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.inviterLabel, { color: colors.textSecondary }]}>Convidado por</Text>
+                          <Text style={[styles.inviterName, { color: colors.text }]}>
+                            {selectedInvitePartner?.name || 'Artista'}
+                          </Text>
+                        </View>
+                      </View>
+                    ) : null}
+                    <Text style={[styles.inviteInfoLine, { color: colors.text }]}>Evento: {selectedInviteEventInfo.name}</Text>
+                    <Text style={[styles.inviteInfoLine, { color: colors.textSecondary }]}>
+                      Horário: {selectedInviteEventInfo.start_time?.slice(0, 5)}–{selectedInviteEventInfo.end_time?.slice(0, 5)}
+                    </Text>
+                    {selectedInviteEventInfo.city ? (
+                      <Text style={[styles.inviteInfoLine, { color: colors.textSecondary }]}>Local: {selectedInviteEventInfo.city}</Text>
+                    ) : null}
+                    {selectedInviteEventInfo.value != null ? (
+                      <Text style={[styles.inviteInfoLine, { color: colors.textSecondary }]}>
+                        Cachê: {formatEventValueBRL(selectedInviteEventInfo.value)}
+                      </Text>
+                    ) : null}
+                    {selectedInviteEventInfo.contractor_phone ? (
+                      <Text style={[styles.inviteInfoLine, { color: colors.textSecondary }]}>
+                        WhatsApp: {selectedInviteEventInfo.contractor_phone}
+                      </Text>
+                    ) : null}
+                    {selectedInviteEventInfo.description ? (
+                      <Text style={[styles.inviteInfoLine, { color: colors.textSecondary }]}>
+                        Observações: {selectedInviteEventInfo.description}
+                      </Text>
+                    ) : null}
+                    <TextInput
+                      value={inviteCancelReason}
+                      onChangeText={setInviteCancelReason}
+                      placeholder="Motivo do cancelamento (obrigatório)"
+                      placeholderTextColor={colors.textSecondary}
+                      multiline
+                      style={[styles.inviteCancelReasonInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
+                    />
+                  </ScrollView>
                 ) : null}
-                {selectedInviteEventInfo.value != null ? (
-                  <Text style={[styles.inviteInfoLine, { color: colors.textSecondary }]}>
-                    Cachê: {formatEventValueBRL(selectedInviteEventInfo.value)}
-                  </Text>
-                ) : null}
-                {selectedInviteEventInfo.contractor_phone ? (
-                  <Text style={[styles.inviteInfoLine, { color: colors.textSecondary }]}>
-                    WhatsApp: {selectedInviteEventInfo.contractor_phone}
-                  </Text>
-                ) : null}
-                {selectedInviteEventInfo.description ? (
-                  <Text style={[styles.inviteInfoLine, { color: colors.textSecondary }]}>
-                    Observações: {selectedInviteEventInfo.description}
-                  </Text>
-                ) : null}
-                <TextInput
-                  value={inviteCancelReason}
-                  onChangeText={setInviteCancelReason}
-                  placeholder="Motivo do cancelamento (obrigatório)"
-                  placeholderTextColor={colors.textSecondary}
-                  multiline
-                  style={[styles.inviteCancelReasonInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
-                />
+                <View style={styles.inviteModalActions}>
+                  <TouchableOpacity
+                    style={[
+                      styles.deletedEventModalButton,
+                      styles.inviteBtnSecondary,
+                      { borderColor: colors.border, marginTop: 16, flex: 1 },
+                    ]}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setShowInviteEventInfoModal(false);
+                    }}
+                  >
+                    <Text style={[styles.deletedEventModalButtonText, { color: colors.textSecondary }]}>Fechar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.deletedEventModalButton,
+                      styles.inviteBtnPrimary,
+                      { backgroundColor: colors.error, marginTop: 16, opacity: isCancellingInviteParticipation ? 0.7 : 1, flex: 1 },
+                    ]}
+                    onPress={() => void handleCancelInviteParticipation()}
+                    disabled={isCancellingInviteParticipation}
+                  >
+                    <Text style={styles.deletedEventModalButtonText}>
+                      {isCancellingInviteParticipation ? 'Cancelando...' : 'Cancelar participação'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            ) : null}
-            <View style={styles.inviteModalActions}>
-              <TouchableOpacity
-                style={[styles.deletedEventModalButton, { backgroundColor: colors.primary, marginTop: 16 }]}
-                onPress={() => setShowInviteEventInfoModal(false)}
-              >
-                <Text style={styles.deletedEventModalButtonText}>Fechar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.deletedEventModalButton, { backgroundColor: colors.error, marginTop: 16, opacity: isCancellingInviteParticipation ? 0.7 : 1 }]}
-                onPress={() => void handleCancelInviteParticipation()}
-                disabled={isCancellingInviteParticipation}
-              >
-                <Text style={styles.deletedEventModalButtonText}>
-                  {isCancellingInviteParticipation ? 'Cancelando...' : 'Cancelar participação'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+            </KeyboardAvoidingView>
           </View>
-        </View>
+        </TouchableWithoutFeedback>
       </Modal>
 
       {/* Modal: Boas-vindas passo a passo (Apple/Google) */}
@@ -2343,6 +2537,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   deletedEventModalButtonText: {
     color: '#fff',
@@ -2365,6 +2561,52 @@ const styles = StyleSheet.create({
   inviteModalActions: {
     width: '100%',
     gap: 8,
+    flexDirection: 'row',
+  },
+  inviteBtnSecondary: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+  },
+  inviteBtnPrimary: {
+    borderWidth: 0,
+  },
+  inviterRow: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 10,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  inviterAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+  },
+  inviterLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  inviterName: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 1,
+  },
+  collabInlineBadge: {
+    marginLeft: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingVertical: 3,
+    paddingHorizontal: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  collabInlineAvatar: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
   },
   // Estilos do Modal de Remoção
   removedModalOverlay: {
