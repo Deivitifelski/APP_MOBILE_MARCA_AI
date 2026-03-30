@@ -29,6 +29,7 @@ import { artistImageUpdateService } from '../../services/artistImageUpdateServic
 import { cacheService } from '../../services/cacheService';
 import { getArtists } from '../../services/supabase/artistService';
 import { getCurrentUser } from '../../services/supabase/authService';
+import { cancelarParticipacaoAceita } from '../../services/supabase/conviteParticipacaoEventoService';
 import { getEventById, getEventsByMonthWithRole } from '../../services/supabase/eventService';
 import { useNotifications } from '../../services/useNotifications';
 import { isLikelyNetworkFailure } from '../../utils/isLikelyNetworkFailure';
@@ -69,6 +70,10 @@ export default function AgendaScreen() {
   const params = useLocalSearchParams<{ showNewUserModal?: string }>();
   const [showNoConnectionModal, setShowNoConnectionModal] = useState(false);
   const [isRetryingConnection, setIsRetryingConnection] = useState(false);
+  const [showInviteEventInfoModal, setShowInviteEventInfoModal] = useState(false);
+  const [selectedInviteEventInfo, setSelectedInviteEventInfo] = useState<any | null>(null);
+  const [inviteCancelReason, setInviteCancelReason] = useState('');
+  const [isCancellingInviteParticipation, setIsCancellingInviteParticipation] = useState(false);
 
   const retryAgendaConnectionRef = useRef<() => Promise<void>>(async () => undefined);
 
@@ -441,6 +446,14 @@ export default function AgendaScreen() {
         return;
       }
 
+      if (eventResult.event.convite_participacao_id) {
+        setSelectedInviteEventInfo(eventResult.event);
+        setInviteCancelReason('');
+        setShowInviteEventInfoModal(true);
+        isNavigatingToEventRef.current = false;
+        return;
+      }
+
       router.push(`/detalhes-evento?eventId=${eventId}`);
     } catch (error) {
       isNavigatingToEventRef.current = false;
@@ -807,6 +820,38 @@ export default function AgendaScreen() {
       'Você será notificado quando receber um convite para gerenciar um artista.',
       [{ text: 'OK' }]
     );
+  };
+
+  const handleCancelInviteParticipation = async () => {
+    if (!selectedInviteEventInfo?.convite_participacao_id) return;
+    const motivo = inviteCancelReason.trim();
+    if (!motivo) {
+      Alert.alert('Motivo obrigatório', 'Informe o motivo para cancelar a participação.');
+      return;
+    }
+    try {
+      setIsCancellingInviteParticipation(true);
+      const { user } = await getCurrentUser();
+      const { success, error } = await cancelarParticipacaoAceita(
+        selectedInviteEventInfo.convite_participacao_id,
+        motivo,
+        user?.id ?? null
+      );
+      if (!success) {
+        Alert.alert('Erro', error || 'Não foi possível cancelar a participação.');
+        return;
+      }
+      setShowInviteEventInfoModal(false);
+      setSelectedInviteEventInfo(null);
+      setInviteCancelReason('');
+      if (activeArtist) {
+        cacheService.invalidateEventsCache(activeArtist.id, currentYear, currentMonth);
+        loadEvents(true);
+      }
+      Alert.alert('Participação cancelada', 'Seu cancelamento foi enviado para quem convidou.');
+    } finally {
+      setIsCancellingInviteParticipation(false);
+    }
   };
 
   const getTagColor = (tag: string) => {
@@ -1389,6 +1434,70 @@ export default function AgendaScreen() {
                 <Text style={styles.deletedEventModalButtonText}>Tentar novamente</Text>
               )}
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showInviteEventInfoModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowInviteEventInfoModal(false)}
+      >
+        <View style={styles.deletedEventModalOverlay}>
+          <View style={[styles.deletedEventModalContent, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, maxWidth: 360 }]}>
+            <Text style={[styles.deletedEventModalTitle, { color: colors.text }]}>Evento de participação</Text>
+            {selectedInviteEventInfo ? (
+              <View style={{ width: '100%' }}>
+                <Text style={[styles.inviteInfoLine, { color: colors.text }]}>Evento: {selectedInviteEventInfo.name}</Text>
+                <Text style={[styles.inviteInfoLine, { color: colors.textSecondary }]}>
+                  Horário: {selectedInviteEventInfo.start_time?.slice(0, 5)}–{selectedInviteEventInfo.end_time?.slice(0, 5)}
+                </Text>
+                {selectedInviteEventInfo.city ? (
+                  <Text style={[styles.inviteInfoLine, { color: colors.textSecondary }]}>Local: {selectedInviteEventInfo.city}</Text>
+                ) : null}
+                {selectedInviteEventInfo.value != null ? (
+                  <Text style={[styles.inviteInfoLine, { color: colors.textSecondary }]}>
+                    Cachê: {formatEventValueBRL(selectedInviteEventInfo.value)}
+                  </Text>
+                ) : null}
+                {selectedInviteEventInfo.contractor_phone ? (
+                  <Text style={[styles.inviteInfoLine, { color: colors.textSecondary }]}>
+                    WhatsApp: {selectedInviteEventInfo.contractor_phone}
+                  </Text>
+                ) : null}
+                {selectedInviteEventInfo.description ? (
+                  <Text style={[styles.inviteInfoLine, { color: colors.textSecondary }]}>
+                    Observações: {selectedInviteEventInfo.description}
+                  </Text>
+                ) : null}
+                <TextInput
+                  value={inviteCancelReason}
+                  onChangeText={setInviteCancelReason}
+                  placeholder="Motivo do cancelamento (obrigatório)"
+                  placeholderTextColor={colors.textSecondary}
+                  multiline
+                  style={[styles.inviteCancelReasonInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
+                />
+              </View>
+            ) : null}
+            <View style={styles.inviteModalActions}>
+              <TouchableOpacity
+                style={[styles.deletedEventModalButton, { backgroundColor: colors.primary, marginTop: 16 }]}
+                onPress={() => setShowInviteEventInfoModal(false)}
+              >
+                <Text style={styles.deletedEventModalButtonText}>Fechar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.deletedEventModalButton, { backgroundColor: colors.error, marginTop: 16, opacity: isCancellingInviteParticipation ? 0.7 : 1 }]}
+                onPress={() => void handleCancelInviteParticipation()}
+                disabled={isCancellingInviteParticipation}
+              >
+                <Text style={styles.deletedEventModalButtonText}>
+                  {isCancellingInviteParticipation ? 'Cancelando...' : 'Cancelar participação'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -2239,6 +2348,23 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  inviteInfoLine: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 6,
+  },
+  inviteCancelReasonInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    minHeight: 88,
+    textAlignVertical: 'top',
+    padding: 12,
+    marginTop: 10,
+  },
+  inviteModalActions: {
+    width: '100%',
+    gap: 8,
   },
   // Estilos do Modal de Remoção
   removedModalOverlay: {

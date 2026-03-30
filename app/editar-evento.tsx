@@ -271,6 +271,7 @@ export default function EditarEventoScreen() {
     mime: string | null;
   } | null>(null);
   const [removeContractRequested, setRemoveContractRequested] = useState(false);
+  const [isInviteParticipationEvent, setIsInviteParticipationEvent] = useState(false);
 
   const getContractDisplayName = (url: string) => {
     const last = url.split('?')[0]?.split('#')[0]?.split('/').pop() || 'contrato';
@@ -331,6 +332,7 @@ export default function EditarEventoScreen() {
         });
         setRemoteContractUrl(event.contract_url ?? null);
         setRemoteContractFileName((event as any)?.contract_file_name ?? null);
+        setIsInviteParticipationEvent(Boolean(event.convite_participacao_id));
         setPendingContract(null);
         setRemoveContractRequested(false);
       } else {
@@ -378,17 +380,25 @@ export default function EditarEventoScreen() {
   };
 
   const handleSave = async () => {
+    if (isInviteParticipationEvent) {
+      Alert.alert(
+        'Edição bloqueada',
+        'Este evento foi criado a partir de um convite de participação e não pode ser alterado após o aceite.'
+      );
+      return;
+    }
+
     if (!form.nome.trim()) {
       Alert.alert('Erro', 'Nome do evento é obrigatório');
       return;
     }
-    if (!form.valor.trim()) {
+    if (!isInviteParticipationEvent && !form.valor.trim()) {
       Alert.alert('Erro', 'Valor é obrigatório');
       return;
     }
 
     const numericValue = extractNumericValueString(form.valor);
-    if (!numericValue || isNaN(parseFloat(numericValue))) {
+    if (!isInviteParticipationEvent && (!numericValue || isNaN(parseFloat(numericValue)))) {
       Alert.alert('Erro', 'Valor deve ser um número válido');
       return;
     }
@@ -400,7 +410,7 @@ export default function EditarEventoScreen() {
       const updateData: UpdateEventData = {
         name: form.nome.trim(),
         description: form.descricao.trim() || undefined,
-        value: parseFloat(numericValue),
+        ...(isInviteParticipationEvent ? {} : { value: parseFloat(numericValue) }),
         city: form.cidade.trim() || undefined,
         contractor_phone: form.telefoneContratante.trim() || undefined,
         event_date: form.data.toISOString().split('T')[0],
@@ -548,9 +558,19 @@ export default function EditarEventoScreen() {
         <View style={styles.inputGroup}>
           <Text style={[styles.label, { color: colors.text }]}>Valor (R$) *</Text>
           <TextInput
-            style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+            style={[
+              styles.input,
+              {
+                backgroundColor: isInviteParticipationEvent ? colors.background : colors.surface,
+                borderColor: colors.border,
+                color: colors.text,
+                opacity: isInviteParticipationEvent ? 0.8 : 1,
+              },
+            ]}
             value={form.valor}
+            editable={!isInviteParticipationEvent}
             onChangeText={(text) => {
+              if (isInviteParticipationEvent) return;
               const formatted = formatCurrencyBRLInput(text);
               updateForm('valor', formatted);
             }}
@@ -1032,6 +1052,11 @@ const styles = StyleSheet.create({
   },
   inputGroup: {
     marginBottom: 20,
+  },
+  inputHint: {
+    marginTop: 8,
+    fontSize: 12,
+    lineHeight: 17,
   },
   label: {
     fontSize: 16,

@@ -5,11 +5,11 @@ const SUPABASE_URL = 'https://ctulmpyaikxsnjqmrzxf.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN0dWxtcHlhaWt4c25qcW1yenhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2MzkxMjMsImV4cCI6MjA3MzIxNTEyM30.bu0gER4uTIZ5PDV7t1-fcwU01UZAJ6aFG6axFZQlU8U';
 
 /**
- * Envia notificação push para todos os membros do artista (exceto o criador)
+ * Envia push (Edge Function send-push) para todos os membros do artista, exceto `excludeUserId`.
  */
-const sendNotificationToUsers = async (
+export const notifyArtistMembersPush = async (
   artistId: string,
-  creatorUserId: string,
+  excludeUserId: string,
   title: string,
   message: string,
   data: Record<string, any> = {}
@@ -25,7 +25,7 @@ const sendNotificationToUsers = async (
         },
         body: JSON.stringify({
           artist_id: artistId,
-          creator_user_id: creatorUserId,
+          creator_user_id: excludeUserId,
           title,
           message,
           data,
@@ -67,6 +67,8 @@ export interface Event {
   contract_url?: string | null;
   /** Nome original do arquivo anexado */
   contract_file_name?: string | null;
+  /** Evento criado ao aceitar convite de participação */
+  convite_participacao_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -97,6 +99,7 @@ export interface CreateEventData {
   expenses?: CreateExpenseData[];
   contract_url?: string | null;
   contract_file_name?: string | null;
+  convite_participacao_id?: string | null;
 }
 
 export interface CreateExpenseData {
@@ -149,6 +152,7 @@ export const createEvent = async (eventData: CreateEventData): Promise<{ success
         tag: eventData.tag || 'evento', // Default para 'evento' se não especificado
         contract_url: eventData.contract_url ?? null,
         contract_file_name: eventData.contract_file_name ?? null,
+        convite_participacao_id: eventData.convite_participacao_id ?? null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -166,7 +170,7 @@ export const createEvent = async (eventData: CreateEventData): Promise<{ success
     // automaticamente para todos os colaboradores (exceto o criador)
 
     // Enviar notificações push para todos os membros do artista (exceto o criador)
-    await sendNotificationToUsers(
+    await notifyArtistMembersPush(
       eventData.artist_id,
       eventData.user_id,
       'Novo Evento Criado',
@@ -287,6 +291,13 @@ export const updateEvent = async (eventId: string, eventData: UpdateEventData, u
       return { success: false, error: 'Evento não encontrado' };
     }
 
+    if (eventResult.event.convite_participacao_id) {
+      return {
+        success: false,
+        error: 'Eventos vindos de convite de participação não podem ser alterados após o aceite.',
+      };
+    }
+
     const { data, error } = await supabase
       .from('events')
       .update({
@@ -311,7 +322,7 @@ export const updateEvent = async (eventId: string, eventData: UpdateEventData, u
 
     // Enviar notificações push para todos os membros do artista (exceto quem editou)
     if (userId) {
-      await sendNotificationToUsers(
+      await notifyArtistMembersPush(
         data.artist_id,
         userId,
         'Evento Atualizado',
@@ -356,7 +367,7 @@ export const deleteEvent = async (eventId: string, userId?: string): Promise<{ s
     }
 
     if (userId) {
-      await sendNotificationToUsers(
+      await notifyArtistMembersPush(
         artistId,
         userId,
         'Evento Deletado',

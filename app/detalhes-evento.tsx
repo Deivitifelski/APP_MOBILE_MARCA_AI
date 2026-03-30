@@ -8,12 +8,14 @@ import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    FlatList,
     Modal,
     Platform,
     ScrollView,
     StatusBar,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
@@ -35,8 +37,19 @@ import {
     updateEvent,
 } from '../services/supabase/eventService';
 import { removeEventContractByUrl, uploadEventContractFile } from '../services/supabase/eventContractUploadService';
+import {
+    buscarArtistasParaConvite,
+    cancelarConviteParticipacao,
+    enviarConviteParticipacao,
+    listarConvitesDoEvento,
+    obterConvitePorId,
+    obterNomeArtista,
+    type ArtistaBuscaConvite,
+    type ConviteParticipacaoEventoRow,
+} from '../services/supabase/conviteParticipacaoEventoService';
 import { getExpensesByEvent, getTotalExpensesByEvent } from '../services/supabase/expenseService';
 import { useActiveArtist } from '../services/useActiveArtist';
+import { extractNumericValueString, formatCurrencyBRLInput } from '../utils/currencyBRLInput';
 import { promptAndShareEvent } from '../utils/eventShare';
 
 function parseEventDateToLocalDate(eventDate: string): Date {
@@ -198,12 +211,30 @@ export default function DetalhesEventoScreen() {
   const [pickedContractName, setPickedContractName] = useState<string | null>(null);
   const [auditLogs, setAuditLogs] = useState<EventAuditLogRow[]>([]);
   const [showAudit, setShowAudit] = useState(false);
+  const [showParticipants, setShowParticipants] = useState(false);
   const { activeArtist } = useActiveArtist();
   
   // Estados para controle de acesso
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [isCheckingAccess, setIsCheckingAccess] = useState(true);
   const [canCreateEventsPermission, setCanCreateEventsPermission] = useState(false);
+
+  const [participationFromInviteBanner, setParticipationFromInviteBanner] = useState<string | null>(null);
+
+  const [participationInvites, setParticipationInvites] = useState<ConviteParticipacaoEventoRow[]>([]);
+  const [participationInviteeNames, setParticipationInviteeNames] = useState<Record<string, string>>({});
+  const [participationInviteeProfiles, setParticipationInviteeProfiles] = useState<Record<string, string>>({});
+  const [showParticipationModal, setShowParticipationModal] = useState(false);
+  const [participationSearch, setParticipationSearch] = useState('');
+  const [participationSearchResults, setParticipationSearchResults] = useState<ArtistaBuscaConvite[]>([]);
+  const [participationSearchLoading, setParticipationSearchLoading] = useState(false);
+  const [participationSearchError, setParticipationSearchError] = useState<string | null>(null);
+  const [inviteMessageDraft, setInviteMessageDraft] = useState('');
+  const [inviteCacheDraft, setInviteCacheDraft] = useState('');
+  const [inviteWhatsappDraft, setInviteWhatsappDraft] = useState('');
+  const [inviteFunctionDraft, setInviteFunctionDraft] = useState('');
+  const [selectedArtistToInvite, setSelectedArtistToInvite] = useState<{ id: string; name: string } | null>(null);
+  const [sendingParticipationInvite, setSendingParticipationInvite] = useState(false);
 
   // Obter usuário atual
   useEffect(() => {
@@ -262,6 +293,159 @@ export default function DetalhesEventoScreen() {
       setCanCreateEventsPermission(false);
       setIsCheckingAccess(false);
     }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!event?.convite_participacao_id) {
+        setParticipationFromInviteBanner(null);
+        return;
+      }
+      const { convite } = await obterConvitePorId(event.convite_participacao_id);
+      if (cancelled || !convite) return;
+      const n = await obterNomeArtista(convite.artista_que_convidou_id);
+      if (!cancelled) setParticipationFromInviteBanner(n || 'outro artista');
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [event?.convite_participacao_id]);
+
+  const loadParticipationInvites = React.useCallback(async (origemEventId: string) => {
+    const { convites, error } = await listarConvitesDoEvento(origemEventId);
+    if (error) {
+      setParticipationInvites([]);
+      return;
+    }
+    setParticipationInvites(convites);
+    const map: Record<string, string> = {};
+    const profiles: Record<string, string> = {};
+    for (const c of convites) {
+      if (!map[c.artista_convidado_id]) {
+        const n = await obterNomeArtista(c.artista_convidado_id);
+        if (n) map[c.artista_convidado_id] = n;
+        const { data: artistData } = await supabase
+          .from('artists')
+          .select('profile_url')
+          .eq('id', c.artista_convidado_id)
+          .maybeSingle();
+        if (artistData?.profile_url) profiles[c.artista_convidado_id] = artistData.profile_url;
+      }
+    }
+    setParticipationInviteeNames(map);
+    setParticipationInviteeProfiles(profiles);
+  }, []);
+
+  useEffect(() => {
+    if (!event?.id || !activeArtist?.id) return;
+    if (event.artist_id !== activeArtist.id) {
+      setParticipationInvites([]);
+      return;
+    }
+    void loadParticipationInvites(event.id);
+  }, [event?.id, event?.artist_id, activeArtist?.id, loadParticipationInvites]);
+
+  useEffect(() => {
+    if (!showParticipationModal || !event?.artist_id) return;
+    const t = setTimeout(() => {
+      void (async () => {
+        setParticipationSearchLoading(true);
+        setParticipationSearchError(null);
+        const { artists, error } = await buscarArtistasParaConvite(participationSearch, event.artist_id);
+        setParticipationSearchResults(artists);
+        setParticipationSearchError(error);
+        setParticipationSearchLoading(false);
+      })();
+    }, 400);
+    return () => clearTimeout(t);
+  }, [participationSearch, showParticipationModal, event?.artist_id]);
+
+  const labelConviteParticipacaoStatus = (s: string) => {
+    switch (s) {
+      case 'pendente':
+        return 'Pendente';
+      case 'aceito':
+        return 'Aceito';
+      case 'recusado':
+        return 'Recusado';
+      case 'cancelado':
+        return 'Cancelado';
+      default:
+        return s;
+    }
+  };
+
+  const submitParticipationInvite = async () => {
+    if (!event || !activeArtist || !selectedArtistToInvite || !currentUserId) return;
+    const cacheDigits = extractNumericValueString(inviteCacheDraft);
+    const cacheNumerico = cacheDigits ? Number(cacheDigits) : NaN;
+    if (!inviteCacheDraft.trim() || Number.isNaN(cacheNumerico) || cacheNumerico <= 0) {
+      Alert.alert('Cachê obrigatório', 'Informe um valor de cachê válido para enviar o convite.');
+      return;
+    }
+    if (event.artist_id !== activeArtist.id) return;
+    setSendingParticipationInvite(true);
+    const { success, error } = await enviarConviteParticipacao({
+      eventoOrigemId: event.id,
+      artistaQueConvidaId: activeArtist.id,
+      artistaConvidadoId: selectedArtistToInvite.id,
+      usuarioQueEnviaId: currentUserId,
+      mensagem: inviteMessageDraft.trim() || null,
+      funcaoParticipacao: inviteFunctionDraft.trim() || null,
+      nomeEvento: event.name,
+      dataEvento: event.event_date,
+      horaInicio: event.start_time,
+      horaFim: event.end_time,
+      cacheValor: cacheNumerico,
+      cidade: event.city ?? null,
+      telefoneContratante: inviteWhatsappDraft.trim() || null,
+      descricao: event.description ?? null,
+    });
+    setSendingParticipationInvite(false);
+    if (success) {
+      Alert.alert('Enviado', 'O convite foi enviado.');
+      setShowParticipationModal(false);
+      setSelectedArtistToInvite(null);
+      setInviteMessageDraft('');
+      setInviteCacheDraft('');
+      setInviteWhatsappDraft('');
+      setInviteFunctionDraft('');
+      void loadParticipationInvites(event.id);
+    } else {
+      Alert.alert('Erro', error || 'Não foi possível enviar.');
+    }
+  };
+
+  const cancelParticipationInviteRow = (c: ConviteParticipacaoEventoRow) => {
+    Alert.alert('Cancelar convite', 'Remover o convite pendente para este artista?', [
+      { text: 'Não', style: 'cancel' },
+      {
+        text: 'Sim',
+        style: 'destructive',
+        onPress: async () => {
+          const { success, error } = await cancelarConviteParticipacao(c.id);
+          if (success && event) void loadParticipationInvites(event.id);
+          else Alert.alert('Erro', error || 'Não foi possível cancelar.');
+        },
+      },
+    ]);
+  };
+
+  const handleConvidarColaborador = () => {
+    if (!handleRestrictedAction('convidar colaborador')) return;
+    if (!canCreateEventsPermission || !event || event.artist_id !== activeArtist?.id) {
+      setShowPermissionModal(true);
+      return;
+    }
+    setShowParticipationModal(true);
+    setSelectedArtistToInvite(null);
+    setParticipationSearch('');
+    setInviteMessageDraft('');
+    setInviteCacheDraft(event?.value != null ? String(event.value) : '');
+    setInviteWhatsappDraft(event?.contractor_phone ?? '');
+    setInviteFunctionDraft('');
+    setParticipationSearchError(null);
   };
 
   const loadEventData = async (isInitialLoad = true) => {
@@ -650,6 +834,13 @@ export default function DetalhesEventoScreen() {
 
   const handleEditEvent = () => {
     if (!handleRestrictedAction('editar')) return;
+    if (event?.convite_participacao_id) {
+      Alert.alert(
+        'Edição bloqueada',
+        'Este evento foi criado a partir de um convite de participação e não pode ser alterado após o aceite.'
+      );
+      return;
+    }
     router.push({
       pathname: '/editar-evento',
       params: { eventId: event?.id }
@@ -1021,25 +1212,52 @@ export default function DetalhesEventoScreen() {
           </View>
         </View>
 
+        {event?.convite_participacao_id && participationFromInviteBanner ? (
+          <View
+            style={[
+              styles.financialCard,
+              { backgroundColor: colors.primary + '14', borderWidth: 1, borderColor: colors.primary + '44' },
+            ]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="link-outline" size={22} color={colors.primary} style={{ marginRight: 10 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.financialTitle, { color: colors.text, marginBottom: 4 }]}>
+                  Participação convidada
+                </Text>
+                <Text style={[styles.detailText, { color: colors.textSecondary, marginLeft: 0 }]}>
+                  Este evento foi criado ao aceitar um convite de participação do artista{' '}
+                  <Text style={{ fontWeight: '700', color: colors.text }}>{participationFromInviteBanner}</Text>.
+                </Text>
+              </View>
+            </View>
+          </View>
+        ) : null}
+
         {/* Resumo Financeiro */}
-        <View style={[styles.financialCard, { backgroundColor: colors.surface }]}>
+        <View style={[styles.financialCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.financialTitle, { color: colors.text }]}>Resumo Financeiro</Text>
           
           {hasAccess ? (
             <>
-              <View style={styles.financialRow}>
+              <View style={[styles.financialItemCard, { borderColor: colors.border }]}>
+                <View style={styles.financialRow}>
                 <Text style={[styles.financialLabel, { color: colors.textSecondary }]}>Valor do Evento:</Text>
                 <Text style={[styles.financialValue, { color: colors.success }]}>{formatCurrency(event.value || 0)}</Text>
               </View>
+              </View>
 
-              <View style={styles.financialRow}>
+              <View style={[styles.financialItemCard, { borderColor: colors.border }]}>
+                <View style={styles.financialRow}>
                 <Text style={[styles.financialLabel, { color: colors.textSecondary }]}>Total de Despesas:</Text>
                 <Text style={[styles.financialValue, { color: colors.error }]}>
                   -{formatCurrency(totalExpenses)}
                 </Text>
               </View>
+              </View>
 
-              <View style={[styles.financialRow, styles.financialTotal, { borderTopColor: colors.border }]}>
+              <View style={[styles.financialItemCard, styles.financialTotalCard, { borderColor: colors.border }]}>
+                <View style={styles.financialRow}>
                 <Text style={[styles.financialTotalLabel, { color: colors.text }]}>Lucro Líquido:</Text>
                 <Text style={[
                   styles.financialTotalValue,
@@ -1047,6 +1265,7 @@ export default function DetalhesEventoScreen() {
                 ]}>
                   {formatCurrency(profit)}
                 </Text>
+              </View>
               </View>
             </>
           ) : (
@@ -1063,7 +1282,7 @@ export default function DetalhesEventoScreen() {
         </View>
 
         {/* Histórico de edições */}
-        <View style={[styles.financialCard, { backgroundColor: colors.surface }]}>
+        <View style={[styles.financialCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <TouchableOpacity
             onPress={() => setShowAudit((v) => !v)}
             activeOpacity={0.8}
@@ -1095,11 +1314,7 @@ export default function DetalhesEventoScreen() {
                 {auditLogs.map((log) => (
                   <View
                     key={log.id}
-                    style={{
-                      paddingVertical: 8,
-                      borderBottomWidth: 1,
-                      borderBottomColor: colors.border,
-                    }}
+                    style={[styles.auditItemCard, { borderColor: colors.border }]}
                   >
                     <View style={styles.auditRow}>
                       <OptimizedImage
@@ -1128,6 +1343,68 @@ export default function DetalhesEventoScreen() {
             )
           ) : null}
         </View>
+
+        {participationInvites.some((c) => c.status === 'aceito' || c.status === 'recusado' || c.status === 'cancelado') ? (
+          <View style={[styles.financialCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <TouchableOpacity
+              onPress={() => setShowParticipants((v) => !v)}
+              activeOpacity={0.8}
+              style={styles.auditHeaderRow}
+            >
+              <Text style={[styles.financialTitle, { color: colors.text, marginBottom: 0 }]}>Artistas convidados</Text>
+              <View style={styles.auditHeaderRight}>
+                <Text style={[styles.contractHint, { color: colors.textSecondary }]}>
+                  {participationInvites.filter((c) => c.status === 'aceito' || c.status === 'recusado' || c.status === 'cancelado').length}{' '}
+                  participantes
+                </Text>
+                <Ionicons name={showParticipants ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textSecondary} />
+              </View>
+            </TouchableOpacity>
+            {showParticipants ? (
+              <View style={{ gap: 10, marginTop: 10 }}>
+                {participationInvites
+                  .filter((c) => c.status === 'aceito' || c.status === 'recusado' || c.status === 'cancelado')
+                  .map((c) => {
+                    const nome = participationInviteeNames[c.artista_convidado_id] || 'Artista';
+                    const funcao = c.funcao_participacao?.trim() || 'Participante';
+                    const statusColor =
+                      c.status === 'aceito' ? colors.success : c.status === 'cancelado' ? colors.warning : colors.error;
+                    return (
+                      <View key={c.id} style={[styles.participantCard, { borderColor: colors.border }]}>
+                        <OptimizedImage
+                          imageUrl={participationInviteeProfiles[c.artista_convidado_id] || ''}
+                          style={styles.participantAvatar}
+                          cacheKey={`participant_${c.artista_convidado_id}`}
+                          fallbackIcon="person"
+                          fallbackIconSize={16}
+                          fallbackIconColor="#FFFFFF"
+                          showLoadingIndicator={false}
+                        />
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.participantLine, { color: colors.textSecondary }]}>
+                            {nome} - {funcao}
+                          </Text>
+                          <Text style={[styles.participantStatus, { color: statusColor }]}>
+                            {labelConviteParticipacaoStatus(c.status)}
+                          </Text>
+                          {c.status === 'cancelado' && c.motivo_cancelamento ? (
+                            <Text style={[styles.participantReason, { color: colors.textSecondary }]}>
+                              Motivo: {c.motivo_cancelamento}
+                            </Text>
+                          ) : null}
+                          {c.status === 'recusado' && c.mensagem ? (
+                            <Text style={[styles.participantReason, { color: colors.textSecondary }]}>
+                              Motivo: {c.mensagem}
+                            </Text>
+                          ) : null}
+                        </View>
+                      </View>
+                    );
+                  })}
+              </View>
+            ) : null}
+          </View>
+        ) : null}
 
         {/* Ações */}
         <View style={styles.actionsContainer}>
@@ -1170,6 +1447,17 @@ export default function DetalhesEventoScreen() {
             {!hasAccess && <Ionicons name="lock-closed" size={16} color={colors.textSecondary} style={{ marginLeft: 8 }} />}
             <Ionicons name="chevron-forward" size={20} color={colors.text} />
           </TouchableOpacity>
+
+          {canCreateEventsPermission && event?.artist_id === activeArtist?.id ? (
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={handleConvidarColaborador}
+            >
+              <Ionicons name="people-outline" size={24} color={colors.primary} />
+              <Text style={[styles.actionButtonText, { color: colors.text }]}>Convidar colaborador</Text>
+              <Ionicons name="chevron-forward" size={20} color={colors.text} />
+            </TouchableOpacity>
+          ) : null}
 
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
@@ -1256,12 +1544,223 @@ export default function DetalhesEventoScreen() {
         </View>
       </Modal>
 
+      <Modal
+        visible={showParticipationModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !sendingParticipationInvite && setShowParticipationModal(false)}
+      >
+        <View style={styles.participationInviteModalOverlay}>
+          <View style={[styles.participationInviteModalCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.participationInviteModalTitle, { color: colors.text }]}>Convidar colaborador</Text>
+            <Text style={[styles.participationInviteModalSub, { color: colors.textSecondary }]}>
+              Busque pelo nome do perfil artístico (mín. 2 letras). É necessário ter conta no Marca AI.
+            </Text>
+            {participationInvites.length > 0 ? (
+              <ScrollView
+                style={styles.participationInviteList}
+                nestedScrollEnabled
+                keyboardShouldPersistTaps="handled"
+              >
+                {participationInvites.map((c) => (
+                  <View
+                    key={c.id}
+                    style={[styles.participationInviteRow, { borderBottomColor: colors.border }]}
+                  >
+                    <Text style={[styles.participationInviteName, { color: colors.text }]}>
+                      {participationInviteeNames[c.artista_convidado_id] || 'Artista'}
+                    </Text>
+                    <Text style={[styles.participationInviteStatus, { color: colors.textSecondary }]}>
+                      {labelConviteParticipacaoStatus(c.status)}
+                    </Text>
+                    {c.status === 'aceito' ? (
+                      <Text style={[styles.participationInviteStatus, { color: colors.textSecondary }]}>
+                        Função: {c.funcao_participacao?.trim() || 'Participante'}
+                      </Text>
+                    ) : null}
+                    {c.status === 'cancelado' && c.motivo_cancelamento ? (
+                      <Text style={[styles.participationInviteStatus, { color: colors.textSecondary }]}>
+                        Motivo: {c.motivo_cancelamento}
+                      </Text>
+                    ) : null}
+                    {c.status === 'pendente' ? (
+                      <TouchableOpacity onPress={() => cancelParticipationInviteRow(c)}>
+                        <Text style={{ color: colors.error, fontSize: 13, marginTop: 4 }}>Cancelar convite</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                ))}
+              </ScrollView>
+            ) : null}
+            <TextInput
+              style={[
+                styles.participationInviteSearchInput,
+                { color: colors.text, borderColor: colors.border, backgroundColor: colors.background },
+              ]}
+              placeholder="Nome do artista..."
+              placeholderTextColor={colors.textSecondary}
+              value={participationSearch}
+              onChangeText={setParticipationSearch}
+            />
+            {participationSearchLoading ? (
+              <ActivityIndicator style={{ marginVertical: 12 }} color={colors.primary} />
+            ) : (
+              <FlatList
+                style={{ maxHeight: 200 }}
+                data={participationSearchResults}
+                keyExtractor={(item) => item.id}
+                keyboardShouldPersistTaps="handled"
+                ListEmptyComponent={
+                  <Text
+                    style={{
+                      color: participationSearchError ? colors.error : colors.textSecondary,
+                      paddingVertical: 12,
+                      textAlign: 'center',
+                    }}
+                  >
+                    {participationSearchError
+                      ? participationSearchError
+                      : participationSearch.trim().length < 2
+                        ? 'Digite pelo menos 2 letras'
+                        : 'Nenhum artista encontrado. A busca usa o nome do perfil artístico ou o nome da conta; confira a grafia.'}
+                  </Text>
+                }
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[styles.participationInviteSearchHit, { borderBottomColor: colors.border }]}
+                    onPress={() => setSelectedArtistToInvite({ id: item.id, name: item.name })}
+                  >
+                    <View style={styles.participationInviteSearchHitRow}>
+                      <OptimizedImage
+                        imageUrl={item.image_url ?? item.profile_url ?? ''}
+                        style={styles.participationInviteSearchAvatar}
+                        fallbackIcon="person"
+                        fallbackIconSize={22}
+                        fallbackIconColor={colors.primary}
+                        showLoadingIndicator={false}
+                      />
+                      <Text style={[styles.participationInviteSearchHitName, { color: colors.text }]}>{item.name}</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+              />
+            )}
+            {selectedArtistToInvite ? (
+              <View style={{ marginTop: 12 }}>
+                <Text style={{ color: colors.textSecondary, marginBottom: 6 }}>
+                  Convidando: {selectedArtistToInvite.name}
+                </Text>
+
+                <TextInput
+                  style={[
+                    styles.participationInviteSearchInput,
+                    {
+                      color: colors.text,
+                      borderColor: colors.border,
+                      backgroundColor: colors.background,
+                      marginBottom: 8,
+                    },
+                  ]}
+                  placeholder="Cachê (obrigatório)"
+                  placeholderTextColor={colors.textSecondary}
+                  value={inviteCacheDraft}
+                  onChangeText={(text) => setInviteCacheDraft(formatCurrencyBRLInput(text))}
+                  keyboardType="numeric"
+                />
+                <Text style={[styles.participationInviteFieldHelp, { color: colors.textSecondary }]}>
+                  Cachê é o valor de proposta para o participante.
+                </Text>
+                <TextInput
+                  style={[
+                    styles.participationInviteSearchInput,
+                    {
+                      color: colors.text,
+                      borderColor: colors.border,
+                      backgroundColor: colors.background,
+                      marginBottom: 8,
+                    },
+                  ]}
+                  placeholder="WhatsApp (opcional)"
+                  placeholderTextColor={colors.textSecondary}
+                  value={inviteWhatsappDraft}
+                  onChangeText={setInviteWhatsappDraft}
+                  keyboardType="phone-pad"
+                />
+                <Text style={[styles.participationInviteFieldHelp, { color: colors.textSecondary }]}>
+                  WhatsApp é o número para contato e alinhamento da participação.
+                </Text>
+                <TextInput
+                  style={[
+                    styles.participationInviteSearchInput,
+                    {
+                      color: colors.text,
+                      borderColor: colors.border,
+                      backgroundColor: colors.background,
+                      marginBottom: 8,
+                    },
+                  ]}
+                  placeholder="Função do participante (opcional)"
+                  placeholderTextColor={colors.textSecondary}
+                  value={inviteFunctionDraft}
+                  onChangeText={setInviteFunctionDraft}
+                />
+                <Text style={[styles.participationInviteFieldHelp, { color: colors.textSecondary }]}>
+                  Exemplo: Violão, Voz, Percussão.
+                </Text>
+                <TextInput
+                  style={[
+                    styles.participationInviteSearchInput,
+                    {
+                      color: colors.text,
+                      borderColor: colors.border,
+                      backgroundColor: colors.background,
+                      minHeight: 72,
+                    },
+                  ]}
+                  placeholder="Mensagem (opcional)"
+                  placeholderTextColor={colors.textSecondary}
+                  value={inviteMessageDraft}
+                  onChangeText={setInviteMessageDraft}
+                  multiline
+                />
+                <Text style={[styles.participationInviteFieldHelp, { color: colors.textSecondary }]}>
+                  Mensagem serve para adicionar mais detalhes sobre o evento.
+                </Text>
+              </View>
+            ) : null}
+            <View style={styles.participationInviteModalActions}>
+              <TouchableOpacity
+                style={[styles.participationInviteModalBtnSec, { borderColor: colors.border }]}
+                onPress={() => !sendingParticipationInvite && setShowParticipationModal(false)}
+                disabled={sendingParticipationInvite}
+              >
+                <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Fechar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.participationInviteModalBtnPri,
+                  { backgroundColor: colors.primary, opacity: selectedArtistToInvite ? 1 : 0.45 },
+                ]}
+                onPress={() => void submitParticipationInvite()}
+                disabled={!selectedArtistToInvite || sendingParticipationInvite}
+              >
+                {sendingParticipationInvite ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.participationInviteModalBtnPriText}>Enviar convite</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Modal de Permissão */}
       <PermissionModal
         visible={showPermissionModal}
         onClose={() => setShowPermissionModal(false)}
         title="Acesso Restrito"
-        message="Apenas gerentes e editores podem editar eventos, gerenciar despesas e visualizar valores financeiros. Entre em contato com um gerente para solicitar mais permissões."
+        message="Apenas gerentes e editores podem editar eventos, gerenciar despesas, convidar colaboradores e visualizar valores financeiros. Entre em contato com um gerente para solicitar mais permissões."
         icon="lock-closed"
       />
 
@@ -1451,18 +1950,59 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   financialTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 16,
   },
+  financialItemCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+    backgroundColor: 'rgba(127,127,127,0.06)',
+  },
+  financialTotalCard: {
+    marginTop: 2,
+  },
+  participantLine: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  participantStatus: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  participantReason: {
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  participantCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 10,
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(127,127,127,0.06)',
+  },
+  participantAvatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#667eea',
+    marginRight: 10,
+  },
   financialRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 0,
   },
   financialLabel: {
     fontSize: 16,
@@ -1494,6 +2034,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  auditItemCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 10,
+    backgroundColor: 'rgba(127,127,127,0.06)',
   },
   actionButtonText: {
     fontSize: 16,
@@ -1731,5 +2277,100 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  participationInviteModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  participationInviteModalCard: {
+    borderRadius: 16,
+    padding: 20,
+    maxHeight: '90%',
+  },
+  participationInviteModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  participationInviteModalSub: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  participationInviteList: {
+    marginBottom: 12,
+    maxHeight: 140,
+  },
+  participationInviteRow: {
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  participationInviteName: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  participationInviteStatus: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  participationInviteSearchInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    marginTop: 8,
+  },
+  participationInviteSearchHit: {
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  participationInviteSearchHitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  participationInviteSearchAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
+  participationInviteSearchHitName: {
+    flex: 1,
+    fontWeight: '600',
+    fontSize: 16,
+    marginLeft: 12,
+  },
+  participationInviteFieldHelp: {
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: -2,
+    marginBottom: 8,
+  },
+  participationInviteModalActions: {
+    flexDirection: 'row',
+    marginTop: 16,
+  },
+  participationInviteModalBtnSec: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    marginRight: 6,
+  },
+  participationInviteModalBtnPri: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    minHeight: 48,
+    marginLeft: 6,
+  },
+  participationInviteModalBtnPriText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 16,
   },
 });

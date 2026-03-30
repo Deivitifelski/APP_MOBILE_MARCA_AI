@@ -288,6 +288,21 @@ export default function ConvitesRecebidosScreen() {
           <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
         }
       >
+        <TouchableOpacity
+          style={styles.participationEventLink}
+          onPress={() => router.push('/convites-participacao-evento')}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="calendar-outline" size={24} color="#667eea" />
+          <View style={styles.participationEventLinkText}>
+            <Text style={styles.participationEventLinkTitle}>Participação em eventos</Text>
+            <Text style={styles.participationEventLinkSub}>
+              Convites para tocar no mesmo show que outro artista
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+        </TouchableOpacity>
+
         {invites.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="mail-outline" size={64} color="#9CA3AF" />
@@ -366,6 +381,33 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  participationEventLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  participationEventLinkText: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  participationEventLinkTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  participationEventLinkSub: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 4,
+    lineHeight: 18,
   },
   emptyContainer: {
     flex: 1,

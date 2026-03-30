@@ -17,8 +17,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import PermissionModal from '../components/PermissionModal';
 import { useActiveArtistContext } from '../contexts/ActiveArtistContext';
+import { listarConvitesPendentesRecebidos } from '../services/supabase/conviteParticipacaoEventoService';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
+import { setAppIconBadge } from '../services/appIconBadge';
 import {
     acceptArtistInvite,
     declineArtistInvite,
@@ -44,11 +46,12 @@ type NotificationWithInvite = Notification & {
 export default function NotificacoesScreen() {
   const { colors, isDarkMode } = useTheme();
   const { loadUnreadCount } = useNotifications(); // ✅ Hook para atualizar badge
-  const { setActiveArtist } = useActiveArtistContext(); // ✅ Context para atualizar artista ativo
+  const { activeArtist, setActiveArtist } = useActiveArtistContext(); // ✅ Context para atualizar artista ativo
   const [notifications, setNotifications] = useState<NotificationWithInvite[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [hasPendingParticipationInvite, setHasPendingParticipationInvite] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -67,10 +70,11 @@ export default function NotificacoesScreen() {
     return () => {
       cleanupSubscription();
     };
-  }, []);
+  }, [activeArtist?.id]);
 
   // Subscription em tempo real para notificações
   const subscriptionRef = React.useRef<any>(null);
+  const participationSubscriptionRef = React.useRef<any>(null);
 
   const setupRealtimeSubscription = async () => {
     try {
@@ -91,11 +95,9 @@ export default function NotificacoesScreen() {
             event: '*', // INSERT, UPDATE, DELETE
             schema: 'public',
             table: 'notifications',
-            filter: `user_id=eq.${user.id}`,
+            filter: `to_user_id=eq.${user.id}`,
           },
-          (payload) => {
-            // Recarregar notificações e badge quando houver mudanças
-            // O badge será atualizado especialmente quando read == false
+          () => {
             loadNotifications();
             loadUnreadCount();
           }
@@ -103,6 +105,30 @@ export default function NotificacoesScreen() {
         .subscribe();
 
       subscriptionRef.current = channel;
+
+      if (participationSubscriptionRef.current) {
+        await supabase.removeChannel(participationSubscriptionRef.current);
+      }
+
+      if (activeArtist?.id) {
+        const participationChannel = supabase
+          .channel(`convite-participacao-notifications:${activeArtist.id}`)
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'convite_participacao_evento',
+              filter: `artista_convidado_id=eq.${activeArtist.id}`,
+            },
+            () => {
+              loadNotifications();
+            }
+          )
+          .subscribe();
+
+        participationSubscriptionRef.current = participationChannel;
+      }
     } catch (error) {
       // Erro ao configurar realtime
     }
@@ -112,6 +138,10 @@ export default function NotificacoesScreen() {
     if (subscriptionRef.current) {
       await supabase.removeChannel(subscriptionRef.current);
       subscriptionRef.current = null;
+    }
+    if (participationSubscriptionRef.current) {
+      await supabase.removeChannel(participationSubscriptionRef.current);
+      participationSubscriptionRef.current = null;
     }
   };
 
@@ -145,11 +175,45 @@ export default function NotificacoesScreen() {
         return notification;
       });
 
+      let syntheticParticipationCard: NotificationWithInvite | null = null;
+      if (activeArtist?.id) {
+        const { convites: pendingParticipationInvites } = await listarConvitesPendentesRecebidos(activeArtist.id);
+        const hasPending = (pendingParticipationInvites?.length || 0) > 0;
+        setHasPendingParticipationInvite(hasPending);
+
+        const hasRealUnreadParticipationNotification = enhancedNotifications.some(
+          (n) => n.type === 'participacao_evento' && !n.read && n.to_user_id === user.id
+        );
+
+        if (hasPending && !hasRealUnreadParticipationNotification) {
+          const newest = pendingParticipationInvites?.[0];
+          syntheticParticipationCard = {
+            id: `convite_participacao_pendente_${activeArtist.id}`,
+            to_user_id: user.id,
+            from_user_id: undefined,
+            artist_id: activeArtist.id,
+            event_id: undefined,
+            title: 'Convite de participação em evento',
+            message: 'Você recebeu novo convite de participação. Toque para revisar e responder.',
+            type: 'participacao_evento',
+            read: false,
+            created_at: newest?.criado_em || new Date().toISOString(),
+          } as NotificationWithInvite;
+        }
+      } else {
+        setHasPendingParticipationInvite(false);
+      }
+
+      if (syntheticParticipationCard) {
+        enhancedNotifications = [syntheticParticipationCard, ...enhancedNotifications];
+      }
+
       setNotifications(enhancedNotifications);
       
-      // Contar APENAS notificações não lidas do usuário (read === false)
+      // Contar notificações não lidas e somar +1 para o card sintético de participação
       const unreadNotifications = (enhancedNotifications || []).filter(n => !n.read && n.to_user_id === user.id).length;
       setUnreadCount(unreadNotifications);
+      await setAppIconBadge(unreadNotifications);
     } catch (error) {
       Alert.alert('Erro', 'Erro ao carregar notificações');
     } finally {
@@ -164,6 +228,16 @@ export default function NotificacoesScreen() {
   };
 
   const handleNotificationPress = async (notification: Notification) => {
+    const isSyntheticParticipationCard = notification.id.startsWith('convite_participacao_pendente_');
+
+    if (isSyntheticParticipationCard) {
+      setHasPendingParticipationInvite(false);
+      setNotifications((prev) => prev.filter((n) => n.id !== notification.id));
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+      router.push('/convites-participacao-evento');
+      return;
+    }
+
     // Marcar como lida se não estiver lida
     if (!notification.read) {
       const { success, error } = await markNotificationAsRead(notification.id);
@@ -201,6 +275,9 @@ export default function NotificacoesScreen() {
           } else {
             router.push('/(tabs)/agenda');
           }
+          break;
+        case 'participacao_evento':
+          router.push('/convites-participacao-evento');
           break;
         default:
           router.push('/(tabs)/agenda');
@@ -442,6 +519,8 @@ export default function NotificacoesScreen() {
         return 'person-remove';
       case 'event':
         return 'calendar';
+      case 'participacao_evento':
+        return 'people';
       default:
         return 'notifications';
     }
@@ -466,6 +545,8 @@ export default function NotificacoesScreen() {
         return '#EF4444';
       case 'event':
         return '#F59E0B';
+      case 'participacao_evento':
+        return '#8B5CF6';
       default:
         return '#6B7280';
     }
