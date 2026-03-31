@@ -40,20 +40,16 @@ import {
 } from '../services/supabase/eventService';
 import { removeEventContractByUrl, uploadEventContractFile } from '../services/supabase/eventContractUploadService';
 import {
-    buscarArtistasParaConvite,
     cancelarConviteParticipacao,
-    enviarConviteParticipacao,
     listarConvitesDoEvento,
     obterConvitePorId,
     obterNomeArtista,
     removerParticipacaoAceitaPeloOrganizador,
-    type ArtistaBuscaConvite,
     type ConviteParticipacaoEventoRow,
 } from '../services/supabase/conviteParticipacaoEventoService';
 import { getExpensesByEvent, getTotalExpensesByEvent } from '../services/supabase/expenseService';
 import { useActiveArtist } from '../services/useActiveArtist';
-import { buildWhatsAppUrl, brazilMobileDigits, maskBrazilMobile } from '../utils/brazilPhone';
-import { extractNumericValueString, formatCurrencyBRLInput } from '../utils/currencyBRLInput';
+import { buildWhatsAppUrl } from '../utils/brazilPhone';
 import { promptAndShareEvent } from '../utils/eventShare';
 
 function parseEventDateToLocalDate(eventDate: string): Date {
@@ -228,17 +224,6 @@ export default function DetalhesEventoScreen() {
   const [participationInvites, setParticipationInvites] = useState<ConviteParticipacaoEventoRow[]>([]);
   const [participationInviteeNames, setParticipationInviteeNames] = useState<Record<string, string>>({});
   const [participationInviteeProfiles, setParticipationInviteeProfiles] = useState<Record<string, string>>({});
-  const [showParticipationModal, setShowParticipationModal] = useState(false);
-  const [participationSearch, setParticipationSearch] = useState('');
-  const [participationSearchResults, setParticipationSearchResults] = useState<ArtistaBuscaConvite[]>([]);
-  const [participationSearchLoading, setParticipationSearchLoading] = useState(false);
-  const [participationSearchError, setParticipationSearchError] = useState<string | null>(null);
-  const [inviteMessageDraft, setInviteMessageDraft] = useState('');
-  const [inviteCacheDraft, setInviteCacheDraft] = useState('R$ 0,00');
-  const [inviteWhatsappDraft, setInviteWhatsappDraft] = useState('');
-  const [inviteFunctionDraft, setInviteFunctionDraft] = useState('');
-  const [selectedArtistToInvite, setSelectedArtistToInvite] = useState<{ id: string; name: string } | null>(null);
-  const [sendingParticipationInvite, setSendingParticipationInvite] = useState(false);
   const [showRemoveParticipationModal, setShowRemoveParticipationModal] = useState(false);
   const [removeParticipationConvite, setRemoveParticipationConvite] = useState<ConviteParticipacaoEventoRow | null>(null);
   const [removeParticipationMotivo, setRemoveParticipationMotivo] = useState('');
@@ -354,26 +339,6 @@ export default function DetalhesEventoScreen() {
     void loadParticipationInvites(event.id);
   }, [event?.id, event?.artist_id, activeArtist?.id, loadParticipationInvites]);
 
-  useEffect(() => {
-    if (!showParticipationModal || !event?.artist_id) return;
-    const t = setTimeout(() => {
-      void (async () => {
-        setParticipationSearchLoading(true);
-        setParticipationSearchError(null);
-        const { artists, error } = await buscarArtistasParaConvite(participationSearch, event.artist_id);
-        const convidadosBloqueados = new Set(
-          participationInvites
-            .filter((c) => c.status === 'pendente' || c.status === 'aceito')
-            .map((c) => c.artista_convidado_id)
-        );
-        setParticipationSearchResults(artists.filter((a) => !convidadosBloqueados.has(a.id)));
-        setParticipationSearchError(error);
-        setParticipationSearchLoading(false);
-      })();
-    }, 400);
-    return () => clearTimeout(t);
-  }, [participationSearch, showParticipationModal, event?.artist_id, participationInvites]);
-
   const labelConviteParticipacaoStatus = (s: string) => {
     switch (s) {
       case 'pendente':
@@ -394,60 +359,6 @@ export default function DetalhesEventoScreen() {
     if (!iso) return null;
     const prefixo = c.status === 'pendente' ? 'Enviado em' : 'Respondido em';
     return `${prefixo}: ${formatAuditDateTime(iso)}`;
-  };
-
-  const submitParticipationInvite = async () => {
-    if (!event || !activeArtist || !selectedArtistToInvite || !currentUserId) return;
-    const cacheDigits = extractNumericValueString(inviteCacheDraft);
-    const cacheNumerico = cacheDigits ? Number(cacheDigits) : NaN;
-    const funcaoLimpa = inviteFunctionDraft.trim();
-    if (!inviteCacheDraft.trim() || Number.isNaN(cacheNumerico) || cacheNumerico <= 0) {
-      Alert.alert('Cachê obrigatório', 'Informe um valor de cachê válido para enviar o convite.');
-      return;
-    }
-    if (!funcaoLimpa) {
-      Alert.alert('Função obrigatória', 'Informe a função do participante para enviar o convite.');
-      return;
-    }
-    const whatsDigits = brazilMobileDigits(inviteWhatsappDraft);
-    if (whatsDigits.length > 0 && whatsDigits.length !== 11) {
-      Alert.alert(
-        'WhatsApp incompleto',
-        'Informe o número completo no formato (XX) XXXXX-XXXX ou deixe o campo vazio.'
-      );
-      return;
-    }
-    if (event.artist_id !== activeArtist.id) return;
-    setSendingParticipationInvite(true);
-    const { success, error } = await enviarConviteParticipacao({
-      eventoOrigemId: event.id,
-      artistaQueConvidaId: activeArtist.id,
-      artistaConvidadoId: selectedArtistToInvite.id,
-      usuarioQueEnviaId: currentUserId,
-      mensagem: inviteMessageDraft.trim() || null,
-      funcaoParticipacao: funcaoLimpa,
-      nomeEvento: event.name,
-      dataEvento: event.event_date,
-      horaInicio: event.start_time,
-      horaFim: event.end_time,
-      cacheValor: cacheNumerico,
-      cidade: event.city ?? null,
-      telefoneContratante: whatsDigits.length === 11 ? maskBrazilMobile(inviteWhatsappDraft) : null,
-      descricao: event.description ?? null,
-    });
-    setSendingParticipationInvite(false);
-    if (success) {
-      Alert.alert('Enviado', 'O convite foi enviado.');
-      setShowParticipationModal(false);
-      setSelectedArtistToInvite(null);
-      setInviteMessageDraft('');
-      setInviteCacheDraft('R$ 0,00');
-      setInviteWhatsappDraft('');
-      setInviteFunctionDraft('');
-      void loadParticipationInvites(event.id);
-    } else {
-      Alert.alert('Erro', error || 'Não foi possível enviar.');
-    }
   };
 
   const cancelParticipationInviteRow = (c: ConviteParticipacaoEventoRow) => {
@@ -471,14 +382,10 @@ export default function DetalhesEventoScreen() {
       setShowPermissionModal(true);
       return;
     }
-    setShowParticipationModal(true);
-    setSelectedArtistToInvite(null);
-    setParticipationSearch('');
-    setInviteMessageDraft('');
-    setInviteCacheDraft('R$ 0,00');
-    setInviteWhatsappDraft(maskBrazilMobile(event?.contractor_phone ?? ''));
-    setInviteFunctionDraft('');
-    setParticipationSearchError(null);
+    router.push({
+      pathname: '/convidar-colaborador-evento',
+      params: { eventId: event.id },
+    });
   };
 
   const loadEventData = async (isInitialLoad = true) => {
@@ -1645,228 +1552,6 @@ export default function DetalhesEventoScreen() {
             </View>
           </View>
         </View>
-      </Modal>
-
-      <Modal
-        visible={showParticipationModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => !sendingParticipationInvite && setShowParticipationModal(false)}
-      >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.participationInviteModalOverlay}>
-            <TouchableWithoutFeedback onPress={() => {}}>
-              <View style={[styles.participationInviteModalCard, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.participationInviteModalTitle, { color: colors.text }]}>Convidar colaborador</Text>
-            <Text style={[styles.participationInviteModalSub, { color: colors.textSecondary }]}>
-              Busque pelo nome do perfil artístico (mín. 2 letras). É necessário ter conta no Marca AI.
-            </Text>
-            {participationInvites.some((c) => c.status === 'pendente') ? (
-              <ScrollView
-                style={styles.participationInviteList}
-                nestedScrollEnabled
-                keyboardShouldPersistTaps="handled"
-              >
-                {participationInvites
-                  .filter((c) => c.status === 'pendente')
-                  .map((c) => (
-                  <View
-                    key={c.id}
-                    style={[styles.participationInviteRow, { borderBottomColor: colors.border }]}
-                  >
-                    <Text style={[styles.participationInviteName, { color: colors.text }]}>
-                      {participationInviteeNames[c.artista_convidado_id] || 'Artista'}
-                    </Text>
-                    <Text style={[styles.participationInviteStatus, { color: colors.textSecondary }]}>
-                      {labelConviteParticipacaoStatus(c.status)}
-                    </Text>
-                    {getConviteStatusDateLabel(c) ? (
-                      <Text style={[styles.participationInviteStatus, { color: colors.textSecondary }]}>
-                        {getConviteStatusDateLabel(c)}
-                      </Text>
-                    ) : null}
-                    {c.status === 'aceito' ? (
-                      <Text style={[styles.participationInviteStatus, { color: colors.textSecondary }]}>
-                        Função: {c.funcao_participacao?.trim() || 'Participante'}
-                      </Text>
-                    ) : null}
-                    {c.status === 'cancelado' && c.motivo_cancelamento ? (
-                      <Text style={[styles.participationInviteStatus, { color: colors.textSecondary }]}>
-                        Motivo: {c.motivo_cancelamento}
-                      </Text>
-                    ) : null}
-                    {c.status === 'pendente' ? (
-                      <TouchableOpacity onPress={() => cancelParticipationInviteRow(c)}>
-                        <Text style={{ color: colors.error, fontSize: 13, marginTop: 4 }}>Cancelar convite</Text>
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
-                ))}
-              </ScrollView>
-            ) : null}
-            <TextInput
-              style={[
-                styles.participationInviteSearchInput,
-                { color: colors.text, borderColor: colors.border, backgroundColor: colors.background },
-              ]}
-              placeholder="Nome do artista..."
-              placeholderTextColor={colors.textSecondary}
-              value={participationSearch}
-              onChangeText={setParticipationSearch}
-            />
-            {participationSearchLoading ? (
-              <ActivityIndicator style={{ marginVertical: 12 }} color={colors.primary} />
-            ) : (
-              <FlatList
-                style={{ maxHeight: 200 }}
-                data={participationSearchResults}
-                keyExtractor={(item) => item.id}
-                keyboardShouldPersistTaps="handled"
-                ListEmptyComponent={
-                  <Text
-                    style={{
-                      color: participationSearchError ? colors.error : colors.textSecondary,
-                      paddingVertical: 12,
-                      textAlign: 'center',
-                    }}
-                  >
-                    {participationSearchError
-                      ? participationSearchError
-                      : participationSearch.trim().length < 2
-                        ? 'Digite pelo menos 2 letras'
-                        : 'Nenhum artista encontrado. A busca usa o nome do perfil artístico ou o nome da conta; confira a grafia.'}
-                  </Text>
-                }
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={[styles.participationInviteSearchHit, { borderBottomColor: colors.border }]}
-                    onPress={() => setSelectedArtistToInvite({ id: item.id, name: item.name })}
-                  >
-                    <View style={styles.participationInviteSearchHitRow}>
-                      <OptimizedImage
-                        imageUrl={item.image_url ?? item.profile_url ?? ''}
-                        style={styles.participationInviteSearchAvatar}
-                        fallbackIcon="person"
-                        fallbackIconSize={22}
-                        fallbackIconColor={colors.primary}
-                        showLoadingIndicator={false}
-                      />
-                      <Text style={[styles.participationInviteSearchHitName, { color: colors.text }]}>{item.name}</Text>
-                    </View>
-                  </TouchableOpacity>
-                )}
-              />
-            )}
-            {selectedArtistToInvite ? (
-              <View style={{ marginTop: 12 }}>
-                <Text style={{ color: colors.textSecondary, marginBottom: 6 }}>
-                  Convidando: {selectedArtistToInvite.name}
-                </Text>
-
-                <TextInput
-                  style={[
-                    styles.participationInviteSearchInput,
-                    {
-                      color: colors.text,
-                      borderColor: colors.border,
-                      backgroundColor: colors.background,
-                      marginBottom: 8,
-                    },
-                  ]}
-                  placeholder="Cachê (obrigatório)"
-                  placeholderTextColor={colors.textSecondary}
-                  value={inviteCacheDraft}
-                  onChangeText={(text) => setInviteCacheDraft(formatCurrencyBRLInput(text))}
-                  keyboardType="numeric"
-                />
-                <Text style={[styles.participationInviteFieldHelp, { color: colors.textSecondary }]}>
-                  Cachê é o valor de proposta para o participante.
-                </Text>
-                <TextInput
-                  style={[
-                    styles.participationInviteSearchInput,
-                    {
-                      color: colors.text,
-                      borderColor: colors.border,
-                      backgroundColor: colors.background,
-                      marginBottom: 8,
-                    },
-                  ]}
-                  placeholder="(11) 98765-4321"
-                  placeholderTextColor={colors.textSecondary}
-                  value={inviteWhatsappDraft}
-                  onChangeText={(t) => setInviteWhatsappDraft(maskBrazilMobile(t))}
-                  keyboardType="phone-pad"
-                />
-                <Text style={[styles.participationInviteFieldHelp, { color: colors.textSecondary }]}>
-                  Opcional. Formato (XX) XXXXX-XXXX — deixe vazio ou preencha o número completo.
-                </Text>
-                <TextInput
-                  style={[
-                    styles.participationInviteSearchInput,
-                    {
-                      color: colors.text,
-                      borderColor: colors.border,
-                      backgroundColor: colors.background,
-                      marginBottom: 8,
-                    },
-                  ]}
-                  placeholder="Função do participante (obrigatório)"
-                  placeholderTextColor={colors.textSecondary}
-                  value={inviteFunctionDraft}
-                  onChangeText={setInviteFunctionDraft}
-                />
-                <Text style={[styles.participationInviteFieldHelp, { color: colors.textSecondary }]}>
-                  Exemplo: Violão, Voz, Percussão.
-                </Text>
-                <TextInput
-                  style={[
-                    styles.participationInviteSearchInput,
-                    {
-                      color: colors.text,
-                      borderColor: colors.border,
-                      backgroundColor: colors.background,
-                      minHeight: 72,
-                    },
-                  ]}
-                  placeholder="Mensagem (opcional)"
-                  placeholderTextColor={colors.textSecondary}
-                  value={inviteMessageDraft}
-                  onChangeText={setInviteMessageDraft}
-                  multiline
-                />
-                <Text style={[styles.participationInviteFieldHelp, { color: colors.textSecondary }]}>
-                  Mensagem serve para adicionar mais detalhes sobre o evento.
-                </Text>
-              </View>
-            ) : null}
-            <View style={styles.participationInviteModalActions}>
-              <TouchableOpacity
-                style={[styles.participationInviteModalBtnSec, { borderColor: colors.border }]}
-                onPress={() => !sendingParticipationInvite && setShowParticipationModal(false)}
-                disabled={sendingParticipationInvite}
-              >
-                <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Fechar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.participationInviteModalBtnPri,
-                  { backgroundColor: colors.primary, opacity: selectedArtistToInvite ? 1 : 0.45 },
-                ]}
-                onPress={() => void submitParticipationInvite()}
-                disabled={!selectedArtistToInvite || sendingParticipationInvite}
-              >
-                {sendingParticipationInvite ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.participationInviteModalBtnPriText}>Enviar convite</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
       </Modal>
 
       <Modal

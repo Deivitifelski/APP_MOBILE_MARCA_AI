@@ -478,27 +478,19 @@ export default function AgendaScreen() {
         artista_que_convidou_id: string;
         artista_convidado_id: string;
         criado_em: string;
+        status: 'pendente' | 'aceito' | 'recusado' | 'cancelado';
       };
 
-      const { data: rpcData, error: rpcError } = await supabase.rpc('rpc_app_convites_agenda_avatars', {
-        p_event_ids: allOriginIds,
-      });
-
-      let convites: ConviteAvatarRow[] = [];
-      if (!rpcError && Array.isArray(rpcData)) {
-        convites = rpcData as ConviteAvatarRow[];
-      } else {
-        const { data: direct, error } = await supabase
-          .from('convite_participacao_evento')
-          .select('evento_origem_id, artista_que_convidou_id, artista_convidado_id, criado_em')
-          .in('evento_origem_id', allOriginIds)
-          .in('status', ['pendente', 'aceito']);
-        if (error) {
-          if (!cancelled) setParticipantAvatarsByEventId({});
-          return;
-        }
-        convites = (direct || []) as ConviteAvatarRow[];
+      const { data: direct, error } = await supabase
+        .from('convite_participacao_evento')
+        .select('evento_origem_id, artista_que_convidou_id, artista_convidado_id, criado_em, status')
+        .in('evento_origem_id', allOriginIds)
+        .in('status', ['pendente', 'aceito']);
+      if (error) {
+        if (!cancelled) setParticipantAvatarsByEventId({});
+        return;
       }
+      const convites = (direct || []) as ConviteAvatarRow[];
 
       const sorted = [...convites].sort(
         (a, b) => new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime()
@@ -515,7 +507,7 @@ export default function AgendaScreen() {
         if (!list.includes(inv)) {
           list.unshift(inv);
         }
-        if (!list.includes(conv)) {
+        if (row.status === 'aceito' && !list.includes(conv)) {
           list.push(conv);
         }
       }
@@ -1213,14 +1205,14 @@ export default function AgendaScreen() {
 
     const conviteIdForCard = item.convite_participacao_id || conviteIdByEventId[item.id];
     const isInvitedEvent = !!conviteIdForCard;
-    const inviterForCard = conviteIdForCard ? invitePartnerByConviteId[conviteIdForCard] : null;
     const fromParticipantMap = participantAvatarsByEventId[item.id] || [];
     const collabAvatars: { profile_url: string | null }[] =
       fromParticipantMap.length > 0
-        ? fromParticipantMap.slice(0, MAX_COLLAB_AVATARS_ON_CARD).map((p) => ({ profile_url: p.profile_url }))
-        : isInvitedEvent && inviterForCard
-          ? [{ profile_url: inviterForCard.profile_url }]
-          : [];
+        ? fromParticipantMap
+            .filter((p) => !p.isHost)
+            .slice(0, MAX_COLLAB_AVATARS_ON_CARD)
+            .map((p) => ({ profile_url: p.profile_url }))
+        : [];
     
     const timeRange =
       hasDefinedTime(item.start_time, item.end_time)
