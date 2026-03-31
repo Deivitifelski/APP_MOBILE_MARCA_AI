@@ -1240,93 +1240,104 @@ export default function AgendaScreen() {
           </View>
 
           <View style={styles.showInfoSection}>
-            <View style={styles.showHeaderRow}>
+            <View style={styles.showTitleRow}>
               <View style={styles.eventNameContainer}>
-                <Text style={[styles.showName, { color: colors.text }]} numberOfLines={3}>
+                <Text
+                  style={[styles.showName, { color: colors.text }]}
+                  numberOfLines={2}
+                  ellipsizeMode="tail"
+                >
                   {item.name}
                 </Text>
                 {!hasFinancialAccess && (
                   <Ionicons name="lock-closed" size={14} color={colors.textSecondary} style={{ marginLeft: 6 }} />
                 )}
               </View>
+              {(item.tag || collabAvatars.length > 0) && (
+                <View style={styles.showTopActions}>
+                  {item.tag ? (
+                    <View style={[styles.tagContainer, { backgroundColor: getTagColor(item.tag) }]}>
+                      <Ionicons name={getTagIcon(item.tag)} size={12} color="#fff" />
+                      <Text style={styles.tagText} numberOfLines={1}>
+                        {item.tag}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {collabAvatars.length > 0 ? (
+                    <TouchableOpacity
+                      style={[styles.collabInlineBadge, { backgroundColor: `${colors.primary}12`, borderColor: `${colors.primary}30` }]}
+                      onPress={() => handleOpenParticipantsModal(item)}
+                      activeOpacity={0.75}
+                      hitSlop={{ top: 6, bottom: 6, left: 4, right: 6 }}
+                    >
+                      <View style={styles.collabAvatarStack}>
+                        {collabAvatars.map((a, idx) => (
+                          <View
+                            key={`${item.id}_collab_${idx}`}
+                            style={[
+                              styles.collabStackAvatarWrapper,
+                              ...(idx > 0 ? [styles.collabStackAvatarOverlap] : []),
+                              { borderColor: colors.surface, zIndex: idx, backgroundColor: colors.secondary },
+                            ]}
+                          >
+                            <OptimizedImage
+                              imageUrl={a.profile_url || ''}
+                              style={styles.collabStackAvatarInner}
+                              cacheKey={`collab_stack_${item.id}_${idx}_${a.profile_url || 'none'}`}
+                              fallbackIcon="person"
+                              fallbackIconSize={9}
+                              fallbackIconColor="#FFFFFF"
+                              showLoadingIndicator={false}
+                            />
+                          </View>
+                        ))}
+                      </View>
+                      <Ionicons name="git-network-outline" size={10} color={colors.primary} />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              )}
             </View>
 
-            {hasDefinedTime(item.start_time, item.end_time) ? (
-              <View style={styles.showDetailItem}>
-                <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
-                <Text style={[styles.showTime, { color: colors.textSecondary }]}>
-                  {toHHMM(item.start_time)}
-                  {toHHMM(item.end_time) && toHHMM(item.end_time) !== toHHMM(item.start_time) ? ` - ${toHHMM(item.end_time)}` : ''}
-                </Text>
+            {hasDefinedTime(item.start_time, item.end_time) || item.city ? (
+              <View style={styles.showMetaBlock}>
+                {hasDefinedTime(item.start_time, item.end_time) ? (
+                  <View style={styles.showDetailItem}>
+                    <Ionicons name="time-outline" size={14} color={colors.textSecondary} style={styles.showDetailIcon} />
+                    <Text style={[styles.showTime, { color: colors.textSecondary }]}>
+                      {toHHMM(item.start_time)}
+                      {toHHMM(item.end_time) && toHHMM(item.end_time) !== toHHMM(item.start_time) ? ` - ${toHHMM(item.end_time)}` : ''}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {item.city ? (
+                  <View style={styles.showDetailItem}>
+                    <Ionicons name="location-outline" size={14} color={colors.textSecondary} style={styles.showDetailIcon} />
+                    <Text style={[styles.showLocation, { color: colors.textSecondary }]} numberOfLines={2}>
+                      {item.city}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
             ) : null}
 
-            {item.city && (
-              <View style={styles.showDetailItem}>
-                <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
-                <Text style={[styles.showLocation, { color: colors.textSecondary }]}>{item.city}</Text>
-              </View>
-            )}
-
-            <View style={styles.showValueRow}>
+            <View style={[styles.showFooterRow, { borderTopColor: colors.border }]}>
               <View style={styles.showValueLeft}>
                 {item.value !== null && item.value !== undefined ? (
-                  <Text style={[styles.showValue, { color: colors.primary }]}>
+                  <Text style={[styles.showValue, { color: colors.primary }]} numberOfLines={1}>
                     {formatEventValueBRL(item.value)}
                   </Text>
                 ) : (
                   <View style={styles.lockedValueContainer}>
                     <Ionicons name="lock-closed" size={12} color={colors.textSecondary} />
-                    <Text style={[styles.lockedValueText, { color: colors.textSecondary }]}>
-                      Valor oculto
-                    </Text>
+                    <Text style={[styles.lockedValueText, { color: colors.textSecondary }]}>Valor oculto</Text>
                   </View>
                 )}
               </View>
-            </View>
-          </View>
-
-          <View style={styles.showRightColumn}>
-            {item.tag ? (
-              <View style={[styles.tagContainer, { backgroundColor: getTagColor(item.tag) }]}>
-                <Ionicons name={getTagIcon(item.tag)} size={12} color="#fff" />
-                <Text style={styles.tagText}>{item.tag}</Text>
+              <View style={styles.showArrowSection}>
+                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
               </View>
-            ) : null}
-            {collabAvatars.length > 0 ? (
-              <TouchableOpacity
-                style={[styles.collabInlineBadge, { backgroundColor: `${colors.primary}12`, borderColor: `${colors.primary}30` }]}
-                onPress={() => handleOpenParticipantsModal(item)}
-                activeOpacity={0.75}
-                hitSlop={{ top: 6, bottom: 6, left: 4, right: 6 }}
-              >
-                <View style={styles.collabAvatarStack}>
-                  {collabAvatars.map((a, idx) => (
-                    <View
-                      key={`${item.id}_collab_${idx}`}
-                      style={[
-                        styles.collabStackAvatarWrapper,
-                        ...(idx > 0 ? [styles.collabStackAvatarOverlap] : []),
-                        { borderColor: colors.surface, zIndex: idx, backgroundColor: colors.secondary },
-                      ]}
-                    >
-                      <OptimizedImage
-                        imageUrl={a.profile_url || ''}
-                        style={styles.collabStackAvatarInner}
-                        cacheKey={`collab_stack_${item.id}_${idx}_${a.profile_url || 'none'}`}
-                        fallbackIcon="person"
-                        fallbackIconSize={9}
-                        fallbackIconColor="#FFFFFF"
-                        showLoadingIndicator={false}
-                      />
-                    </View>
-                  ))}
-                </View>
-                <Ionicons name="git-network-outline" size={10} color={colors.primary} />
-              </TouchableOpacity>
-            ) : null}
-            <View style={styles.showArrowSection}>
-              <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
             </View>
           </View>
         </View>
@@ -2555,9 +2566,9 @@ const styles = StyleSheet.create({
   },
   showContent: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     paddingVertical: 16,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
   },
   showDateSection: {
     width: 54,
@@ -2584,10 +2595,11 @@ const styles = StyleSheet.create({
     minWidth: 0,
     paddingRight: 0,
   },
-  showHeaderRow: {
+  showTitleRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 6,
   },
   eventNameContainer: {
     flexDirection: 'row',
@@ -2595,19 +2607,24 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-  showRightColumn: {
+  showTopActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
     flexShrink: 0,
-    marginLeft: 0,
     gap: 4,
+    marginTop: 1,
+  },
+  showMetaBlock: {
+    marginBottom: 4,
+    gap: 6,
   },
   showName: {
     fontSize: 16,
     fontWeight: '600',
     lineHeight: 20,
     flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
   },
   tagContainer: {
     flexDirection: 'row',
@@ -2625,28 +2642,37 @@ const styles = StyleSheet.create({
   },
   showDetailItem: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
+    alignItems: 'flex-start',
+  },
+  showDetailIcon: {
+    marginTop: 2,
+    marginRight: 8,
   },
   showTime: {
     fontSize: 14,
-    marginLeft: 4,
+    marginLeft: 0,
     fontWeight: '500',
+    flex: 1,
+    flexShrink: 1,
   },
   showLocation: {
     fontSize: 14,
-    marginLeft: 4,
+    marginLeft: 0,
     fontWeight: '500',
+    flex: 1,
+    flexShrink: 1,
   },
   showValue: {
     fontSize: 15,
     fontWeight: 'bold',
   },
-  showValueRow: {
+  showFooterRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 6,
+    marginTop: 2,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
     gap: 8,
   },
   showValueLeft: {
