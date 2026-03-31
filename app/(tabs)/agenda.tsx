@@ -1222,12 +1222,24 @@ export default function AgendaScreen() {
           ? [{ profile_url: inviterForCard.profile_url }]
           : [];
     
+    const timeRange =
+      hasDefinedTime(item.start_time, item.end_time)
+        ? `${toHHMM(item.start_time)}${
+            toHHMM(item.end_time) && toHHMM(item.end_time) !== toHHMM(item.start_time) ? ` – ${toHHMM(item.end_time)}` : ''
+          }`
+        : '';
+    const metaLineParts: string[] = [];
+    if (timeRange) metaLineParts.push(timeRange);
+    if (item.city?.trim()) metaLineParts.push(item.city.trim());
+    const metaLine = metaLineParts.join(' · ');
+
     return (
       <TouchableOpacity
         style={[
           styles.showCard,
           {
             backgroundColor: colors.surface,
+            borderColor: colors.border,
           },
         ]}
         onPress={() => handleEventPress(item.id)}
@@ -1240,7 +1252,6 @@ export default function AgendaScreen() {
           </View>
 
           <View style={styles.showInfoSection}>
-            <View style={styles.showTitleRow}>
               <View style={styles.eventNameContainer}>
                 <Text
                   style={[styles.showName, { color: colors.text }]}
@@ -1253,22 +1264,44 @@ export default function AgendaScreen() {
                   <Ionicons name="lock-closed" size={14} color={colors.textSecondary} style={{ marginLeft: 6 }} />
                 )}
               </View>
-              {(item.tag || collabAvatars.length > 0) && (
-                <View style={styles.showTopActions}>
-                  {item.tag ? (
-                    <View style={[styles.tagContainer, { backgroundColor: getTagColor(item.tag) }]}>
-                      <Ionicons name={getTagIcon(item.tag)} size={12} color="#fff" />
-                      <Text style={styles.tagText} numberOfLines={1}>
-                        {item.tag}
-                      </Text>
+
+              {item.tag ? (
+                <View style={styles.glLabelsRow}>
+                  <View style={[styles.glLabelPill, { borderColor: `${getTagColor(item.tag)}55`, backgroundColor: `${getTagColor(item.tag)}18` }]}>
+                    <Ionicons name={getTagIcon(item.tag)} size={11} color={getTagColor(item.tag)} />
+                    <Text style={[styles.glLabelText, { color: colors.text }]} numberOfLines={1}>
+                      {item.tag}
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
+
+              {metaLine ? (
+                <Text style={[styles.glMetaLine, { color: colors.textSecondary }]} numberOfLines={2}>
+                  {metaLine}
+                </Text>
+              ) : null}
+
+              <View style={[styles.showFooterRow, { borderTopColor: colors.border }]}>
+                <View style={styles.showValueLeft}>
+                  {item.value !== null && item.value !== undefined ? (
+                    <Text style={[styles.showValue, { color: colors.primary }]} numberOfLines={1}>
+                      {formatEventValueBRL(item.value)}
+                    </Text>
+                  ) : (
+                    <View style={styles.lockedValueContainer}>
+                      <Ionicons name="lock-closed" size={12} color={colors.textSecondary} />
+                      <Text style={[styles.lockedValueText, { color: colors.textSecondary }]}>Valor oculto</Text>
                     </View>
-                  ) : null}
+                  )}
+                </View>
+                <View style={styles.showFooterRight}>
                   {collabAvatars.length > 0 ? (
                     <TouchableOpacity
-                      style={[styles.collabInlineBadge, { backgroundColor: `${colors.primary}12`, borderColor: `${colors.primary}30` }]}
+                      style={[styles.collabFooterBadge, { backgroundColor: `${colors.primary}10`, borderColor: `${colors.primary}28` }]}
                       onPress={() => handleOpenParticipantsModal(item)}
                       activeOpacity={0.75}
-                      hitSlop={{ top: 6, bottom: 6, left: 4, right: 6 }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
                     >
                       <View style={styles.collabAvatarStack}>
                         {collabAvatars.map((a, idx) => (
@@ -1292,53 +1325,13 @@ export default function AgendaScreen() {
                           </View>
                         ))}
                       </View>
-                      <Ionicons name="git-network-outline" size={10} color={colors.primary} />
                     </TouchableOpacity>
                   ) : null}
+                  <View style={styles.showArrowSection}>
+                    <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                  </View>
                 </View>
-              )}
-            </View>
-
-            {hasDefinedTime(item.start_time, item.end_time) || item.city ? (
-              <View style={styles.showMetaBlock}>
-                {hasDefinedTime(item.start_time, item.end_time) ? (
-                  <View style={styles.showDetailItem}>
-                    <Ionicons name="time-outline" size={14} color={colors.textSecondary} style={styles.showDetailIcon} />
-                    <Text style={[styles.showTime, { color: colors.textSecondary }]}>
-                      {toHHMM(item.start_time)}
-                      {toHHMM(item.end_time) && toHHMM(item.end_time) !== toHHMM(item.start_time) ? ` - ${toHHMM(item.end_time)}` : ''}
-                    </Text>
-                  </View>
-                ) : null}
-
-                {item.city ? (
-                  <View style={styles.showDetailItem}>
-                    <Ionicons name="location-outline" size={14} color={colors.textSecondary} style={styles.showDetailIcon} />
-                    <Text style={[styles.showLocation, { color: colors.textSecondary }]} numberOfLines={2}>
-                      {item.city}
-                    </Text>
-                  </View>
-                ) : null}
               </View>
-            ) : null}
-
-            <View style={[styles.showFooterRow, { borderTopColor: colors.border }]}>
-              <View style={styles.showValueLeft}>
-                {item.value !== null && item.value !== undefined ? (
-                  <Text style={[styles.showValue, { color: colors.primary }]} numberOfLines={1}>
-                    {formatEventValueBRL(item.value)}
-                  </Text>
-                ) : (
-                  <View style={styles.lockedValueContainer}>
-                    <Ionicons name="lock-closed" size={12} color={colors.textSecondary} />
-                    <Text style={[styles.lockedValueText, { color: colors.textSecondary }]}>Valor oculto</Text>
-                  </View>
-                )}
-              </View>
-              <View style={styles.showArrowSection}>
-                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-              </View>
-            </View>
           </View>
         </View>
       </TouchableOpacity>
@@ -2555,20 +2548,23 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   showCard: {
-    borderRadius: 16,
-    marginBottom: 16,
+    borderRadius: 14,
+    marginBottom: 14,
+    borderWidth: StyleSheet.hairlineWidth,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: Platform.OS === 'android' ? 0 : 0.1,
-    shadowRadius: Platform.OS === 'android' ? 0 : 8,
-    elevation: Platform.OS === 'android' ? 0 : 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: Platform.OS === 'android' ? 0 : 0.08,
+    shadowRadius: Platform.OS === 'android' ? 0 : 6,
+    elevation: Platform.OS === 'android' ? 0 : 4,
     overflow: 'hidden',
   },
   showContent: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    minWidth: 0,
   },
   showDateSection: {
     width: 54,
@@ -2595,72 +2591,45 @@ const styles = StyleSheet.create({
     minWidth: 0,
     paddingRight: 0,
   },
-  showTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginBottom: 6,
-  },
   eventNameContainer: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    flex: 1,
-    minWidth: 0,
-  },
-  showTopActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexShrink: 0,
-    gap: 4,
-    marginTop: 1,
-  },
-  showMetaBlock: {
-    marginBottom: 4,
-    gap: 6,
+    marginBottom: 6,
   },
   showName: {
     fontSize: 16,
     fontWeight: '600',
-    lineHeight: 20,
+    lineHeight: 21,
     flex: 1,
     flexShrink: 1,
     minWidth: 0,
   },
-  tagContainer: {
+  glLabelsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 6,
+  },
+  glLabelPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 6,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 10,
+    borderRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 4,
   },
-  tagText: {
-    color: '#fff',
+  glLabelText: {
     fontSize: 11,
     fontWeight: '600',
-    marginLeft: 4,
     textTransform: 'capitalize',
   },
-  showDetailItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  showDetailIcon: {
-    marginTop: 2,
-    marginRight: 8,
-  },
-  showTime: {
-    fontSize: 14,
-    marginLeft: 0,
+  glMetaLine: {
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: '500',
-    flex: 1,
-    flexShrink: 1,
-  },
-  showLocation: {
-    fontSize: 14,
-    marginLeft: 0,
-    fontWeight: '500',
-    flex: 1,
-    flexShrink: 1,
+    marginBottom: 8,
   },
   showValue: {
     fontSize: 15,
@@ -2670,10 +2639,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 2,
-    paddingTop: 10,
+    marginTop: 0,
+    paddingTop: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
     gap: 8,
+  },
+  showFooterRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 0,
+    gap: 4,
+  },
+  collabFooterBadge: {
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   showValueLeft: {
     flex: 1,
@@ -3003,21 +2986,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     marginTop: 1,
-  },
-  collabInlineBadge: {
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingVertical: 2,
-    paddingHorizontal: 4,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    flexShrink: 0,
-  },
-  collabInlineAvatar: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
   },
   collabAvatarStack: {
     flexDirection: 'row',
