@@ -1265,16 +1265,34 @@ export default function AgendaScreen() {
                 )}
               </View>
 
-              {item.tag ? (
-                <View style={styles.glLabelsRow}>
+              <View style={styles.glLabelsRow}>
+                {item.tag ? (
                   <View style={[styles.glLabelPill, { borderColor: `${getTagColor(item.tag)}55`, backgroundColor: `${getTagColor(item.tag)}18` }]}>
                     <Ionicons name={getTagIcon(item.tag)} size={11} color={getTagColor(item.tag)} />
                     <Text style={[styles.glLabelText, { color: colors.text }]} numberOfLines={1}>
                       {item.tag}
                     </Text>
                   </View>
+                ) : null}
+                <View
+                  style={[
+                    styles.glLabelPill,
+                    {
+                      borderColor: item.confirmed ? `${colors.success}55` : `${colors.warning}55`,
+                      backgroundColor: item.confirmed ? `${colors.success}18` : `${colors.warning}18`,
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name={item.confirmed ? 'checkmark-circle' : 'time-outline'}
+                    size={11}
+                    color={item.confirmed ? colors.success : colors.warning}
+                  />
+                  <Text style={[styles.glLabelText, { color: colors.text }]} numberOfLines={1}>
+                    {item.confirmed ? 'Confirmado' : 'A Confirmar'}
+                  </Text>
                 </View>
-              ) : null}
+              </View>
 
               {metaLine ? (
                 <Text style={[styles.glMetaLine, { color: colors.textSecondary }]} numberOfLines={2}>
