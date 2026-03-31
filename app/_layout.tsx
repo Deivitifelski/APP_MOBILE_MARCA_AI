@@ -43,6 +43,7 @@ function NavigationAndStack() {
 }
 
 function RootLayoutContent() {
+  const { colors } = useTheme();
   const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
@@ -106,7 +107,11 @@ function RootLayoutContent() {
   return (
     <>
       {showSplash && <AppSplashScreen />}
-      <Stack>
+      <Stack
+        screenOptions={{
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      >
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen
           name="login"

@@ -24,6 +24,29 @@ ALTER TABLE convite_participacao_evento
 ALTER TABLE convite_participacao_evento
   ADD COLUMN IF NOT EXISTS motivo_cancelamento TEXT;
 
+-- Garante suporte ao tipo de notificação de participação no enum da tabela notifications.
+DO $$
+DECLARE
+  v_enum_name TEXT;
+BEGIN
+  SELECT t.typname
+    INTO v_enum_name
+  FROM pg_attribute a
+  JOIN pg_class c ON c.oid = a.attrelid
+  JOIN pg_type t ON t.oid = a.atttypid
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  WHERE n.nspname = 'public'
+    AND c.relname = 'notifications'
+    AND a.attname = 'type'
+    AND t.typtype = 'e'
+  LIMIT 1;
+
+  IF v_enum_name IS NOT NULL THEN
+    EXECUTE format('ALTER TYPE public.%I ADD VALUE IF NOT EXISTS %L', v_enum_name, 'participacao_evento');
+  END IF;
+END
+$$;
+
 CREATE INDEX IF NOT EXISTS idx_convite_part_despesa_origem
   ON convite_participacao_evento(despesa_origem_id);
 
@@ -624,6 +647,93 @@ AS $$
   );
 $$;
 
+CREATE OR REPLACE FUNCTION public.rpc_app_notificar_convite_participacao_evento(
+  p_convite_id UUID
+)
+RETURNS TABLE (
+  success BOOLEAN,
+  error TEXT,
+  to_user_id UUID,
+  token_fcm TEXT,
+  title TEXT,
+  message TEXT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_uid UUID := auth.uid();
+  v_convite convite_participacao_evento%ROWTYPE;
+  v_inviter_name TEXT;
+  v_to_user_id UUID;
+  v_token_fcm TEXT;
+  v_title TEXT := 'Convite de participação em evento';
+  v_message TEXT;
+BEGIN
+  IF v_uid IS NULL THEN
+    RETURN QUERY SELECT false, 'Usuário não autenticado.', NULL::UUID, NULL::TEXT, NULL::TEXT, NULL::TEXT;
+    RETURN;
+  END IF;
+
+  SELECT * INTO v_convite
+  FROM convite_participacao_evento
+  WHERE id = p_convite_id
+  LIMIT 1;
+
+  IF v_convite.id IS NULL THEN
+    RETURN QUERY SELECT false, 'Convite não encontrado.', NULL::UUID, NULL::TEXT, NULL::TEXT, NULL::TEXT;
+    RETURN;
+  END IF;
+
+  -- Apenas quem enviou o convite pode disparar esta notificação.
+  IF v_convite.usuario_que_enviou_id <> v_uid THEN
+    RETURN QUERY SELECT false, 'Sem permissão para notificar este convite.', NULL::UUID, NULL::TEXT, NULL::TEXT, NULL::TEXT;
+    RETURN;
+  END IF;
+
+  -- Escolher destinatário principal: owner > admin > editor > viewer.
+  SELECT am.user_id, u.token_fcm
+    INTO v_to_user_id, v_token_fcm
+  FROM artist_members am
+  LEFT JOIN users u ON u.id = am.user_id
+  WHERE am.artist_id = v_convite.artista_convidado_id
+    AND am.user_id <> v_uid
+  ORDER BY CASE am.role
+    WHEN 'owner' THEN 1
+    WHEN 'admin' THEN 2
+    WHEN 'editor' THEN 3
+    WHEN 'viewer' THEN 4
+    ELSE 99
+  END, am.created_at ASC
+  LIMIT 1;
+
+  IF v_to_user_id IS NULL THEN
+    RETURN QUERY SELECT false, 'Não foi possível encontrar destinatário principal para o convite.', NULL::UUID, NULL::TEXT, NULL::TEXT, NULL::TEXT;
+    RETURN;
+  END IF;
+
+  SELECT a.name INTO v_inviter_name
+  FROM artists a
+  WHERE a.id = v_convite.artista_que_convidou_id
+  LIMIT 1;
+
+  v_message :=
+    COALESCE(v_inviter_name, 'Um artista') ||
+    ' convidou você para participar de "' || v_convite.nome_evento || '".';
+
+  PERFORM public._notify_participacao_evento(
+    v_to_user_id,
+    v_uid,
+    v_convite.artista_convidado_id,
+    v_title,
+    v_message
+  );
+
+  RETURN QUERY SELECT true, NULL::TEXT, v_to_user_id, v_token_fcm, v_title, v_message;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.rpc_app_aceitar_convite_participacao_evento(
   p_convite_id UUID
 )
@@ -699,10 +809,64 @@ AS $$
 $$;
 
 GRANT EXECUTE ON FUNCTION public.rpc_app_enviar_convite_participacao_evento(UUID, UUID, NUMERIC, TEXT, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_app_notificar_convite_participacao_evento(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_app_aceitar_convite_participacao_evento(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_app_recusar_convite_participacao_evento(UUID, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_app_cancelar_convite_pendente_participacao_evento(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_app_cancelar_participacao_aceita_evento(UUID, TEXT) TO authenticated;
+
+-- =====================================================
+-- Lista convites por eventos de origem (avatares na agenda)
+-- SECURITY DEFINER: garante todos os convidados visíveis ao organizador,
+-- sem depender de RLS linha-a-linha no cliente.
+-- =====================================================
+
+CREATE OR REPLACE FUNCTION public.rpc_app_convites_agenda_avatars(p_event_ids uuid[])
+RETURNS TABLE (
+  evento_origem_id uuid,
+  artista_que_convidou_id uuid,
+  artista_convidado_id uuid,
+  criado_em timestamptz
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    c.evento_origem_id,
+    c.artista_que_convidou_id,
+    c.artista_convidado_id,
+    c.criado_em
+  FROM convite_participacao_evento c
+  INNER JOIN events e ON e.id = c.evento_origem_id
+  WHERE
+    p_event_ids IS NOT NULL
+    AND cardinality(p_event_ids) > 0
+    AND c.evento_origem_id = ANY (p_event_ids)
+    AND c.status IN ('pendente', 'aceito')
+    AND (
+      EXISTS (
+        SELECT 1
+        FROM artist_members am
+        WHERE am.artist_id = e.artist_id
+          AND am.user_id = auth.uid()
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM convite_participacao_evento c0
+        WHERE c0.evento_origem_id = c.evento_origem_id
+          AND EXISTS (
+            SELECT 1
+            FROM artist_members am0
+            WHERE am0.artist_id = c0.artista_convidado_id
+              AND am0.user_id = auth.uid()
+          )
+      )
+    );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.rpc_app_convites_agenda_avatars(uuid[]) TO authenticated;
 
 -- Ajuda o PostgREST a recarregar schema cache (quando suportado).
 NOTIFY pgrst, 'reload schema';

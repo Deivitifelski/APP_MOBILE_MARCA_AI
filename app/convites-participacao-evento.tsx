@@ -1,16 +1,22 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Linking from 'expo-linking';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,6 +31,7 @@ import {
 } from '../services/supabase/conviteParticipacaoEventoService';
 import { supabase } from '../lib/supabase';
 import { useActiveArtist } from '../services/useActiveArtist';
+import { buildWhatsAppUrl } from '../utils/brazilPhone';
 
 function formatTime(t: string) {
   if (!t) return '';
@@ -219,7 +226,23 @@ export default function ConvitesParticipacaoEventoScreen() {
                   <Text style={[styles.cardMeta, { color: colors.textSecondary }]}>{item.cidade}</Text>
                 ) : null}
                 {item.telefone_contratante ? (
-                  <Text style={[styles.cardMeta, { color: colors.textSecondary }]}>WhatsApp: {item.telefone_contratante}</Text>
+                  <View style={styles.whatsRow}>
+                    <Text style={[styles.cardMeta, { color: colors.textSecondary, flex: 1 }]}>
+                      WhatsApp: {item.telefone_contratante}
+                    </Text>
+                    {buildWhatsAppUrl(item.telefone_contratante) ? (
+                      <TouchableOpacity
+                        onPress={() => {
+                          const url = buildWhatsAppUrl(item.telefone_contratante);
+                          if (url) void Linking.openURL(url);
+                        }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        accessibilityLabel="Abrir WhatsApp"
+                      >
+                        <Ionicons name="logo-whatsapp" size={24} color="#25D366" />
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
                 ) : null}
                 {item.funcao_participacao ? (
                   <Text style={[styles.cardMeta, { color: colors.textSecondary }]}>
@@ -253,37 +276,60 @@ export default function ConvitesParticipacaoEventoScreen() {
         visible={showRejectModal}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowRejectModal(false)}
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setShowRejectModal(false);
+        }}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Recusar convite</Text>
-            <Text style={[styles.modalSub, { color: colors.textSecondary }]}>
-              Você pode informar o motivo. Esse texto será enviado para quem convidou.
-            </Text>
-            <TextInput
-              value={rejectReason}
-              onChangeText={setRejectReason}
-              placeholder="Motivo da recusa (opcional)"
-              placeholderTextColor={colors.textSecondary}
-              multiline
-              style={[styles.modalInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
-            />
-            <View style={styles.actions}>
-              <TouchableOpacity
-                style={[styles.btnOutline, { borderColor: colors.border }]}
-                onPress={() => setShowRejectModal(false)}
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={StyleSheet.absoluteFill} />
+          </TouchableWithoutFeedback>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalKeyboardWrap}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
+            pointerEvents="box-none"
+          >
+            <View style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+                contentContainerStyle={styles.modalScrollContent}
               >
-                <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Voltar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.btnPrimary, { backgroundColor: colors.error }]}
-                onPress={() => void submitRecusa()}
-              >
-                <Text style={styles.btnPrimaryText}>Confirmar recusa</Text>
-              </TouchableOpacity>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>Recusar convite</Text>
+                <Text style={[styles.modalSub, { color: colors.textSecondary }]}>
+                  Você pode informar o motivo. Esse texto será enviado para quem convidou.
+                </Text>
+                <TextInput
+                  value={rejectReason}
+                  onChangeText={setRejectReason}
+                  placeholder="Motivo da recusa (opcional)"
+                  placeholderTextColor={colors.textSecondary}
+                  multiline
+                  style={[styles.modalInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
+                />
+              </ScrollView>
+              <View style={styles.modalActionsRow}>
+                <TouchableOpacity
+                  style={[styles.btnOutline, { borderColor: colors.border, flex: 1 }]}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setShowRejectModal(false);
+                  }}
+                >
+                  <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Voltar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btnPrimary, { backgroundColor: colors.error, flex: 1 }]}
+                  onPress={() => void submitRecusa()}
+                >
+                  <Text style={styles.btnPrimaryText}>Confirmar recusa</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -383,6 +429,12 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   cardMeta: { marginTop: 4, fontSize: 14 },
+  whatsRow: {
+    marginTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   msg: { marginTop: 10, fontSize: 14, lineHeight: 20 },
   actions: { flexDirection: 'row', gap: 12, marginTop: 16, justifyContent: 'flex-end' },
   btnOutline: {
@@ -403,10 +455,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 20,
   },
+  modalKeyboardWrap: {
+    width: '100%',
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  modalScrollContent: {
+    paddingBottom: 8,
+  },
   modalCard: {
     borderRadius: 14,
     borderWidth: 1,
     padding: 16,
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '88%',
+  },
+  modalActionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+    alignItems: 'stretch',
   },
   modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
   modalSub: { fontSize: 14, lineHeight: 20, marginBottom: 10 },

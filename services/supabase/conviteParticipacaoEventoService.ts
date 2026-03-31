@@ -1,5 +1,4 @@
 import { supabase } from '../../lib/supabase';
-import { createNotification } from './notificationService';
 
 export type StatusConviteParticipacao = 'pendente' | 'aceito' | 'recusado' | 'cancelado';
 
@@ -172,57 +171,64 @@ export async function enviarConviteParticipacao(
  * Prioridade de seleção: owner -> admin -> editor -> viewer.
  */
 async function notificarConvidadoPrincipal(input: EnviarConviteParticipacaoInput): Promise<void> {
-  const inviterName = await obterNomeArtista(input.artistaQueConvidaId);
-  const dataFmt = new Date(input.dataEvento + 'T12:00:00').toLocaleDateString('pt-BR');
-  const title = 'Convite de participação em evento';
-  const message = `${inviterName || 'Um artista'} convidou você para participar de "${input.nomeEvento}" (${dataFmt}).`;
+  const { data: lastInviteRows } = await supabase
+    .from('convite_participacao_evento')
+    .select('id')
+    .eq('evento_origem_id', input.eventoOrigemId)
+    .eq('artista_convidado_id', input.artistaConvidadoId)
+    .order('criado_em', { ascending: false })
+    .limit(1);
 
-  const { data: recipients, error: recErr } = await supabase
-    .from('artist_members')
-    .select('user_id, role, users:user_id(token_fcm)')
-    .eq('artist_id', input.artistaConvidadoId)
-    .order('created_at', { ascending: true })
-    .limit(20);
+  const conviteId = lastInviteRows?.[0]?.id;
+  if (!conviteId) return;
 
-  if (recErr || !recipients?.length) {
-    console.warn('[convite participação] Não foi possível encontrar o convidado principal:', recErr?.message);
+  const { data: notifyData, error: notifyErr } = await supabase.rpc('rpc_app_notificar_convite_participacao_evento', {
+    p_convite_id: conviteId,
+  });
+
+  if (notifyErr) {
+    console.warn('[convite participação] Falha RPC de notificação:', notifyErr.message);
     return;
   }
 
-  const roleRank: Record<string, number> = { owner: 1, admin: 2, editor: 3, viewer: 4 };
-  const recipient = recipients
-    .filter((r) => r.user_id && r.user_id !== input.usuarioQueEnviaId)
-    .sort((a, b) => (roleRank[a.role || 'viewer'] || 99) - (roleRank[b.role || 'viewer'] || 99))[0];
+  const row = pickRpcRow<{
+    success: boolean;
+    error: string | null;
+    token_fcm: string | null;
+    title: string | null;
+    message: string | null;
+  }>(notifyData);
 
-  if (!recipient?.user_id) return;
-
-  const notif = await createNotification({
-    to_user_id: recipient.user_id,
-    from_user_id: input.usuarioQueEnviaId,
-    artist_id: input.artistaConvidadoId,
-    title,
-    message,
-    type: 'participacao_evento',
-  });
-
-  if (!notif.success && notif.error) {
-    console.warn('[convite participação] Falha ao criar notificação:', notif.error);
+  if (!row?.success) {
+    console.warn('[convite participação] RPC não notificou:', row?.error || 'erro desconhecido');
+    return;
   }
 
-  const tokenFcm = (recipient.users as { token_fcm?: string | null } | null)?.token_fcm;
+  const tokenFcm = row.token_fcm;
   if (!tokenFcm) return;
 
-  const { error: pushErr } = await supabase.functions.invoke('send-push-notification', {
+  const { error: pushErr } = await supabase.functions.invoke('send-push-single', {
     body: {
       token: tokenFcm,
-      title,
-      body: message,
+      title: row.title || 'Convite de participação em evento',
+      body: row.message || 'Você recebeu um novo convite de participação.',
       data: { screen: 'convites_participacao' },
     },
   });
 
   if (pushErr) {
-    console.warn('[convite participação] Falha no push do convidado principal:', pushErr.message);
+    // Fallback legado, caso a função nova ainda não tenha sido deployada.
+    const { error: legacyPushErr } = await supabase.functions.invoke('send-push-notification', {
+      body: {
+        token: tokenFcm,
+        title: row.title || 'Convite de participação em evento',
+        body: row.message || 'Você recebeu um novo convite de participação.',
+        data: { screen: 'convites_participacao' },
+      },
+    });
+    if (legacyPushErr) {
+      console.warn('[convite participação] Falha no push do convidado principal:', legacyPushErr.message);
+    }
   }
 }
 

@@ -296,8 +296,8 @@ const SuccessModal = ({
     });
   };
 
-  const formatCurrency = (value?: number) => {
-    if (!value) return 'Não informado';
+  const formatCurrency = (value?: number | null) => {
+    if (value == null || Number.isNaN(value)) return 'Não informado';
     return value.toLocaleString('pt-BR', {
       style: 'currency',
       currency: 'BRL'
@@ -547,7 +547,7 @@ export default function AdicionarEventoScreen() {
         event_date: `${form.data.getFullYear()}-${String(form.data.getMonth() + 1).padStart(2, '0')}-${String(form.data.getDate()).padStart(2, '0')}`, // YYYY-MM-DD
         start_time: form.horarioInicio.toTimeString().split(' ')[0].substring(0, 5), // HH:MM
         end_time: form.horarioFim.toTimeString().split(' ')[0].substring(0, 5), // HH:MM
-        value: numericValue ? parseFloat(numericValue) : undefined,
+        value: numericValue !== '' ? parseFloat(numericValue) : undefined,
         city: form.cidade.trim() || undefined,
         contractor_phone: form.telefoneContratante.trim() || undefined,
         confirmed: form.status === 'confirmado',

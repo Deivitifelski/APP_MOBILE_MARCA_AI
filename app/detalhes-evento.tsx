@@ -51,6 +51,7 @@ import {
 } from '../services/supabase/conviteParticipacaoEventoService';
 import { getExpensesByEvent, getTotalExpensesByEvent } from '../services/supabase/expenseService';
 import { useActiveArtist } from '../services/useActiveArtist';
+import { buildWhatsAppUrl, brazilMobileDigits, maskBrazilMobile } from '../utils/brazilPhone';
 import { extractNumericValueString, formatCurrencyBRLInput } from '../utils/currencyBRLInput';
 import { promptAndShareEvent } from '../utils/eventShare';
 
@@ -403,6 +404,14 @@ export default function DetalhesEventoScreen() {
       Alert.alert('Função obrigatória', 'Informe a função do participante para enviar o convite.');
       return;
     }
+    const whatsDigits = brazilMobileDigits(inviteWhatsappDraft);
+    if (whatsDigits.length > 0 && whatsDigits.length !== 11) {
+      Alert.alert(
+        'WhatsApp incompleto',
+        'Informe o número completo no formato (XX) XXXXX-XXXX ou deixe o campo vazio.'
+      );
+      return;
+    }
     if (event.artist_id !== activeArtist.id) return;
     setSendingParticipationInvite(true);
     const { success, error } = await enviarConviteParticipacao({
@@ -418,7 +427,7 @@ export default function DetalhesEventoScreen() {
       horaFim: event.end_time,
       cacheValor: cacheNumerico,
       cidade: event.city ?? null,
-      telefoneContratante: inviteWhatsappDraft.trim() || null,
+      telefoneContratante: whatsDigits.length === 11 ? maskBrazilMobile(inviteWhatsappDraft) : null,
       descricao: event.description ?? null,
     });
     setSendingParticipationInvite(false);
@@ -462,7 +471,7 @@ export default function DetalhesEventoScreen() {
     setParticipationSearch('');
     setInviteMessageDraft('');
     setInviteCacheDraft('R$ 0,00');
-    setInviteWhatsappDraft(event?.contractor_phone ?? '');
+    setInviteWhatsappDraft(maskBrazilMobile(event?.contractor_phone ?? ''));
     setInviteFunctionDraft('');
     setParticipationSearchError(null);
   };
@@ -493,7 +502,8 @@ export default function DetalhesEventoScreen() {
           }
           
           // Se o usuário não tem permissão para ver valores financeiros, remover o valor
-          if (permissionResult.event && !permissionResult.event.value) {
+          // Não usar !value: R$ 0,00 é válido e não deve ser tratado como “sem valor”
+          if (permissionResult.event && permissionResult.event.value == null) {
             finalEvent = { ...finalEvent, value: undefined };
           }
         }
@@ -1127,7 +1137,21 @@ export default function DetalhesEventoScreen() {
 
             <View style={styles.detailRow}>
               <Ionicons name="call" size={20} color={colors.primary} />
-              <Text style={[styles.detailText, { color: colors.text }]}>{event.contractor_phone || 'Não informado'}</Text>
+              <Text style={[styles.detailText, { color: colors.text, flex: 1 }]}>
+                {event.contractor_phone || 'Não informado'}
+              </Text>
+              {event.contractor_phone && buildWhatsAppUrl(event.contractor_phone) ? (
+                <TouchableOpacity
+                  onPress={() => {
+                    const url = buildWhatsAppUrl(event.contractor_phone);
+                    if (url) void Linking.openURL(url);
+                  }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityLabel="Abrir WhatsApp"
+                >
+                  <Ionicons name="logo-whatsapp" size={26} color="#25D366" />
+                </TouchableOpacity>
+              ) : null}
             </View>
 
             {event.contract_url ? (
@@ -1724,14 +1748,14 @@ export default function DetalhesEventoScreen() {
                       marginBottom: 8,
                     },
                   ]}
-                  placeholder="WhatsApp (opcional)"
+                  placeholder="(11) 98765-4321"
                   placeholderTextColor={colors.textSecondary}
                   value={inviteWhatsappDraft}
-                  onChangeText={setInviteWhatsappDraft}
+                  onChangeText={(t) => setInviteWhatsappDraft(maskBrazilMobile(t))}
                   keyboardType="phone-pad"
                 />
                 <Text style={[styles.participationInviteFieldHelp, { color: colors.textSecondary }]}>
-                  WhatsApp é o número para contato e alinhamento da participação.
+                  Opcional. Formato (XX) XXXXX-XXXX — deixe vazio ou preencha o número completo.
                 </Text>
                 <TextInput
                   style={[

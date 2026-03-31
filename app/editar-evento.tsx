@@ -320,7 +320,7 @@ export default function EditarEventoScreen() {
 
         setForm({
           nome: event.name,
-          valor: event.value ? formatCurrencyBRLInput((event.value * 100).toString()) : '',
+          valor: event.value != null ? formatCurrencyBRLInput((event.value * 100).toString()) : '',
           cidade: event.city || '',
           telefoneContratante: maskPhone(event.contractor_phone || ''),
           data: eventDate,

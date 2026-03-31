@@ -43,6 +43,45 @@ type NotificationWithInvite = Notification & {
   isInvitePending?: boolean;
 };
 
+/** Evento removido/cancelado na agenda — só informativo; não abrir detalhes (evento pode não existir). */
+function isEventNotificationInformativeOnly(n: Notification): boolean {
+  if (n.type !== 'event') return false;
+  const title = (n.title || '').toLowerCase();
+  const msg = (n.message || '').toLowerCase();
+  return (
+    title.includes('deletad') ||
+    title.includes('cancelad') ||
+    msg.includes('foi deletad') ||
+    msg.includes('cancelou a participação') ||
+    msg.includes('convite cancelado')
+  );
+}
+
+/** Notificação de participação recusada: só informativa, sem navegação. */
+function isParticipationRejectedNotification(n: Notification): boolean {
+  if (n.type !== 'participacao_evento') return false;
+  const title = (n.title || '').toLowerCase();
+  const msg = (n.message || '').toLowerCase();
+  return (
+    title.includes('recusad') ||
+    title.includes('recusa') ||
+    msg.includes('recusad') ||
+    msg.includes('recusa')
+  );
+}
+
+/** Participação cancelada pelo convidado (aceita cancelada): só marca como lida; não abre a tela de convites. */
+function isParticipationCanceledByGuestNotification(n: Notification): boolean {
+  if (n.type !== 'participacao_evento') return false;
+  const title = (n.title || '').toLowerCase();
+  const msg = (n.message || '').toLowerCase();
+  return (
+    title.includes('participação cancelada') ||
+    title.includes('cancelada pelo convidado') ||
+    msg.includes('cancelou a participação')
+  );
+}
+
 export default function NotificacoesScreen() {
   const { colors, isDarkMode } = useTheme();
   const { loadUnreadCount } = useNotifications(); // ✅ Hook para atualizar badge
@@ -234,29 +273,41 @@ export default function NotificacoesScreen() {
       setHasPendingParticipationInvite(false);
       setNotifications((prev) => prev.filter((n) => n.id !== notification.id));
       setUnreadCount((prev) => Math.max(0, prev - 1));
+      await loadUnreadCount();
       router.push('/convites-participacao-evento');
       return;
     }
 
     // Marcar como lida se não estiver lida
     if (!notification.read) {
-      const { success, error } = await markNotificationAsRead(notification.id);
-      
+      const { success } = await markNotificationAsRead(notification.id);
+
       if (success) {
-        // Atualizar estado local
-        setNotifications(prev => 
-          prev.map(n => 
-            n.id === notification.id ? { ...n, read: true } : n
-          )
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n))
         );
-        setUnreadCount(prev => Math.max(0, prev - 1));
-        
-        // ✅ Atualizar badge de notificações
+        setUnreadCount((prev) => Math.max(0, prev - 1));
         await loadUnreadCount();
       }
     }
 
-    // Navegar baseado no tipo de notificação (basic não navega)
+    // Convite de participação: abrir tela de convites só para convite propriamente (ex.: "Convite de participação em evento").
+    // Avisos informativos (recusa, cancelamento pelo convidado): apenas marcar como lida acima.
+    if (notification.type === 'participacao_evento') {
+      if (
+        !isParticipationRejectedNotification(notification) &&
+        !isParticipationCanceledByGuestNotification(notification)
+      ) {
+        router.push('/convites-participacao-evento');
+      }
+      return;
+    }
+
+    // Evento deletado/cancelado ou aviso de cancelamento: só informativo
+    if (isEventNotificationInformativeOnly(notification)) {
+      return;
+    }
+
     try {
       switch (notification.type) {
         case 'basic':
@@ -269,21 +320,17 @@ export default function NotificacoesScreen() {
           router.push('/colaboradores-artista');
           break;
         case 'event':
-          // Se a notificação tem event_id, verificar permissões antes de navegar
           if (notification.event_id) {
             await handleEventNotificationPress(notification.event_id);
           } else {
             router.push('/(tabs)/agenda');
           }
           break;
-        case 'participacao_evento':
-          router.push('/convites-participacao-evento');
-          break;
         default:
           router.push('/(tabs)/agenda');
           break;
       }
-    } catch (error) {
+    } catch {
       Alert.alert('Erro', 'Erro ao abrir notificação. Tente novamente.');
     }
   };
@@ -599,33 +646,31 @@ export default function NotificacoesScreen() {
     return currentUserId && notification.from_user_id === currentUserId;
   };
 
+  const dynamicStyles = createDynamicStyles(isDarkMode, colors);
+
   if (isLoading) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background }}>
-        <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
-        <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#1F2937" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Notificações</Text>
-          <View style={styles.placeholder} />
-        </View>
-        
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#6366F1" />
-          <Text style={styles.loadingText}>Carregando notificações...</Text>
-        </View>
+        <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+        <SafeAreaView style={dynamicStyles.container}>
+          <View style={dynamicStyles.header}>
+            <TouchableOpacity
+              style={dynamicStyles.backButton}
+              onPress={() => router.back()}
+            >
+              <Ionicons name="arrow-back" size={24} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={dynamicStyles.headerTitle}>Notificações</Text>
+            <View style={{ width: 40 }} />
+          </View>
+          <View style={dynamicStyles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={dynamicStyles.loadingText}>Carregando notificações...</Text>
+          </View>
         </SafeAreaView>
       </View>
     );
   }
-
-  // Estilos dinâmicos baseados no modo escuro
-  const dynamicStyles = createDynamicStyles(isDarkMode, colors);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>

@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import NetInfo from '@react-native-community/netinfo';
+import * as Linking from 'expo-linking';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -34,6 +35,7 @@ import { getCurrentUser } from '../../services/supabase/authService';
 import { cancelarParticipacaoAceita } from '../../services/supabase/conviteParticipacaoEventoService';
 import { getEventById, getEventsByMonthWithRole } from '../../services/supabase/eventService';
 import { useNotifications } from '../../services/useNotifications';
+import { buildWhatsAppUrl } from '../../utils/brazilPhone';
 import { isLikelyNetworkFailure } from '../../utils/isLikelyNetworkFailure';
 
 const months = [
@@ -41,6 +43,19 @@ const months = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ];
 const weekdayLabels = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+/** Máximo de fotos no card (anfitrião + convidados); excedente não aparece no card — o modal da badge lista todos. */
+const MAX_COLLAB_AVATARS_ON_CARD = 10;
+
+/** No modal de participantes (toque na badge), lista colapsada mostra só os primeiros N. */
+const PARTICIPANTS_COLLAPSED_PREVIEW = 4;
+
+type AgendaParticipantRow = {
+  id: string;
+  name: string;
+  profile_url: string | null;
+  isHost: boolean;
+};
 
 export default function AgendaScreen() {
   const { colors, isDarkMode } = useTheme();
@@ -77,8 +92,16 @@ export default function AgendaScreen() {
   const [inviteCancelReason, setInviteCancelReason] = useState('');
   const [isCancellingInviteParticipation, setIsCancellingInviteParticipation] = useState(false);
   const [invitePartnerByConviteId, setInvitePartnerByConviteId] = useState<Record<string, { name: string; profile_url: string | null }>>({});
-  const [selectedInvitePartner, setSelectedInvitePartner] = useState<{ name: string; profile_url: string | null } | null>(null);
+  const [selectedInviteFunction, setSelectedInviteFunction] = useState<string | null>(null);
   const [conviteIdByEventId, setConviteIdByEventId] = useState<Record<string, string>>({});
+  /** Anfitrião + convidados por evento (lista completa; o card só mostra os primeiros). */
+  const [participantAvatarsByEventId, setParticipantAvatarsByEventId] = useState<
+    Record<string, AgendaParticipantRow[]>
+  >({});
+  const [showParticipantsModal, setShowParticipantsModal] = useState(false);
+  const [participantsModalTitle, setParticipantsModalTitle] = useState('');
+  const [participantsModalList, setParticipantsModalList] = useState<AgendaParticipantRow[]>([]);
+  const [participantsModalExpanded, setParticipantsModalExpanded] = useState(false);
 
   const retryAgendaConnectionRef = useRef<() => Promise<void>>(async () => undefined);
 
@@ -393,6 +416,152 @@ export default function AgendaScreen() {
       cancelled = true;
     };
   }, [events, conviteIdByEventId]);
+
+  // Avatares dos artistas convidados (até MAX_COLLAB): mesma lista no evento de origem e no evento espelhado do convidado
+  useEffect(() => {
+    let cancelled = false;
+    const loadParticipantAvatars = async () => {
+      if (!activeArtist?.id) {
+        if (!cancelled) setParticipantAvatarsByEventId({});
+        return;
+      }
+
+      const originEventIds = Array.from(
+        new Set(
+          events
+            .filter(
+              (e) =>
+                e?.artist_id === activeArtist.id &&
+                !e?.convite_participacao_id &&
+                typeof e?.id === 'string'
+            )
+            .map((e) => e.id as string)
+        )
+      );
+
+      const guestEventRows = events
+        .map((e) => {
+          const cid = e?.convite_participacao_id || conviteIdByEventId[e?.id];
+          if (!cid || typeof e?.id !== 'string') return null;
+          return { eventId: e.id as string, conviteId: cid as string };
+        })
+        .filter((v): v is { eventId: string; conviteId: string } => v != null);
+
+      const guestEventIdToOrigin: Record<string, string> = {};
+      const guestConviteIds = Array.from(new Set(guestEventRows.map((g) => g.conviteId)));
+      if (guestConviteIds.length > 0) {
+        const { data: conviteMeta } = await supabase
+          .from('convite_participacao_evento')
+          .select('id, evento_origem_id')
+          .in('id', guestConviteIds);
+        const conviteIdToOrigin: Record<string, string> = {};
+        (conviteMeta || []).forEach((r: { id: string; evento_origem_id: string }) => {
+          if (r?.id && r?.evento_origem_id) conviteIdToOrigin[r.id] = r.evento_origem_id;
+        });
+        for (const g of guestEventRows) {
+          const eo = conviteIdToOrigin[g.conviteId];
+          if (eo) guestEventIdToOrigin[g.eventId] = eo;
+        }
+      }
+
+      const allOriginIds = Array.from(
+        new Set([...originEventIds, ...Object.values(guestEventIdToOrigin)])
+      );
+
+      if (allOriginIds.length === 0) {
+        if (!cancelled) setParticipantAvatarsByEventId({});
+        return;
+      }
+
+      type ConviteAvatarRow = {
+        evento_origem_id: string;
+        artista_que_convidou_id: string;
+        artista_convidado_id: string;
+        criado_em: string;
+      };
+
+      const { data: rpcData, error: rpcError } = await supabase.rpc('rpc_app_convites_agenda_avatars', {
+        p_event_ids: allOriginIds,
+      });
+
+      let convites: ConviteAvatarRow[] = [];
+      if (!rpcError && Array.isArray(rpcData)) {
+        convites = rpcData as ConviteAvatarRow[];
+      } else {
+        const { data: direct, error } = await supabase
+          .from('convite_participacao_evento')
+          .select('evento_origem_id, artista_que_convidou_id, artista_convidado_id, criado_em')
+          .in('evento_origem_id', allOriginIds)
+          .in('status', ['pendente', 'aceito']);
+        if (error) {
+          if (!cancelled) setParticipantAvatarsByEventId({});
+          return;
+        }
+        convites = (direct || []) as ConviteAvatarRow[];
+      }
+
+      const sorted = [...convites].sort(
+        (a, b) => new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime()
+      );
+
+      const byEvent: Record<string, string[]> = {};
+      for (const row of sorted) {
+        const oid = row.evento_origem_id;
+        const inv = row.artista_que_convidou_id;
+        const conv = row.artista_convidado_id;
+        if (!oid || !inv || !conv) continue;
+        if (!byEvent[oid]) byEvent[oid] = [];
+        const list = byEvent[oid];
+        if (!list.includes(inv)) {
+          list.unshift(inv);
+        }
+        if (!list.includes(conv)) {
+          list.push(conv);
+        }
+      }
+
+      const allArtistIds = Array.from(new Set(Object.values(byEvent).flat()));
+
+      const profileById: Record<string, string | null> = {};
+      const nameById: Record<string, string> = {};
+      if (allArtistIds.length > 0) {
+        const { data: artists } = await supabase
+          .from('artists')
+          .select('id, name, profile_url')
+          .in('id', allArtistIds);
+
+        (artists || []).forEach((a: { id: string; name: string | null; profile_url: string | null }) => {
+          profileById[a.id] = a.profile_url ?? null;
+          nameById[a.id] = (a.name && String(a.name).trim()) || 'Artista';
+        });
+      }
+
+      const avatarListsByOriginId: Record<string, AgendaParticipantRow[]> = {};
+      for (const [oid, ids] of Object.entries(byEvent)) {
+        avatarListsByOriginId[oid] = ids.map((id, index) => ({
+          id,
+          name: nameById[id] ?? 'Artista',
+          profile_url: profileById[id] ?? null,
+          isHost: index === 0,
+        }));
+      }
+
+      const next: Record<string, AgendaParticipantRow[]> = { ...avatarListsByOriginId };
+      for (const [guestEventId, eo] of Object.entries(guestEventIdToOrigin)) {
+        const list = avatarListsByOriginId[eo];
+        if (list && list.length > 0) {
+          next[guestEventId] = list;
+        }
+      }
+
+      if (!cancelled) setParticipantAvatarsByEventId(next);
+    };
+
+    void loadParticipantAvatars();
+    return () => {
+      cancelled = true;
+    };
+  }, [events, activeArtist?.id, conviteIdByEventId]);
 
   // Escutar notificações de atualização da imagem do artista
   useEffect(() => {
@@ -945,53 +1114,35 @@ export default function AgendaScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    const loadSelectedInvitePartner = async () => {
+    if (!showInviteEventInfoModal) {
+      setSelectedInviteFunction(null);
+      return;
+    }
+    const loadInviteModalFunction = async () => {
       const conviteId = selectedInviteEventInfo?.convite_participacao_id;
       if (!conviteId) {
-        setSelectedInvitePartner(null);
+        if (!cancelled) setSelectedInviteFunction(null);
         return;
       }
-
-      const fromMap = invitePartnerByConviteId[conviteId];
-      if (fromMap) {
-        setSelectedInvitePartner(fromMap);
-        return;
-      }
-
       const { data: convite } = await supabase
         .from('convite_participacao_evento')
-        .select('artista_que_convidou_id')
+        .select('funcao_participacao')
         .eq('id', conviteId)
         .maybeSingle();
-
-      const inviterArtistId = convite?.artista_que_convidou_id;
-      if (!inviterArtistId) {
-        if (!cancelled) setSelectedInvitePartner(null);
-        return;
-      }
-
-      const { data: artist } = await supabase
-        .from('artists')
-        .select('name, profile_url')
-        .eq('id', inviterArtistId)
-        .maybeSingle();
-
-      if (!cancelled) {
-        setSelectedInvitePartner({
-          name: artist?.name || 'Artista',
-          profile_url: artist?.profile_url ?? null,
-        });
-      }
+      const suggestedFunction = convite?.funcao_participacao?.trim() || null;
+      if (!cancelled) setSelectedInviteFunction(suggestedFunction);
     };
-
-    if (showInviteEventInfoModal) {
-      void loadSelectedInvitePartner();
-    }
-
+    void loadInviteModalFunction();
     return () => {
       cancelled = true;
     };
-  }, [showInviteEventInfoModal, selectedInviteEventInfo?.convite_participacao_id, invitePartnerByConviteId]);
+  }, [showInviteEventInfoModal, selectedInviteEventInfo?.convite_participacao_id]);
+
+  useEffect(() => {
+    if (showParticipantsModal) {
+      setParticipantsModalExpanded(false);
+    }
+  }, [showParticipantsModal, participantsModalTitle]);
 
   const getTagColor = (tag: string) => {
     switch (tag) {
@@ -1025,6 +1176,30 @@ export default function AgendaScreen() {
     return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
+  const handleOpenParticipantsModal = (item: any) => {
+    const full = participantAvatarsByEventId[item.id];
+    if (full && full.length > 0) {
+      setParticipantsModalList(full);
+      setParticipantsModalTitle(String(item.name || 'Participantes'));
+      setShowParticipantsModal(true);
+      return;
+    }
+    const conviteIdForCard = item.convite_participacao_id || conviteIdByEventId[item.id];
+    const inviter = conviteIdForCard ? invitePartnerByConviteId[conviteIdForCard] : null;
+    if (inviter) {
+      setParticipantsModalList([
+        {
+          id: conviteIdForCard || 'invite',
+          name: inviter.name,
+          profile_url: inviter.profile_url,
+          isHost: true,
+        },
+      ]);
+      setParticipantsModalTitle(String(item.name || 'Participantes'));
+      setShowParticipantsModal(true);
+    }
+  };
+
   const renderShow = ({ item }: { item: any }) => {
     // Proteção: não renderizar se não houver artista ativo
     if (!activeArtist) {
@@ -1035,6 +1210,17 @@ export default function AgendaScreen() {
     const [year, month, day] = item.event_date.split('-').map(Number);
     const eventDate = new Date(year, month - 1, day);
     const dayOfWeek = eventDate.toLocaleDateString('pt-BR', { weekday: 'short' });
+
+    const conviteIdForCard = item.convite_participacao_id || conviteIdByEventId[item.id];
+    const isInvitedEvent = !!conviteIdForCard;
+    const inviterForCard = conviteIdForCard ? invitePartnerByConviteId[conviteIdForCard] : null;
+    const fromParticipantMap = participantAvatarsByEventId[item.id] || [];
+    const collabAvatars: { profile_url: string | null }[] =
+      fromParticipantMap.length > 0
+        ? fromParticipantMap.slice(0, MAX_COLLAB_AVATARS_ON_CARD).map((p) => ({ profile_url: p.profile_url }))
+        : isInvitedEvent && inviterForCard
+          ? [{ profile_url: inviterForCard.profile_url }]
+          : [];
     
     return (
       <TouchableOpacity
@@ -1056,21 +1242,9 @@ export default function AgendaScreen() {
           <View style={styles.showInfoSection}>
             <View style={styles.showHeaderRow}>
               <View style={styles.eventNameContainer}>
-                <Text style={[styles.showName, { color: colors.text }]}>{item.name}</Text>
-                {(item.convite_participacao_id || conviteIdByEventId[item.id]) ? (
-                  <View style={[styles.collabInlineBadge, { backgroundColor: `${colors.primary}12`, borderColor: `${colors.primary}30` }]}>
-                    <OptimizedImage
-                      imageUrl={invitePartnerByConviteId[item.convite_participacao_id || conviteIdByEventId[item.id]]?.profile_url || ''}
-                      style={styles.collabInlineAvatar}
-                      cacheKey={`collab_inline_${item.convite_participacao_id || conviteIdByEventId[item.id] || item.id}`}
-                      fallbackIcon="person"
-                      fallbackIconSize={10}
-                      fallbackIconColor="#FFFFFF"
-                      showLoadingIndicator={false}
-                    />
-                    <Ionicons name="git-network-outline" size={10} color={colors.primary} />
-                  </View>
-                ) : null}
+                <Text style={[styles.showName, { color: colors.text }]} numberOfLines={3}>
+                  {item.name}
+                </Text>
                 {!hasFinancialAccess && (
                   <Ionicons name="lock-closed" size={14} color={colors.textSecondary} style={{ marginLeft: 6 }} />
                 )}
@@ -1100,18 +1274,54 @@ export default function AgendaScreen() {
               </View>
             )}
 
-            {item.value !== null && item.value !== undefined ? (
-              <Text style={[styles.showValue, { color: colors.primary }]}>
-                {formatEventValueBRL(item.value)}
-              </Text>
-            ) : (
-              <View style={styles.lockedValueContainer}>
-                <Ionicons name="lock-closed" size={12} color={colors.textSecondary} />
-                <Text style={[styles.lockedValueText, { color: colors.textSecondary }]}>
-                  Valor oculto
-                </Text>
+            <View style={styles.showValueRow}>
+              <View style={styles.showValueLeft}>
+                {item.value !== null && item.value !== undefined ? (
+                  <Text style={[styles.showValue, { color: colors.primary }]}>
+                    {formatEventValueBRL(item.value)}
+                  </Text>
+                ) : (
+                  <View style={styles.lockedValueContainer}>
+                    <Ionicons name="lock-closed" size={12} color={colors.textSecondary} />
+                    <Text style={[styles.lockedValueText, { color: colors.textSecondary }]}>
+                      Valor oculto
+                    </Text>
+                  </View>
+                )}
               </View>
-            )}
+              {collabAvatars.length > 0 ? (
+                <TouchableOpacity
+                  style={[styles.collabInlineBadge, { backgroundColor: `${colors.primary}12`, borderColor: `${colors.primary}30` }]}
+                  onPress={() => handleOpenParticipantsModal(item)}
+                  activeOpacity={0.75}
+                  hitSlop={{ top: 6, bottom: 6, left: 4, right: 6 }}
+                >
+                  <View style={styles.collabAvatarStack}>
+                    {collabAvatars.map((a, idx) => (
+                      <View
+                        key={`${item.id}_collab_${idx}`}
+                        style={[
+                          styles.collabStackAvatarWrapper,
+                          ...(idx > 0 ? [styles.collabStackAvatarOverlap] : []),
+                          { borderColor: colors.surface, zIndex: idx, backgroundColor: colors.secondary },
+                        ]}
+                      >
+                        <OptimizedImage
+                          imageUrl={a.profile_url || ''}
+                          style={styles.collabStackAvatarInner}
+                          cacheKey={`collab_stack_${item.id}_${idx}_${a.profile_url || 'none'}`}
+                          fallbackIcon="person"
+                          fallbackIconSize={9}
+                          fallbackIconColor="#FFFFFF"
+                          showLoadingIndicator={false}
+                        />
+                      </View>
+                    ))}
+                  </View>
+                  <Ionicons name="git-network-outline" size={10} color={colors.primary} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
           </View>
 
           <View style={styles.showArrowSection}>
@@ -1611,25 +1821,6 @@ export default function AgendaScreen() {
                     keyboardShouldPersistTaps="handled"
                     showsVerticalScrollIndicator={false}
                   >
-                    {selectedInviteEventInfo.convite_participacao_id ? (
-                      <View style={[styles.inviterRow, { backgroundColor: `${colors.primary}12`, borderColor: `${colors.primary}30` }]}>
-                        <OptimizedImage
-                          imageUrl={selectedInvitePartner?.profile_url || ''}
-                          style={styles.inviterAvatar}
-                          cacheKey={`invite_modal_${selectedInviteEventInfo.convite_participacao_id}`}
-                          fallbackIcon="person"
-                          fallbackIconSize={18}
-                          fallbackIconColor="#FFFFFF"
-                          showLoadingIndicator={false}
-                        />
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.inviterLabel, { color: colors.textSecondary }]}>Convidado por</Text>
-                          <Text style={[styles.inviterName, { color: colors.text }]}>
-                            {selectedInvitePartner?.name || 'Artista'}
-                          </Text>
-                        </View>
-                      </View>
-                    ) : null}
                     <Text style={[styles.inviteInfoLine, { color: colors.text }]}>Evento: {selectedInviteEventInfo.name}</Text>
                     <Text style={[styles.inviteInfoLine, { color: colors.textSecondary }]}>
                       Horário: {selectedInviteEventInfo.start_time?.slice(0, 5)}–{selectedInviteEventInfo.end_time?.slice(0, 5)}
@@ -1643,8 +1834,35 @@ export default function AgendaScreen() {
                       </Text>
                     ) : null}
                     {selectedInviteEventInfo.contractor_phone ? (
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 8,
+                          marginBottom: 4,
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        <Text style={[styles.inviteInfoLine, { color: colors.textSecondary, flex: 1, marginBottom: 0 }]}>
+                          WhatsApp: {selectedInviteEventInfo.contractor_phone}
+                        </Text>
+                        {buildWhatsAppUrl(selectedInviteEventInfo.contractor_phone) ? (
+                          <TouchableOpacity
+                            onPress={() => {
+                              const url = buildWhatsAppUrl(selectedInviteEventInfo.contractor_phone);
+                              if (url) void Linking.openURL(url);
+                            }}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            accessibilityLabel="Abrir WhatsApp"
+                          >
+                            <Ionicons name="logo-whatsapp" size={26} color="#25D366" />
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+                    ) : null}
+                    {selectedInviteFunction ? (
                       <Text style={[styles.inviteInfoLine, { color: colors.textSecondary }]}>
-                        WhatsApp: {selectedInviteEventInfo.contractor_phone}
+                        Função sugerida: {selectedInviteFunction}
                       </Text>
                     ) : null}
                     {selectedInviteEventInfo.description ? (
@@ -1674,7 +1892,7 @@ export default function AgendaScreen() {
                       setShowInviteEventInfoModal(false);
                     }}
                   >
-                    <Text style={[styles.deletedEventModalButtonText, { color: colors.textSecondary }]}>Fechar</Text>
+                    <Text style={[styles.deletedEventModalButtonText, styles.inviteModalButtonText, { color: colors.textSecondary }]}>Fechar</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[
@@ -1685,7 +1903,7 @@ export default function AgendaScreen() {
                     onPress={() => void handleCancelInviteParticipation()}
                     disabled={isCancellingInviteParticipation}
                   >
-                    <Text style={styles.deletedEventModalButtonText}>
+                    <Text style={[styles.deletedEventModalButtonText, styles.inviteModalButtonText]}>
                       {isCancellingInviteParticipation ? 'Cancelando...' : 'Cancelar participação'}
                     </Text>
                   </TouchableOpacity>
@@ -1694,6 +1912,139 @@ export default function AgendaScreen() {
             </KeyboardAvoidingView>
           </View>
         </TouchableWithoutFeedback>
+      </Modal>
+
+      <Modal
+        visible={showParticipantsModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowParticipantsModal(false)}
+      >
+        <View style={styles.dayModalOverlay}>
+          <TouchableWithoutFeedback onPress={() => setShowParticipantsModal(false)}>
+            <View style={styles.dayModalBackdrop} />
+          </TouchableWithoutFeedback>
+          <View
+            style={[
+              styles.dayModalContent,
+              {
+                backgroundColor: colors.surface,
+                borderWidth: 1,
+                borderColor: colors.border,
+                maxHeight: '82%',
+              },
+            ]}
+          >
+            {(() => {
+              const list = participantsModalList;
+              const expandable = list.length > PARTICIPANTS_COLLAPSED_PREVIEW;
+              const headerDisabled = !expandable;
+              const listToShow =
+                participantsModalExpanded || !expandable
+                  ? list
+                  : list.slice(0, PARTICIPANTS_COLLAPSED_PREVIEW);
+              const participantRow = (p: AgendaParticipantRow, suffix: string) => (
+                <View
+                  key={`${p.id}_${p.isHost ? 'h' : 'g'}_${suffix}`}
+                  style={[styles.inviterRow, { backgroundColor: `${colors.primary}12`, borderColor: `${colors.primary}30` }]}
+                >
+                  <OptimizedImage
+                    imageUrl={p.profile_url || ''}
+                    style={styles.inviterAvatar}
+                    cacheKey={`participants_modal_${p.id}_${p.profile_url || 'none'}`}
+                    fallbackIcon="person"
+                    fallbackIconSize={18}
+                    fallbackIconColor="#FFFFFF"
+                    showLoadingIndicator={false}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.inviterLabel, { color: colors.textSecondary }]}>
+                      {p.isHost ? 'Anfitrião' : 'Convidado'}
+                    </Text>
+                    <Text style={[styles.inviterName, { color: colors.text }]}>{p.name}</Text>
+                  </View>
+                </View>
+              );
+              return (
+                <>
+                  <TouchableOpacity
+                    style={[styles.participantsSectionHeader, { marginBottom: 4 }]}
+                    onPress={() => {
+                      if (!headerDisabled) {
+                        setParticipantsModalExpanded((v) => !v);
+                      }
+                    }}
+                    disabled={headerDisabled}
+                    activeOpacity={headerDisabled ? 1 : 0.65}
+                  >
+                    <Text
+                      style={[
+                        styles.deletedEventModalTitle,
+                        { color: colors.text, alignSelf: 'stretch', textAlign: 'left', marginBottom: 0, flex: 1 },
+                      ]}
+                    >
+                      Participantes
+                      {list.length > 0 ? ` (${list.length})` : ''}
+                    </Text>
+                    {expandable ? (
+                      <Ionicons
+                        name={participantsModalExpanded ? 'chevron-up' : 'chevron-down'}
+                        size={22}
+                        color={colors.primary}
+                      />
+                    ) : null}
+                  </TouchableOpacity>
+                  {participantsModalTitle ? (
+                    <Text
+                      style={{ color: colors.textSecondary, fontSize: 14, marginBottom: 10, alignSelf: 'stretch' }}
+                      numberOfLines={2}
+                    >
+                      {participantsModalTitle}
+                    </Text>
+                  ) : null}
+                  {expandable && !participantsModalExpanded ? (
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        color: colors.textSecondary,
+                        marginBottom: 10,
+                        alignSelf: 'stretch',
+                      }}
+                    >
+                      Toque no título para ver todos
+                    </Text>
+                  ) : null}
+                  {expandable && participantsModalExpanded ? (
+                    <ScrollView
+                      style={{ alignSelf: 'stretch', maxHeight: 420 }}
+                      contentContainerStyle={{ paddingBottom: 8 }}
+                      nestedScrollEnabled
+                      showsVerticalScrollIndicator
+                      keyboardShouldPersistTaps="handled"
+                    >
+                      {list.map((p) => participantRow(p, 'exp'))}
+                    </ScrollView>
+                  ) : (
+                    <ScrollView
+                      style={{ alignSelf: 'stretch', maxHeight: 360 }}
+                      contentContainerStyle={{ paddingBottom: 8 }}
+                      showsVerticalScrollIndicator={false}
+                      keyboardShouldPersistTaps="handled"
+                    >
+                      {listToShow.map((p) => participantRow(p, 'col'))}
+                    </ScrollView>
+                  )}
+                </>
+              );
+            })()}
+            <TouchableOpacity
+              style={[styles.deletedEventModalButton, { backgroundColor: colors.primary, marginTop: 16, alignSelf: 'stretch' }]}
+              onPress={() => setShowParticipantsModal(false)}
+            >
+              <Text style={styles.deletedEventModalButtonText}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
       {/* Modal: Boas-vindas passo a passo (Apple/Google) */}
@@ -2237,13 +2588,16 @@ const styles = StyleSheet.create({
   },
   eventNameContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     flex: 1,
+    minWidth: 0,
+    marginRight: 8,
   },
   showName: {
     fontSize: 16,
     fontWeight: '600',
     lineHeight: 20,
+    flex: 1,
   },
   tagContainer: {
     flexDirection: 'row',
@@ -2279,10 +2633,21 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: 'bold',
   },
+  showValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 6,
+    gap: 8,
+  },
+  showValueLeft: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: 'center',
+  },
   lockedValueContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
   },
   lockedValueText: {
     fontSize: 12,
@@ -2563,12 +2928,23 @@ const styles = StyleSheet.create({
     gap: 8,
     flexDirection: 'row',
   },
+  inviteModalButtonText: {
+    fontSize: 14,
+  },
   inviteBtnSecondary: {
     backgroundColor: 'transparent',
     borderWidth: 1,
   },
   inviteBtnPrimary: {
     borderWidth: 0,
+  },
+  participantsSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: 8,
+    gap: 8,
   },
   inviterRow: {
     borderRadius: 12,
@@ -2594,7 +2970,6 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   collabInlineBadge: {
-    marginLeft: 6,
     borderRadius: 999,
     borderWidth: 1,
     paddingVertical: 3,
@@ -2602,11 +2977,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    flexShrink: 0,
+    alignSelf: 'flex-end',
   },
   collabInlineAvatar: {
     width: 14,
     height: 14,
     borderRadius: 7,
+  },
+  collabAvatarStack: {
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  collabStackAvatarWrapper: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    overflow: 'hidden',
+  },
+  collabStackAvatarInner: {
+    width: '100%',
+    height: '100%',
+  },
+  collabStackAvatarOverlap: {
+    marginLeft: -8,
   },
   // Estilos do Modal de Remoção
   removedModalOverlay: {

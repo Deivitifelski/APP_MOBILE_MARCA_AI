@@ -145,7 +145,8 @@ export const createEvent = async (eventData: CreateEventData): Promise<{ success
         event_date: eventData.event_date,
         start_time: eventData.start_time,
         end_time: eventData.end_time,
-        value: eventData.value || null,
+        // Preservar R$ 0,00 (0 é um valor válido; `|| null` convertia 0 em null)
+        value: eventData.value ?? null,
         city: eventData.city || null,
         contractor_phone: eventData.contractor_phone || null,
         confirmed: eventData.confirmed || false,
