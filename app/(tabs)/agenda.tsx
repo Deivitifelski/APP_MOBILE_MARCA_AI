@@ -1283,38 +1283,6 @@ export default function AgendaScreen() {
                   </View>
                 )}
               </View>
-              {collabAvatars.length > 0 ? (
-                <TouchableOpacity
-                  style={[styles.collabInlineBadge, { backgroundColor: `${colors.primary}12`, borderColor: `${colors.primary}30` }]}
-                  onPress={() => handleOpenParticipantsModal(item)}
-                  activeOpacity={0.75}
-                  hitSlop={{ top: 6, bottom: 6, left: 4, right: 6 }}
-                >
-                  <View style={styles.collabAvatarStack}>
-                    {collabAvatars.map((a, idx) => (
-                      <View
-                        key={`${item.id}_collab_${idx}`}
-                        style={[
-                          styles.collabStackAvatarWrapper,
-                          ...(idx > 0 ? [styles.collabStackAvatarOverlap] : []),
-                          { borderColor: colors.surface, zIndex: idx, backgroundColor: colors.secondary },
-                        ]}
-                      >
-                        <OptimizedImage
-                          imageUrl={a.profile_url || ''}
-                          style={styles.collabStackAvatarInner}
-                          cacheKey={`collab_stack_${item.id}_${idx}_${a.profile_url || 'none'}`}
-                          fallbackIcon="person"
-                          fallbackIconSize={9}
-                          fallbackIconColor="#FFFFFF"
-                          showLoadingIndicator={false}
-                        />
-                      </View>
-                    ))}
-                  </View>
-                  <Ionicons name="git-network-outline" size={10} color={colors.primary} />
-                </TouchableOpacity>
-              ) : null}
             </View>
           </View>
 
@@ -1325,8 +1293,40 @@ export default function AgendaScreen() {
                 <Text style={styles.tagText}>{item.tag}</Text>
               </View>
             ) : null}
+            {collabAvatars.length > 0 ? (
+              <TouchableOpacity
+                style={[styles.collabInlineBadge, { backgroundColor: `${colors.primary}12`, borderColor: `${colors.primary}30` }]}
+                onPress={() => handleOpenParticipantsModal(item)}
+                activeOpacity={0.75}
+                hitSlop={{ top: 6, bottom: 6, left: 4, right: 6 }}
+              >
+                <View style={styles.collabAvatarStack}>
+                  {collabAvatars.map((a, idx) => (
+                    <View
+                      key={`${item.id}_collab_${idx}`}
+                      style={[
+                        styles.collabStackAvatarWrapper,
+                        ...(idx > 0 ? [styles.collabStackAvatarOverlap] : []),
+                        { borderColor: colors.surface, zIndex: idx, backgroundColor: colors.secondary },
+                      ]}
+                    >
+                      <OptimizedImage
+                        imageUrl={a.profile_url || ''}
+                        style={styles.collabStackAvatarInner}
+                        cacheKey={`collab_stack_${item.id}_${idx}_${a.profile_url || 'none'}`}
+                        fallbackIcon="person"
+                        fallbackIconSize={9}
+                        fallbackIconColor="#FFFFFF"
+                        showLoadingIndicator={false}
+                      />
+                    </View>
+                  ))}
+                </View>
+                <Ionicons name="git-network-outline" size={10} color={colors.primary} />
+              </TouchableOpacity>
+            ) : null}
             <View style={styles.showArrowSection}>
-              <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+              <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
             </View>
           </View>
         </View>
@@ -2555,16 +2555,17 @@ const styles = StyleSheet.create({
   },
   showContent: {
     flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
+    alignItems: 'flex-start',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
   },
   showDateSection: {
-    width: 60,
-    height: 60,
+    width: 54,
+    height: 54,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
+    marginRight: 10,
   },
   showDateNumber: {
     fontSize: 20,
@@ -2581,7 +2582,7 @@ const styles = StyleSheet.create({
   showInfoSection: {
     flex: 1,
     minWidth: 0,
-    paddingRight: 8,
+    paddingRight: 0,
   },
   showHeaderRow: {
     flexDirection: 'row',
@@ -2597,9 +2598,10 @@ const styles = StyleSheet.create({
   showRightColumn: {
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'flex-start',
     flexShrink: 0,
-    marginLeft: 4,
-    gap: 6,
+    marginLeft: 0,
+    gap: 4,
   },
   showName: {
     fontSize: 16,
@@ -2610,9 +2612,9 @@ const styles = StyleSheet.create({
   tagContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 10,
   },
   tagText: {
     color: '#fff',
@@ -2979,13 +2981,12 @@ const styles = StyleSheet.create({
   collabInlineBadge: {
     borderRadius: 999,
     borderWidth: 1,
-    paddingVertical: 3,
-    paddingHorizontal: 5,
+    paddingVertical: 2,
+    paddingHorizontal: 4,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     flexShrink: 0,
-    alignSelf: 'flex-end',
   },
   collabInlineAvatar: {
     width: 14,
