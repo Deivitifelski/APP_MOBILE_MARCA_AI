@@ -44,7 +44,7 @@ const months = [
 ];
 const weekdayLabels = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
-/** Máximo de fotos no card (anfitrião + convidados); excedente não aparece no card — o modal da badge lista todos. */
+/** Máximo de fotos no card (organizador + convidados); excedente não aparece no card — o modal da badge lista todos. */
 const MAX_COLLAB_AVATARS_ON_CARD = 10;
 
 /** No modal de participantes (toque na badge), lista colapsada mostra só os primeiros N. */
@@ -94,7 +94,7 @@ export default function AgendaScreen() {
   const [invitePartnerByConviteId, setInvitePartnerByConviteId] = useState<Record<string, { name: string; profile_url: string | null }>>({});
   const [selectedInviteFunction, setSelectedInviteFunction] = useState<string | null>(null);
   const [conviteIdByEventId, setConviteIdByEventId] = useState<Record<string, string>>({});
-  /** Anfitrião + convidados por evento (lista completa; o card só mostra os primeiros). */
+  /** Organizador + convidados por evento (lista completa; o card só mostra os primeiros). */
   const [participantAvatarsByEventId, setParticipantAvatarsByEventId] = useState<
     Record<string, AgendaParticipantRow[]>
   >({});
@@ -1249,12 +1249,6 @@ export default function AgendaScreen() {
                   <Ionicons name="lock-closed" size={14} color={colors.textSecondary} style={{ marginLeft: 6 }} />
                 )}
               </View>
-              {item.tag && (
-                <View style={[styles.tagContainer, { backgroundColor: getTagColor(item.tag) }]}>
-                  <Ionicons name={getTagIcon(item.tag)} size={12} color="#fff" />
-                  <Text style={styles.tagText}>{item.tag}</Text>
-                </View>
-              )}
             </View>
 
             {hasDefinedTime(item.start_time, item.end_time) ? (
@@ -1324,8 +1318,16 @@ export default function AgendaScreen() {
             </View>
           </View>
 
-          <View style={styles.showArrowSection}>
-            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+          <View style={styles.showRightColumn}>
+            {item.tag ? (
+              <View style={[styles.tagContainer, { backgroundColor: getTagColor(item.tag) }]}>
+                <Ionicons name={getTagIcon(item.tag)} size={12} color="#fff" />
+                <Text style={styles.tagText}>{item.tag}</Text>
+              </View>
+            ) : null}
+            <View style={styles.showArrowSection}>
+              <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+            </View>
           </View>
         </View>
       </TouchableOpacity>
@@ -1959,7 +1961,7 @@ export default function AgendaScreen() {
                   />
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.inviterLabel, { color: colors.textSecondary }]}>
-                      {p.isHost ? 'Anfitrião' : 'Convidado'}
+                      {p.isHost ? 'Organizador' : 'Convidado'}
                     </Text>
                     <Text style={[styles.inviterName, { color: colors.text }]}>{p.name}</Text>
                   </View>
@@ -2578,12 +2580,12 @@ const styles = StyleSheet.create({
   },
   showInfoSection: {
     flex: 1,
-    paddingRight: 12,
+    minWidth: 0,
+    paddingRight: 8,
   },
   showHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: 8,
   },
   eventNameContainer: {
@@ -2591,7 +2593,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     flex: 1,
     minWidth: 0,
-    marginRight: 8,
+  },
+  showRightColumn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 0,
+    marginLeft: 4,
+    gap: 6,
   },
   showName: {
     fontSize: 16,
@@ -2605,7 +2613,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    marginLeft: 8,
   },
   tagText: {
     color: '#fff',

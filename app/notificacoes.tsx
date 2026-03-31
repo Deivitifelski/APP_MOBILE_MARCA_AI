@@ -82,6 +82,13 @@ function isParticipationCanceledByGuestNotification(n: Notification): boolean {
   );
 }
 
+/** Participação removida pelo organizador (lado do convidado): informativo; não abre a tela de convites. */
+function isParticipationRemovedByHostNotification(n: Notification): boolean {
+  if (n.type !== 'participacao_evento') return false;
+  const title = (n.title || '').toLowerCase();
+  return title.includes('removida pelo organizador');
+}
+
 export default function NotificacoesScreen() {
   const { colors, isDarkMode } = useTheme();
   const { loadUnreadCount } = useNotifications(); // ✅ Hook para atualizar badge
@@ -296,7 +303,8 @@ export default function NotificacoesScreen() {
     if (notification.type === 'participacao_evento') {
       if (
         !isParticipationRejectedNotification(notification) &&
-        !isParticipationCanceledByGuestNotification(notification)
+        !isParticipationCanceledByGuestNotification(notification) &&
+        !isParticipationRemovedByHostNotification(notification)
       ) {
         router.push('/convites-participacao-evento');
       }

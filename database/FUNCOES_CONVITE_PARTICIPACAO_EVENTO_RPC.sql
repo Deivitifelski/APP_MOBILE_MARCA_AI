@@ -603,6 +603,131 @@ END;
 $$;
 
 -- =====================================================
+-- 5b) Remover participação aceita (lado do anfitrião / organizador do evento)
+--     Mesmo efeito do cancelamento pelo convidado: remove despesa, inativa evento do convidado,
+--     marca convite cancelado e notifica o convidado.
+-- =====================================================
+
+CREATE OR REPLACE FUNCTION public.rpc_cancelar_participacao_aceita_pelo_anfitriao_evento(
+  p_convite_id UUID,
+  p_motivo TEXT
+)
+RETURNS TABLE (
+  success BOOLEAN,
+  error TEXT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_uid UUID := auth.uid();
+  v_convite convite_participacao_evento%ROWTYPE;
+  v_nome_convidado TEXT;
+  v_nome_organizador TEXT;
+  v_to_user_id UUID;
+BEGIN
+  IF v_uid IS NULL THEN
+    RETURN QUERY SELECT false, 'Usuário não autenticado.';
+    RETURN;
+  END IF;
+
+  IF NULLIF(TRIM(p_motivo), '') IS NULL THEN
+    RETURN QUERY SELECT false, 'Motivo da remoção é obrigatório.';
+    RETURN;
+  END IF;
+
+  SELECT * INTO v_convite
+  FROM convite_participacao_evento
+  WHERE id = p_convite_id
+  LIMIT 1;
+
+  IF v_convite.id IS NULL THEN
+    RETURN QUERY SELECT false, 'Convite não encontrado.';
+    RETURN;
+  END IF;
+
+  IF v_convite.status <> 'aceito' THEN
+    RETURN QUERY SELECT false, 'Somente participações já aceitas podem ser removidas pelo organizador.';
+    RETURN;
+  END IF;
+
+  IF NOT public._is_member_of_artist(v_uid, v_convite.artista_que_convidou_id, ARRAY['editor', 'admin', 'owner']) THEN
+    RETURN QUERY SELECT false, 'Sem permissão para remover esta participação.';
+    RETURN;
+  END IF;
+
+  IF v_convite.despesa_origem_id IS NOT NULL THEN
+    DELETE FROM event_expenses
+    WHERE id = v_convite.despesa_origem_id;
+  ELSE
+    SELECT name INTO v_nome_convidado
+    FROM artists
+    WHERE id = v_convite.artista_convidado_id
+    LIMIT 1;
+
+    DELETE FROM event_expenses ee
+    WHERE ee.event_id = v_convite.evento_origem_id
+      AND ee.value = v_convite.cache_valor
+      AND (
+        ee.name = COALESCE(v_nome_convidado, 'Artista') || ' - ' || COALESCE(NULLIF(TRIM(v_convite.funcao_participacao), ''), 'Participação')
+        OR (v_nome_convidado IS NOT NULL AND ee.name ILIKE v_nome_convidado || ' - %')
+      );
+  END IF;
+
+  IF v_convite.evento_criado_convidado_id IS NOT NULL THEN
+    UPDATE events
+    SET
+      ativo = false,
+      update_ativo = NOW(),
+      updated_at = NOW(),
+      updated_by = v_uid
+    WHERE id = v_convite.evento_criado_convidado_id;
+  END IF;
+
+  UPDATE convite_participacao_evento
+  SET
+    status = 'cancelado',
+    motivo_cancelamento = TRIM(p_motivo),
+    respondido_em = NOW(),
+    atualizado_em = NOW()
+  WHERE id = v_convite.id
+    AND status = 'aceito';
+
+  SELECT name INTO v_nome_organizador
+  FROM artists
+  WHERE id = v_convite.artista_que_convidou_id
+  LIMIT 1;
+
+  SELECT am.user_id INTO v_to_user_id
+  FROM artist_members am
+  WHERE am.artist_id = v_convite.artista_convidado_id
+  ORDER BY CASE am.role
+    WHEN 'owner' THEN 1
+    WHEN 'admin' THEN 2
+    WHEN 'editor' THEN 3
+    WHEN 'viewer' THEN 4
+    ELSE 99
+  END, am.created_at ASC
+  LIMIT 1;
+
+  IF v_to_user_id IS NOT NULL THEN
+    PERFORM public._notify_participacao_evento(
+      v_to_user_id,
+      v_uid,
+      v_convite.artista_convidado_id,
+      'Participação removida pelo organizador',
+      COALESCE(v_nome_organizador, 'O organizador') ||
+        ' removeu sua participação no evento "' || v_convite.nome_evento ||
+        '". Motivo: ' || TRIM(p_motivo)
+    );
+  END IF;
+
+  RETURN QUERY SELECT true, NULL::TEXT;
+END;
+$$;
+
+-- =====================================================
 -- Permissões de execução
 -- =====================================================
 
@@ -611,6 +736,7 @@ GRANT EXECUTE ON FUNCTION public.rpc_aceitar_convite_participacao_evento(UUID) T
 GRANT EXECUTE ON FUNCTION public.rpc_recusar_convite_participacao_evento(UUID, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_cancelar_convite_pendente_participacao_evento(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_cancelar_participacao_aceita_evento(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_cancelar_participacao_aceita_pelo_anfitriao_evento(UUID, TEXT) TO authenticated;
 
 -- =====================================================
 -- Camada estável para o app (evita problemas de assinatura/cache)
@@ -808,12 +934,32 @@ AS $$
   );
 $$;
 
+CREATE OR REPLACE FUNCTION public.rpc_app_cancelar_participacao_aceita_pelo_anfitriao_evento(
+  p_convite_id UUID,
+  p_motivo TEXT
+)
+RETURNS TABLE (
+  success BOOLEAN,
+  error TEXT
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT *
+  FROM public.rpc_cancelar_participacao_aceita_pelo_anfitriao_evento(
+    p_convite_id => p_convite_id,
+    p_motivo => p_motivo
+  );
+$$;
+
 GRANT EXECUTE ON FUNCTION public.rpc_app_enviar_convite_participacao_evento(UUID, UUID, NUMERIC, TEXT, TEXT, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_app_notificar_convite_participacao_evento(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_app_aceitar_convite_participacao_evento(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_app_recusar_convite_participacao_evento(UUID, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_app_cancelar_convite_pendente_participacao_evento(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_app_cancelar_participacao_aceita_evento(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_app_cancelar_participacao_aceita_pelo_anfitriao_evento(UUID, TEXT) TO authenticated;
 
 -- =====================================================
 -- Lista convites por eventos de origem (avatares na agenda)

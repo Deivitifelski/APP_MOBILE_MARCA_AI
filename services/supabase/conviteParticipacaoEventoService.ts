@@ -275,6 +275,7 @@ export async function cancelarParticipacaoAceita(
   usuarioCancelaId?: string | null
 ): Promise<{ success: boolean; error: string | null }> {
   try {
+    void usuarioCancelaId;
     const motivoLimpo = motivo?.trim() || '';
     if (!motivoLimpo) return { success: false, error: 'Informe o motivo do cancelamento.' };
 
@@ -286,6 +287,29 @@ export async function cancelarParticipacaoAceita(
 
     const row = pickRpcRow<RpcSimpleResult>(data);
     if (!row) return { success: false, error: 'Resposta inválida ao cancelar participação.' };
+    return { success: row.success, error: row.error };
+  } catch {
+    return { success: false, error: 'Erro de conexão' };
+  }
+}
+
+/** Remove participação já aceita (lado do organizador do evento): despesa, evento do convidado e notificação. */
+export async function removerParticipacaoAceitaPeloOrganizador(
+  conviteId: string,
+  motivo: string
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const motivoLimpo = motivo?.trim() || '';
+    if (!motivoLimpo) return { success: false, error: 'Informe o motivo da remoção.' };
+
+    const { data, error } = await supabase.rpc('rpc_app_cancelar_participacao_aceita_pelo_anfitriao_evento', {
+      p_convite_id: conviteId,
+      p_motivo: motivoLimpo,
+    });
+    if (error) return { success: false, error: error.message };
+
+    const row = pickRpcRow<RpcSimpleResult>(data);
+    if (!row) return { success: false, error: 'Resposta inválida ao remover participação.' };
     return { success: row.success, error: row.error };
   } catch {
     return { success: false, error: 'Erro de conexão' };

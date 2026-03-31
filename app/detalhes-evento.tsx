@@ -46,6 +46,7 @@ import {
     listarConvitesDoEvento,
     obterConvitePorId,
     obterNomeArtista,
+    removerParticipacaoAceitaPeloOrganizador,
     type ArtistaBuscaConvite,
     type ConviteParticipacaoEventoRow,
 } from '../services/supabase/conviteParticipacaoEventoService';
@@ -238,6 +239,10 @@ export default function DetalhesEventoScreen() {
   const [inviteFunctionDraft, setInviteFunctionDraft] = useState('');
   const [selectedArtistToInvite, setSelectedArtistToInvite] = useState<{ id: string; name: string } | null>(null);
   const [sendingParticipationInvite, setSendingParticipationInvite] = useState(false);
+  const [showRemoveParticipationModal, setShowRemoveParticipationModal] = useState(false);
+  const [removeParticipationConvite, setRemoveParticipationConvite] = useState<ConviteParticipacaoEventoRow | null>(null);
+  const [removeParticipationMotivo, setRemoveParticipationMotivo] = useState('');
+  const [removingParticipation, setRemovingParticipation] = useState(false);
 
   // Obter usuário atual
   useEffect(() => {
@@ -741,12 +746,46 @@ export default function DetalhesEventoScreen() {
     }
   };
 
-  const handleRestrictedAction = (actionName: string) => {
+  const handleRestrictedAction = (_actionName: string) => {
     if (!hasAccess) {
       setShowPermissionModal(true);
       return false;
     }
     return true;
+  };
+
+  const openRemoveParticipationModal = (c: ConviteParticipacaoEventoRow) => {
+    if (!handleRestrictedAction('remover participação')) return;
+    if (!canCreateEventsPermission || !event || event.artist_id !== activeArtist?.id) {
+      setShowPermissionModal(true);
+      return;
+    }
+    setRemoveParticipationConvite(c);
+    setRemoveParticipationMotivo('');
+    setShowRemoveParticipationModal(true);
+  };
+
+  const confirmRemoveParticipationAceita = async () => {
+    const c = removeParticipationConvite;
+    if (!c || !event) return;
+    const motivo = removeParticipationMotivo.trim();
+    if (!motivo) {
+      Alert.alert('Motivo obrigatório', 'Informe o motivo para remover a participação.');
+      return;
+    }
+    setRemovingParticipation(true);
+    const { success, error } = await removerParticipacaoAceitaPeloOrganizador(c.id, motivo);
+    setRemovingParticipation(false);
+    if (success) {
+      setShowRemoveParticipationModal(false);
+      setRemoveParticipationConvite(null);
+      setRemoveParticipationMotivo('');
+      void loadParticipationInvites(event.id);
+      void loadEventData(false);
+      Alert.alert('Participação removida', 'O convidado perde o evento na agenda dele e foi notificado.');
+    } else {
+      Alert.alert('Erro', error || 'Não foi possível remover a participação.');
+    }
   };
 
   const addOrReplaceContract = async () => {
@@ -1456,6 +1495,11 @@ export default function DetalhesEventoScreen() {
                               <Text style={{ color: colors.error, fontSize: 13, fontWeight: '600' }}>Cancelar convite</Text>
                             </TouchableOpacity>
                           ) : null}
+                          {c.status === 'aceito' && canCreateEventsPermission && event?.artist_id === activeArtist?.id ? (
+                            <TouchableOpacity onPress={() => openRemoveParticipationModal(c)} style={{ marginTop: 6 }}>
+                              <Text style={{ color: colors.error, fontSize: 13, fontWeight: '600' }}>Remover participação</Text>
+                            </TouchableOpacity>
+                          ) : null}
                         </View>
                       </View>
                     );
@@ -1819,6 +1863,66 @@ export default function DetalhesEventoScreen() {
                 )}
               </TouchableOpacity>
             </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      <Modal
+        visible={showRemoveParticipationModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !removingParticipation && setShowRemoveParticipationModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.participationInviteModalOverlay}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <View style={[styles.participationInviteModalCard, { backgroundColor: colors.surface }]}>
+                <Text style={[styles.participationInviteModalTitle, { color: colors.text }]}>
+                  Remover participação
+                </Text>
+                <Text style={[styles.participationInviteModalSub, { color: colors.textSecondary }]}>
+                  O convidado deixa de ver este evento na agenda dele (como se a participação fosse cancelada). É obrigatório informar o motivo; ele receberá uma notificação.
+                </Text>
+                <TextInput
+                  style={[
+                    styles.participationInviteSearchInput,
+                    {
+                      color: colors.text,
+                      borderColor: colors.border,
+                      backgroundColor: colors.background,
+                      minHeight: 88,
+                      textAlignVertical: 'top',
+                    },
+                  ]}
+                  placeholder="Motivo da remoção..."
+                  placeholderTextColor={colors.textSecondary}
+                  value={removeParticipationMotivo}
+                  onChangeText={setRemoveParticipationMotivo}
+                  multiline
+                  editable={!removingParticipation}
+                />
+                <View style={styles.participationInviteModalActions}>
+                  <TouchableOpacity
+                    style={[styles.participationInviteModalBtnSec, { borderColor: colors.border }]}
+                    onPress={() => !removingParticipation && setShowRemoveParticipationModal(false)}
+                    disabled={removingParticipation}
+                  >
+                    <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Voltar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.participationInviteModalBtnPri, { backgroundColor: colors.error }]}
+                    onPress={() => void confirmRemoveParticipationAceita()}
+                    disabled={removingParticipation}
+                  >
+                    {removingParticipation ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.participationInviteModalBtnPriText}>Remover</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
               </View>
             </TouchableWithoutFeedback>
           </View>
