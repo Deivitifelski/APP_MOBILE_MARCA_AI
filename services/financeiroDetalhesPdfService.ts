@@ -84,8 +84,35 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+/** Margem superior extra (pt) em todas as páginas — corrige conteúdo colado no topo na 2ª página (WKWebView). */
+const PDF_TOP_MARGIN_PT = 56;
+
 /**
- * Faixa branca no rodapé + "Página N de M" centralizado, para não sobrepor tabelas.
+ * Recria o PDF com altura de página maior no topo, mantendo o conteúdo na base — margem visual no topo em todas as páginas.
+ */
+async function addTopMarginToAllPages(sourceUri: string, destUri: string, topPts: number): Promise<void> {
+  const base64 = await FileSystem.readAsStringAsync(sourceUri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  const srcBytes = base64ToUint8Array(base64);
+  const srcDoc = await PDFDocument.load(srcBytes);
+  const pageCount = srcDoc.getPageCount();
+  const allIndices = Array.from({ length: pageCount }, (_, i) => i);
+  const newDoc = await PDFDocument.create();
+  const embeddedPages = await newDoc.embedPdf(srcBytes, allIndices);
+  for (const emb of embeddedPages) {
+    const { width, height } = emb;
+    const page = newDoc.addPage([width, height + topPts]);
+    page.drawPage(emb, { x: 0, y: 0, width, height });
+  }
+  const outBytes = await newDoc.save();
+  await FileSystem.writeAsStringAsync(destUri, uint8ArrayToBase64(outBytes), {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+}
+
+/**
+ * "Página N de M" centralizado no rodapé (sem apagar conteúdo da página).
  */
 async function stampPageNumbersOnPdf(sourceUri: string, destUri: string): Promise<void> {
   const base64 = await FileSystem.readAsStringAsync(sourceUri, {
@@ -96,21 +123,13 @@ async function stampPageNumbersOnPdf(sourceUri: string, destUri: string): Promis
   const pages = pdfDoc.getPages();
   const total = pages.length;
   const fontSize = 8.5;
-  const stripH = 40;
   pages.forEach((page, idx) => {
     const { width } = page.getSize();
-    page.drawRectangle({
-      x: 0,
-      y: 0,
-      width,
-      height: stripH,
-      color: rgb(1, 1, 1),
-    });
     const text = `Página ${idx + 1} de ${total}`;
     const textWidth = font.widthOfTextAtSize(text, fontSize);
     page.drawText(text, {
       x: (width - textWidth) / 2,
-      y: 13,
+      y: 9,
       size: fontSize,
       font,
       color: rgb(0.38, 0.38, 0.38),
@@ -264,7 +283,16 @@ export async function generateFinanceiroDetalhesPdf(
   <style>
     @page {
       size: A4 portrait;
-      margin: 18mm 22mm 26mm 22mm;
+      margin: 16mm 14mm 22mm 14mm;
+    }
+    @media print {
+      @page {
+        margin: 16mm 14mm 22mm 14mm;
+      }
+      body {
+        margin: 0 !important;
+        padding: 0 !important;
+      }
     }
     * {
       margin:0;
@@ -280,7 +308,7 @@ export async function generateFinanceiroDetalhesPdf(
     body {
       font-family: Helvetica, Arial, sans-serif;
       margin: 0;
-      padding: 10mm 18mm 14mm 18mm;
+      padding: 0;
       color:#111;
       background:#fff;
       line-height:1.45;
@@ -318,6 +346,10 @@ export async function generateFinanceiroDetalhesPdf(
     .intro { font-size:12px; color:#555; margin-bottom:8px; page-break-after:avoid; }
     .chart-box { margin:8px 0 6px; page-break-inside:avoid; break-inside:avoid; }
     table.data { width:100%; border-collapse:collapse; margin-top:6px; page-break-inside:auto; }
+    table.data.no-split {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
     table.data thead { display:table-header-group; }
     table.data tr {
       page-break-inside: avoid !important;
@@ -366,7 +398,7 @@ export async function generateFinanceiroDetalhesPdf(
 
   <div class="section-keep">
     <h3>Resumo do mês</h3>
-    <table class="data">
+    <table class="data no-split">
       <tbody>
         <tr><td>Receita total</td><td style="text-align:right;font-weight:700;">${formatBRL(totals.totalRevenueWithIncome)}</td></tr>
         <tr><td>Despesas totais</td><td style="text-align:right;">${formatBRL(totals.totalExpenses)}</td></tr>
@@ -379,7 +411,7 @@ export async function generateFinanceiroDetalhesPdf(
 
   <div class="section-allow-break">
     <h3>Maiores despesas</h3>
-    <table class="data">
+    <table class="data no-split">
       <thead><tr><th>Despesa</th><th>Origem</th><th class="num">Valor</th></tr></thead>
       <tbody>${despesasRows}</tbody>
     </table>
@@ -387,7 +419,7 @@ export async function generateFinanceiroDetalhesPdf(
 
   <div class="section-allow-break">
     <h3>Maiores lucros por evento</h3>
-    <table class="data">
+    <table class="data no-split">
       <thead><tr><th>Evento</th><th>Data</th><th class="num">Lucro</th></tr></thead>
       <tbody>${lucrosRows}</tbody>
     </table>
@@ -419,10 +451,18 @@ export async function generateFinanceiroDetalhesPdf(
 
     const fileName = `Detalhes_Financeiros_${MONTHS[month]}_${year}_${Date.now()}.pdf`;
     const shareableUri = `${FileSystem.documentDirectory}${fileName}`;
+    const marginPassUri = `${FileSystem.documentDirectory}_fin_det_margin_${Date.now()}.pdf`;
     try {
-      await stampPageNumbersOnPdf(uri, shareableUri);
+      await addTopMarginToAllPages(uri, marginPassUri, PDF_TOP_MARGIN_PT);
+      await stampPageNumbersOnPdf(marginPassUri, shareableUri);
     } catch {
-      await FileSystem.copyAsync({ from: uri, to: shareableUri });
+      try {
+        await stampPageNumbersOnPdf(uri, shareableUri);
+      } catch {
+        await FileSystem.copyAsync({ from: uri, to: shareableUri });
+      }
+    } finally {
+      await FileSystem.deleteAsync(marginPassUri, { idempotent: true }).catch(() => {});
     }
 
     const info = await FileSystem.getInfoAsync(shareableUri);
