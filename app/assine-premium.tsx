@@ -32,6 +32,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
+import { syncSubscriptionAfterPurchase, syncSubscriptionAfterRestore } from '../services/subscriptionSyncService';
 
 const PREMIUM_SKUS = ['marcaai_mensal_app', 'marcaai_anual_app'];
 const PLAN_LABELS: Record<string, string> = {
@@ -297,6 +298,7 @@ export default function AssinePremiumScreen() {
         try {
           if (!PREMIUM_SKUS.includes(purchase.productId)) return;
           await finishTransaction({ purchase, isConsumable: false });
+          await syncSubscriptionAfterPurchase(purchase);
           await syncPurchasedStatus();
           setProcessingSku(null);
           Alert.alert('Assinatura ativada', 'Seu plano Premium foi ativado com sucesso.', [
@@ -389,6 +391,7 @@ export default function AssinePremiumScreen() {
     try {
       setRestoring(true);
       await restorePurchases();
+      await syncSubscriptionAfterRestore();
       await syncPurchasedStatus();
       Alert.alert('Compras restauradas', 'Suas assinaturas foram sincronizadas com sucesso.');
     } catch (restoreError) {
