@@ -84,7 +84,7 @@
               "locale" : "pt_BR"
             }
           ],
-          "productID" : "Premium marca_ai_9_90_m",
+          "productID" : "marcaai_mensal_app",
           "recurringSubscriptionPeriod" : "P1M",
           "referenceName" : "Premium Monthly",
           "subscriptionGroupID" : "21475758",

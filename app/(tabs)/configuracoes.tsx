@@ -777,6 +777,13 @@ export default function ConfiguracoesScreen() {
           
           <View style={dynamicStyles.settingsCard}>
             {renderSettingItem(
+              'diamond',
+              'Assine Premium',
+              'Ver planos mensal e anual',
+              () => router.push('/assine-premium')
+            )}
+
+            {renderSettingItem(
               'help-circle',
               'Ajuda e Suporte',
               'Central de ajuda e contato',
