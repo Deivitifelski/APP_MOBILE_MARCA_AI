@@ -4,12 +4,15 @@ import {
   endConnection,
   fetchProducts,
   finishTransaction,
+  getActiveSubscriptions,
   getAvailablePurchases,
   initConnection,
   purchaseErrorListener,
   purchaseUpdatedListener,
   requestPurchase,
   restorePurchases,
+  syncIOS,
+  type ActiveSubscription,
   type Product,
   type Purchase,
 } from 'expo-iap';
@@ -46,6 +49,95 @@ const FREE_VS_PREMIUM = [
 ];
 const MONTHLY_SKU = 'marcaai_mensal_app';
 const ANNUAL_SKU = 'marcaai_anual_app';
+
+type SubscriptionSnapshot = {
+  hasActivePremium: boolean;
+  sku: string | null;
+  planTitle: string;
+  periodLabel: string;
+  validThroughMs: number | null;
+  nextRenewalMs: number | null;
+  autoRenews: boolean | null;
+  storeEnvironment?: string | null;
+};
+
+const emptySubscriptionSnapshot = (): SubscriptionSnapshot => ({
+  hasActivePremium: false,
+  sku: null,
+  planTitle: 'Plano gratuito',
+  periodLabel: '',
+  validThroughMs: null,
+  nextRenewalMs: null,
+  autoRenews: null,
+  storeEnvironment: null,
+});
+
+function formatSubscriptionDate(ms: number): string {
+  try {
+    return new Date(ms).toLocaleDateString('pt-BR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  } catch {
+    return '';
+  }
+}
+
+function snapshotFromActiveSubscription(row: ActiveSubscription): SubscriptionSnapshot {
+  const sku = row.productId;
+  const title = PLAN_LABELS[sku] || sku;
+  const periodLabel = sku === ANNUAL_SKU ? 'Cobrança anual' : 'Cobrança mensal';
+  const autoRenews =
+    row.renewalInfoIOS?.willAutoRenew ??
+    (typeof row.autoRenewingAndroid === 'boolean' ? row.autoRenewingAndroid : null);
+
+  return {
+    hasActivePremium: true,
+    sku,
+    planTitle: title,
+    periodLabel,
+    validThroughMs: row.expirationDateIOS ?? null,
+    nextRenewalMs: row.renewalInfoIOS?.renewalDate ?? null,
+    autoRenews,
+    storeEnvironment: row.environmentIOS ?? null,
+  };
+}
+
+function snapshotFromPurchase(sku: string, purchase: Purchase): SubscriptionSnapshot {
+  const title = PLAN_LABELS[sku] || sku;
+  const periodLabel = sku === ANNUAL_SKU ? 'Cobrança anual' : 'Cobrança mensal';
+  const exp = 'expirationDateIOS' in purchase ? purchase.expirationDateIOS : undefined;
+
+  return {
+    hasActivePremium: true,
+    sku,
+    planTitle: title,
+    periodLabel,
+    validThroughMs: exp ?? null,
+    nextRenewalMs: null,
+    autoRenews: purchase.isAutoRenewing,
+    storeEnvironment: 'environmentIOS' in purchase ? purchase.environmentIOS ?? null : null,
+  };
+}
+
+function subscriptionDetailLines(snapshot: SubscriptionSnapshot): string[] {
+  if (!snapshot.hasActivePremium) return [];
+  const lines: string[] = [];
+  if (snapshot.autoRenews === true && snapshot.nextRenewalMs) {
+    lines.push(`Próxima renovação: ${formatSubscriptionDate(snapshot.nextRenewalMs)}`);
+  } else if (snapshot.validThroughMs) {
+    lines.push(
+      snapshot.autoRenews === false
+        ? `Acesso até ${formatSubscriptionDate(snapshot.validThroughMs)}`
+        : `Renova em ${formatSubscriptionDate(snapshot.validThroughMs)}`,
+    );
+  }
+  if (snapshot.autoRenews !== null) {
+    lines.push(`Renovação automática: ${snapshot.autoRenews ? 'ativada' : 'desativada'}`);
+  }
+  return lines;
+}
 
 const parsePriceFromDisplay = (displayPrice: string): number | null => {
   const normalized = displayPrice.replace(/[^\d,.-]/g, '');
@@ -87,6 +179,31 @@ const getAnnualSavingsPercent = (monthlyProduct?: Product, annualProduct?: Produ
   return savingsPercent > 0 ? savingsPercent : null;
 };
 
+/**
+ * Qual SKU Premium está realmente ativo: mesmo grupo pode devolver várias linhas em getAvailablePurchases;
+ * priorizamos o anual e usamos getActiveSubscriptions quando possível (iOS StoreKit 2).
+ */
+function resolveActivePremiumSkuFromPurchases(purchases: Purchase[]): string | null {
+  const premium = purchases.filter((p) => PREMIUM_SKUS.includes(p.productId));
+  if (!premium.length) return null;
+
+  const now = Date.now();
+  const valid = premium.filter((p) => {
+    const exp = 'expirationDateIOS' in p ? p.expirationDateIOS : undefined;
+    if (exp == null || exp === undefined) return true;
+    return exp > now;
+  });
+  const pool = valid.length > 0 ? valid : premium;
+
+  const annual = pool.find((p) => p.productId === ANNUAL_SKU);
+  if (annual) return ANNUAL_SKU;
+
+  const monthly = pool.find((p) => p.productId === MONTHLY_SKU);
+  if (monthly) return MONTHLY_SKU;
+
+  return pool[0]?.productId ?? null;
+}
+
 export default function AssinePremiumScreen() {
   const { colors } = useTheme();
   const [loading, setLoading] = useState(true);
@@ -96,13 +213,55 @@ export default function AssinePremiumScreen() {
   const [processingSku, setProcessingSku] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [activeSku, setActiveSku] = useState<string | null>(null);
+  const [subscriptionSnapshot, setSubscriptionSnapshot] = useState<SubscriptionSnapshot>(() =>
+    emptySubscriptionSnapshot(),
+  );
 
   const syncPurchasedStatus = useCallback(async () => {
+    try {
+      if (Platform.OS === 'ios') {
+        await syncIOS().catch(() => undefined);
+      }
+
+      const activeSubs = await getActiveSubscriptions(PREMIUM_SKUS);
+      const premiumRows = activeSubs.filter((s) => s.isActive && PREMIUM_SKUS.includes(s.productId));
+      if (premiumRows.length > 0) {
+        const annualRow = premiumRows.find((s) => s.productId === ANNUAL_SKU);
+        const row = annualRow ?? premiumRows[0];
+        const sku = row?.productId ?? null;
+        setActiveSku(sku);
+        if (row) setSubscriptionSnapshot(snapshotFromActiveSubscription(row));
+        else setSubscriptionSnapshot(emptySubscriptionSnapshot());
+        return;
+      }
+    } catch {
+      /* fallback abaixo */
+    }
+
     const purchases = await getAvailablePurchases({
       onlyIncludeActiveItemsIOS: true,
     });
-    const premiumPurchase = purchases.find((purchase) => PREMIUM_SKUS.includes(purchase.productId));
-    setActiveSku(premiumPurchase?.productId || null);
+    const sku = resolveActivePremiumSkuFromPurchases(purchases);
+    setActiveSku(sku);
+    if (sku) {
+      const purchase = purchases.find((p) => p.productId === sku);
+      setSubscriptionSnapshot(
+        purchase
+          ? snapshotFromPurchase(sku, purchase)
+          : {
+              hasActivePremium: true,
+              sku,
+              planTitle: PLAN_LABELS[sku] || sku,
+              periodLabel: sku === ANNUAL_SKU ? 'Cobrança anual' : 'Cobrança mensal',
+              validThroughMs: null,
+              nextRenewalMs: null,
+              autoRenews: null,
+              storeEnvironment: null,
+            },
+      );
+    } else {
+      setSubscriptionSnapshot(emptySubscriptionSnapshot());
+    }
   }, []);
 
   const loadProducts = useCallback(async () => {
@@ -246,6 +405,10 @@ export default function AssinePremiumScreen() {
   const monthlyProduct = products.find((item) => item.id === MONTHLY_SKU);
   const annualProduct = products.find((item) => item.id === ANNUAL_SKU);
   const annualSavingsPercent = getAnnualSavingsPercent(monthlyProduct, annualProduct);
+  const subscriptionLines = subscriptionDetailLines(subscriptionSnapshot);
+  const isSandboxStore =
+    !!subscriptionSnapshot.storeEnvironment &&
+    /sandbox|xcode/i.test(subscriptionSnapshot.storeEnvironment);
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: colors.background }]}>
@@ -263,6 +426,48 @@ export default function AssinePremiumScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       >
+        <View style={[styles.currentSubCard, { backgroundColor: colors.surface, borderColor: colors.primary }]}>
+          <View style={styles.currentSubTitleRow}>
+            <Ionicons name="ribbon-outline" size={22} color={colors.primary} />
+            <Text style={[styles.currentSubHeading, { color: colors.text }]}>Sua assinatura</Text>
+          </View>
+          {loading ? (
+            <View style={styles.currentSubLoading}>
+              <ActivityIndicator color={colors.primary} />
+              <Text style={[styles.currentSubLoadingText, { color: colors.textSecondary }]}>
+                Consultando a loja…
+              </Text>
+            </View>
+          ) : subscriptionSnapshot.hasActivePremium ? (
+            <>
+              <Text style={[styles.currentSubPlanTitle, { color: colors.text }]}>
+                {subscriptionSnapshot.planTitle}
+              </Text>
+              {subscriptionSnapshot.periodLabel ? (
+                <Text style={[styles.currentSubPeriod, { color: colors.textSecondary }]}>
+                  {subscriptionSnapshot.periodLabel}
+                </Text>
+              ) : null}
+              {subscriptionLines.map((line, idx) => (
+                <Text key={`sub-line-${idx}`} style={[styles.currentSubLine, { color: colors.textSecondary }]}>
+                  {line}
+                </Text>
+              ))}
+              {isSandboxStore ? (
+                <View style={[styles.sandboxPill, { backgroundColor: `${colors.primary}14` }]}>
+                  <Text style={[styles.sandboxPillText, { color: colors.primary }]}>
+                    Teste (Sandbox) — não cobra de verdade
+                  </Text>
+                </View>
+              ) : null}
+            </>
+          ) : (
+            <Text style={[styles.currentSubFreeText, { color: colors.textSecondary }]}>
+              Você está no plano gratuito. Escolha um plano Premium abaixo para liberar todos os recursos.
+            </Text>
+          )}
+        </View>
+
         <View style={[styles.compareCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.compareSectionTitle, { color: colors.text }]}>Free vs Premium</Text>
           <Text style={[styles.compareSectionHint, { color: colors.textSecondary }]}>
@@ -433,6 +638,28 @@ export default function AssinePremiumScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  currentSubCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 16,
+    gap: 8,
+  },
+  currentSubTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
+  currentSubHeading: { fontSize: 16, fontWeight: '800' },
+  currentSubLoading: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+  currentSubLoadingText: { fontSize: 14, flex: 1 },
+  currentSubPlanTitle: { fontSize: 18, fontWeight: '800', lineHeight: 24 },
+  currentSubPeriod: { fontSize: 13, fontWeight: '600', marginTop: 2 },
+  currentSubLine: { fontSize: 13, lineHeight: 20, marginTop: 2 },
+  currentSubFreeText: { fontSize: 14, lineHeight: 21 },
+  sandboxPill: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  sandboxPillText: { fontSize: 11, fontWeight: '700' },
   header: {
     height: 56,
     borderBottomWidth: StyleSheet.hairlineWidth,
