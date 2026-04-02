@@ -28,6 +28,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
+import { supabase } from '../lib/supabase';
 
 const PREMIUM_SKUS = ['marcaai_mensal_app', 'marcaai_anual_app'];
 const PLAN_LABELS: Record<string, string> = {
@@ -194,9 +195,20 @@ export default function AssinePremiumScreen() {
     try {
       setProcessingSku(product.id);
       if (Platform.OS === 'ios') {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user?.id) {
+          setProcessingSku(null);
+          Alert.alert(
+            'Entre na sua conta',
+            'Para assinar o Premium, faça login no app. Assim vinculamos sua assinatura ao seu perfil.',
+          );
+          return;
+        }
         await requestPurchase({
           type: 'subs',
-          request: { apple: { sku: product.id } },
+          request: { apple: { sku: product.id, appAccountToken: user.id } },
         });
       } else {
         await requestPurchase({
