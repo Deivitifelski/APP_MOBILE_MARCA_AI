@@ -34,6 +34,7 @@ DECLARE
   v_existing_sub_id uuid;
   v_billing text;
   v_plan_active boolean;
+  v_product text;
 BEGIN
   uid := auth.uid();
   IF uid IS NULL THEN
@@ -49,7 +50,17 @@ BEGIN
     RETURN jsonb_build_object('ok', true, 'action', 'cleared');
   END IF;
 
-  IF p_product_id IS NULL OR btrim(p_product_id) = '' OR p_product_id NOT IN ('marcaai_mensal_app', 'marcaai_anual_app') THEN
+  IF p_product_id IS NULL THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'invalid_product');
+  END IF;
+
+  v_product := btrim(p_product_id);
+  IF v_product = '' OR v_product NOT IN (
+    'marcaai_mensal_app',
+    'marcaai_anual_app',
+    'marcaai_mensal',
+    'marcaai_anual'
+  ) THEN
     RETURN jsonb_build_object('ok', false, 'error', 'invalid_product');
   END IF;
 
@@ -90,13 +101,15 @@ BEGIN
     v_expires := NULL;
   END IF;
 
-  IF lower(p_product_id) LIKE '%anual%' OR lower(p_product_id) LIKE '%annual%' OR lower(p_product_id) LIKE '%year%' THEN
-    v_billing := 'annual';
-  ELSIF lower(p_product_id) LIKE '%mensal%' OR lower(p_product_id) LIKE '%month%' THEN
-    v_billing := 'monthly';
-  ELSE
-    v_billing := 'monthly';
-  END IF;
+  -- SKU fixo (PT/EN por nome do produto na loja) — não usar só LIKE '%annual%'
+  -- senão marcaai_anual_app cai no ELSE e vira monthly.
+  v_billing := CASE v_product
+    WHEN 'marcaai_anual_app' THEN 'annual'
+    WHEN 'marcaai_anual' THEN 'annual'
+    WHEN 'marcaai_mensal_app' THEN 'monthly'
+    WHEN 'marcaai_mensal' THEN 'monthly'
+    ELSE 'monthly'
+  END;
 
   SELECT id INTO v_existing_tx_id
   FROM public.user_subscriptions
@@ -104,6 +117,20 @@ BEGIN
   LIMIT 1;
 
   IF v_existing_tx_id IS NOT NULL THEN
+    UPDATE public.user_subscriptions SET
+      product_id = v_product,
+      billing_period = v_billing,
+      platform = p_platform,
+      status = v_status,
+      purchased_at = v_purchased,
+      expires_at = v_expires,
+      auto_renew = COALESCE(p_auto_renew, TRUE),
+      metadata = jsonb_build_object(
+        'source', COALESCE(nullif(btrim(p_source), ''), 'client_sync'),
+        'purchaseTokenPresent', (p_purchase_token IS NOT NULL AND btrim(p_purchase_token) <> '')
+      )
+    WHERE id = v_existing_tx_id;
+
     v_plan_active :=
       CASE
         WHEN v_status = 'revoked' THEN false
@@ -123,7 +150,7 @@ BEGIN
 
   IF v_existing_sub_id IS NOT NULL THEN
     UPDATE public.user_subscriptions SET
-      product_id = p_product_id,
+      product_id = v_product,
       billing_period = v_billing,
       platform = p_platform,
       status = v_status,
@@ -163,7 +190,7 @@ BEGIN
     store_original_transaction_id, store_latest_transaction_id,
     auto_renew, metadata
   ) VALUES (
-    uid, p_product_id, v_billing, p_platform, v_status,
+    uid, v_product, v_billing, p_platform, v_status,
     v_purchased, v_expires, NULL,
     v_orig, v_tx,
     COALESCE(p_auto_renew, TRUE),

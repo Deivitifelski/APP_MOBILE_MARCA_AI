@@ -32,7 +32,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
-import { syncSubscriptionAfterPurchase, syncSubscriptionAfterRestore } from '../services/subscriptionSyncService';
+import {
+  effectivePremiumSkuForIos,
+  syncSubscriptionAfterPurchase,
+  syncSubscriptionAfterRestore,
+} from '../services/subscriptionSyncService';
 
 const PREMIUM_SKUS = ['marcaai_mensal_app', 'marcaai_anual_app'];
 const PLAN_LABELS: Record<string, string> = {
@@ -86,7 +90,7 @@ function formatSubscriptionDate(ms: number): string {
 }
 
 function snapshotFromActiveSubscription(row: ActiveSubscription): SubscriptionSnapshot {
-  const sku = row.productId;
+  const sku = effectivePremiumSkuForIos(row);
   const title = PLAN_LABELS[sku] || sku;
   const periodLabel = sku === ANNUAL_SKU ? 'Cobrança anual' : 'Cobrança mensal';
   const autoRenews =
@@ -196,13 +200,13 @@ function resolveActivePremiumSkuFromPurchases(purchases: Purchase[]): string | n
   });
   const pool = valid.length > 0 ? valid : premium;
 
-  const annual = pool.find((p) => p.productId === ANNUAL_SKU);
+  const annual = pool.find((p) => effectivePremiumSkuForIos(p) === ANNUAL_SKU);
   if (annual) return ANNUAL_SKU;
 
-  const monthly = pool.find((p) => p.productId === MONTHLY_SKU);
+  const monthly = pool.find((p) => effectivePremiumSkuForIos(p) === MONTHLY_SKU);
   if (monthly) return MONTHLY_SKU;
 
-  return pool[0]?.productId ?? null;
+  return pool[0] ? effectivePremiumSkuForIos(pool[0]) : null;
 }
 
 export default function AssinePremiumScreen() {
@@ -227,9 +231,9 @@ export default function AssinePremiumScreen() {
       const activeSubs = await getActiveSubscriptions(PREMIUM_SKUS);
       const premiumRows = activeSubs.filter((s) => s.isActive && PREMIUM_SKUS.includes(s.productId));
       if (premiumRows.length > 0) {
-        const annualRow = premiumRows.find((s) => s.productId === ANNUAL_SKU);
+        const annualRow = premiumRows.find((s) => effectivePremiumSkuForIos(s) === ANNUAL_SKU);
         const row = annualRow ?? premiumRows[0];
-        const sku = row?.productId ?? null;
+        const sku = row ? effectivePremiumSkuForIos(row) : null;
         setActiveSku(sku);
         if (row) setSubscriptionSnapshot(snapshotFromActiveSubscription(row));
         else setSubscriptionSnapshot(emptySubscriptionSnapshot());
@@ -245,7 +249,8 @@ export default function AssinePremiumScreen() {
     const sku = resolveActivePremiumSkuFromPurchases(purchases);
     setActiveSku(sku);
     if (sku) {
-      const purchase = purchases.find((p) => p.productId === sku);
+      const purchase =
+        purchases.find((p) => effectivePremiumSkuForIos(p) === sku) ?? purchases.find((p) => p.productId === sku);
       setSubscriptionSnapshot(
         purchase
           ? snapshotFromPurchase(sku, purchase)

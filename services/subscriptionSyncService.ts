@@ -11,6 +11,31 @@ const PREMIUM_SKUS = ['marcaai_mensal_app', 'marcaai_anual_app'] as const;
 const MONTHLY_SKU = 'marcaai_mensal_app';
 const ANNUAL_SKU = 'marcaai_anual_app';
 
+/**
+ * iOS (StoreKit 2): a linha de assinatura pode vir com `productId` ainda mensal enquanto o usuário
+ * fez upgrade para anual — o anual aparece em `pendingUpgradeProductId` / `autoRenewPreference`.
+ */
+export function effectivePremiumSkuForIos(row: {
+  productId: string;
+  renewalInfoIOS?: {
+    autoRenewPreference?: string | null;
+    pendingUpgradeProductId?: string | null;
+  } | null;
+}): string {
+  const candidates = [
+    row.renewalInfoIOS?.pendingUpgradeProductId,
+    row.renewalInfoIOS?.autoRenewPreference,
+    row.productId,
+  ].filter(
+    (id): id is string =>
+      typeof id === 'string' && PREMIUM_SKUS.includes(id as (typeof PREMIUM_SKUS)[number]),
+  );
+
+  if (candidates.includes(ANNUAL_SKU)) return ANNUAL_SKU;
+  if (candidates.includes(MONTHLY_SKU)) return MONTHLY_SKU;
+  return row.productId;
+}
+
 type SyncPayload = {
   source: 'after_purchase' | 'reconcile';
   platform: 'ios' | 'android';
@@ -35,9 +60,9 @@ function resolveActivePremiumPurchase(purchases: Purchase[]): Purchase | null {
   });
   const pool = valid.length > 0 ? valid : premium;
 
-  const annual = pool.find((p) => p.productId === ANNUAL_SKU);
+  const annual = pool.find((p) => effectivePremiumSkuForIos(p) === ANNUAL_SKU);
   if (annual) return annual;
-  const monthly = pool.find((p) => p.productId === MONTHLY_SKU);
+  const monthly = pool.find((p) => effectivePremiumSkuForIos(p) === MONTHLY_SKU);
   return monthly ?? pool[0] ?? null;
 }
 
@@ -48,11 +73,15 @@ function purchaseToPayload(purchase: Purchase, source: SyncPayload['source']): S
       originalTransactionIdentifierIOS?: string;
       expirationDateIOS?: number;
       originalTransactionDateIOS?: number;
+      renewalInfoIOS?: {
+        autoRenewPreference?: string | null;
+        pendingUpgradeProductId?: string | null;
+      } | null;
     };
     return {
       source,
       platform: 'ios',
-      productId: purchase.productId,
+      productId: effectivePremiumSkuForIos(p),
       transactionId: p.transactionId ?? null,
       originalTransactionId: p.originalTransactionIdentifierIOS ?? p.transactionId ?? null,
       purchaseToken: purchase.purchaseToken ?? null,
