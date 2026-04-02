@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase';
 import { createArtistInviteNotification } from '../notificationManager';
+import { assertArtistTeamSlot } from './userService';
 
 export interface ArtistInvite {
   id: string;
@@ -44,6 +45,14 @@ export interface InviteResponse {
 // Criar convite para colaborar (agora apenas na tabela notifications)
 export const createArtistInvite = async (data: CreateInviteData): Promise<InviteResponse> => {
   try {
+    const slot = await assertArtistTeamSlot(data.artistId, 'send_invite');
+    if (slot.error) {
+      return { success: false, error: slot.error };
+    }
+    if (!slot.ok) {
+      return { success: false, error: slot.userMessage || 'Limite do plano gratuito atingido para este artista.' };
+    }
+
     // Criar notificação diretamente na tabela notifications (tudo centralizado aqui)
     const { success, error, notification } = await createArtistInviteNotification(
       '', // Não precisa mais do inviteId
@@ -193,6 +202,14 @@ export const acceptArtistInvite = async (notificationId: string, userId: string)
     }
 
     console.log('✅ Notificação de convite encontrada:', notification);
+
+    const slot = await assertArtistTeamSlot(notification.artist_id!, 'add_member');
+    if (slot.error) {
+      return { success: false, error: slot.error };
+    }
+    if (!slot.ok) {
+      return { success: false, error: slot.userMessage || 'Este artista já atingiu o limite de colaboradores no plano gratuito.' };
+    }
 
     // INSERIR DIRETAMENTE em artist_members com a role do convite
     const roleToUse = notification.role || 'viewer';

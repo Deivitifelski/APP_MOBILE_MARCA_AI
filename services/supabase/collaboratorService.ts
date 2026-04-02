@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase';
+import { assertArtistTeamSlot } from './userService';
 
 export interface Collaborator {
   user_id: string;
@@ -25,13 +26,21 @@ export const getCollaborators = async (artistId: string): Promise<{
   userRole: string | null;
   canManage: boolean;
   canAddCollaborators: boolean;
+  collaboratorPlanBlockedMessage: string | null;
   error: string | null 
 }> => {
   try {
     // Verificar se o usuário atual é membro do artista
     const { data: currentUser } = await supabase.auth.getUser();
     if (!currentUser.user) {
-      return { collaborators: null, userRole: null, canManage: false, canAddCollaborators: false, error: 'Usuário não autenticado' };
+      return {
+        collaborators: null,
+        userRole: null,
+        canManage: false,
+        canAddCollaborators: false,
+        collaboratorPlanBlockedMessage: null,
+        error: 'Usuário não autenticado',
+      };
     }
 
     const { data: userMembership, error: membershipError } = await supabase
@@ -42,7 +51,14 @@ export const getCollaborators = async (artistId: string): Promise<{
       .single();
 
     if (membershipError || !userMembership) {
-      return { collaborators: null, userRole: null, canManage: false, canAddCollaborators: false, error: 'Usuário não tem acesso a este artista' };
+      return {
+        collaborators: null,
+        userRole: null,
+        canManage: false,
+        canAddCollaborators: false,
+        collaboratorPlanBlockedMessage: null,
+        error: 'Usuário não tem acesso a este artista',
+      };
     }
 
     // Verificar se o usuário pode gerenciar colaboradores (apenas owner e admin)
@@ -71,7 +87,14 @@ export const getCollaborators = async (artistId: string): Promise<{
       .order('created_at', { ascending: true });
 
     if (error) {
-      return { collaborators: null, userRole: null, canManage: false, canAddCollaborators: false, error: error.message };
+      return {
+        collaborators: null,
+        userRole: null,
+        canManage: false,
+        canAddCollaborators: false,
+        collaboratorPlanBlockedMessage: null,
+        error: error.message,
+      };
     }
 
     // Transformar os dados para o formato esperado
@@ -89,15 +112,33 @@ export const getCollaborators = async (artistId: string): Promise<{
       }
     })) || [];
 
+    let canAddCollaboratorsFinal = canAddCollaborators;
+    let collaboratorPlanBlockedMessage: string | null = null;
+    if (canAddCollaborators) {
+      const planSlot = await assertArtistTeamSlot(artistId, 'send_invite');
+      if (!planSlot.error && !planSlot.ok && planSlot.userMessage) {
+        canAddCollaboratorsFinal = false;
+        collaboratorPlanBlockedMessage = planSlot.userMessage;
+      }
+    }
+
     return { 
       collaborators, 
       userRole: userMembership.role,
       canManage,
-      canAddCollaborators,
+      canAddCollaborators: canAddCollaboratorsFinal,
+      collaboratorPlanBlockedMessage,
       error: null 
     };
   } catch (error) {
-    return { collaborators: null, userRole: null, canManage: false, canAddCollaborators: false, error: 'Erro de conexão' };
+    return {
+      collaborators: null,
+      userRole: null,
+      canManage: false,
+      canAddCollaborators: false,
+      collaboratorPlanBlockedMessage: null,
+      error: 'Erro de conexão',
+    };
   }
 };
 
@@ -184,6 +225,14 @@ export const addCollaborator = async (artistId: string, collaboratorData: AddCol
 
     if (existingMember) {
       return { success: false, error: 'Usuário já é colaborador deste artista' };
+    }
+
+    const teamSlot = await assertArtistTeamSlot(artistId, 'add_member');
+    if (teamSlot.error) {
+      return { success: false, error: teamSlot.error };
+    }
+    if (!teamSlot.ok) {
+      return { success: false, error: teamSlot.userMessage || 'Limite do plano gratuito atingido para este artista.' };
     }
 
     // Adicionar o colaborador
@@ -434,6 +483,14 @@ export const addCollaboratorViaInvite = async (artistId: string, collaboratorDat
 
     if (existingMember) {
       return { success: false, error: 'Usuário já é colaborador deste artista' };
+    }
+
+    const teamSlot = await assertArtistTeamSlot(artistId, 'add_member');
+    if (teamSlot.error) {
+      return { success: false, error: teamSlot.error };
+    }
+    if (!teamSlot.ok) {
+      return { success: false, error: teamSlot.userMessage || 'Limite do plano gratuito atingido para este artista.' };
     }
 
     // Adicionar o colaborador

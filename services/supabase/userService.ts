@@ -227,27 +227,172 @@ export const updateUserProfile = async (userId: string, userData: Partial<Create
   }
 };
 
-// Verificar se o usuário pode criar mais artistas (todos os recursos liberados - limite alto para todos)
-export const canCreateArtist = async (userId: string): Promise<{ canCreate: boolean; error: string | null }> => {
+/** Máximo de perfis de artista que o usuário pode possuir como admin/owner no plano gratuito (`plan_is_active` falso). */
+export const FREE_PLAN_MAX_OWNED_ARTIST_PROFILES = 1;
+
+/** Máximo de colaboradores no time de cada artista no gratuito (além do dono/admin principal). Total de pessoas no `artist_members` = 1 + isso. */
+export const FREE_PLAN_MAX_COLLABORATORS_PER_ARTIST = 4;
+
+/** Total de membros permitidos no artista no plano gratuito (você + colaboradores). */
+export const FREE_PLAN_MAX_TEAM_MEMBERS_PER_ARTIST = 1 + FREE_PLAN_MAX_COLLABORATORS_PER_ARTIST;
+
+const FREE_PLAN_TEAM_LIMIT_MESSAGE =
+  'No plano gratuito, cada artista pode ter no máximo 4 colaboradores (5 pessoas no time no total). Se algum administrador ou proprietário tiver Premium, o limite some.';
+
+/** Algum admin/owner do artista com `plan_is_active` no `users` libera time ilimitado para esse artista. */
+export const artistTeamHasPremiumQuota = async (
+  artistId: string,
+): Promise<{ premium: boolean; error: string | null }> => {
   try {
-    const { data, error: countError } = await supabase
+    const { data: leads, error } = await supabase
       .from('artist_members')
-      .select('artist_id', { count: 'exact' })
+      .select('user_id')
+      .eq('artist_id', artistId)
+      .in('role', ['admin', 'owner']);
+
+    if (error) {
+      return { premium: false, error: error.message };
+    }
+    if (!leads?.length) {
+      return { premium: false, error: null };
+    }
+
+    const ids = [...new Set(leads.map((r) => r.user_id))];
+    const { data: userRows, error: usersError } = await supabase
+      .from('users')
+      .select('plan_is_active')
+      .in('id', ids);
+
+    if (usersError) {
+      return { premium: false, error: usersError.message };
+    }
+
+    const premium = userRows?.some((u) => u.plan_is_active === true) ?? false;
+    return { premium, error: null };
+  } catch {
+    return { premium: false, error: 'Erro de conexão' };
+  }
+};
+
+export const getArtistMemberCount = async (
+  artistId: string,
+): Promise<{ count: number; error: string | null }> => {
+  try {
+    const { count, error } = await supabase
+      .from('artist_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('artist_id', artistId);
+
+    if (error) {
+      return { count: 0, error: error.message };
+    }
+    return { count: count ?? 0, error: null };
+  } catch {
+    return { count: 0, error: 'Erro de conexão' };
+  }
+};
+
+/** Convites pendentes que reservam vaga ao serem aceitos. */
+export const countPendingArtistInvites = async (artistId: string): Promise<{ count: number; error: string | null }> => {
+  try {
+    const { count, error } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('artist_id', artistId)
+      .eq('status', 'pending')
+      .in('type', ['invite', 'collaborator_invite']);
+
+    if (error) {
+      return { count: 0, error: error.message };
+    }
+    return { count: count ?? 0, error: null };
+  } catch {
+    return { count: 0, error: 'Erro de conexão' };
+  }
+};
+
+export type ArtistTeamSlotMode = 'send_invite' | 'add_member';
+
+/** Valida limite de time no plano gratuito para um artista. */
+export const assertArtistTeamSlot = async (
+  artistId: string,
+  mode: ArtistTeamSlotMode,
+): Promise<{ ok: boolean; userMessage: string | null; error: string | null }> => {
+  try {
+    const { premium, error: pErr } = await artistTeamHasPremiumQuota(artistId);
+    if (pErr) {
+      return { ok: false, userMessage: null, error: pErr };
+    }
+    if (premium) {
+      return { ok: true, userMessage: null, error: null };
+    }
+
+    const { count: memberCount, error: mErr } = await getArtistMemberCount(artistId);
+    if (mErr) {
+      return { ok: false, userMessage: null, error: mErr };
+    }
+
+    if (mode === 'add_member') {
+      if (memberCount >= FREE_PLAN_MAX_TEAM_MEMBERS_PER_ARTIST) {
+        return { ok: false, userMessage: FREE_PLAN_TEAM_LIMIT_MESSAGE, error: null };
+      }
+      return { ok: true, userMessage: null, error: null };
+    }
+
+    const { count: pending, error: pendErr } = await countPendingArtistInvites(artistId);
+    if (pendErr) {
+      return { ok: false, userMessage: null, error: pendErr };
+    }
+
+    if (memberCount + pending >= FREE_PLAN_MAX_TEAM_MEMBERS_PER_ARTIST) {
+      return { ok: false, userMessage: FREE_PLAN_TEAM_LIMIT_MESSAGE, error: null };
+    }
+    return { ok: true, userMessage: null, error: null };
+  } catch {
+    return { ok: false, userMessage: null, error: 'Erro de conexão' };
+  }
+};
+
+export interface CanCreateArtistResult {
+  canCreate: boolean;
+  error: string | null;
+  isPremium: boolean;
+  ownedAsAdminCount: number;
+}
+
+// Verificar se o usuário pode criar mais perfis de artista (como dono/admin)
+export const canCreateArtist = async (userId: string): Promise<CanCreateArtistResult> => {
+  try {
+    const { profile, error: profileError } = await getUserProfile(userId);
+    const isPremium = profile?.plan_is_active === true;
+
+    const { count, error: countError } = await supabase
+      .from('artist_members')
+      .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
-      .eq('role', 'admin');
+      .in('role', ['admin', 'owner']);
 
     if (countError) {
       console.error('❌ [canCreateArtist] Erro ao contar artistas:', countError);
-      return { canCreate: false, error: countError.message };
+      return {
+        canCreate: false,
+        error: countError.message,
+        isPremium,
+        ownedAsAdminCount: 0,
+      };
     }
 
-    const artistCount = data?.length || 0;
-    const canCreate = artistCount < 50;
+    const ownedAsAdminCount = count ?? 0;
+    const canCreate = isPremium || ownedAsAdminCount < FREE_PLAN_MAX_OWNED_ARTIST_PROFILES;
 
-    return { canCreate, error: null };
+    if (profileError && !profile) {
+      console.warn('⚠️ [canCreateArtist] Perfil users ausente; limite free aplicado:', profileError);
+    }
+
+    return { canCreate, error: null, isPremium, ownedAsAdminCount };
   } catch (error) {
     console.error('❌ [canCreateArtist] Erro de conexão:', error);
-    return { canCreate: false, error: 'Erro de conexão' };
+    return { canCreate: false, error: 'Erro de conexão', isPremium: false, ownedAsAdminCount: 0 };
   }
 };
 

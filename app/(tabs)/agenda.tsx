@@ -32,6 +32,7 @@ import { artistImageUpdateService } from '../../services/artistImageUpdateServic
 import { cacheService } from '../../services/cacheService';
 import { getArtists } from '../../services/supabase/artistService';
 import { getCurrentUser } from '../../services/supabase/authService';
+import { canCreateArtist, FREE_PLAN_MAX_OWNED_ARTIST_PROFILES } from '../../services/supabase/userService';
 import { cancelarParticipacaoAceita } from '../../services/supabase/conviteParticipacaoEventoService';
 import { getEventById, getEventsByMonthWithRole } from '../../services/supabase/eventService';
 import { useNotifications } from '../../services/useNotifications';
@@ -166,7 +167,34 @@ export default function AgendaScreen() {
     setSelectedDay(null);
     setSelectedDayEvents([]);
   };
-  
+
+  const tryNavigateToCadastroArtista = async () => {
+    const { user, error: userError } = await getCurrentUser();
+    if (userError || !user) {
+      Alert.alert('Erro', 'Faça login novamente.');
+      return;
+    }
+    const { canCreate, error: limitError, ownedAsAdminCount, isPremium } = await canCreateArtist(user.id);
+    if (limitError) {
+      Alert.alert('Erro', limitError);
+      return;
+    }
+    if (!canCreate) {
+      Alert.alert(
+        'Limite do plano gratuito',
+        isPremium
+          ? 'Não foi possível continuar agora. Tente novamente.'
+          : `Você já tem ${ownedAsAdminCount} perfil(is) como administrador (máximo ${FREE_PLAN_MAX_OWNED_ARTIST_PROFILES} no gratuito). Assine o Premium para criar mais.`,
+        [
+          { text: 'OK', style: 'cancel' },
+          { text: 'Ver Premium', onPress: () => router.push('/assine-premium') },
+        ],
+      );
+      return;
+    }
+    router.push('/cadastro-artista');
+  };
+
   // ✅ VERIFICAR ROLE DIRETAMENTE NO BANCO
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [hasFinancialAccess, setHasFinancialAccess] = useState(false);
@@ -930,7 +958,7 @@ export default function AgendaScreen() {
   const handleCreateNewArtist = () => {
     setShowRemovedModal(false);
     setAvailableArtists([]);
-    router.push('/cadastro-artista');
+    void tryNavigateToCadastroArtista();
   };
 
   const openArtistPickerModal = async () => {
@@ -977,7 +1005,7 @@ export default function AgendaScreen() {
 
   const handleCreateArtistFromPicker = () => {
     closeArtistPickerModal();
-    router.push('/cadastro-artista');
+    void tryNavigateToCadastroArtista();
   };
 
   const getRoleLabel = (role: string) => {
@@ -1061,7 +1089,7 @@ export default function AgendaScreen() {
   };
 
   const handleCreateArtist = () => {
-    router.push('/cadastro-artista');
+    void tryNavigateToCadastroArtista();
   };
 
   const handleWaitForInvite = () => {

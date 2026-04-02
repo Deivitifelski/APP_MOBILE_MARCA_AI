@@ -22,7 +22,7 @@ import { useTheme } from '../../../contexts/ThemeContext';
 import { createArtist } from '../../../services/supabase/artistService';
 import { getCurrentUser } from '../../../services/supabase/authService';
 import { uploadImageToSupabase } from '../../../services/supabase/imageUploadService';
-import { canCreateArtist } from '../../../services/supabase/userService';
+import { canCreateArtist, FREE_PLAN_MAX_OWNED_ARTIST_PROFILES } from '../../../services/supabase/userService';
 
 const estilosMusicais = [
   'Alternative',
@@ -199,8 +199,8 @@ export default function ArtistProfileScreen() {
 
       // Verificar se o usuário pode criar mais artistas
       console.log('🔍 [ArtistProfileScreen] Verificando se pode criar artista...');
-      const { canCreate, error: canCreateError } = await canCreateArtist(user.id);
-      
+      const { canCreate, error: canCreateError, ownedAsAdminCount, isPremium } = await canCreateArtist(user.id);
+
       if (canCreateError) {
         console.error('❌ [ArtistProfileScreen] Erro ao verificar permissões:', canCreateError);
         Alert.alert('Erro', 'Erro ao verificar permissões: ' + canCreateError);
@@ -210,7 +210,16 @@ export default function ArtistProfileScreen() {
 
       if (!canCreate) {
         setLoading(false);
-        Alert.alert('Limite atingido', 'Você atingiu o limite de 50 artistas.');
+        Alert.alert(
+          'Limite do plano gratuito',
+          isPremium
+            ? 'Não foi possível criar um novo perfil agora. Tente novamente.'
+            : `Você já tem ${ownedAsAdminCount} perfil(is) de artista como administrador (máximo ${FREE_PLAN_MAX_OWNED_ARTIST_PROFILES} no gratuito). Assine o Premium para criar perfis ilimitados.`,
+          [
+            { text: 'OK', style: 'cancel' },
+            { text: 'Ver Premium', onPress: () => router.push('/assine-premium') },
+          ],
+        );
         return;
       }
 

@@ -36,24 +36,12 @@ const PLAN_LABELS: Record<string, string> = {
   marcaai_mensal: 'Marca AI Premium Mensal',
   marcaai_anual: 'Marca AI Premium Anual',
 };
-const PREMIUM_BENEFITS = [
-  'Colaboradores ilimitados para artistas e equipes',
-  'Financeiro completo com visão avançada de receitas',
-  'Relatórios avançados e exportação em PDF',
-  'Agenda compartilhada com mais controle operacional',
-  'Suporte prioritário para assinantes',
-];
-const FREE_LIMITATIONS = [
-  'Limite de recursos avançados de gestão',
-  'Sem exportação de relatórios em PDF',
-  'Visão financeira reduzida para o básico',
-];
-const PLAN_COMPARISON = [
-  { feature: 'Colaboradores', free: 'Até 1', premium: 'Ilimitados' },
-  { feature: 'Financeiro', free: 'Básico', premium: 'Completo' },
-  { feature: 'Relatórios', free: 'Essenciais', premium: 'Avançados + PDF' },
-  { feature: 'Agenda', free: 'Simples', premium: 'Compartilhada' },
-  { feature: 'Suporte', free: 'Padrão', premium: 'Prioritário' },
+const FREE_VS_PREMIUM = [
+  { label: 'Perfis de artista', free: '1', premium: 'Ilimitados' },
+  { label: 'Colaboradores por artista', free: 'Até 4', premium: 'Ilimitados' },
+  { label: 'Financeiro', free: 'Básico', premium: 'Completo' },
+  { label: 'Relatórios', free: 'Essenciais', premium: 'Avançados + PDF' },
+  { label: 'Suporte', free: 'Padrão', premium: 'Prioritário' },
 ];
 const MONTHLY_SKU = 'marcaai_mensal_app';
 const ANNUAL_SKU = 'marcaai_anual_app';
@@ -151,10 +139,18 @@ export default function AssinePremiumScreen() {
           await finishTransaction({ purchase, isConsumable: false });
           await syncPurchasedStatus();
           setProcessingSku(null);
-          Alert.alert('Assinatura confirmada', 'Seu plano premium foi ativado com sucesso.');
+          Alert.alert('Assinatura ativada', 'Seu plano Premium foi ativado com sucesso.', [
+            {
+              text: 'Continuar',
+              onPress: () => router.back(),
+            },
+          ]);
         } catch {
           setProcessingSku(null);
-          Alert.alert('Erro na assinatura', 'A compra foi processada, mas houve erro ao finalizar a transação.');
+          Alert.alert(
+            'Erro ao confirmar assinatura',
+            'Sua compra foi processada, mas nao conseguimos finalizar automaticamente. Tente restaurar compras.',
+          );
         }
       }),
     );
@@ -162,8 +158,11 @@ export default function AssinePremiumScreen() {
     subscriptions.push(
       purchaseErrorListener((purchaseError) => {
         setProcessingSku(null);
-        const message = purchaseError?.message || 'Não foi possível concluir sua assinatura.';
-        Alert.alert('Compra não concluída', message);
+        const rawMessage = purchaseError?.message?.trim();
+        const message = rawMessage
+          ? `Nao foi possivel concluir sua assinatura. Detalhes: ${rawMessage}`
+          : 'Nao foi possivel concluir sua assinatura agora. Tente novamente em instantes.';
+        Alert.alert('Assinatura nao concluida', message);
       }),
     );
 
@@ -187,7 +186,7 @@ export default function AssinePremiumScreen() {
           skuAndroid: product.id,
         });
       } catch {
-        Alert.alert('Aviso', 'Não foi possível abrir o gerenciamento de assinatura.');
+        Alert.alert('Nao foi possivel abrir assinaturas', 'Tente abrir o gerenciamento de assinaturas nas configuracoes da loja.');
       }
       return;
     }
@@ -207,8 +206,11 @@ export default function AssinePremiumScreen() {
       }
     } catch (purchaseStartError) {
       setProcessingSku(null);
-      const msg = purchaseStartError instanceof Error ? purchaseStartError.message : 'Não foi possível iniciar a compra.';
-      Alert.alert('Erro', msg);
+      const details = purchaseStartError instanceof Error ? purchaseStartError.message : '';
+      const msg = details
+        ? `Nao foi possivel iniciar a compra. Detalhes: ${details}`
+        : 'Nao foi possivel iniciar a compra.';
+      Alert.alert('Erro ao iniciar assinatura', msg);
     }
   };
 
@@ -217,10 +219,13 @@ export default function AssinePremiumScreen() {
       setRestoring(true);
       await restorePurchases();
       await syncPurchasedStatus();
-      Alert.alert('Restauração concluída', 'Suas assinaturas foram sincronizadas com sucesso.');
+      Alert.alert('Compras restauradas', 'Suas assinaturas foram sincronizadas com sucesso.');
     } catch (restoreError) {
-      const msg = restoreError instanceof Error ? restoreError.message : 'Não foi possível restaurar as compras.';
-      Alert.alert('Erro', msg);
+      const details = restoreError instanceof Error ? restoreError.message : '';
+      const msg = details
+        ? `Nao foi possivel restaurar suas compras. Detalhes: ${details}`
+        : 'Nao foi possivel restaurar suas compras.';
+      Alert.alert('Erro ao restaurar compras', msg);
     } finally {
       setRestoring(false);
     }
@@ -246,68 +251,52 @@ export default function AssinePremiumScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       >
-        <View style={[styles.heroCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={styles.heroBadge}>
-            <Ionicons name="sparkles" size={14} color={colors.primary} />
-            <Text style={[styles.heroBadgeText, { color: colors.primary }]}>Upgrade Premium</Text>
-          </View>
-          <Text style={[styles.heroTitle, { color: colors.text }]}>Mais controle para crescer sua operação</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            Assine para liberar recursos avançados de gestão, finanças e colaboração no Marca AI.
-          </Text>
-        </View>
-
-        <View style={[styles.explainerCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.explainerTitle, { color: colors.text }]}>O que muda com o Premium</Text>
-          <Text style={[styles.explainerText, { color: colors.textSecondary }]}>
-            O plano Premium foi criado para quem precisa escalar a operação com mais controle e produtividade.
-          </Text>
-
-          <View style={styles.listGroup}>
-            {PREMIUM_BENEFITS.map((item) => (
-              <View key={item} style={styles.listItem}>
-                <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
-                <Text style={[styles.listItemText, { color: colors.text }]}>{item}</Text>
-              </View>
-            ))}
-          </View>
-
-          <View style={[styles.freeBox, { borderColor: colors.border }]}>
-            <Text style={[styles.freeBoxTitle, { color: colors.text }]}>No plano gratuito</Text>
-            {FREE_LIMITATIONS.map((item) => (
-              <View key={item} style={styles.listItem}>
-                <Ionicons name="remove-circle-outline" size={16} color={colors.textSecondary} />
-                <Text style={[styles.freeBoxText, { color: colors.textSecondary }]}>{item}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
         <View style={[styles.compareCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.compareTitle, { color: colors.text }]}>Free vs Premium</Text>
-          <Text style={[styles.compareSubtitle, { color: colors.textSecondary }]}>
-            Veja o que muda na pratica quando voce ativa seu plano.
+          <Text style={[styles.compareSectionTitle, { color: colors.text }]}>Free vs Premium</Text>
+          <Text style={[styles.compareSectionHint, { color: colors.textSecondary }]}>
+            O que você ganha ao assinar.
           </Text>
 
-          {PLAN_COMPARISON.map((item) => (
-            <View key={item.feature} style={[styles.compareRow, { borderColor: colors.border }]}>
-              <Text style={[styles.compareFeature, { color: colors.text }]}>{item.feature}</Text>
-              <View style={styles.compareValuesGrid}>
-                <View style={styles.compareValueBlock}>
-                  <Text style={[styles.compareBlockLabel, { color: colors.textSecondary }]}>Free</Text>
-                  <Text style={[styles.comparePill, styles.comparePillFree, { color: colors.textSecondary }]}>{item.free}</Text>
-                </View>
-                <View style={styles.compareValueBlock}>
-                  <Text style={[styles.compareBlockLabel, { color: colors.primary }]}>Premium</Text>
-                  <View style={[styles.comparePillPremiumWrap, { backgroundColor: `${colors.primary}16` }]}>
-                    <Ionicons name="checkmark-circle" size={14} color={colors.primary} />
-                    <Text style={[styles.comparePillPremiumText, { color: colors.primary }]}>{item.premium}</Text>
-                  </View>
-                </View>
+          <View style={[styles.tableHeader, { backgroundColor: colors.secondary }]}>
+            <View style={styles.tableColFeature}>
+              <Text style={[styles.tableHeadText, { color: colors.textSecondary }]}>Recurso</Text>
+            </View>
+            <View style={styles.tableColPlan}>
+              <Text style={[styles.tableHeadText, { color: colors.textSecondary }]}>Free</Text>
+            </View>
+            <View style={styles.tableColPlan}>
+              <Text style={[styles.tableHeadText, { color: colors.primary }]}>Premium</Text>
+            </View>
+          </View>
+
+          {FREE_VS_PREMIUM.map((item, index) => (
+            <View
+              key={item.label}
+              style={[
+                styles.tableRow,
+                { borderBottomColor: colors.border },
+                index === FREE_VS_PREMIUM.length - 1 && styles.tableRowLast,
+              ]}
+            >
+              <View style={styles.tableColFeature}>
+                <Text style={[styles.tableCellFeature, { color: colors.text }]}>{item.label}</Text>
+              </View>
+              <View style={styles.tableColPlan}>
+                <Text style={[styles.tableCellFree, { color: colors.textSecondary }]} numberOfLines={2}>
+                  {item.free}
+                </Text>
+              </View>
+              <View style={[styles.tableColPlan, styles.premiumCell]}>
+                <Ionicons name="checkmark-circle" size={15} color={colors.primary} style={styles.premiumIcon} />
+                <Text style={[styles.tableCellPremium, { color: colors.primary }]} numberOfLines={2}>
+                  {item.premium}
+                </Text>
               </View>
             </View>
           ))}
         </View>
+
+        <Text style={[styles.plansSectionLabel, { color: colors.textSecondary }]}>Planos</Text>
 
         {loading ? (
           <View style={styles.centered}>
@@ -330,7 +319,8 @@ export default function AssinePremiumScreen() {
               const product = products.find((item) => item.id === sku);
               const productName = product?.displayName || product?.title || PLAN_LABELS[sku] || sku;
               const productPrice = product?.displayPrice || 'Valor indisponível';
-              const productDescription = product?.description || 'Produto ainda não retornado pela loja.';
+              const rawDescription = product?.description?.trim() ?? '';
+              const showDescription = rawDescription.length > 0 && rawDescription !== 'Produto ainda não retornado pela loja.';
               const unavailable = !product;
               const isAnnual = sku === ANNUAL_SKU;
               const isHighlighted = isAnnual && annualSavingsPercent !== null;
@@ -347,29 +337,40 @@ export default function AssinePremiumScreen() {
                     },
                   ]}
                 >
-                <View style={styles.planHeader}>
-                  <Text style={[styles.planTitle, { color: colors.text }]}>{productName}</Text>
-                  <Text style={[styles.planPrice, { color: colors.primary }]}>{productPrice}</Text>
-                </View>
-                {isHighlighted ? (
-                  <View style={[styles.highlightTag, { backgroundColor: `${colors.primary}18` }]}>
-                    <Ionicons name="diamond" size={12} color={colors.primary} />
-                    <Text style={[styles.highlightTagText, { color: colors.primary }]}>Mais vantajoso</Text>
-                  </View>
-                ) : null}
-                {activeSku === sku ? (
-                  <View style={[styles.activeTag, { backgroundColor: `${colors.primary}20` }]}>
-                    <Text style={[styles.activeTagText, { color: colors.primary }]}>Plano ativo</Text>
-                  </View>
-                ) : null}
-                {sku === ANNUAL_SKU && annualSavingsPercent !== null ? (
-                  <View style={[styles.savingsTag, { backgroundColor: `${colors.success}20` }]}>
-                    <Text style={[styles.savingsTagText, { color: colors.success }]}>
-                      Economize {annualSavingsPercent}% no anual
+                <View style={styles.planTop}>
+                  <View style={styles.planTitleBlock}>
+                    <Text style={[styles.planPeriod, { color: colors.textSecondary }]}>
+                      {isAnnual ? 'Cobrança anual' : 'Cobrança mensal'}
+                    </Text>
+                    <Text style={[styles.planTitle, { color: colors.text }]} numberOfLines={2}>
+                      {productName}
                     </Text>
                   </View>
+                  <Text style={[styles.planPrice, { color: colors.primary }]}>{productPrice}</Text>
+                </View>
+                <View style={styles.planTags}>
+                  {isHighlighted ? (
+                    <View style={[styles.highlightTag, { backgroundColor: `${colors.primary}18` }]}>
+                      <Ionicons name="diamond" size={12} color={colors.primary} />
+                      <Text style={[styles.highlightTagText, { color: colors.primary }]}>Melhor custo</Text>
+                    </View>
+                  ) : null}
+                  {sku === ANNUAL_SKU && annualSavingsPercent !== null ? (
+                    <View style={[styles.savingsTag, { backgroundColor: `${colors.success}22` }]}>
+                      <Text style={[styles.savingsTagText, { color: colors.success }]}>−{annualSavingsPercent}%</Text>
+                    </View>
+                  ) : null}
+                  {activeSku === sku ? (
+                    <View style={[styles.activeTag, { backgroundColor: `${colors.primary}20` }]}>
+                      <Text style={[styles.activeTagText, { color: colors.primary }]}>Ativo</Text>
+                    </View>
+                  ) : null}
+                </View>
+                {showDescription ? (
+                  <Text style={[styles.planDesc, { color: colors.textSecondary }]} numberOfLines={3}>
+                    {rawDescription}
+                  </Text>
                 ) : null}
-                <Text style={[styles.planDesc, { color: colors.textSecondary }]}>{productDescription}</Text>
                 <TouchableOpacity
                   style={[
                     styles.planBtn,
@@ -387,7 +388,13 @@ export default function AssinePremiumScreen() {
                     <ActivityIndicator color="#fff" />
                   ) : (
                     <Text style={styles.planBtnText}>
-                      {unavailable ? 'Indisponível na loja' : activeSku === sku ? 'Gerenciar plano' : 'Assinar plano'}
+                      {unavailable
+                        ? 'Indisponível'
+                        : activeSku === sku
+                          ? 'Gerenciar assinatura'
+                          : isAnnual
+                            ? 'Assinar plano anual'
+                            : 'Assinar plano mensal'}
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -424,62 +431,50 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '700' },
-  content: { padding: 16, paddingBottom: 28, gap: 14 },
-  heroCard: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 8 },
-  heroBadge: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: 'rgba(255, 215, 0, 0.08)',
-  },
-  heroBadgeText: { fontSize: 12, fontWeight: '800' },
-  heroTitle: { fontSize: 20, lineHeight: 26, fontWeight: '800' },
-  subtitle: { fontSize: 14, lineHeight: 20, marginBottom: 2 },
-  explainerCard: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 10 },
-  explainerTitle: { fontSize: 16, fontWeight: '800' },
-  explainerText: { fontSize: 13, lineHeight: 19 },
-  listGroup: { gap: 8, marginTop: 2 },
-  listItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  listItemText: { flex: 1, fontSize: 13, lineHeight: 18, fontWeight: '600' },
-  freeBox: { marginTop: 4, borderWidth: 1, borderRadius: 10, padding: 10, gap: 8 },
-  freeBoxTitle: { fontSize: 13, fontWeight: '700' },
-  freeBoxText: { flex: 1, fontSize: 12, lineHeight: 17 },
-  compareCard: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 10 },
-  compareTitle: { fontSize: 16, fontWeight: '800' },
-  compareSubtitle: { fontSize: 12, lineHeight: 18 },
-  compareRow: {
+  content: { padding: 16, paddingBottom: 32, gap: 16 },
+  compareCard: {
+    borderRadius: 20,
     borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    gap: 10,
-  },
-  compareFeature: { fontSize: 13, fontWeight: '700' },
-  compareValuesGrid: { flexDirection: 'row', gap: 8 },
-  compareValueBlock: { flex: 1, gap: 4 },
-  compareBlockLabel: { fontSize: 11, fontWeight: '700' },
-  comparePill: {
-    fontSize: 11,
-    fontWeight: '700',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 999,
+    paddingTop: 16,
+    paddingHorizontal: 0,
+    paddingBottom: 4,
     overflow: 'hidden',
   },
-  comparePillFree: { backgroundColor: 'rgba(148, 163, 184, 0.15)' },
-  comparePillPremiumWrap: {
+  compareSectionTitle: { fontSize: 18, fontWeight: '800', paddingHorizontal: 16, marginBottom: 4 },
+  compareSectionHint: { fontSize: 13, lineHeight: 18, paddingHorizontal: 16, marginBottom: 14 },
+  tableHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 999,
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginHorizontal: 12,
+    borderRadius: 12,
+    marginBottom: 4,
   },
-  comparePillPremiumText: { flex: 1, fontSize: 11, fontWeight: '800' },
+  tableHeadText: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
+  tableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  tableRowLast: { borderBottomWidth: 0 },
+  tableColFeature: { flex: 1.15, minWidth: 0, paddingRight: 6 },
+  tableColPlan: { flex: 1, minWidth: 0, paddingLeft: 2 },
+  tableCellFeature: { fontSize: 13, fontWeight: '600', lineHeight: 18 },
+  tableCellFree: { fontSize: 12, fontWeight: '500', lineHeight: 16 },
+  tableCellPremium: { flex: 1, fontSize: 12, fontWeight: '700', lineHeight: 16 },
+  premiumCell: { flexDirection: 'row', alignItems: 'flex-start', gap: 4 },
+  premiumIcon: { marginTop: 1 },
+  plansSectionLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginTop: 2,
+    marginBottom: -4,
+  },
   restoreBtn: {
     minHeight: 42,
     borderWidth: 1,
@@ -500,33 +495,35 @@ const styles = StyleSheet.create({
   retryBtn: { alignSelf: 'flex-start', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14 },
   retryBtnText: { color: '#fff', fontWeight: '700' },
   planCard: {
-    borderWidth: 1.5,
-    borderRadius: 16,
-    padding: 14,
-    gap: 8,
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 16,
+    gap: 12,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
   },
-  planHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  planTitle: { flex: 1, fontSize: 16, fontWeight: '700' },
-  planPrice: { fontSize: 16, fontWeight: '800' },
+  planTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
+  planTitleBlock: { flex: 1, minWidth: 0, gap: 4 },
+  planPeriod: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
+  planTitle: { fontSize: 17, fontWeight: '800', lineHeight: 22 },
+  planPrice: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
+  planTags: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   highlightTag: {
-    alignSelf: 'flex-start',
     borderRadius: 999,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
-  highlightTagText: { fontSize: 12, fontWeight: '800' },
-  activeTag: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  activeTagText: { fontSize: 12, fontWeight: '700' },
-  savingsTag: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  savingsTagText: { fontSize: 12, fontWeight: '700' },
-  planDesc: { fontSize: 13, lineHeight: 18 },
-  planBtn: { marginTop: 2, borderRadius: 10, minHeight: 42, alignItems: 'center', justifyContent: 'center' },
+  highlightTagText: { fontSize: 11, fontWeight: '800' },
+  activeTag: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  activeTagText: { fontSize: 11, fontWeight: '800' },
+  savingsTag: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  savingsTagText: { fontSize: 11, fontWeight: '800' },
+  planDesc: { fontSize: 13, lineHeight: 19 },
+  planBtn: { borderRadius: 14, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   planBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });

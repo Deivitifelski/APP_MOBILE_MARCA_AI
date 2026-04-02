@@ -30,6 +30,7 @@ export default function ColaboradoresArtistaScreen() {
   const [isOwner, setIsOwner] = useState(false);
   const [canManage, setCanManage] = useState(false);
   const [canAddCollaborators, setCanAddCollaborators] = useState(false);
+  const [collaboratorPlanBlockedMessage, setCollaboratorPlanBlockedMessage] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const { activeArtist, loadActiveArtist } = useActiveArtist();
   const [showAddModal, setShowAddModal] = useState(false);
@@ -99,7 +100,14 @@ export default function ColaboradoresArtistaScreen() {
       setIsOwner(isUserOwner);
 
       // Buscar colaboradores
-      const { collaborators, userRole, canManage, canAddCollaborators, error: collaboratorsError } = await getCollaborators(activeArtist.id);
+      const {
+        collaborators,
+        userRole,
+        canManage,
+        canAddCollaborators,
+        collaboratorPlanBlockedMessage: planMsg,
+        error: collaboratorsError,
+      } = await getCollaborators(activeArtist.id);
       
       console.log('📊 Dados carregados:', {
         userRole,
@@ -118,6 +126,7 @@ export default function ColaboradoresArtistaScreen() {
       setUserRole(userRole);
       setCanManage(canManage);
       setCanAddCollaborators(canAddCollaborators);
+      setCollaboratorPlanBlockedMessage(planMsg || null);
     } catch (error) {
       Alert.alert('Erro', 'Erro ao carregar dados');
     } finally {
@@ -689,6 +698,19 @@ export default function ColaboradoresArtistaScreen() {
       </View>
 
       <ScrollView style={styles.content}>
+        {canManage && collaboratorPlanBlockedMessage ? (
+          <View
+            style={[
+              styles.planLimitBanner,
+              { backgroundColor: `${colors.warning}22`, borderColor: colors.warning },
+            ]}
+          >
+            <Text style={[styles.planLimitBannerText, { color: colors.text }]}>{collaboratorPlanBlockedMessage}</Text>
+            <TouchableOpacity onPress={() => router.push('/assine-premium')} style={styles.planLimitBannerBtn}>
+              <Text style={[styles.planLimitBannerBtnText, { color: colors.primary }]}>Ver Premium</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
         {/* Informações do artista */}
         {activeArtist && (
           <View style={[styles.artistInfo, { backgroundColor: colors.surface }]}>
@@ -2282,5 +2304,25 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  planLimitBanner: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 8,
+  },
+  planLimitBannerText: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  planLimitBannerBtn: {
+    alignSelf: 'flex-start',
+  },
+  planLimitBannerBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

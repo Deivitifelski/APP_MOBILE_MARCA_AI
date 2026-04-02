@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase';
+import { canCreateArtist, FREE_PLAN_MAX_OWNED_ARTIST_PROFILES } from './userService';
 
 export interface Artist {
   id: string;
@@ -20,6 +21,17 @@ export interface CreateArtistData {
 // Criar perfil do artista
 export const createArtist = async (artistData: CreateArtistData): Promise<{ success: boolean; error: string | null; artist?: Artist }> => {
   try {
+    const { canCreate, error: limitError } = await canCreateArtist(artistData.user_id);
+    if (limitError) {
+      return { success: false, error: limitError };
+    }
+    if (!canCreate) {
+      return {
+        success: false,
+        error: `No plano gratuito você pode criar no máximo ${FREE_PLAN_MAX_OWNED_ARTIST_PROFILES} perfis de artista como administrador. Assine o Premium para criar mais.`,
+      };
+    }
+
     // Primeiro, criar o artista
     console.log('📊 [createArtist] Dados enviados:', artistData);
     console.log('📊 [createArtist] Nome:', artistData.name);

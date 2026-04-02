@@ -29,7 +29,7 @@ import { getArtists } from '../../services/supabase/artistService';
 import { deleteAccount, getCurrentUser, logoutUser, updatePassword } from '../../services/supabase/authService';
 import { createFeedback } from '../../services/supabase/feedbackService';
 import { getUserPermissions } from '../../services/supabase/permissionsService';
-import { getUserProfile, UserProfile } from '../../services/supabase/userService';
+import { canCreateArtist, FREE_PLAN_MAX_OWNED_ARTIST_PROFILES, getUserProfile, UserProfile } from '../../services/supabase/userService';
 import { dispatchResetToLogin } from '../../lib/resetToLoginStack';
 
 const getRoleLabel = (role?: string) => {
@@ -286,8 +286,35 @@ export default function ConfiguracoesScreen() {
     router.push('/editar-artista');
   };
 
-  const handleCreateNewArtist = () => {
-    router.push('/cadastro-artista?fromSettings=true');
+  const handleCreateNewArtist = async () => {
+    try {
+      const { user, error: userError } = await getCurrentUser();
+      if (userError || !user) {
+        Alert.alert('Erro', 'Faça login novamente para criar um perfil de artista.');
+        return;
+      }
+      const { canCreate, error: limitError, ownedAsAdminCount, isPremium } = await canCreateArtist(user.id);
+      if (limitError) {
+        Alert.alert('Erro', limitError);
+        return;
+      }
+      if (!canCreate) {
+        Alert.alert(
+          'Limite do plano gratuito',
+          isPremium
+            ? 'Não foi possível continuar agora. Tente novamente.'
+            : `Você já tem ${ownedAsAdminCount} perfil(is) como administrador (máximo ${FREE_PLAN_MAX_OWNED_ARTIST_PROFILES} no gratuito). Assine o Premium para criar mais.`,
+          [
+            { text: 'OK', style: 'cancel' },
+            { text: 'Ver Premium', onPress: () => router.push('/assine-premium') },
+          ],
+        );
+        return;
+      }
+      router.push('/cadastro-artista?fromSettings=true');
+    } catch {
+      Alert.alert('Erro', 'Não foi possível verificar seu plano. Tente novamente.');
+    }
   };
 
   const handleLogout = () => {
