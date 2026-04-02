@@ -89,6 +89,31 @@
           "referenceName" : "Premium Monthly",
           "subscriptionGroupID" : "21475758",
           "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "99.90",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "6739219598",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Acesso total aos recursos premium com economia no plano anual.",
+              "displayName" : "Plano Premium Anual",
+              "locale" : "pt_BR"
+            }
+          ],
+          "productID" : "marcaai_anual_app",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Premium Annual",
+          "subscriptionGroupID" : "21475758",
+          "type" : "RecurringSubscription"
         }
       ]
     }
