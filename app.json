@@ -81,6 +81,7 @@
       "favicon": "./assets/images/icone_app_1024.png"
     },
     "plugins": [
+      "expo-iap",
       "expo-apple-authentication",
       [
         "@react-native-google-signin/google-signin",

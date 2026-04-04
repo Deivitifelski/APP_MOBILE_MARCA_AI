@@ -8,6 +8,7 @@ import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppSplashScreen from '../components/AppSplashScreen';
 import AuthDeepLinkHandler from '../components/AuthDeepLinkHandler';
+import SubscriptionReconcileBootstrap from '../components/SubscriptionReconcileBootstrap';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { ActiveArtistProvider } from '../contexts/ActiveArtistContext';
 import { PermissionsProvider } from '../contexts/PermissionsContext';
@@ -36,6 +37,7 @@ function NavigationAndStack() {
   return (
     <NavigationThemeProvider value={isDarkMode ? DarkTheme : DefaultTheme}>
       <AuthDeepLinkHandler />
+      <SubscriptionReconcileBootstrap />
       <RootLayoutContent />
       <StatusBar style={isDarkMode ? 'light' : 'dark'} />
     </NavigationThemeProvider>

@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   deepLinkToSubscriptions,
   endConnection,
+  ErrorCode,
   fetchProducts,
   finishTransaction,
   getActiveSubscriptions,
@@ -12,12 +13,11 @@ import {
   requestPurchase,
   restorePurchases,
   syncIOS,
-  type ActiveSubscription,
   type Product,
   type Purchase,
 } from 'expo-iap';
-import { router, Stack } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import { router, Stack, useFocusEffect } from 'expo-router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -32,6 +32,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
+import { cacheService } from '../services/cacheService';
+import { userSubscriptionIsActive } from '../services/supabase/userService';
 import {
   effectivePremiumSkuForIos,
   syncSubscriptionAfterPurchase,
@@ -54,95 +56,6 @@ const FREE_VS_PREMIUM = [
 ];
 const MONTHLY_SKU = 'marcaai_mensal_app';
 const ANNUAL_SKU = 'marcaai_anual_app';
-
-type SubscriptionSnapshot = {
-  hasActivePremium: boolean;
-  sku: string | null;
-  planTitle: string;
-  periodLabel: string;
-  validThroughMs: number | null;
-  nextRenewalMs: number | null;
-  autoRenews: boolean | null;
-  storeEnvironment?: string | null;
-};
-
-const emptySubscriptionSnapshot = (): SubscriptionSnapshot => ({
-  hasActivePremium: false,
-  sku: null,
-  planTitle: 'Plano gratuito',
-  periodLabel: '',
-  validThroughMs: null,
-  nextRenewalMs: null,
-  autoRenews: null,
-  storeEnvironment: null,
-});
-
-function formatSubscriptionDate(ms: number): string {
-  try {
-    return new Date(ms).toLocaleDateString('pt-BR', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
-  } catch {
-    return '';
-  }
-}
-
-function snapshotFromActiveSubscription(row: ActiveSubscription): SubscriptionSnapshot {
-  const sku = effectivePremiumSkuForIos(row);
-  const title = PLAN_LABELS[sku] || sku;
-  const periodLabel = sku === ANNUAL_SKU ? 'Cobrança anual' : 'Cobrança mensal';
-  const autoRenews =
-    row.renewalInfoIOS?.willAutoRenew ??
-    (typeof row.autoRenewingAndroid === 'boolean' ? row.autoRenewingAndroid : null);
-
-  return {
-    hasActivePremium: true,
-    sku,
-    planTitle: title,
-    periodLabel,
-    validThroughMs: row.expirationDateIOS ?? null,
-    nextRenewalMs: row.renewalInfoIOS?.renewalDate ?? null,
-    autoRenews,
-    storeEnvironment: row.environmentIOS ?? null,
-  };
-}
-
-function snapshotFromPurchase(sku: string, purchase: Purchase): SubscriptionSnapshot {
-  const title = PLAN_LABELS[sku] || sku;
-  const periodLabel = sku === ANNUAL_SKU ? 'Cobrança anual' : 'Cobrança mensal';
-  const exp = 'expirationDateIOS' in purchase ? purchase.expirationDateIOS : undefined;
-
-  return {
-    hasActivePremium: true,
-    sku,
-    planTitle: title,
-    periodLabel,
-    validThroughMs: exp ?? null,
-    nextRenewalMs: null,
-    autoRenews: purchase.isAutoRenewing,
-    storeEnvironment: 'environmentIOS' in purchase ? purchase.environmentIOS ?? null : null,
-  };
-}
-
-function subscriptionDetailLines(snapshot: SubscriptionSnapshot): string[] {
-  if (!snapshot.hasActivePremium) return [];
-  const lines: string[] = [];
-  if (snapshot.autoRenews === true && snapshot.nextRenewalMs) {
-    lines.push(`Próxima renovação: ${formatSubscriptionDate(snapshot.nextRenewalMs)}`);
-  } else if (snapshot.validThroughMs) {
-    lines.push(
-      snapshot.autoRenews === false
-        ? `Acesso até ${formatSubscriptionDate(snapshot.validThroughMs)}`
-        : `Renova em ${formatSubscriptionDate(snapshot.validThroughMs)}`,
-    );
-  }
-  if (snapshot.autoRenews !== null) {
-    lines.push(`Renovação automática: ${snapshot.autoRenews ? 'ativada' : 'desativada'}`);
-  }
-  return lines;
-}
 
 const parsePriceFromDisplay = (displayPrice: string): number | null => {
   const normalized = displayPrice.replace(/[^\d,.-]/g, '');
@@ -218,10 +131,29 @@ export default function AssinePremiumScreen() {
   const [processingSku, setProcessingSku] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [activeSku, setActiveSku] = useState<string | null>(null);
-  const [subscriptionSnapshot, setSubscriptionSnapshot] = useState<SubscriptionSnapshot>(() =>
-    emptySubscriptionSnapshot(),
+  const [planIsActive, setPlanIsActive] = useState(false);
+  /** Evita Alert a cada abertura da tela: a loja pode reentregar compra sem o usuário ter tocado em “Assinar”. */
+  const userStartedPurchaseFlowRef = useRef(false);
+
+  const refreshPlanFromDb = useCallback(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user?.id) {
+      setPlanIsActive(false);
+      return;
+    }
+    const { active } = await userSubscriptionIsActive(user.id);
+    setPlanIsActive(active);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshPlanFromDb();
+    }, [refreshPlanFromDb]),
   );
 
+  /** Atualiza qual SKU a loja considera ativo (para “Gerenciar assinatura”). */
   const syncPurchasedStatus = useCallback(async () => {
     try {
       if (Platform.OS === 'ios') {
@@ -235,8 +167,6 @@ export default function AssinePremiumScreen() {
         const row = annualRow ?? premiumRows[0];
         const sku = row ? effectivePremiumSkuForIos(row) : null;
         setActiveSku(sku);
-        if (row) setSubscriptionSnapshot(snapshotFromActiveSubscription(row));
-        else setSubscriptionSnapshot(emptySubscriptionSnapshot());
         return;
       }
     } catch {
@@ -248,26 +178,6 @@ export default function AssinePremiumScreen() {
     });
     const sku = resolveActivePremiumSkuFromPurchases(purchases);
     setActiveSku(sku);
-    if (sku) {
-      const purchase =
-        purchases.find((p) => effectivePremiumSkuForIos(p) === sku) ?? purchases.find((p) => p.productId === sku);
-      setSubscriptionSnapshot(
-        purchase
-          ? snapshotFromPurchase(sku, purchase)
-          : {
-              hasActivePremium: true,
-              sku,
-              planTitle: PLAN_LABELS[sku] || sku,
-              periodLabel: sku === ANNUAL_SKU ? 'Cobrança anual' : 'Cobrança mensal',
-              validThroughMs: null,
-              nextRenewalMs: null,
-              autoRenews: null,
-              storeEnvironment: null,
-            },
-      );
-    } else {
-      setSubscriptionSnapshot(emptySubscriptionSnapshot());
-    }
   }, []);
 
   const loadProducts = useCallback(async () => {
@@ -300,31 +210,60 @@ export default function AssinePremiumScreen() {
 
     subscriptions.push(
       purchaseUpdatedListener(async (purchase: Purchase) => {
+        if (!PREMIUM_SKUS.includes(purchase.productId)) return;
+
+        const userStartedThisFlow = userStartedPurchaseFlowRef.current;
         try {
-          if (!PREMIUM_SKUS.includes(purchase.productId)) return;
           await finishTransaction({ purchase, isConsumable: false });
-          await syncSubscriptionAfterPurchase(purchase);
+          const synced = await syncSubscriptionAfterPurchase(purchase);
           await syncPurchasedStatus();
-          setProcessingSku(null);
-          Alert.alert('Assinatura ativada', 'Seu plano Premium foi ativado com sucesso.', [
-            {
-              text: 'Continuar',
-              onPress: () => router.back(),
-            },
-          ]);
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+          if (user?.id) await cacheService.invalidateUserData(user.id);
+          if (synced) {
+            await refreshPlanFromDb();
+            router.back();
+            return;
+          }
+          if (userStartedThisFlow) {
+            Alert.alert(
+              'Assinatura na loja',
+              'A compra foi confirmada, mas não conseguimos atualizar seu plano no servidor. Tente Restaurar compras ou abra o app novamente.',
+            );
+          } else {
+            console.warn(
+              '[assine-premium] Sync com servidor falhou em evento da loja (sem fluxo iniciado na tela). Use Restaurar compras se o Premium não aparecer.',
+            );
+          }
         } catch {
+          if (userStartedThisFlow) {
+            Alert.alert(
+              'Erro ao confirmar assinatura',
+              'Sua compra foi processada, mas nao conseguimos finalizar automaticamente. Tente restaurar compras.',
+            );
+          } else {
+            console.warn('[assine-premium] Erro ao processar atualização de compra em background.');
+          }
+        } finally {
+          userStartedPurchaseFlowRef.current = false;
           setProcessingSku(null);
-          Alert.alert(
-            'Erro ao confirmar assinatura',
-            'Sua compra foi processada, mas nao conseguimos finalizar automaticamente. Tente restaurar compras.',
-          );
         }
       }),
     );
 
     subscriptions.push(
       purchaseErrorListener((purchaseError) => {
+        userStartedPurchaseFlowRef.current = false;
         setProcessingSku(null);
+        const code = purchaseError?.code;
+        if (
+          code === ErrorCode.UserCancelled ||
+          code === ErrorCode.Interrupted ||
+          code === ErrorCode.DeferredPayment
+        ) {
+          return;
+        }
         const rawMessage = purchaseError?.message?.trim();
         const message = rawMessage
           ? `Nao foi possivel concluir sua assinatura. Detalhes: ${rawMessage}`
@@ -338,7 +277,7 @@ export default function AssinePremiumScreen() {
       subscriptions.forEach((subscription) => subscription.remove());
       void endConnection();
     };
-  }, [loadProducts, syncPurchasedStatus]);
+  }, [loadProducts, refreshPlanFromDb, syncPurchasedStatus]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -359,12 +298,14 @@ export default function AssinePremiumScreen() {
     }
 
     try {
+      userStartedPurchaseFlowRef.current = true;
       setProcessingSku(product.id);
       if (Platform.OS === 'ios') {
         const {
           data: { user },
         } = await supabase.auth.getUser();
         if (!user?.id) {
+          userStartedPurchaseFlowRef.current = false;
           setProcessingSku(null);
           Alert.alert(
             'Entre na sua conta',
@@ -383,6 +324,7 @@ export default function AssinePremiumScreen() {
         });
       }
     } catch (purchaseStartError) {
+      userStartedPurchaseFlowRef.current = false;
       setProcessingSku(null);
       const details = purchaseStartError instanceof Error ? purchaseStartError.message : '';
       const msg = details
@@ -396,9 +338,19 @@ export default function AssinePremiumScreen() {
     try {
       setRestoring(true);
       await restorePurchases();
-      await syncSubscriptionAfterRestore();
+      const synced = await syncSubscriptionAfterRestore();
       await syncPurchasedStatus();
-      Alert.alert('Compras restauradas', 'Suas assinaturas foram sincronizadas com sucesso.');
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user?.id) await cacheService.invalidateUserData(user.id);
+      await refreshPlanFromDb();
+      Alert.alert(
+        synced ? 'Compras restauradas' : 'Restauração concluída',
+        synced
+          ? 'Seu plano Premium foi sincronizado com sucesso.'
+          : 'Não encontramos assinatura Premium ativa nesta conta da loja. Se você assina em outro dispositivo, use a mesma Apple ID / Google.',
+      );
     } catch (restoreError) {
       const details = restoreError instanceof Error ? restoreError.message : '';
       const msg = details
@@ -413,10 +365,6 @@ export default function AssinePremiumScreen() {
   const monthlyProduct = products.find((item) => item.id === MONTHLY_SKU);
   const annualProduct = products.find((item) => item.id === ANNUAL_SKU);
   const annualSavingsPercent = getAnnualSavingsPercent(monthlyProduct, annualProduct);
-  const subscriptionLines = subscriptionDetailLines(subscriptionSnapshot);
-  const isSandboxStore =
-    !!subscriptionSnapshot.storeEnvironment &&
-    /sandbox|xcode/i.test(subscriptionSnapshot.storeEnvironment);
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: colors.background }]}>
@@ -434,47 +382,17 @@ export default function AssinePremiumScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       >
-        <View style={[styles.currentSubCard, { backgroundColor: colors.surface, borderColor: colors.primary }]}>
-          <View style={styles.currentSubTitleRow}>
-            <Ionicons name="ribbon-outline" size={22} color={colors.primary} />
-            <Text style={[styles.currentSubHeading, { color: colors.text }]}>Sua assinatura</Text>
-          </View>
-          {loading ? (
-            <View style={styles.currentSubLoading}>
-              <ActivityIndicator color={colors.primary} />
-              <Text style={[styles.currentSubLoadingText, { color: colors.textSecondary }]}>
-                Consultando a loja…
+        {planIsActive ? (
+          <View style={[styles.premiumActiveBanner, { backgroundColor: `${colors.primary}14`, borderColor: colors.primary }]}>
+            <Ionicons name="checkmark-circle" size={22} color={colors.primary} />
+            <View style={styles.premiumActiveBannerText}>
+              <Text style={[styles.premiumActiveTitle, { color: colors.text }]}>Plano Premium ativo</Text>
+              <Text style={[styles.premiumActiveSub, { color: colors.textSecondary }]}>
+                Todos os recursos estão liberados na sua conta. Você pode gerenciar a cobrança na loja pelo plano contratado.
               </Text>
             </View>
-          ) : subscriptionSnapshot.hasActivePremium ? (
-            <>
-              <Text style={[styles.currentSubPlanTitle, { color: colors.text }]}>
-                {subscriptionSnapshot.planTitle}
-              </Text>
-              {subscriptionSnapshot.periodLabel ? (
-                <Text style={[styles.currentSubPeriod, { color: colors.textSecondary }]}>
-                  {subscriptionSnapshot.periodLabel}
-                </Text>
-              ) : null}
-              {subscriptionLines.map((line, idx) => (
-                <Text key={`sub-line-${idx}`} style={[styles.currentSubLine, { color: colors.textSecondary }]}>
-                  {line}
-                </Text>
-              ))}
-              {isSandboxStore ? (
-                <View style={[styles.sandboxPill, { backgroundColor: `${colors.primary}14` }]}>
-                  <Text style={[styles.sandboxPillText, { color: colors.primary }]}>
-                    Teste (Sandbox) — não cobra de verdade
-                  </Text>
-                </View>
-              ) : null}
-            </>
-          ) : (
-            <Text style={[styles.currentSubFreeText, { color: colors.textSecondary }]}>
-              Você está no plano gratuito. Escolha um plano Premium abaixo para liberar todos os recursos.
-            </Text>
-          )}
-        </View>
+          </View>
+        ) : null}
 
         <View style={[styles.compareCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.compareSectionTitle, { color: colors.text }]}>Free vs Premium</Text>
@@ -549,6 +467,8 @@ export default function AssinePremiumScreen() {
               const unavailable = !product;
               const isAnnual = sku === ANNUAL_SKU;
               const isHighlighted = isAnnual && annualSavingsPercent !== null;
+              const isThisSkuInStore = activeSku === sku;
+              const premiumLocked = planIsActive && !isThisSkuInStore;
 
               return (
                 <View
@@ -600,14 +520,15 @@ export default function AssinePremiumScreen() {
                   style={[
                     styles.planBtn,
                     {
-                      backgroundColor: colors.primary,
-                      opacity: unavailable || (processingSku && processingSku !== sku) ? 0.6 : 1,
+                      backgroundColor: premiumLocked ? colors.textSecondary : colors.primary,
+                      opacity:
+                        unavailable || premiumLocked || (processingSku && processingSku !== sku) ? 0.55 : 1,
                     },
                   ]}
                   onPress={() => {
-                    if (product) void handleAssinar(product);
+                    if (product && !premiumLocked) void handleAssinar(product);
                   }}
-                  disabled={unavailable || !!processingSku}
+                  disabled={unavailable || !!processingSku || premiumLocked}
                 >
                   {processingSku === sku ? (
                     <ActivityIndicator color="#fff" />
@@ -615,11 +536,13 @@ export default function AssinePremiumScreen() {
                     <Text style={styles.planBtnText}>
                       {unavailable
                         ? 'Indisponível'
-                        : activeSku === sku
-                          ? 'Gerenciar assinatura'
-                          : isAnnual
-                            ? 'Assinar plano anual'
-                            : 'Assinar plano mensal'}
+                        : premiumLocked
+                          ? 'Incluso no seu Premium'
+                          : isThisSkuInStore
+                            ? 'Gerenciar assinatura'
+                            : isAnnual
+                              ? 'Assinar plano anual'
+                              : 'Assinar plano mensal'}
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -646,28 +569,17 @@ export default function AssinePremiumScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  currentSubCard: {
-    borderRadius: 18,
+  premiumActiveBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    padding: 16,
-    gap: 8,
+    padding: 14,
   },
-  currentSubTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
-  currentSubHeading: { fontSize: 16, fontWeight: '800' },
-  currentSubLoading: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
-  currentSubLoadingText: { fontSize: 14, flex: 1 },
-  currentSubPlanTitle: { fontSize: 18, fontWeight: '800', lineHeight: 24 },
-  currentSubPeriod: { fontSize: 13, fontWeight: '600', marginTop: 2 },
-  currentSubLine: { fontSize: 13, lineHeight: 20, marginTop: 2 },
-  currentSubFreeText: { fontSize: 14, lineHeight: 21 },
-  sandboxPill: {
-    alignSelf: 'flex-start',
-    marginTop: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  sandboxPillText: { fontSize: 11, fontWeight: '700' },
+  premiumActiveBannerText: { flex: 1, gap: 4 },
+  premiumActiveTitle: { fontSize: 16, fontWeight: '800' },
+  premiumActiveSub: { fontSize: 13, lineHeight: 18 },
   header: {
     height: 56,
     borderBottomWidth: StyleSheet.hairlineWidth,

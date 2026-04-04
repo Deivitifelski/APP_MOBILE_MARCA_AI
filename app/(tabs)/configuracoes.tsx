@@ -29,7 +29,13 @@ import { getArtists } from '../../services/supabase/artistService';
 import { deleteAccount, getCurrentUser, logoutUser, updatePassword } from '../../services/supabase/authService';
 import { createFeedback } from '../../services/supabase/feedbackService';
 import { getUserPermissions } from '../../services/supabase/permissionsService';
-import { canCreateArtist, FREE_PLAN_MAX_OWNED_ARTIST_PROFILES, getUserProfile, UserProfile } from '../../services/supabase/userService';
+import {
+  canCreateArtist,
+  FREE_PLAN_MAX_OWNED_ARTIST_PROFILES,
+  getUserProfile,
+  userSubscriptionIsActive,
+  UserProfile,
+} from '../../services/supabase/userService';
 import { dispatchResetToLogin } from '../../lib/resetToLoginStack';
 
 const getRoleLabel = (role?: string) => {
@@ -79,6 +85,8 @@ export default function ConfiguracoesScreen() {
   const [showDeleteErrorModal, setShowDeleteErrorModal] = useState(false);
   const [deleteErrorMessage, setDeleteErrorMessage] = useState('');
   const [showDeleteSuccessModal, setShowDeleteSuccessModal] = useState(false);
+  /** Premium conforme `user_subscriptions` (não só `users.plan_is_active`). */
+  const [premiumEntitlementActive, setPremiumEntitlementActive] = useState(false);
   const [userArtistsForDelete, setUserArtistsForDelete] = useState<any[]>([]);
   const [isLoadingArtistsForDelete, setIsLoadingArtistsForDelete] = useState(false);
   const [artistImageUpdated, setArtistImageUpdated] = useState<boolean>(false);
@@ -146,6 +154,16 @@ export default function ConfiguracoesScreen() {
   useFocusEffect(
     React.useCallback(() => {
       loadArtistData(true);
+      void loadUserProfile(true);
+      void (async () => {
+        const { user } = await getCurrentUser();
+        if (!user?.id) {
+          setPremiumEntitlementActive(false);
+          return;
+        }
+        const { active } = await userSubscriptionIsActive(user.id);
+        setPremiumEntitlementActive(active);
+      })();
       // Não recarregar activeArtist aqui para evitar recarregar eventos na agenda
     }, [])
   );
@@ -157,9 +175,11 @@ export default function ConfiguracoesScreen() {
       if (!user) return;
 
       // Subscription para mudanças na tabela users
-      const userSubscription = subscribeToUsers(user.id, (payload) => {
-        // Recarregar dados do usuário quando houver mudanças
+      const userSubscription = subscribeToUsers(user.id, () => {
         loadUserProfile();
+        void userSubscriptionIsActive(user.id).then(({ active }) => {
+          setPremiumEntitlementActive(active);
+        });
       });
 
       setRealtimeSubscriptions([userSubscription]);
@@ -805,8 +825,10 @@ export default function ConfiguracoesScreen() {
           <View style={dynamicStyles.settingsCard}>
             {renderSettingItem(
               'diamond',
-              'Assine Premium',
-              'Ver planos mensal e anual',
+              premiumEntitlementActive ? 'Plano Premium' : 'Assine Premium',
+              premiumEntitlementActive
+                ? 'Ativo — todos os recursos liberados'
+                : 'Ver planos mensal e anual',
               () => router.push('/assine-premium')
             )}
 

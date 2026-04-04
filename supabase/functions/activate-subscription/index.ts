@@ -1,8 +1,8 @@
 /**
  * App Store Server Notifications V2 → Supabase (`user_subscriptions` + `users.plan_is_active`)
  *
- * Deploy: `supabase functions deploy apple-subscription-webhook` (legado; preferir `activate-subscription`)
- * URL:    https://<ref>.supabase.co/functions/v1/apple-subscription-webhook
+ * Deploy: `supabase functions deploy activate-subscription`
+ * URL:    https://<ref>.supabase.co/functions/v1/activate-subscription
  *
  * App Store Connect → Notificações do servidor → Versão 2 → URLs produção + sandbox.
  *

@@ -1,11 +1,14 @@
 import {
+  getActiveSubscriptions,
   getAvailablePurchases,
   initConnection,
   syncIOS,
+  type ActiveSubscription,
   type Purchase,
 } from 'expo-iap';
 import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { cacheService } from './cacheService';
 
 const PREMIUM_SKUS = ['marcaai_mensal_app', 'marcaai_anual_app'] as const;
 const MONTHLY_SKU = 'marcaai_mensal_app';
@@ -104,7 +107,7 @@ function purchaseToPayload(purchase: Purchase, source: SyncPayload['source']): S
   };
 }
 
-async function rpcSync(payload: SyncPayload): Promise<void> {
+async function rpcSync(payload: SyncPayload): Promise<boolean> {
   const expiresMs =
     payload.expiresAtMs != null && Number.isFinite(payload.expiresAtMs)
       ? Math.round(payload.expiresAtMs)
@@ -129,36 +132,204 @@ async function rpcSync(payload: SyncPayload): Promise<void> {
 
   if (error) {
     console.warn('[subscriptionSync] rpc error', error.message);
-    return;
+    return false;
   }
 
   const row = data as { ok?: boolean; error?: string } | null;
   if (row && row.ok === false && row.error) {
     console.warn('[subscriptionSync] sync failed', row.error);
+    return false;
   }
+  return row?.ok === true;
 }
 
-/** Após compra confirmada na loja (listener). */
-export async function syncSubscriptionAfterPurchase(purchase: Purchase): Promise<void> {
+/** Marca assinaturas ativas no banco como expiradas e `plan_is_active = false` (loja sem Premium). */
+async function rpcReconcileClear(): Promise<boolean> {
+  const { data, error } = await supabase.rpc('sync_user_subscription_from_client', {
+    p_reconcile_clear: true,
+  });
+
+  if (error) {
+    console.warn('[subscriptionSync] reconcile clear rpc error', error.message);
+    return false;
+  }
+
+  const row = data as { ok?: boolean; error?: string } | null;
+  if (row && row.ok === false && row.error) {
+    console.warn('[subscriptionSync] reconcile clear failed', row.error);
+    return false;
+  }
+  return row?.ok === true;
+}
+
+function pickBestActiveSubscription(rows: ActiveSubscription[]): ActiveSubscription | null {
+  const premium = rows.filter(
+    (s) => s.isActive && PREMIUM_SKUS.includes(s.productId as (typeof PREMIUM_SKUS)[number]),
+  );
+  if (!premium.length) return null;
+
+  const now = Date.now();
+  const valid = premium.filter((s) => {
+    const exp = s.expirationDateIOS;
+    if (exp == null || exp === undefined) return true;
+    return exp > now;
+  });
+  const pool = valid.length > 0 ? valid : premium;
+
+  const annual = pool.find((s) => effectivePremiumSkuForIos(s) === ANNUAL_SKU);
+  if (annual) return annual;
+  const monthly = pool.find((s) => effectivePremiumSkuForIos(s) === MONTHLY_SKU);
+  return monthly ?? pool[0] ?? null;
+}
+
+function activeSubscriptionToPayload(sub: ActiveSubscription): SyncPayload {
+  const platform = Platform.OS === 'ios' ? 'ios' : 'android';
+  const productId =
+    platform === 'ios'
+      ? effectivePremiumSkuForIos({
+          productId: sub.productId,
+          renewalInfoIOS: sub.renewalInfoIOS ?? null,
+        })
+      : sub.productId;
+
+  if (platform === 'ios') {
+    return {
+      source: 'reconcile',
+      platform: 'ios',
+      productId,
+      transactionId: sub.transactionId ?? null,
+      originalTransactionId: sub.transactionId ?? null,
+      purchaseToken: sub.purchaseToken ?? null,
+      expiresAtMs: sub.expirationDateIOS ?? null,
+      purchasedAtMs: sub.transactionDate,
+      autoRenew: sub.renewalInfoIOS?.willAutoRenew ?? true,
+    };
+  }
+
+  return {
+    source: 'reconcile',
+    platform: 'android',
+    productId,
+    transactionId: sub.transactionId ?? null,
+    originalTransactionId: sub.purchaseTokenAndroid ?? sub.purchaseToken ?? sub.transactionId ?? null,
+    purchaseToken: sub.purchaseTokenAndroid ?? sub.purchaseToken ?? null,
+    expiresAtMs: null,
+    purchasedAtMs: sub.transactionDate,
+    autoRenew: sub.autoRenewingAndroid ?? true,
+  };
+}
+
+export type ReconcileResult =
+  | 'synced'
+  | 'cleared'
+  | 'skipped_no_session'
+  | 'skipped_init_failed'
+  | 'skipped_store_unavailable'
+  | 'rpc_failed';
+
+let reconcileInFlight: Promise<ReconcileResult> | null = null;
+
+/**
+ * Alinha `user_subscriptions` com a loja (IAP), sem bloquear UI.
+ * - Loja com Premium ativo → RPC sync (upsert / atualiza expiração).
+ * - Loja sem Premium (consulta bem-sucedida e vazia) → RPC reconcile_clear.
+ * Não chama `endConnection` (outras telas podem usar IAP).
+ */
+export async function reconcileSubscriptionWithStore(): Promise<ReconcileResult> {
+  if (reconcileInFlight) return reconcileInFlight;
+
+  reconcileInFlight = (async (): Promise<ReconcileResult> => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (!userId) return 'skipped_no_session';
+
+      const okInit = await initConnection().catch(() => false);
+      if (!okInit) return 'skipped_init_failed';
+
+      if (Platform.OS === 'ios') {
+        await syncIOS().catch(() => undefined);
+      }
+
+      let payload: SyncPayload | null = null;
+      let storeResponded = false;
+
+      try {
+        const activeSubs = await getActiveSubscriptions([...PREMIUM_SKUS]);
+        storeResponded = true;
+        const best = pickBestActiveSubscription(activeSubs);
+        if (best) {
+          payload = activeSubscriptionToPayload(best);
+        }
+      } catch {
+        /* tenta getAvailablePurchases */
+      }
+
+      if (!payload) {
+        try {
+          const purchases = await getAvailablePurchases({ onlyIncludeActiveItemsIOS: true });
+          storeResponded = true;
+          const purchase = resolveActivePremiumPurchase(purchases);
+          if (purchase) {
+            payload = purchaseToPayload(purchase, 'reconcile');
+          }
+        } catch {
+          if (!storeResponded) {
+            return 'skipped_store_unavailable';
+          }
+        }
+      }
+
+      if (!storeResponded) {
+        return 'skipped_store_unavailable';
+      }
+
+      if (payload) {
+        const ok = await rpcSync(payload);
+        if (ok) {
+          await cacheService.invalidateUserData(userId).catch(() => undefined);
+          return 'synced';
+        }
+        return 'rpc_failed';
+      }
+
+      const cleared = await rpcReconcileClear();
+      if (cleared) {
+        await cacheService.invalidateUserData(userId).catch(() => undefined);
+        return 'cleared';
+      }
+      return 'rpc_failed';
+    } finally {
+      reconcileInFlight = null;
+    }
+  })();
+
+  return reconcileInFlight;
+}
+
+/** Após compra confirmada na loja (listener). Retorna se o Supabase confirmou o sync. */
+export async function syncSubscriptionAfterPurchase(purchase: Purchase): Promise<boolean> {
   const {
     data: { session },
   } = await supabase.auth.getSession();
-  if (!session?.user?.id) return;
-  if (!PREMIUM_SKUS.includes(purchase.productId as (typeof PREMIUM_SKUS)[number])) return;
+  if (!session?.user?.id) return false;
+  if (!PREMIUM_SKUS.includes(purchase.productId as (typeof PREMIUM_SKUS)[number])) return false;
 
   const payload = purchaseToPayload(purchase, 'after_purchase');
-  await rpcSync(payload);
+  return rpcSync(payload);
 }
 
 /** Após restaurar compras: envia assinatura Premium ativa para o backend. */
-export async function syncSubscriptionAfterRestore(): Promise<void> {
+export async function syncSubscriptionAfterRestore(): Promise<boolean> {
   const {
     data: { session },
   } = await supabase.auth.getSession();
-  if (!session?.user?.id) return;
+  if (!session?.user?.id) return false;
 
   const okInit = await initConnection().catch(() => false);
-  if (!okInit) return;
+  if (!okInit) return false;
 
   if (Platform.OS === 'ios') {
     await syncIOS().catch(() => undefined);
@@ -167,6 +338,7 @@ export async function syncSubscriptionAfterRestore(): Promise<void> {
   const purchases = await getAvailablePurchases({ onlyIncludeActiveItemsIOS: true });
   const purchase = resolveActivePremiumPurchase(purchases);
   if (purchase) {
-    await syncSubscriptionAfterPurchase(purchase);
+    return syncSubscriptionAfterPurchase(purchase);
   }
+  return false;
 }

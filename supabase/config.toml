@@ -1,0 +1,11 @@
+# Supabase CLI — https://supabase.com/docs/guides/cli/config
+# Após `supabase link`, o Dashboard preenche project_id automaticamente.
+
+# Webhooks da Apple não enviam JWT do Supabase: é obrigatório verify_jwt = false
+# (equivalente a desligar "Verify JWT" no Dashboard da função).
+
+[functions.activate-subscription]
+verify_jwt = false
+
+[functions.apple-subscription-webhook]
+verify_jwt = false

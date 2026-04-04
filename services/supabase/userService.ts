@@ -227,7 +227,7 @@ export const updateUserProfile = async (userId: string, userData: Partial<Create
   }
 };
 
-/** Máximo de perfis de artista que o usuário pode possuir como admin/owner no plano gratuito (`plan_is_active` falso). */
+/** Máximo de perfis de artista que o usuário pode possuir como admin/owner no plano gratuito (sem assinatura ativa em `user_subscriptions`). */
 export const FREE_PLAN_MAX_OWNED_ARTIST_PROFILES = 1;
 
 /** Máximo de colaboradores no time de cada artista no gratuito (além do dono/admin principal). Total de pessoas no `artist_members` = 1 + isso. */
@@ -239,7 +239,22 @@ export const FREE_PLAN_MAX_TEAM_MEMBERS_PER_ARTIST = 1 + FREE_PLAN_MAX_COLLABORA
 const FREE_PLAN_TEAM_LIMIT_MESSAGE =
   'No plano gratuito, cada artista pode ter no máximo 4 colaboradores (5 pessoas no time no total). Se algum administrador ou proprietário tiver Premium, o limite some.';
 
-/** Algum admin/owner do artista com `plan_is_active` no `users` libera time ilimitado para esse artista. */
+/** Indica se o usuário tem assinatura vigente em `user_subscriptions` (status + expires_at). */
+export const userSubscriptionIsActive = async (
+  userId: string,
+): Promise<{ active: boolean; error: string | null }> => {
+  try {
+    const { data, error } = await supabase.rpc('user_subscription_is_active', {
+      p_user_id: userId,
+    });
+    if (error) return { active: false, error: error.message };
+    return { active: data === true, error: null };
+  } catch {
+    return { active: false, error: 'Erro de conexão' };
+  }
+};
+
+/** Algum admin/owner do artista com assinatura ativa em `user_subscriptions` libera time ilimitado. */
 export const artistTeamHasPremiumQuota = async (
   artistId: string,
 ): Promise<{ premium: boolean; error: string | null }> => {
@@ -258,17 +273,15 @@ export const artistTeamHasPremiumQuota = async (
     }
 
     const ids = [...new Set(leads.map((r) => r.user_id))];
-    const { data: userRows, error: usersError } = await supabase
-      .from('users')
-      .select('plan_is_active')
-      .in('id', ids);
+    const { data, error: rpcError } = await supabase.rpc('any_users_have_active_subscription', {
+      p_user_ids: ids,
+    });
 
-    if (usersError) {
-      return { premium: false, error: usersError.message };
+    if (rpcError) {
+      return { premium: false, error: rpcError.message };
     }
 
-    const premium = userRows?.some((u) => u.plan_is_active === true) ?? false;
-    return { premium, error: null };
+    return { premium: data === true, error: null };
   } catch {
     return { premium: false, error: 'Erro de conexão' };
   }
@@ -364,7 +377,10 @@ export interface CanCreateArtistResult {
 export const canCreateArtist = async (userId: string): Promise<CanCreateArtistResult> => {
   try {
     const { profile, error: profileError } = await getUserProfile(userId);
-    const isPremium = profile?.plan_is_active === true;
+    const { active: isPremium, error: subErr } = await userSubscriptionIsActive(userId);
+    if (subErr) {
+      console.warn('⚠️ [canCreateArtist] user_subscriptions:', subErr);
+    }
 
     const { count, error: countError } = await supabase
       .from('artist_members')

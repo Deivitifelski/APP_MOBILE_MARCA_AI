@@ -33,7 +33,7 @@ export default function UpgradeModal({
 
   const handleUpgrade = () => {
     onClose();
-    router.push('/planos-pagamentos');
+    router.push('/assine-premium');
   };
 
   const getFeatureIcon = () => {
