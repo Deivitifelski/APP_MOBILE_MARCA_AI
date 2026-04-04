@@ -340,34 +340,107 @@ export default function ConvitesParticipacaoEventoScreen() {
         onRequestClose={() => setShowAcceptModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Aceitar convite</Text>
-            <Text style={[styles.modalSub, { color: colors.textSecondary }]}>
-              Revise as informações e confirme sua participação no evento.
-            </Text>
-            <View style={[styles.acceptInfoBox, { borderColor: colors.border, backgroundColor: colors.background }]}>
-              <Text style={[styles.acceptInfoText, { color: colors.textSecondary }]}>
-                Função definida no convite:
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalKeyboardWrap}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
+          >
+            <View style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Aceitar convite</Text>
+              <Text style={[styles.modalSub, { color: colors.textSecondary }]}>
+                Confira os dados do convite antes de confirmar sua participação.
               </Text>
-              <Text style={[styles.acceptInfoTextStrong, { color: colors.text }]}>
-                {selectedAcceptInvite?.funcao_participacao?.trim() || 'Participante'}
-              </Text>
-            </View>
-            <View style={styles.actions}>
-              <TouchableOpacity
-                style={[styles.btnOutline, { borderColor: colors.border }]}
-                onPress={() => setShowAcceptModal(false)}
+              <ScrollView
+                style={styles.acceptScroll}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
               >
-                <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Voltar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.btnPrimary, { backgroundColor: colors.primary }]}
-                onPress={() => void submitAceite()}
-              >
-                <Text style={styles.btnPrimaryText}>Confirmar aceite</Text>
-              </TouchableOpacity>
+                {selectedAcceptInvite ? (
+                  <>
+                    <View style={[styles.acceptInfoBox, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                      <Text style={[styles.acceptLabel, { color: colors.textSecondary }]}>Evento</Text>
+                      <Text style={[styles.acceptValue, { color: colors.text }]}>
+                        {selectedAcceptInvite.nome_evento}
+                      </Text>
+                    </View>
+                    <View style={[styles.acceptInfoBox, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                      <Text style={[styles.acceptLabel, { color: colors.textSecondary }]}>Data</Text>
+                      <Text style={[styles.acceptValue, { color: colors.text }]}>
+                        {formatCalendarDate(selectedAcceptInvite.data_evento)}
+                      </Text>
+                    </View>
+                    <View style={[styles.acceptInfoBox, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                      <Text style={[styles.acceptLabel, { color: colors.textSecondary }]}>Horário</Text>
+                      <Text style={[styles.acceptValue, { color: colors.text }]}>
+                        {formatTime(selectedAcceptInvite.hora_inicio)} – {formatTime(selectedAcceptInvite.hora_fim)}
+                      </Text>
+                    </View>
+                    <View style={[styles.acceptInfoBox, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                      <Text style={[styles.acceptLabel, { color: colors.textSecondary }]}>Função</Text>
+                      <Text style={[styles.acceptValue, { color: colors.text }]}>
+                        {selectedAcceptInvite.funcao_participacao?.trim() || 'Participante'}
+                      </Text>
+                    </View>
+                    {selectedAcceptInvite.cache_valor != null ? (
+                      <View style={[styles.acceptInfoBox, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                        <Text style={[styles.acceptLabel, { color: colors.textSecondary }]}>Cachê</Text>
+                        <Text style={[styles.acceptValue, { color: colors.text }]}>
+                          {Number(selectedAcceptInvite.cache_valor).toLocaleString('pt-BR', {
+                            style: 'currency',
+                            currency: 'BRL',
+                          })}
+                        </Text>
+                      </View>
+                    ) : null}
+                    {selectedAcceptInvite.mensagem?.trim() ? (
+                      <View style={[styles.acceptInfoBox, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                        <Text style={[styles.acceptLabel, { color: colors.textSecondary }]}>Mensagem</Text>
+                        <Text style={[styles.acceptMessage, { color: colors.text }]}>
+                          {selectedAcceptInvite.mensagem.trim()}
+                        </Text>
+                      </View>
+                    ) : null}
+                    {selectedAcceptInvite.telefone_contratante?.trim() ? (
+                      <View style={[styles.acceptInfoBox, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                        <Text style={[styles.acceptLabel, { color: colors.textSecondary }]}>WhatsApp</Text>
+                        <View style={styles.acceptWhatsRow}>
+                          <Text style={[styles.acceptValue, { flex: 1 }]}>
+                            {selectedAcceptInvite.telefone_contratante.trim()}
+                          </Text>
+                          {buildWhatsAppUrl(selectedAcceptInvite.telefone_contratante) ? (
+                            <TouchableOpacity
+                              onPress={() => {
+                                const url = buildWhatsAppUrl(selectedAcceptInvite.telefone_contratante);
+                                if (url) void Linking.openURL(url);
+                              }}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              accessibilityLabel="Abrir WhatsApp"
+                            >
+                              <Ionicons name="logo-whatsapp" size={26} color="#25D366" />
+                            </TouchableOpacity>
+                          ) : null}
+                        </View>
+                      </View>
+                    ) : null}
+                  </>
+                ) : null}
+              </ScrollView>
+              <View style={styles.actions}>
+                <TouchableOpacity
+                  style={[styles.btnOutline, { borderColor: colors.border }]}
+                  onPress={() => setShowAcceptModal(false)}
+                >
+                  <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Voltar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btnPrimary, { backgroundColor: colors.primary }]}
+                  onPress={() => void submitAceite()}
+                >
+                  <Text style={styles.btnPrimaryText}>Confirmar aceite</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </SafeAreaView>
@@ -493,14 +566,31 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 10,
     padding: 12,
-    marginBottom: 6,
+    marginBottom: 8,
   },
-  acceptInfoText: {
-    fontSize: 13,
+  acceptScroll: {
+    maxHeight: 320,
+    marginBottom: 8,
+  },
+  acceptLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
     marginBottom: 4,
   },
-  acceptInfoTextStrong: {
+  acceptValue: {
     fontSize: 15,
     fontWeight: '700',
+    lineHeight: 22,
+  },
+  acceptMessage: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  acceptWhatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
 });

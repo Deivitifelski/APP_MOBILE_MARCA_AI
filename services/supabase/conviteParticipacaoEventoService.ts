@@ -207,12 +207,40 @@ async function notificarConvidadoPrincipal(input: EnviarConviteParticipacaoInput
   const tokenFcm = row.token_fcm;
   if (!tokenFcm) return;
 
+  // Payload `data` do FCM: dados do convite (sem cidade/descrição). WhatsApp só se foi informado no envio.
+  const { data: conviteRow } = await supabase
+    .from('convite_participacao_evento')
+    .select(
+      'nome_evento, data_evento, hora_inicio, hora_fim, funcao_participacao, mensagem, cache_valor, telefone_contratante',
+    )
+    .eq('id', conviteId)
+    .maybeSingle();
+
+  const pushData: Record<string, string> = {
+    screen: 'convites_participacao',
+    type: 'convite_participacao_evento',
+    convite_id: conviteId,
+  };
+  if (conviteRow) {
+    if (conviteRow.nome_evento != null) pushData.nome_evento = String(conviteRow.nome_evento);
+    if (conviteRow.data_evento != null) pushData.data_evento = String(conviteRow.data_evento);
+    if (conviteRow.hora_inicio != null) pushData.hora_inicio = String(conviteRow.hora_inicio);
+    if (conviteRow.hora_fim != null) pushData.hora_fim = String(conviteRow.hora_fim);
+    if (conviteRow.funcao_participacao != null) pushData.funcao_participacao = String(conviteRow.funcao_participacao);
+    if (conviteRow.mensagem != null && String(conviteRow.mensagem).trim() !== '') {
+      pushData.mensagem = String(conviteRow.mensagem);
+    }
+    if (conviteRow.cache_valor != null) pushData.cache_valor = String(conviteRow.cache_valor);
+    const tel = conviteRow.telefone_contratante != null ? String(conviteRow.telefone_contratante).trim() : '';
+    if (tel !== '') pushData.telefone_whatsapp = tel;
+  }
+
   const { error: pushErr } = await supabase.functions.invoke('send-push-single', {
     body: {
       token: tokenFcm,
       title: row.title || 'Convite de participação em evento',
       body: row.message || 'Você recebeu um novo convite de participação.',
-      data: { screen: 'convites_participacao' },
+      data: pushData,
     },
   });
 
@@ -223,7 +251,7 @@ async function notificarConvidadoPrincipal(input: EnviarConviteParticipacaoInput
         token: tokenFcm,
         title: row.title || 'Convite de participação em evento',
         body: row.message || 'Você recebeu um novo convite de participação.',
-        data: { screen: 'convites_participacao' },
+        data: pushData,
       },
     });
     if (legacyPushErr) {
