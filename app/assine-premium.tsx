@@ -2,13 +2,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import {
   deepLinkToSubscriptions,
-  endConnection,
   ErrorCode,
-  fetchProducts,
   finishTransaction,
   getActiveSubscriptions,
   getAvailablePurchases,
-  initConnection,
   purchaseErrorListener,
   purchaseUpdatedListener,
   requestPurchase,
@@ -17,6 +14,7 @@ import {
   type Product,
   type Purchase,
 } from 'expo-iap';
+import * as InAppPurchases from '../services/inAppPurchasesCompat';
 import { router, Stack, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -64,7 +62,7 @@ const IOS_SANDBOX_IAP_ACK_KEY = 'marcaai_ios_sandbox_iap_ack_v1';
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /**
- * OpenIAP usa StoreKit 2 (`Product.products(for:)`), não o delegate `productsRequest(_:didReceive:)`.
+ * StoreKit 2 (`Product.products(for:)`), não o delegate `productsRequest(_:didReceive:)`.
  * A Apple não devolve `invalidProductIdentifiers` ao JS: SKUs inválidos ou bloqueados simplesmente
  * não aparecem em `products`. Comparar pedido × resposta reproduz o mesmo diagnóstico.
  */
@@ -74,14 +72,14 @@ function logIapProductFetchDiagnostics(params: {
   rawProducts: Product[];
 }) {
   if (!__DEV__) return;
-  const returnedIds = rawProducts.map((p) => p.id);
+  const returnedIds = params.rawProducts.map((p) => p.id);
   const returnedSet = new Set(returnedIds);
-  const missingLikeInvalidIds = requestedSkus.filter((id) => !returnedSet.has(id));
+  const missingLikeInvalidIds = params.requestedSkus.filter((id) => !returnedSet.has(id));
   console.log(
     `[IAP debug] ${params.attemptLabel} — como productsRequest didReceive (StoreKit 2 / expo-iap):`,
     {
       requestedSkus: [...params.requestedSkus],
-      productsLength: rawProducts.length,
+      productsLength: params.rawProducts.length,
       returnedProductIds: returnedIds,
       /** Se preenchido: equivalente a `invalidProductIdentifiers` (ID errado, contrato, app/bundle, etc.) */
       missingOrInvalidSkus: missingLikeInvalidIds,
@@ -256,14 +254,17 @@ export default function AssinePremiumScreen() {
       if (!options?.skipFullScreenLoading) {
         setLoading(true);
       }
-      const ok = await initConnection();
-      if (!ok) throw new Error('Não foi possível inicializar a loja.');
+      await InAppPurchases.connectAsync();
 
       const fetchPremiumSubsOnce = async (): Promise<{ filtered: Product[]; raw: Product[] }> => {
-        const raw = ((await fetchProducts({
-          skus: PREMIUM_SKUS,
-          type: 'subs',
-        })) ?? []) as Product[];
+        const { results, responseCode } = await InAppPurchases.getProductsAsync([...PREMIUM_SKUS]);
+        if (responseCode !== InAppPurchases.IAPResponseCode.OK) {
+          if (__DEV__) {
+            console.warn('[assine-premium] getProductsAsync respondeu com code:', responseCode);
+          }
+          return { filtered: [], raw: [] };
+        }
+        const raw = results;
         const filtered = raw.filter((p) => PREMIUM_SKUS.includes(p.id));
         return { filtered, raw };
       };
@@ -317,7 +318,7 @@ export default function AssinePremiumScreen() {
       const msg = e instanceof Error ? e.message : 'Falha ao carregar produtos da loja.';
       if (__DEV__) {
         console.warn(
-          '[IAP debug] fetchProducts/initConnection falhou (rede, loja indisponível, query, etc.). Não é o mesmo caso “products vazio sem erro”.',
+          '[IAP debug] connect/getProducts falhou (rede, loja indisponível, query, etc.). Não é o mesmo caso “products vazio sem erro”.',
           e,
         );
       }
@@ -421,7 +422,8 @@ export default function AssinePremiumScreen() {
 
     return () => {
       subscriptions.forEach((subscription) => subscription.remove());
-      void endConnection();
+      // Não chamar disconnect/endConnection aqui: ao sair da tela isso derrubava a sessão da loja e o iOS
+      // pedia login de novo ao voltar. Outras telas também usam IAP (ex.: reconcile). Só removemos listeners.
     };
   }, [loadProducts, refreshPlanFromDb, syncPurchasedStatus]);
 
