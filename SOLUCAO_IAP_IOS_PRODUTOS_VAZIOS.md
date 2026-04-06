@@ -27,7 +27,9 @@ A conta **Sandbox** da Apple é para a **compra na folha da App Store**, não su
 
 ## Padrão do repositório (sandbox real)
 
-O scheme compartilhado **`MarcaAI`** está **sem** StoreKit Configuration no **Run**. Assim, ao dar ⌘R no Xcode no **iPhone físico**, a compra vai para a **Apple (sandbox)** e pode passar a aparecer em **App Store Connect → Sandbox → Última compra** (às vezes com atraso).
+O scheme compartilhado **`MarcaAI`** está **sem** StoreKit Configuration no **Run** e **nenhum** `.storekit` entra no **Copy Bundle Resources**. Passo a passo: **`ios/TESTE_SANDBOX_APPLE.md`**.
+
+Ao dar ⌘R no **iPhone físico**, a compra deve ir para a **Apple (sandbox)**; em **App Store Connect → Sandbox → Última compra** pode haver **atraso**.
 
 ## Próximos passos
 

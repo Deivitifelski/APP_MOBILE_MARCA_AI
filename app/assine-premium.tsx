@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import {
   deepLinkToSubscriptions,
@@ -56,6 +57,50 @@ const FREE_VS_PREMIUM = [
 ];
 const MONTHLY_SKU = 'marcaai_mensal_app';
 const ANNUAL_SKU = 'marcaai_anual_app';
+
+/** Só carrega `fetchProducts` no iOS depois que o usuário confirma que vai usar conta Sandbox na folha da loja (evita login com Apple ID do aparelho por engano). */
+const IOS_SANDBOX_IAP_ACK_KEY = 'marcaai_ios_sandbox_iap_ack_v1';
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * OpenIAP usa StoreKit 2 (`Product.products(for:)`), não o delegate `productsRequest(_:didReceive:)`.
+ * A Apple não devolve `invalidProductIdentifiers` ao JS: SKUs inválidos ou bloqueados simplesmente
+ * não aparecem em `products`. Comparar pedido × resposta reproduz o mesmo diagnóstico.
+ */
+function logIapProductFetchDiagnostics(params: {
+  attemptLabel: string;
+  requestedSkus: readonly string[];
+  rawProducts: Product[];
+}) {
+  if (!__DEV__) return;
+  const returnedIds = rawProducts.map((p) => p.id);
+  const returnedSet = new Set(returnedIds);
+  const missingLikeInvalidIds = requestedSkus.filter((id) => !returnedSet.has(id));
+  console.log(
+    `[IAP debug] ${params.attemptLabel} — como productsRequest didReceive (StoreKit 2 / expo-iap):`,
+    {
+      requestedSkus: [...params.requestedSkus],
+      productsLength: rawProducts.length,
+      returnedProductIds: returnedIds,
+      /** Se preenchido: equivalente a `invalidProductIdentifiers` (ID errado, contrato, app/bundle, etc.) */
+      missingOrInvalidSkus: missingLikeInvalidIds,
+    },
+  );
+  if (missingLikeInvalidIds.length > 0 && missingLikeInvalidIds.length < params.requestedSkus.length) {
+    console.warn(
+      '[IAP debug] Alguns SKUs não retornaram (como invalidProductIdentifiers na SK1). Revise IDs e contrato “Apps com pagamento” no App Store Connect.',
+      missingLikeInvalidIds,
+    );
+  }
+}
+
+function logIapAllSkusMissingHint() {
+  if (!__DEV__) return;
+  console.warn(
+    '[IAP debug] Nenhum produto na resposta para todos os SKUs pedidos, sem throw: costuma ser status do contrato, metadata/revisão no ASC, propagação da assinatura, ou (iOS) sessão da loja ainda não pronta após login sandbox — não confunda com “só autenticação errada”.',
+  );
+}
 
 const parsePriceFromDisplay = (displayPrice: string): number | null => {
   const normalized = displayPrice.replace(/[^\d,.-]/g, '');
@@ -134,6 +179,11 @@ export default function AssinePremiumScreen() {
   const [planIsActive, setPlanIsActive] = useState(false);
   /** Evita Alert a cada abertura da tela: a loja pode reentregar compra sem o usuário ter tocado em “Assinar”. */
   const userStartedPurchaseFlowRef = useRef(false);
+  /** Um aviso em __DEV__ se a assinatura vier do StoreKit “Xcode” (local), não do sandbox Apple. */
+  const warnedStoreKitXcodeRef = useRef(false);
+
+  const [iosIapHydrated, setIosIapHydrated] = useState(Platform.OS !== 'ios');
+  const [iosIapUserConfirmed, setIosIapUserConfirmed] = useState(Platform.OS !== 'ios');
 
   const refreshPlanFromDb = useCallback(async () => {
     const {
@@ -153,6 +203,15 @@ export default function AssinePremiumScreen() {
     }, [refreshPlanFromDb]),
   );
 
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    AsyncStorage.getItem(IOS_SANDBOX_IAP_ACK_KEY)
+      .then((v) => {
+        if (v === '1') setIosIapUserConfirmed(true);
+      })
+      .finally(() => setIosIapHydrated(true));
+  }, []);
+
   /** Atualiza qual SKU a loja considera ativo (para “Gerenciar assinatura”). */
   const syncPurchasedStatus = useCallback(async () => {
     try {
@@ -161,6 +220,17 @@ export default function AssinePremiumScreen() {
       }
 
       const activeSubs = await getActiveSubscriptions(PREMIUM_SKUS);
+      if (
+        __DEV__ &&
+        Platform.OS === 'ios' &&
+        !warnedStoreKitXcodeRef.current &&
+        activeSubs.some((s) => s.environmentIOS === 'Xcode')
+      ) {
+        warnedStoreKitXcodeRef.current = true;
+        console.warn(
+          '[assine-premium] Loja em ambiente Xcode (StoreKit local): webhooks da Apple e “Última compra” no App Store Connect não se aplicam. Para sandbox real: Edit Scheme → Run → Options → StoreKit Configuration = None; iPhone físico. Guia: ios/TESTE_SANDBOX_APPLE.md',
+        );
+      }
       const premiumRows = activeSubs.filter((s) => s.isActive && PREMIUM_SKUS.includes(s.productId));
       if (premiumRows.length > 0) {
         const annualRow = premiumRows.find((s) => effectivePremiumSkuForIos(s) === ANNUAL_SKU);
@@ -180,23 +250,77 @@ export default function AssinePremiumScreen() {
     setActiveSku(sku);
   }, []);
 
-  const loadProducts = useCallback(async () => {
+  const loadProducts = useCallback(async (options?: { skipFullScreenLoading?: boolean }) => {
     try {
       setError(null);
+      if (!options?.skipFullScreenLoading) {
+        setLoading(true);
+      }
       const ok = await initConnection();
       if (!ok) throw new Error('Não foi possível inicializar a loja.');
 
-      const fetched = (await fetchProducts({
-        skus: PREMIUM_SKUS,
-        type: 'subs',
-      })) as Product[] | null;
+      const fetchPremiumSubsOnce = async (): Promise<{ filtered: Product[]; raw: Product[] }> => {
+        const raw = ((await fetchProducts({
+          skus: PREMIUM_SKUS,
+          type: 'subs',
+        })) ?? []) as Product[];
+        const filtered = raw.filter((p) => PREMIUM_SKUS.includes(p.id));
+        return { filtered, raw };
+      };
 
-      const filtered = (fetched || []).filter((p) => PREMIUM_SKUS.includes(p.id));
+      /**
+       * No iOS, após o modal de login da App Store (sandbox), a primeira `fetchProducts` costuma
+       * voltar [] antes da sessão da loja estar pronta. `syncIOS` + novas tentativas com atraso
+       * alinham com o comportamento que a Apple documenta para “atualizar” o estado local.
+       */
+      if (Platform.OS === 'ios') {
+        await syncIOS().catch(() => undefined);
+      }
+
+      let { filtered, raw } = await fetchPremiumSubsOnce();
+      logIapProductFetchDiagnostics({
+        attemptLabel: Platform.OS === 'ios' ? 'iOS tentativa 1' : 'Android tentativa 1',
+        requestedSkus: PREMIUM_SKUS,
+        rawProducts: raw,
+      });
+
+      if (Platform.OS === 'ios' && filtered.length === 0) {
+        await sleep(1200);
+        await syncIOS().catch(() => undefined);
+        ({ filtered, raw } = await fetchPremiumSubsOnce());
+        logIapProductFetchDiagnostics({
+          attemptLabel: 'iOS tentativa 2 (após delay)',
+          requestedSkus: PREMIUM_SKUS,
+          rawProducts: raw,
+        });
+      }
+
+      if (Platform.OS === 'ios' && filtered.length === 0) {
+        await sleep(2200);
+        await syncIOS().catch(() => undefined);
+        ({ filtered, raw } = await fetchPremiumSubsOnce());
+        logIapProductFetchDiagnostics({
+          attemptLabel: 'iOS tentativa 3 (após delay)',
+          requestedSkus: PREMIUM_SKUS,
+          rawProducts: raw,
+        });
+      }
+
+      if (filtered.length === 0) {
+        logIapAllSkusMissingHint();
+      }
+
       filtered.sort((a, b) => PREMIUM_SKUS.indexOf(a.id) - PREMIUM_SKUS.indexOf(b.id));
       setProducts(filtered);
       await syncPurchasedStatus();
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Falha ao carregar produtos da loja.';
+      if (__DEV__) {
+        console.warn(
+          '[IAP debug] fetchProducts/initConnection falhou (rede, loja indisponível, query, etc.). Não é o mesmo caso “products vazio sem erro”.',
+          e,
+        );
+      }
       setError(msg);
       setProducts([]);
     } finally {
@@ -204,6 +328,29 @@ export default function AssinePremiumScreen() {
       setRefreshing(false);
     }
   }, [syncPurchasedStatus]);
+
+  const confirmIosSandboxAndConnectStore = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await AsyncStorage.setItem(IOS_SANDBOX_IAP_ACK_KEY, '1');
+      setIosIapUserConfirmed(true);
+    } catch {
+      setIosIapUserConfirmed(true);
+    }
+  }, []);
+
+  const resetIosSandboxInstructions = useCallback(async () => {
+    try {
+      await AsyncStorage.removeItem(IOS_SANDBOX_IAP_ACK_KEY);
+    } catch {
+      /* ignore */
+    }
+    setIosIapUserConfirmed(false);
+    setProducts([]);
+    setError(null);
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
     const subscriptions: { remove: () => void }[] = [];
@@ -272,16 +419,27 @@ export default function AssinePremiumScreen() {
       }),
     );
 
-    void loadProducts();
     return () => {
       subscriptions.forEach((subscription) => subscription.remove());
       void endConnection();
     };
   }, [loadProducts, refreshPlanFromDb, syncPurchasedStatus]);
 
+  useEffect(() => {
+    if (!iosIapHydrated) return;
+    if (Platform.OS === 'ios' && !iosIapUserConfirmed) {
+      setLoading(false);
+      return;
+    }
+    void loadProducts();
+  }, [iosIapHydrated, iosIapUserConfirmed, loadProducts]);
+
   const onRefresh = async () => {
+    if (Platform.OS === 'ios' && !iosIapUserConfirmed) {
+      return;
+    }
     setRefreshing(true);
-    await loadProducts();
+    await loadProducts({ skipFullScreenLoading: true });
   };
 
   const handleAssinar = async (product: Product) => {
@@ -441,7 +599,72 @@ export default function AssinePremiumScreen() {
 
         <Text style={[styles.plansSectionLabel, { color: colors.textSecondary }]}>Planos</Text>
 
-        {loading ? (
+        {Platform.OS === 'ios' && !iosIapHydrated ? (
+          <View style={styles.centered}>
+            <ActivityIndicator color={colors.primary} />
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Preparando instruções da loja…</Text>
+          </View>
+        ) : null}
+
+        {Platform.OS === 'ios' && iosIapHydrated && !iosIapUserConfirmed ? (
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.primary }]}>
+            <Text style={[styles.emptyText, { color: colors.text, fontWeight: '800', fontSize: 15 }]}>
+              Teste Sandbox (Apple) — leia antes de carregar os planos
+            </Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary, marginTop: 10 }]}>
+              1) Em <Text style={{ fontWeight: '700', color: colors.text }}>Ajustes → Compras na iTunes Store e App Store</Text>, saia da conta sandbox se estiver logado lá.
+            </Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary, marginTop: 8 }]}>
+              2) Toque no botão abaixo. Quando o iPhone pedir login da loja, use o{' '}
+              <Text style={{ fontWeight: '700', color: colors.text }}>e-mail e senha do testador Sandbox</Text> criado em App Store Connect (Usuários e acesso → Sandbox) —{' '}
+              <Text style={{ fontWeight: '700', color: colors.text }}>não</Text> a senha só da Apple ID do aparelho, se for outra conta.
+            </Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary, marginTop: 8 }]}>
+              3) “Entrar com a Apple” no login do app usa sua Apple ID real; isso é separado da compra de teste.
+            </Text>
+            <TouchableOpacity
+              style={[styles.retryBtn, { backgroundColor: colors.primary, marginTop: 16, alignSelf: 'stretch' }]}
+              onPress={() => void confirmIosSandboxAndConnectStore()}
+            >
+              <Text style={styles.retryBtnText}>Estou pronto — carregar planos da App Store</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ marginTop: 14, alignSelf: 'center' }} onPress={() => void resetIosSandboxInstructions()}>
+              <Text style={{ fontSize: 13, color: colors.primary, fontWeight: '600' }}>Limpar confirmação e ver de novo</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {!loading && !error && Platform.OS === 'ios' && iosIapUserConfirmed && products.length === 0 ? (
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.emptyText, { color: colors.text, fontWeight: '700' }]}>
+              Se você deixou a conta sandbox logada em Ajustes → Compras / App Store
+            </Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary, marginTop: 6 }]}>
+              Saia dessa conta:{' '}
+              <Text style={{ fontWeight: '700', color: colors.text }}>Ajustes → [seu nome] → Compras na iTunes Store e App Store → Sair</Text>. Use sua Apple ID pessoal no iCloud ou fique sem login de compras. A sandbox entra{' '}
+              <Text style={{ fontWeight: '700', color: colors.text }}>só</Text> na janela que o iPhone abre ao carregar planos ou ao assinar. Assim evita pedir senha várias vezes e lista vazia.
+            </Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary, marginTop: 12 }]}>
+              Se os planos não aparecerem: aguarde ou{' '}
+              <Text style={{ fontWeight: '700', color: colors.text }}>puxe para atualizar</Text> / use o botão abaixo.
+            </Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary, marginTop: 10 }]}>
+              <Text style={{ fontWeight: '700', color: colors.text }}>“Nenhuma assinatura”</Text> na loja é normal até você{' '}
+              <Text style={{ fontWeight: '700', color: colors.text }}>concluir uma compra de teste</Text> (botão Assinar até o final). Só digitar senha ao abrir a tela não cria assinatura.
+            </Text>
+            <TouchableOpacity
+              style={[styles.retryBtn, { backgroundColor: colors.primary, marginTop: 12 }]}
+              onPress={() => {
+                setRefreshing(true);
+                void loadProducts({ skipFullScreenLoading: true });
+              }}
+            >
+              <Text style={styles.retryBtnText}>Atualizar loja agora</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {loading && (Platform.OS !== 'ios' || iosIapUserConfirmed) ? (
           <View style={styles.centered}>
             <ActivityIndicator color={colors.primary} />
             <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Carregando planos...</Text>
@@ -457,7 +680,7 @@ export default function AssinePremiumScreen() {
           </View>
         ) : null}
 
-        {!loading && !error
+        {!loading && !error && (Platform.OS !== 'ios' || iosIapUserConfirmed)
           ? PREMIUM_SKUS.map((sku) => {
               const product = products.find((item) => item.id === sku);
               const productName = product?.displayName || product?.title || PLAN_LABELS[sku] || sku;
@@ -554,7 +777,7 @@ export default function AssinePremiumScreen() {
         <TouchableOpacity
           style={[styles.restoreBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
           onPress={handleRestaurarCompras}
-          disabled={restoring}
+          disabled={restoring || (Platform.OS === 'ios' && !iosIapUserConfirmed)}
         >
           {restoring ? <ActivityIndicator color={colors.primary} /> : <Ionicons name="refresh" size={16} color={colors.primary} />}
           <Text style={[styles.restoreBtnText, { color: colors.text }]}>Restaurar compras</Text>
