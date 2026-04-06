@@ -98,6 +98,17 @@ function msToIso(ms: number | undefined): string | null {
   return new Date(ms).toISOString();
 }
 
+type JsonRecord = Record<string, unknown>;
+
+/** Preserva metadata do app (ex.: client_sync) e sobrepõe campos oficiais da Apple. */
+function mergeAppleServerMetadata(prev: unknown, layer: JsonRecord): JsonRecord {
+  const base =
+    prev && typeof prev === 'object' && prev !== null && !Array.isArray(prev)
+      ? { ...(prev as JsonRecord) }
+      : {};
+  return { ...base, ...layer };
+}
+
 async function syncUserPlanActive(
   userId: string,
   status: string,
@@ -246,24 +257,18 @@ serve(async (req) => {
       }
     }
 
-    const { data: existingTx } = await supabase
-      .from('user_subscriptions')
-      .select('id')
-      .eq('store_latest_transaction_id', transactionId)
-      .maybeSingle();
+    const appleMetaLayer: JsonRecord = {
+      source: 'apple_asn_v2',
+      apple_store_confirmed: true,
+      apple_confirmed_at_ms: Date.now(),
+      notificationType,
+      subtype: subtype ?? null,
+      notificationUUID: outer.notificationUUID ?? null,
+      environment: outer.data?.environment ?? null,
+      transaction: tx as unknown as JsonRecord,
+    };
 
-    if (existingTx) {
-      console.log('⚠️ Idempotente (transactionId):', transactionId);
-      return new Response('ok', { status: 200 });
-    }
-
-    const { data: existingSub } = await supabase
-      .from('user_subscriptions')
-      .select('id')
-      .eq('store_original_transaction_id', originalTransactionId)
-      .maybeSingle();
-
-    const row = {
+    const rowPayload = (metadata: JsonRecord) => ({
       user_id: userId,
       product_id: productId,
       billing_period: billingPeriodFromProductId(productId),
@@ -275,18 +280,42 @@ serve(async (req) => {
       store_original_transaction_id: originalTransactionId,
       store_latest_transaction_id: transactionId,
       auto_renew: autoRenew,
-      metadata: {
-        source: 'apple_asn_v2',
-        notificationType,
-        subtype: subtype ?? null,
-        notificationUUID: outer.notificationUUID ?? null,
-        environment: outer.data?.environment ?? null,
-        transaction: tx,
-      },
-    };
+      metadata,
+    });
+
+    const { data: existingByTx } = await supabase
+      .from('user_subscriptions')
+      .select('id, metadata')
+      .eq('store_latest_transaction_id', transactionId)
+      .maybeSingle();
+
+    if (existingByTx) {
+      const metadata = mergeAppleServerMetadata(existingByTx.metadata, appleMetaLayer);
+      const { error } = await supabase
+        .from('user_subscriptions')
+        .update(rowPayload(metadata))
+        .eq('id', existingByTx.id);
+      if (error) {
+        console.error('❌ Update (confirm por transactionId) user_subscriptions:', error.message);
+        return new Response('db error', { status: 500 });
+      }
+      console.log('✅ Apple confirmou registro já criado pelo app (mesmo transactionId)');
+      await syncUserPlanActive(userId, status, expiresAt);
+      return new Response('ok', { status: 200 });
+    }
+
+    const { data: existingSub } = await supabase
+      .from('user_subscriptions')
+      .select('id, metadata')
+      .eq('store_original_transaction_id', originalTransactionId)
+      .maybeSingle();
 
     if (existingSub) {
-      const { error } = await supabase.from('user_subscriptions').update(row).eq('id', existingSub.id);
+      const metadata = mergeAppleServerMetadata(existingSub.metadata, appleMetaLayer);
+      const { error } = await supabase
+        .from('user_subscriptions')
+        .update(rowPayload(metadata))
+        .eq('id', existingSub.id);
       if (error) {
         console.error('❌ Update user_subscriptions:', error.message);
         return new Response('db error', { status: 500 });
@@ -301,7 +330,8 @@ serve(async (req) => {
           .in('status', ['active', 'grace_period']);
       }
 
-      const { error } = await supabase.from('user_subscriptions').insert(row);
+      const metadata = mergeAppleServerMetadata({}, appleMetaLayer);
+      const { error } = await supabase.from('user_subscriptions').insert(rowPayload(metadata));
       if (error) {
         console.error('❌ Insert user_subscriptions:', error.message);
         return new Response('db error', { status: 500 });

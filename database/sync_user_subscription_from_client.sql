@@ -127,7 +127,9 @@ BEGIN
       auto_renew = COALESCE(p_auto_renew, TRUE),
       metadata = jsonb_build_object(
         'source', COALESCE(nullif(btrim(p_source), ''), 'client_sync'),
-        'purchaseTokenPresent', (p_purchase_token IS NOT NULL AND btrim(p_purchase_token) <> '')
+        'purchaseTokenPresent', (p_purchase_token IS NOT NULL AND btrim(p_purchase_token) <> ''),
+        'apple_store_confirmed', false,
+        'client_sync_at_ms', v_now_ms
       )
     WHERE id = v_existing_tx_id;
 
@@ -162,7 +164,9 @@ BEGIN
       auto_renew = COALESCE(p_auto_renew, TRUE),
       metadata = jsonb_build_object(
         'source', COALESCE(nullif(btrim(p_source), ''), 'client_sync'),
-        'purchaseTokenPresent', (p_purchase_token IS NOT NULL AND btrim(p_purchase_token) <> '')
+        'purchaseTokenPresent', (p_purchase_token IS NOT NULL AND btrim(p_purchase_token) <> ''),
+        'apple_store_confirmed', false,
+        'client_sync_at_ms', v_now_ms
       )
     WHERE id = v_existing_sub_id;
 
@@ -196,7 +200,9 @@ BEGIN
     COALESCE(p_auto_renew, TRUE),
     jsonb_build_object(
       'source', COALESCE(nullif(btrim(p_source), ''), 'client_sync'),
-      'purchaseTokenPresent', (p_purchase_token IS NOT NULL AND btrim(p_purchase_token) <> '')
+      'purchaseTokenPresent', (p_purchase_token IS NOT NULL AND btrim(p_purchase_token) <> ''),
+      'apple_store_confirmed', false,
+      'client_sync_at_ms', v_now_ms
     )
   );
 
@@ -232,4 +238,4 @@ GRANT EXECUTE ON FUNCTION public.sync_user_subscription_from_client(
 ) TO service_role;
 
 COMMENT ON FUNCTION public.sync_user_subscription_from_client IS
-  'Sincroniza compra/restauração IAP do app: grava user_subscriptions e atualiza users.plan_is_active.';
+  'Sincroniza compra/restauração IAP do app: grava user_subscriptions e atualiza users.plan_is_active. metadata.apple_store_confirmed=false até a Edge (ASN V2) confirmar.';
