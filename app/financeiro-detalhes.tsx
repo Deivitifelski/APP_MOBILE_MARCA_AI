@@ -22,6 +22,10 @@ import { supabase } from '../lib/supabase';
 import { getEventsByMonth } from '../services/supabase/eventService';
 import { generateFinanceiroDetalhesPdf } from '../services/financeiroDetalhesPdfService';
 import { getExpensesByEvent, getStandaloneExpensesByArtist } from '../services/supabase/expenseService';
+import {
+  checkUserSubscriptionFromTable,
+  consumeFinancialTrialAction,
+} from '../services/supabase/userService';
 
 const MONTHS = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -237,6 +241,42 @@ export default function FinanceiroDetalhesScreen() {
 
   const handleExportPdf = useCallback(async () => {
     if (!activeArtist || exportLockRef.current) return;
+    const { data: auth } = await supabase.auth.getUser();
+    const uid = auth.user?.id;
+    if (!uid) {
+      Alert.alert('Erro', 'Faça login novamente.');
+      return;
+    }
+    const { isActive, error: subErr } = await checkUserSubscriptionFromTable(uid);
+    if (subErr) {
+      Alert.alert('Erro', `Não foi possível verificar sua assinatura. ${subErr}`);
+      return;
+    }
+    if (!isActive) {
+      const consumed = await consumeFinancialTrialAction('export');
+      if (!consumed.ok) {
+        if (consumed.reason === 'exhausted_exports') {
+          Alert.alert(
+            'Assinatura Premium',
+            'Você já usou suas exportações financeiras gratuitas. Assine o Premium para exportar sem limite.',
+            [
+              { text: 'Agora não', style: 'cancel' },
+              { text: 'Ver Premium', onPress: () => router.push('/assine-premium') },
+            ],
+          );
+          return;
+        }
+        if (consumed.error === 'rpc_missing') {
+          Alert.alert(
+            'Configuração',
+            'O período de testes gratuito ainda não está ativo no servidor. Aplique o script database/free_financial_trial.sql no Supabase.',
+          );
+          return;
+        }
+        Alert.alert('Erro', consumed.error || 'Não foi possível liberar a exportação.');
+        return;
+      }
+    }
     exportLockRef.current = true;
     setExportingPdf(true);
     try {

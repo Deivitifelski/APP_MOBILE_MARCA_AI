@@ -34,6 +34,11 @@ import {
 } from '../../services/supabase/artistMonthRevenueGoalService';
 import { getEventsByMonth } from '../../services/supabase/eventService';
 import { deleteStandaloneExpense, getExpensesByEvent, getStandaloneExpensesByArtist } from '../../services/supabase/expenseService';
+import {
+  checkUserSubscriptionFromTable,
+  consumeFinancialTrialAction,
+  getFinancialTrialStatus,
+} from '../../services/supabase/userService';
 // import * as FileSystem from 'expo-file-system';
 
 interface EventWithExpenses {
@@ -281,6 +286,140 @@ export default function FinanceiroScreen() {
   };
 
 
+  const alertPremiumFinanceiro = (message: string) => {
+    Alert.alert('Assinatura Premium', message, [
+      { text: 'Agora não', style: 'cancel' },
+      { text: 'Ver Premium', onPress: () => router.push('/assine-premium') },
+    ]);
+  };
+
+  /** Abre o modal de exportação: Premium ou ainda há exportações trial. */
+  const ensureFinanceExportModalAllowed = async (userId: string): Promise<boolean> => {
+    const { isActive, error: subErr } = await checkUserSubscriptionFromTable(userId);
+    if (subErr) {
+      Alert.alert('Erro', `Não foi possível verificar sua assinatura. ${subErr}`);
+      return false;
+    }
+    if (isActive) return true;
+
+    const trial = await getFinancialTrialStatus();
+    if (trial.error === 'rpc_missing') {
+      Alert.alert(
+        'Configuração',
+        'O período de testes gratuito ainda não está ativo no servidor. Aplique o script database/free_financial_trial.sql no Supabase.',
+      );
+      return false;
+    }
+    if (trial.error) {
+      Alert.alert('Erro', `Não foi possível verificar o período de testes. ${trial.error}`);
+      return false;
+    }
+    if (trial.exportsRemaining > 0) return true;
+
+    alertPremiumFinanceiro(
+      'Você já usou suas exportações financeiras gratuitas. Assine o Premium para exportar relatórios sem limite.',
+    );
+    return false;
+  };
+
+  /** Antes de gerar PDF/cópia: Premium ou consome 1 exportação trial. */
+  const consumeExportTrialIfNeeded = async (userId: string): Promise<boolean> => {
+    const { isActive } = await checkUserSubscriptionFromTable(userId);
+    if (isActive) return true;
+
+    const consumed = await consumeFinancialTrialAction('export');
+    if (consumed.ok) return true;
+
+    if (consumed.reason === 'exhausted_exports') {
+      alertPremiumFinanceiro(
+        'Você já usou suas exportações financeiras gratuitas. Assine o Premium para exportar relatórios sem limite.',
+      );
+      return false;
+    }
+    if (consumed.error === 'rpc_missing') {
+      Alert.alert(
+        'Configuração',
+        'O período de testes gratuito ainda não está ativo no servidor. Aplique o script database/free_financial_trial.sql no Supabase.',
+      );
+      return false;
+    }
+    if (consumed.error) {
+      Alert.alert('Erro', consumed.error);
+      return false;
+    }
+    alertPremiumFinanceiro(
+      'Não foi possível liberar a exportação. Assine o Premium para exportar relatórios sem limite.',
+    );
+    return false;
+  };
+
+  const openFinanceDetails = async () => {
+    if (!activeArtist) return;
+    const { data: auth } = await supabase.auth.getUser();
+    const uid = auth.user?.id;
+    if (!uid) {
+      Alert.alert('Erro', 'Faça login novamente.');
+      return;
+    }
+
+    const { isActive, error: subErr } = await checkUserSubscriptionFromTable(uid);
+    if (subErr) {
+      Alert.alert('Erro', `Não foi possível verificar sua assinatura. ${subErr}`);
+      return;
+    }
+    if (isActive) {
+      router.push({
+        pathname: '/financeiro-detalhes',
+        params: { month: String(currentMonth), year: String(currentYear) },
+      });
+      return;
+    }
+
+    const trial = await getFinancialTrialStatus();
+    if (trial.error === 'rpc_missing') {
+      Alert.alert(
+        'Configuração',
+        'O período de testes gratuito ainda não está ativo no servidor. Aplique o script database/free_financial_trial.sql no Supabase.',
+      );
+      return;
+    }
+    if (trial.error) {
+      Alert.alert('Erro', `Não foi possível verificar o período de testes. ${trial.error}`);
+      return;
+    }
+
+    if (trial.detailOpensRemaining <= 0) {
+      alertPremiumFinanceiro(
+        'Você já usou suas visitas gratuitas aos detalhes financeiros. Assine o Premium para acesso ilimitado.',
+      );
+      return;
+    }
+
+    const cons = await consumeFinancialTrialAction('detail_open');
+    if (!cons.ok) {
+      if (cons.reason === 'exhausted_details') {
+        alertPremiumFinanceiro(
+          'Você já usou suas visitas gratuitas aos detalhes financeiros. Assine o Premium para acesso ilimitado.',
+        );
+        return;
+      }
+      if (cons.error === 'rpc_missing') {
+        Alert.alert(
+          'Configuração',
+          'O período de testes gratuito ainda não está ativo no servidor. Aplique o script database/free_financial_trial.sql no Supabase.',
+        );
+        return;
+      }
+      Alert.alert('Erro', cons.error || 'Não foi possível abrir os detalhes.');
+      return;
+    }
+
+    router.push({
+      pathname: '/financeiro-detalhes',
+      params: { month: String(currentMonth), year: String(currentYear) },
+    });
+  };
+
   const handleExportFinancialReport = async () => {
     if (!activeArtist || events.length === 0) {
       Alert.alert('Aviso', 'Não há eventos para exportar neste mês.');
@@ -292,12 +431,20 @@ export default function FinanceiroScreen() {
       return;
     }
 
+    if (!(await ensureFinanceExportModalAllowed(currentUserId))) return;
+
     setShowExportModal(true);
   };
 
   const generateReport = async (includeFinancials: boolean) => {
     if (!activeArtist) return;
-    
+
+    if (!currentUserId) {
+      Alert.alert('Erro', 'Usuário não encontrado. Faça login novamente.');
+      return;
+    }
+    if (!(await consumeExportTrialIfNeeded(currentUserId))) return;
+
     setShowExportModal(false);
     
     // Separar despesas (valor > 0) e receitas (valor < 0)
@@ -341,9 +488,15 @@ export default function FinanceiroScreen() {
     }
   };
 
-  const copyAsText = (includeFinancials: boolean) => {
+  const copyAsText = async (includeFinancials: boolean) => {
     if (!activeArtist) return;
-    
+
+    if (!currentUserId) {
+      Alert.alert('Erro', 'Usuário não encontrado. Faça login novamente.');
+      return;
+    }
+    if (!(await consumeExportTrialIfNeeded(currentUserId))) return;
+
     setShowExportModal(false);
 
     // Obter dia da semana
@@ -854,12 +1007,7 @@ export default function FinanceiroScreen() {
           <View style={styles.goalSection}>
             <TouchableOpacity
               style={[styles.detailsButton, { backgroundColor: colors.primary + '18' }]}
-              onPress={() =>
-                router.push({
-                  pathname: '/financeiro-detalhes',
-                  params: { month: String(currentMonth), year: String(currentYear) },
-                })
-              }
+              onPress={() => void openFinanceDetails()}
               activeOpacity={0.85}
             >
               <View style={[styles.detailsButtonIconCircle, { backgroundColor: colors.primary + '28' }]}>
@@ -1309,7 +1457,7 @@ export default function FinanceiroScreen() {
                 
                 <TouchableOpacity
                   style={[styles.exportOptionCard, { backgroundColor: colors.background, borderColor: colors.border }]}
-                  onPress={() => copyAsText(true)}
+                  onPress={() => void copyAsText(true)}
                 >
                   <View style={[styles.exportOptionIconCircle, { backgroundColor: '#25D366' + '15' }]}>
                     <Ionicons name="copy" size={24} color="#25D366" />
@@ -1327,7 +1475,7 @@ export default function FinanceiroScreen() {
 
                 <TouchableOpacity
                   style={[styles.exportOptionCard, { backgroundColor: colors.background, borderColor: colors.border }]}
-                  onPress={() => copyAsText(false)}
+                  onPress={() => void copyAsText(false)}
                 >
                   <View style={[styles.exportOptionIconCircle, { backgroundColor: '#25D366' + '15' }]}>
                     <Ionicons name="list" size={24} color="#25D366" />

@@ -254,6 +254,161 @@ export const userSubscriptionIsActive = async (
   }
 };
 
+export type UserSubscriptionTableCheck = {
+  isActive: boolean;
+  status: string | null;
+  error: string | null;
+};
+
+/**
+ * Consulta direta em `user_subscriptions` (colunas status e expires_at), ideal para checagem no toque do botão.
+ * Vigente: status `active` ou `grace_period` e `expires_at` nulo ou no futuro.
+ */
+export const checkUserSubscriptionFromTable = async (
+  userId: string,
+): Promise<UserSubscriptionTableCheck> => {
+  try {
+    const { data, error } = await supabase
+      .from('user_subscriptions')
+      .select('status, expires_at')
+      .eq('user_id', userId)
+      .in('status', ['active', 'grace_period'])
+      .maybeSingle();
+
+    if (error) {
+      return { isActive: false, status: null, error: error.message };
+    }
+    if (!data) {
+      return { isActive: false, status: null, error: null };
+    }
+    const expiresOk = !data.expires_at || new Date(data.expires_at) > new Date();
+    const statusOk = data.status === 'active' || data.status === 'grace_period';
+    return {
+      isActive: Boolean(statusOk && expiresOk),
+      status: data.status,
+      error: null,
+    };
+  } catch {
+    return { isActive: false, status: null, error: 'Erro de conexão' };
+  }
+};
+
+/** Limite de exportações financeiras (PDF/cópia) no trial antes do Premium. */
+export const FREE_FINANCE_TRIAL_EXPORT_LIMIT = 3;
+
+/** Limite de aberturas da tela de detalhes financeiros no trial antes do Premium. */
+export const FREE_FINANCE_TRIAL_DETAIL_OPEN_LIMIT = 3;
+
+export type FinancialTrialKind = 'export' | 'detail_open';
+
+export type FinancialTrialStatus = {
+  premium: boolean;
+  exportsUsed: number;
+  exportsLimit: number;
+  exportsRemaining: number;
+  detailOpensUsed: number;
+  detailOpensLimit: number;
+  detailOpensRemaining: number;
+  error: string | null;
+};
+
+const emptyFinancialTrialStatus = (error: string | null): FinancialTrialStatus => ({
+  premium: false,
+  exportsUsed: 0,
+  exportsLimit: FREE_FINANCE_TRIAL_EXPORT_LIMIT,
+  exportsRemaining: 0,
+  detailOpensUsed: 0,
+  detailOpensLimit: FREE_FINANCE_TRIAL_DETAIL_OPEN_LIMIT,
+  detailOpensRemaining: 0,
+  error,
+});
+
+/**
+ * Lê contadores de trial em `users` + Premium em `user_subscriptions` (via RPC no Supabase).
+ * Requer script `database/free_financial_trial.sql` aplicado no projeto.
+ */
+export const getFinancialTrialStatus = async (): Promise<FinancialTrialStatus> => {
+  try {
+    const { data, error } = await supabase.rpc('get_financial_trial_status');
+    if (error) {
+      const msg = error.message || '';
+      const code = (error as { code?: string }).code;
+      if (
+        code === 'PGRST202' ||
+        code === '42883' ||
+        msg.includes('get_financial_trial_status') ||
+        msg.includes('does not exist') ||
+        msg.includes('42883')
+      ) {
+        return emptyFinancialTrialStatus('rpc_missing');
+      }
+      return emptyFinancialTrialStatus(msg);
+    }
+    if (!data || typeof data !== 'object') {
+      return emptyFinancialTrialStatus('Resposta inválida do servidor');
+    }
+    const j = data as Record<string, unknown>;
+    if (j.error === 'not_authed') {
+      return emptyFinancialTrialStatus('Sessão expirada');
+    }
+    return {
+      premium: j.premium === true,
+      exportsUsed: Number(j.exportsUsed) || 0,
+      exportsLimit: Number(j.exportsLimit) || FREE_FINANCE_TRIAL_EXPORT_LIMIT,
+      exportsRemaining: Number(j.exportsRemaining) || 0,
+      detailOpensUsed: Number(j.detailOpensUsed) || 0,
+      detailOpensLimit: Number(j.detailOpensLimit) || FREE_FINANCE_TRIAL_DETAIL_OPEN_LIMIT,
+      detailOpensRemaining: Number(j.detailOpensRemaining) || 0,
+      error: null,
+    };
+  } catch {
+    return emptyFinancialTrialStatus('Erro de conexão');
+  }
+};
+
+export type ConsumeFinancialTrialResult = {
+  ok: boolean;
+  reason?: string;
+  remaining?: number;
+  error?: string | null;
+};
+
+/** Consome 1 uso do trial (`export` ou `detail_open`); usuários Premium não alteram contadores. */
+export const consumeFinancialTrialAction = async (
+  kind: FinancialTrialKind,
+): Promise<ConsumeFinancialTrialResult> => {
+  try {
+    const { data, error } = await supabase.rpc('consume_financial_trial_action', {
+      p_kind: kind,
+    });
+    if (error) {
+      const msg = error.message || '';
+      const code = (error as { code?: string }).code;
+      if (
+        code === 'PGRST202' ||
+        code === '42883' ||
+        msg.includes('consume_financial_trial_action') ||
+        msg.includes('does not exist')
+      ) {
+        return { ok: false, error: 'rpc_missing' };
+      }
+      return { ok: false, error: error.message };
+    }
+    if (!data || typeof data !== 'object') {
+      return { ok: false, error: 'Resposta inválida' };
+    }
+    const j = data as Record<string, unknown>;
+    return {
+      ok: j.ok === true,
+      reason: typeof j.reason === 'string' ? j.reason : undefined,
+      remaining: typeof j.remaining === 'number' ? j.remaining : undefined,
+      error: null,
+    };
+  } catch {
+    return { ok: false, error: 'Erro de conexão' };
+  }
+};
+
 /** Algum admin/owner do artista com assinatura ativa em `user_subscriptions` libera time ilimitado. */
 export const artistTeamHasPremiumQuota = async (
   artistId: string,
@@ -377,7 +532,7 @@ export interface CanCreateArtistResult {
 export const canCreateArtist = async (userId: string): Promise<CanCreateArtistResult> => {
   try {
     const { profile, error: profileError } = await getUserProfile(userId);
-    const { active: isPremium, error: subErr } = await userSubscriptionIsActive(userId);
+    const { isActive: isPremium, error: subErr } = await checkUserSubscriptionFromTable(userId);
     if (subErr) {
       console.warn('⚠️ [canCreateArtist] user_subscriptions:', subErr);
     }
@@ -412,9 +567,19 @@ export const canCreateArtist = async (userId: string): Promise<CanCreateArtistRe
   }
 };
 
-// Verificar se o usuário pode exportar dados (todos os recursos liberados)
+// Premium ou ainda com exportações trial (RPC get_financial_trial_status)
 export const canExportData = async (userId: string): Promise<{ canExport: boolean; error: string | null }> => {
-  return { canExport: true, error: null };
+  const { isActive, error: subErr } = await checkUserSubscriptionFromTable(userId);
+  if (subErr) return { canExport: false, error: subErr };
+  if (isActive) return { canExport: true, error: null };
+  const trial = await getFinancialTrialStatus();
+  if (trial.error && trial.error !== 'rpc_missing') {
+    return { canExport: false, error: trial.error };
+  }
+  if (trial.error === 'rpc_missing') {
+    return { canExport: false, error: 'Trial financeiro não configurado no servidor' };
+  }
+  return { canExport: trial.exportsRemaining > 0, error: null };
 };
 
 // Salvar ou atualizar token FCM do usuário
