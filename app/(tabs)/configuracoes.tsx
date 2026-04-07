@@ -617,7 +617,8 @@ export default function ConfiguracoesScreen() {
     title: string,
     subtitle?: string,
     onPress?: () => void,
-    rightComponent?: React.ReactNode
+    rightComponent?: React.ReactNode,
+    iconColor?: string
   ) => (
     <TouchableOpacity
       style={dynamicStyles.settingItem}
@@ -626,7 +627,7 @@ export default function ConfiguracoesScreen() {
     >
       <View style={dynamicStyles.settingLeft}>
         <View style={dynamicStyles.settingIcon}>
-          <Ionicons name={icon as any} size={20} color="#667eea" />
+          <Ionicons name={icon as any} size={20} color={iconColor ?? '#667eea'} />
         </View>
         <View style={dynamicStyles.settingText}>
           <Text style={dynamicStyles.settingTitle}>{title}</Text>
@@ -825,11 +826,13 @@ export default function ConfiguracoesScreen() {
           <View style={dynamicStyles.settingsCard}>
             {renderSettingItem(
               'diamond',
-              premiumEntitlementActive ? 'Plano Premium' : 'Assine Premium',
+              premiumEntitlementActive ? 'Conta Premium' : 'Assine Premium',
               premiumEntitlementActive
-                ? 'Ativo — todos os recursos liberados'
+                ? 'Plano ativo — todos os recursos liberados'
                 : 'Ver planos mensal e anual',
-              () => router.push('/assine-premium')
+              () => router.push('/assine-premium'),
+              undefined,
+              premiumEntitlementActive ? '#D97706' : undefined
             )}
 
             {renderSettingItem(

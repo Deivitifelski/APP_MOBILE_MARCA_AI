@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PermissionModal from '../../components/PermissionModal';
+import PremiumTrialUpsellModal from '../../components/PremiumTrialUpsellModal';
 import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { formatCalendarDate } from '../../lib/dateUtils';
@@ -73,6 +74,11 @@ export default function FinanceiroScreen() {
   const [monthRevenueGoal, setMonthRevenueGoal] = useState<number | null>(null);
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [goalInputText, setGoalInputText] = useState('');
+  const [premiumTrialModal, setPremiumTrialModal] = useState<{
+    visible: boolean;
+    message: string;
+    title?: string;
+  }>({ visible: false, message: '' });
 
   const currentMonth = selectedDate.getMonth();
   const currentYear = selectedDate.getFullYear();
@@ -286,11 +292,12 @@ export default function FinanceiroScreen() {
   };
 
 
-  const alertPremiumFinanceiro = (message: string) => {
-    Alert.alert('Assinatura Premium', message, [
-      { text: 'Agora não', style: 'cancel' },
-      { text: 'Ver Premium', onPress: () => router.push('/assine-premium') },
-    ]);
+  const openPremiumTrialModal = (message: string, title?: string) => {
+    setPremiumTrialModal({ visible: true, message, title });
+  };
+
+  const closePremiumTrialModal = () => {
+    setPremiumTrialModal((s) => ({ ...s, visible: false }));
   };
 
   /** Abre o modal de exportação: Premium ou ainda há exportações trial. */
@@ -316,8 +323,9 @@ export default function FinanceiroScreen() {
     }
     if (trial.exportsRemaining > 0) return true;
 
-    alertPremiumFinanceiro(
-      'Você já usou suas exportações financeiras gratuitas. Assine o Premium para exportar relatórios sem limite.',
+    openPremiumTrialModal(
+      'Você usou todas as exportações incluídas no período de testes. Com o Premium você gera PDFs e relatórios em texto sem limite.',
+      'Exportações gratuitas esgotadas',
     );
     return false;
   };
@@ -331,8 +339,9 @@ export default function FinanceiroScreen() {
     if (consumed.ok) return true;
 
     if (consumed.reason === 'exhausted_exports') {
-      alertPremiumFinanceiro(
-        'Você já usou suas exportações financeiras gratuitas. Assine o Premium para exportar relatórios sem limite.',
+      openPremiumTrialModal(
+        'Você usou todas as exportações incluídas no período de testes. Com o Premium você gera PDFs e relatórios em texto sem limite.',
+        'Exportações gratuitas esgotadas',
       );
       return false;
     }
@@ -347,8 +356,9 @@ export default function FinanceiroScreen() {
       Alert.alert('Erro', consumed.error);
       return false;
     }
-    alertPremiumFinanceiro(
-      'Não foi possível liberar a exportação. Assine o Premium para exportar relatórios sem limite.',
+    openPremiumTrialModal(
+      'Não foi possível concluir esta exportação. Assine o Premium para continuar exportando relatórios sem limite.',
+      'Premium necessário',
     );
     return false;
   };
@@ -389,8 +399,9 @@ export default function FinanceiroScreen() {
     }
 
     if (trial.detailOpensRemaining <= 0) {
-      alertPremiumFinanceiro(
-        'Você já usou suas visitas gratuitas aos detalhes financeiros. Assine o Premium para acesso ilimitado.',
+      openPremiumTrialModal(
+        'Você usou todas as aberturas gratuitas da tela de detalhes. Com o Premium você acessa gráficos e análises sempre que quiser.',
+        'Visualizações gratuitas esgotadas',
       );
       return;
     }
@@ -398,8 +409,9 @@ export default function FinanceiroScreen() {
     const cons = await consumeFinancialTrialAction('detail_open');
     if (!cons.ok) {
       if (cons.reason === 'exhausted_details') {
-        alertPremiumFinanceiro(
-          'Você já usou suas visitas gratuitas aos detalhes financeiros. Assine o Premium para acesso ilimitado.',
+        openPremiumTrialModal(
+          'Você usou todas as aberturas gratuitas da tela de detalhes. Com o Premium você acessa gráficos e análises sempre que quiser.',
+          'Visualizações gratuitas esgotadas',
         );
         return;
       }
@@ -1308,6 +1320,14 @@ export default function FinanceiroScreen() {
         title="Acesso Restrito"
         message="Apenas gerentes e editores podem visualizar os detalhes e valores financeiros dos eventos. Entre em contato com um gerente para solicitar mais permissões."
         icon="lock-closed"
+      />
+
+      <PremiumTrialUpsellModal
+        visible={premiumTrialModal.visible}
+        onClose={closePremiumTrialModal}
+        onSubscribe={() => router.push('/assine-premium')}
+        message={premiumTrialModal.message}
+        title={premiumTrialModal.title}
       />
 
       <Modal

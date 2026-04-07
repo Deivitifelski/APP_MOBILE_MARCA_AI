@@ -1,14 +1,40 @@
 -- =====================================================
 -- Trial gratuito: exportar financeiro e abrir detalhes
 -- Execute no SQL Editor do Supabase após deploy do app.
+--
+-- Segurança:
+-- - Contadores ficam em public.users (só sobem via consume_financial_trial_action).
+-- - Limites (ex.: 3) ficam em marcaai_financial_trial_settings — sem GRANT para
+--   anon/authenticated: o app não lê nem altera por REST; só as RPCs SECURITY DEFINER.
+--   Ajuste os limites com SQL no painel (service_role / owner).
 -- =====================================================
 
 ALTER TABLE public.users
   ADD COLUMN IF NOT EXISTS free_financial_trial_exports_used integer NOT NULL DEFAULT 0 CHECK (free_financial_trial_exports_used >= 0),
   ADD COLUMN IF NOT EXISTS free_financial_trial_detail_opens_used integer NOT NULL DEFAULT 0 CHECK (free_financial_trial_detail_opens_used >= 0);
 
-COMMENT ON COLUMN public.users.free_financial_trial_exports_used IS 'Contador de exportações financeiras (PDF/cópia) no trial gratuito.';
-COMMENT ON COLUMN public.users.free_financial_trial_detail_opens_used IS 'Contador de aberturas da tela de detalhes financeiros no trial gratuito.';
+COMMENT ON COLUMN public.users.free_financial_trial_exports_used IS 'Contador de exportações financeiras (PDF/cópia) no trial gratuito; alterar só via consume_financial_trial_action.';
+COMMENT ON COLUMN public.users.free_financial_trial_detail_opens_used IS 'Contador de aberturas da tela de detalhes no trial gratuito; alterar só via consume_financial_trial_action.';
+
+-- Uma linha (id=1). Editável só por admin SQL / service_role — não pelo app cliente.
+CREATE TABLE IF NOT EXISTS public.marcaai_financial_trial_settings (
+  id smallint PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  export_limit integer NOT NULL DEFAULT 3 CHECK (export_limit >= 0 AND export_limit <= 999),
+  detail_open_limit integer NOT NULL DEFAULT 3 CHECK (detail_open_limit >= 0 AND detail_open_limit <= 999),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+INSERT INTO public.marcaai_financial_trial_settings (id, export_limit, detail_open_limit)
+VALUES (1, 3, 3)
+ON CONFLICT (id) DO NOTHING;
+
+ALTER TABLE public.marcaai_financial_trial_settings ENABLE ROW LEVEL SECURITY;
+
+COMMENT ON TABLE public.marcaai_financial_trial_settings IS 'Limites do trial financeiro (servidor). Sem acesso REST para usuários; use SQL no Supabase para mudar.';
+
+REVOKE ALL ON TABLE public.marcaai_financial_trial_settings FROM PUBLIC;
+REVOKE ALL ON TABLE public.marcaai_financial_trial_settings FROM anon;
+REVOKE ALL ON TABLE public.marcaai_financial_trial_settings FROM authenticated;
 
 CREATE OR REPLACE FUNCTION public.get_financial_trial_status()
 RETURNS jsonb
@@ -22,10 +48,25 @@ DECLARE
   premium boolean;
   exu int;
   dou int;
-  lim int := 3;
+  lim_ex int;
+  lim_det int;
 BEGIN
   IF uid IS NULL THEN
     RETURN jsonb_build_object('error', 'not_authed');
+  END IF;
+
+  lim_ex := 3;
+  lim_det := 3;
+  SELECT s.export_limit, s.detail_open_limit
+  INTO lim_ex, lim_det
+  FROM public.marcaai_financial_trial_settings s
+  WHERE s.id = 1;
+  IF NOT FOUND THEN
+    lim_ex := 3;
+    lim_det := 3;
+  ELSE
+    lim_ex := COALESCE(lim_ex, 3);
+    lim_det := COALESCE(lim_det, 3);
   END IF;
 
   SELECT EXISTS (
@@ -48,11 +89,11 @@ BEGIN
   RETURN jsonb_build_object(
     'premium', premium,
     'exportsUsed', exu,
-    'exportsLimit', lim,
-    'exportsRemaining', GREATEST(0, lim - exu),
+    'exportsLimit', lim_ex,
+    'exportsRemaining', GREATEST(0, lim_ex - exu),
     'detailOpensUsed', dou,
-    'detailOpensLimit', lim,
-    'detailOpensRemaining', GREATEST(0, lim - dou)
+    'detailOpensLimit', lim_det,
+    'detailOpensRemaining', GREATEST(0, lim_det - dou)
   );
 END;
 $$;
@@ -68,7 +109,8 @@ DECLARE
   premium boolean;
   exu int;
   dou int;
-  lim int := 3;
+  lim_ex int;
+  lim_det int;
 BEGIN
   IF uid IS NULL THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'not_authed');
@@ -76,6 +118,20 @@ BEGIN
 
   IF p_kind IS NULL OR p_kind NOT IN ('export', 'detail_open') THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'invalid_kind');
+  END IF;
+
+  lim_ex := 3;
+  lim_det := 3;
+  SELECT s.export_limit, s.detail_open_limit
+  INTO lim_ex, lim_det
+  FROM public.marcaai_financial_trial_settings s
+  WHERE s.id = 1;
+  IF NOT FOUND THEN
+    lim_ex := 3;
+    lim_det := 3;
+  ELSE
+    lim_ex := COALESCE(lim_ex, 3);
+    lim_det := COALESCE(lim_det, 3);
   END IF;
 
   SELECT EXISTS (
@@ -103,7 +159,7 @@ BEGIN
   END IF;
 
   IF p_kind = 'export' THEN
-    IF exu >= lim THEN
+    IF exu >= lim_ex THEN
       RETURN jsonb_build_object('ok', false, 'reason', 'exhausted_exports');
     END IF;
     UPDATE public.users
@@ -111,10 +167,10 @@ BEGIN
       free_financial_trial_exports_used = exu + 1,
       updated_at = now()
     WHERE id = uid;
-    RETURN jsonb_build_object('ok', true, 'reason', 'trial', 'remaining', lim - exu - 1);
+    RETURN jsonb_build_object('ok', true, 'reason', 'trial', 'remaining', lim_ex - exu - 1);
   END IF;
 
-  IF dou >= lim THEN
+  IF dou >= lim_det THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'exhausted_details');
   END IF;
   UPDATE public.users
@@ -122,7 +178,7 @@ BEGIN
     free_financial_trial_detail_opens_used = dou + 1,
     updated_at = now()
   WHERE id = uid;
-  RETURN jsonb_build_object('ok', true, 'reason', 'trial', 'remaining', lim - dou - 1);
+  RETURN jsonb_build_object('ok', true, 'reason', 'trial', 'remaining', lim_det - dou - 1);
 END;
 $$;
 
@@ -132,5 +188,5 @@ GRANT EXECUTE ON FUNCTION public.get_financial_trial_status() TO authenticated;
 REVOKE ALL ON FUNCTION public.consume_financial_trial_action(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.consume_financial_trial_action(text) TO authenticated;
 
-COMMENT ON FUNCTION public.get_financial_trial_status() IS 'Retorna premium (user_subscriptions) e usos restantes do trial de export/detalhes financeiros.';
-COMMENT ON FUNCTION public.consume_financial_trial_action(text) IS 'Consome 1 uso do trial (export ou detail_open); premium não incrementa contadores.';
+COMMENT ON FUNCTION public.get_financial_trial_status() IS 'Retorna premium (user_subscriptions) e usos restantes; limites lidos de marcaai_financial_trial_settings.';
+COMMENT ON FUNCTION public.consume_financial_trial_action(text) IS 'Consome 1 uso do trial (export ou detail_open); premium não incrementa contadores. Limites no servidor.';

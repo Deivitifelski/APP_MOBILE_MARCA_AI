@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import FinancialPieChart, { PieSlice } from '../components/FinancialPieChart';
+import PremiumTrialUpsellModal from '../components/PremiumTrialUpsellModal';
 import { useActiveArtistContext } from '../contexts/ActiveArtistContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { formatCalendarDate } from '../lib/dateUtils';
@@ -58,6 +59,11 @@ export default function FinanceiroDetalhesScreen() {
   const [exportingPdf, setExportingPdf] = useState(false);
   const exportLockRef = useRef(false);
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+  const [premiumTrialModal, setPremiumTrialModal] = useState<{
+    visible: boolean;
+    message: string;
+    title?: string;
+  }>({ visible: false, message: '' });
   const checkAccess = useCallback(async () => {
     if (!activeArtist) {
       setHasAccess(null);
@@ -256,14 +262,12 @@ export default function FinanceiroDetalhesScreen() {
       const consumed = await consumeFinancialTrialAction('export');
       if (!consumed.ok) {
         if (consumed.reason === 'exhausted_exports') {
-          Alert.alert(
-            'Assinatura Premium',
-            'Você já usou suas exportações financeiras gratuitas. Assine o Premium para exportar sem limite.',
-            [
-              { text: 'Agora não', style: 'cancel' },
-              { text: 'Ver Premium', onPress: () => router.push('/assine-premium') },
-            ],
-          );
+          setPremiumTrialModal({
+            visible: true,
+            message:
+              'Você usou todas as exportações incluídas no período de testes. Com o Premium você gera PDFs dos detalhes financeiros sem limite.',
+            title: 'Exportações gratuitas esgotadas',
+          });
           return;
         }
         if (consumed.error === 'rpc_missing') {
@@ -557,6 +561,14 @@ export default function FinanceiroDetalhesScreen() {
           </View>
         </ScrollView>
       )}
+
+      <PremiumTrialUpsellModal
+        visible={premiumTrialModal.visible}
+        onClose={() => setPremiumTrialModal((s) => ({ ...s, visible: false }))}
+        onSubscribe={() => router.push('/assine-premium')}
+        message={premiumTrialModal.message}
+        title={premiumTrialModal.title}
+      />
     </SafeAreaView>
   );
 }
