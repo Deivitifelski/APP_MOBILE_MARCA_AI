@@ -1196,6 +1196,13 @@ export default function AgendaScreen() {
     return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
+  const hasDisplayableEventValue = (value: unknown) => {
+    if (value === null || value === undefined || value === '') return false;
+    const n = typeof value === 'string' ? parseFloat(value) : Number(value);
+    if (!Number.isFinite(n)) return false;
+    return n > 0;
+  };
+
   const handleOpenParticipantsModal = (item: any) => {
     const full = participantAvatarsByEventId[item.id];
     if (full && full.length > 0) {
@@ -1322,16 +1329,11 @@ export default function AgendaScreen() {
 
               <View style={[styles.showFooterRow, { borderTopColor: colors.border }]}>
                 <View style={styles.showValueLeft}>
-                  {item.value !== null && item.value !== undefined ? (
+                  {hasDisplayableEventValue(item.value) ? (
                     <Text style={[styles.showValue, { color: colors.primary }]} numberOfLines={1}>
                       {formatEventValueBRL(item.value)}
                     </Text>
-                  ) : (
-                    <View style={styles.lockedValueContainer}>
-                      <Ionicons name="lock-closed" size={12} color={colors.textSecondary} />
-                      <Text style={[styles.lockedValueText, { color: colors.textSecondary }]}>Valor oculto</Text>
-                    </View>
-                  )}
+                  ) : null}
                 </View>
                 <View style={styles.showFooterRight}>
                   {collabAvatars.length > 0 ? (
