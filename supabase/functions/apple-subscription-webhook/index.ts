@@ -286,6 +286,7 @@ serve(async (req) => {
     const { data: existingByTx } = await supabase
       .from('user_subscriptions')
       .select('id, metadata')
+      .eq('user_id', userId)
       .eq('store_latest_transaction_id', transactionId)
       .maybeSingle();
 
@@ -307,6 +308,7 @@ serve(async (req) => {
     const { data: existingSub } = await supabase
       .from('user_subscriptions')
       .select('id, metadata')
+      .eq('user_id', userId)
       .eq('store_original_transaction_id', originalTransactionId)
       .maybeSingle();
 
@@ -320,23 +322,47 @@ serve(async (req) => {
         console.error('❌ Update user_subscriptions:', error.message);
         return new Response('db error', { status: 500 });
       }
-      console.log('🔄 Assinatura atualizada');
+      console.log('🔄 Assinatura atualizada (original_transaction_id)');
     } else {
-      if (status === 'active' || status === 'grace_period') {
-        await supabase
-          .from('user_subscriptions')
-          .update({ status: 'expired' })
-          .eq('user_id', userId)
-          .in('status', ['active', 'grace_period']);
-      }
+      // Mesmo registro do app: original ainda NULL/divergente ou múltiplas linhas quebraram maybeSingle antes
+      const { data: consolidateRow } = await supabase
+        .from('user_subscriptions')
+        .select('id, metadata')
+        .eq('user_id', userId)
+        .eq('platform', 'ios')
+        .in('status', ['active', 'grace_period', 'pending'])
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      const metadata = mergeAppleServerMetadata({}, appleMetaLayer);
-      const { error } = await supabase.from('user_subscriptions').insert(rowPayload(metadata));
-      if (error) {
-        console.error('❌ Insert user_subscriptions:', error.message);
-        return new Response('db error', { status: 500 });
+      if (consolidateRow) {
+        const metadata = mergeAppleServerMetadata(consolidateRow.metadata, appleMetaLayer);
+        const { error } = await supabase
+          .from('user_subscriptions')
+          .update(rowPayload(metadata))
+          .eq('id', consolidateRow.id);
+        if (error) {
+          console.error('❌ Update user_subscriptions (consolidado iOS):', error.message);
+          return new Response('db error', { status: 500 });
+        }
+        console.log('🔄 Assinatura consolidada na linha iOS existente do usuário (evita duplicata)');
+      } else {
+        if (status === 'active' || status === 'grace_period') {
+          await supabase
+            .from('user_subscriptions')
+            .update({ status: 'expired' })
+            .eq('user_id', userId)
+            .in('status', ['active', 'grace_period']);
+        }
+
+        const metadata = mergeAppleServerMetadata({}, appleMetaLayer);
+        const { error } = await supabase.from('user_subscriptions').insert(rowPayload(metadata));
+        if (error) {
+          console.error('❌ Insert user_subscriptions:', error.message);
+          return new Response('db error', { status: 500 });
+        }
+        console.log('🆕 Assinatura criada');
       }
-      console.log('🆕 Assinatura criada');
     }
 
     await syncUserPlanActive(userId, status, expiresAt);
