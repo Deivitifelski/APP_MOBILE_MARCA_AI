@@ -522,6 +522,20 @@ export default function AssinePremiumScreen() {
     }
   };
 
+  const handleManageSubscription = useCallback(async () => {
+    try {
+      await deepLinkToSubscriptions({
+        packageNameAndroid: 'com.organizei.marcaai',
+        skuAndroid: activeSku ?? MONTHLY_SKU,
+      });
+    } catch {
+      Alert.alert(
+        'Nao foi possivel abrir assinaturas',
+        'Para cancelar ou alterar seu plano, abra as assinaturas da App Store/Google Play.',
+      );
+    }
+  }, [activeSku]);
+
   const monthlyProduct = products.find((item) => item.id === MONTHLY_SKU);
   const annualProduct = products.find((item) => item.id === ANNUAL_SKU);
   const annualSavingsPercent = getAnnualSavingsPercent(monthlyProduct, annualProduct);
@@ -549,6 +563,15 @@ export default function AssinePremiumScreen() {
               <Text style={[styles.premiumActiveTitle, { color: colors.text }]}>Plano Premium ativo</Text>
               <Text style={[styles.premiumActiveSub, { color: colors.textSecondary }]}>
                 Todos os recursos estão liberados na sua conta. Você pode gerenciar a cobrança na loja pelo plano contratado.
+              </Text>
+              <TouchableOpacity
+                style={[styles.manageSubscriptionBtn, { backgroundColor: colors.primary }]}
+                onPress={() => void handleManageSubscription()}
+              >
+                <Text style={styles.manageSubscriptionBtnText}>Gerenciar ou cancelar assinatura</Text>
+              </TouchableOpacity>
+              <Text style={[styles.manageSubscriptionHint, { color: colors.textSecondary }]}>
+                O cancelamento e feito diretamente na App Store ou Google Play.
               </Text>
             </View>
           </View>
@@ -805,6 +828,24 @@ const styles = StyleSheet.create({
   premiumActiveBannerText: { flex: 1, gap: 4 },
   premiumActiveTitle: { fontSize: 16, fontWeight: '800' },
   premiumActiveSub: { fontSize: 13, lineHeight: 18 },
+  manageSubscriptionBtn: {
+    marginTop: 8,
+    minHeight: 38,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'flex-start',
+  },
+  manageSubscriptionBtnText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  manageSubscriptionHint: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
   header: {
     height: 56,
     borderBottomWidth: StyleSheet.hairlineWidth,

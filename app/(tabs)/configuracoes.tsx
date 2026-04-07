@@ -337,6 +337,17 @@ export default function ConfiguracoesScreen() {
     }
   };
 
+  const handleCreateNewArtistPremiumLocked = () => {
+    Alert.alert(
+      'Recurso Premium',
+      'No plano Premium, você pode ter vários artistas para gerenciar na mesma conta. Faça upgrade para liberar esta opção.',
+      [
+        { text: 'Agora não', style: 'cancel' },
+        { text: 'Ver Premium', onPress: () => router.push('/assine-premium') },
+      ],
+    );
+  };
+
   const handleLogout = () => {
     setShowLogoutModal(true);
   };
@@ -745,10 +756,15 @@ export default function ConfiguracoesScreen() {
 
             <View style={dynamicStyles.settingsCard}>
               {renderSettingItem(
-                'add-circle',
+                premiumEntitlementActive ? 'add-circle' : 'lock-closed',
                 'Criar Novo Artista',
-                'Criar um novo perfil de artista',
-                handleCreateNewArtist
+                premiumEntitlementActive
+                  ? 'Criar um novo perfil de artista'
+                  : 'Premium: gerencie vários artistas na mesma conta',
+                premiumEntitlementActive ? handleCreateNewArtist : handleCreateNewArtistPremiumLocked,
+                !premiumEntitlementActive ? (
+                  <Ionicons name="lock-closed" size={18} color={isDarkMode ? '#999' : '#888'} />
+                ) : undefined
               )}
 
               {renderSettingItem(
@@ -826,9 +842,9 @@ export default function ConfiguracoesScreen() {
           <View style={dynamicStyles.settingsCard}>
             {renderSettingItem(
               'diamond',
-              premiumEntitlementActive ? 'Conta Premium' : 'Assine Premium',
+              premiumEntitlementActive ? 'Minha assinatura' : 'Assine Premium',
               premiumEntitlementActive
-                ? 'Plano ativo — todos os recursos liberados'
+                ? 'Gerenciar ou cancelar na App Store / Google Play'
                 : 'Ver planos mensal e anual',
               () => router.push('/assine-premium'),
               undefined,
