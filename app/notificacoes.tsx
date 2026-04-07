@@ -567,7 +567,7 @@ export default function NotificacoesScreen() {
       case 'invite':
         return 'mail';
       case 'basic':
-        return 'archive-outline';
+        return 'information-circle-outline';
       case 'update':
         return 'person-add';
       case 'delete':
@@ -737,8 +737,23 @@ export default function NotificacoesScreen() {
               >
                 <CardWrapper {...cardWrapperProps}>
                   <View style={styles.notificationLeft}>
+                    {/* Mensagem do sistema: avatar Marca AI */}
+                    {notification.type === 'basic' ? (
+                      <View style={styles.userAvatarContainer}>
+                        <View style={styles.userAvatarWithIcon}>
+                          <View
+                            style={[
+                              styles.marcaAiSystemAvatar,
+                              { backgroundColor: colors.primary, shadowColor: colors.primary },
+                            ]}
+                          >
+                            <Text style={styles.marcaAiSystemAvatarLetter}>M</Text>
+                          </View>
+                        </View>
+                      </View>
+                    ) : null}
                     {/* Imagem do usuário com ícone de notificação */}
-                    {notification.from_user && (
+                    {notification.type !== 'basic' && notification.from_user && (
                       <View style={styles.userAvatarContainer}>
                         {notification.from_user.profile_url && notification.from_user.profile_url.trim() !== '' ? (
                           <View style={styles.userAvatarWithIcon}>
@@ -803,14 +818,20 @@ export default function NotificacoesScreen() {
                           </Text>
                         </View>
                         
-                        {notification.from_user && (
+                        {notification.type === 'basic' ? (
+                          <View style={styles.footerRight}>
+                            <Text style={[styles.userName, { color: colors.textSecondary }]}>
+                              Marca AI
+                            </Text>
+                          </View>
+                        ) : notification.from_user ? (
                           <View style={styles.footerRight}>
                             <Text style={styles.footerLabel}>por</Text>
                             <Text style={styles.userName}>
                               {notification.from_user.name}
                             </Text>
                           </View>
-                        )}
+                        ) : null}
                       </View>
 
                       {/* Botões de Aceitar/Recusar para convites (type == 'invite' e status == 'pending') */}
@@ -1537,6 +1558,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
     position: 'relative',
+  },
+  marcaAiSystemAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: Platform.OS === 'android' ? 0 : 0.22,
+    shadowRadius: 3,
+    elevation: Platform.OS === 'android' ? 2 : 0,
+  },
+  marcaAiSystemAvatarLetter: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '800',
+    fontFamily: 'System',
   },
   notificationIconBadge: {
     position: 'absolute',
