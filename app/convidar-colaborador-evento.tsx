@@ -45,7 +45,14 @@ export default function ConvidarColaboradorEventoScreen() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<ArtistaBuscaConvite[]>([]);
   const [blockedArtists, setBlockedArtists] = useState<Set<string>>(new Set());
-  const [selectedArtist, setSelectedArtist] = useState<{ id: string; name: string } | null>(null);
+  const [selectedArtist, setSelectedArtist] = useState<{
+    id: string;
+    name: string;
+    location?: string | null;
+    musicalStyle?: string | null;
+  } | null>(null);
+  const [artistLocations, setArtistLocations] = useState<Record<string, string>>({});
+  const [artistStyles, setArtistStyles] = useState<Record<string, string>>({});
 
   const [cacheDraft, setCacheDraft] = useState('R$ 0,00');
   const [whatsDraft, setWhatsDraft] = useState('');
@@ -135,7 +142,111 @@ export default function ConvidarColaboradorEventoScreen() {
     return () => clearTimeout(t);
   }, [search, canInvite, eventData?.artist_id, blockedArtists]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const ids = searchResults.map((artist) => artist.id);
+      if (ids.length === 0) {
+        if (!cancelled) {
+          setArtistLocations({});
+          setArtistStyles({});
+        }
+        return;
+      }
+
+      const { data: styleData } = await supabase.from('artists').select('id, musical_style').in('id', ids);
+      if (!cancelled) {
+        const nextStyles: Record<string, string> = {};
+        ((styleData as Array<{ id: string; musical_style?: string | null }> | null) || []).forEach((row) => {
+          const style = String(row.musical_style || '').trim();
+          if (style) nextStyles[row.id] = style;
+        });
+        setArtistStyles(nextStyles);
+      }
+
+      const fetchCityState = async () => {
+        const { data, error } = await supabase.from('artists').select('id, city, state').in('id', ids);
+        if (error) return { ok: false as const, rows: [] as Array<{ id: string; value: string }> };
+        const rows =
+          ((data as Array<{ id: string; city?: string | null; state?: string | null }> | null) || [])
+            .map((row) => {
+              const city = String(row.city || '').trim();
+              const state = String(row.state || '').trim().toUpperCase();
+              const value = city && state ? `${city}/${state}` : city || state;
+              return { id: row.id, value };
+            })
+            .filter((row) => row.value.length > 0);
+        return { ok: true as const, rows };
+      };
+
+      const fetchByColumn = async (column: 'city' | 'location') => {
+        const { data, error } = await supabase.from('artists').select(`id, ${column}`).in('id', ids);
+        if (error) return { ok: false as const, rows: [] as Array<{ id: string; value: string }> };
+        const rows =
+          ((data as Array<{ id: string; city?: string | null; location?: string | null }> | null) || [])
+            .map((row) => ({
+              id: row.id,
+              value: String((column === 'city' ? row.city : row.location) || '').trim(),
+            }))
+            .filter((row) => row.value.length > 0);
+        return { ok: true as const, rows };
+      };
+
+      const fetchFromMembersUserProfile = async () => {
+        const { data, error } = await supabase
+          .from('artist_members')
+          .select('artist_id, role, users(city, state)')
+          .in('artist_id', ids);
+        if (error) return { ok: false as const, rows: [] as Array<{ id: string; value: string }> };
+
+        const rolePriority: Record<string, number> = { owner: 1, admin: 2, editor: 3, viewer: 4 };
+        const byArtist = new Map<string, { priority: number; value: string }>();
+
+        (
+          (data as Array<{
+            artist_id: string;
+            role?: string | null;
+            users?: { city?: string | null; state?: string | null } | null;
+          }> | null) || []
+        ).forEach((row) => {
+          const city = String(row.users?.city || '').trim();
+          const state = String(row.users?.state || '').trim().toUpperCase();
+          const value = city && state ? `${city}/${state}` : city || state;
+          if (!value) return;
+
+          const priority = rolePriority[String(row.role || '').toLowerCase()] ?? 99;
+          const current = byArtist.get(row.artist_id);
+          if (!current || priority < current.priority) {
+            byArtist.set(row.artist_id, { priority, value });
+          }
+        });
+
+        const rows = Array.from(byArtist.entries()).map(([id, meta]) => ({ id, value: meta.value }));
+        return { ok: true as const, rows };
+      };
+
+      let result = await fetchCityState();
+      if (!result.ok) result = await fetchByColumn('city');
+      if (!result.ok) result = await fetchByColumn('location');
+      if (!result.ok || result.rows.length === 0) result = await fetchFromMembersUserProfile();
+
+      if (cancelled) return;
+      const next: Record<string, string> = {};
+      result.rows.forEach((row) => {
+        next[row.id] = row.value;
+      });
+      setArtistLocations(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [searchResults]);
+
   const selectedLabel = useMemo(() => selectedArtist?.name || 'Nenhum', [selectedArtist]);
+  const selectedLocation = useMemo(() => {
+    if (!selectedArtist) return null;
+    return selectedArtist.location || artistLocations[selectedArtist.id] || 'Não informado';
+  }, [selectedArtist, artistLocations]);
 
   const handleSubmit = async () => {
     if (!eventData || !activeArtist || !currentUserId || !selectedArtist) return;
@@ -227,9 +338,27 @@ export default function ConvidarColaboradorEventoScreen() {
                 </Text>
               }
               renderItem={({ item }) => (
+                (() => {
+                  const isSelected = selectedArtist?.id === item.id;
+                  const artistLocation = artistLocations[item.id] || 'Não informado';
+                  const artistStyle = (item.musical_style || artistStyles[item.id] || '').trim();
+                  return (
                 <TouchableOpacity
-                  style={[styles.row, { borderBottomColor: colors.border }]}
-                  onPress={() => setSelectedArtist({ id: item.id, name: item.name })}
+                  style={[
+                    styles.row,
+                    {
+                      borderBottomColor: colors.border,
+                      backgroundColor: isSelected ? `${colors.primary}14` : 'transparent',
+                    },
+                  ]}
+                  onPress={() =>
+                    setSelectedArtist({
+                      id: item.id,
+                      name: item.name,
+                      location: artistLocation,
+                      musicalStyle: artistStyle || null,
+                    })
+                  }
                 >
                   <View style={styles.rowContent}>
                     <OptimizedImage
@@ -240,16 +369,30 @@ export default function ConvidarColaboradorEventoScreen() {
                       fallbackIconColor={colors.primary}
                       showLoadingIndicator={false}
                     />
-                    <Text style={{ color: colors.text, fontWeight: selectedArtist?.id === item.id ? '700' : '500', flex: 1 }}>
-                      {item.name}
-                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.text, fontWeight: isSelected ? '700' : '500' }}>{item.name}</Text>
+                      {!!artistStyle && <Text style={[styles.badgeText, { color: colors.primary }]}>{artistStyle}</Text>}
+                      <View style={styles.locationRow}>
+                        <Ionicons name="location-outline" size={13} color={colors.textSecondary} />
+                        <Text style={[styles.locationText, { color: colors.textSecondary }]}>{artistLocation}</Text>
+                      </View>
+                    </View>
+                    {isSelected && <Ionicons name="checkmark-circle" size={22} color={colors.primary} />}
                   </View>
                 </TouchableOpacity>
+                  );
+                })()
               )}
             />
           )}
 
-          <Text style={[styles.selected, { color: colors.textSecondary }]}>Convidando: {selectedLabel}</Text>
+          <View style={styles.selectedWrap}>
+            <Text style={[styles.selected, { color: colors.textSecondary }]}>Convidando: {selectedLabel}</Text>
+            <View style={styles.selectedLocationRow}>
+              <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
+              <Text style={[styles.selectedLocationText, { color: colors.textSecondary }]}>{selectedLocation}</Text>
+            </View>
+          </View>
 
           <TextInput
             style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
@@ -328,7 +471,13 @@ const styles = StyleSheet.create({
   row: { paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
   rowContent: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   rowAvatar: { width: 34, height: 34, borderRadius: 17 },
-  selected: { marginTop: 10, marginBottom: 12, fontWeight: '500' },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  locationText: { fontSize: 12 },
+  badgeText: { fontSize: 12, fontWeight: '700' },
+  selectedWrap: { marginTop: 10, marginBottom: 12 },
+  selected: { fontWeight: '500' },
+  selectedLocationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  selectedLocationText: { fontSize: 13, fontWeight: '500' },
   actions: { flexDirection: 'row', gap: 10, marginTop: 8 },
   btnSecondary: {
     flex: 1,

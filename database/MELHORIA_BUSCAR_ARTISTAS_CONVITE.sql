@@ -1,6 +1,6 @@
 -- Melhoria na busca de convite de colaborador (rode no SQL Editor se já aplicou CONVITE_PARTICIPACAO_EVENTO.sql antes).
 -- - Corrige: nome digitado sem acento não achava cadastro com acento (João vs joao).
--- - Corrige: busca só em artists.name; agora também encontra pelo nome em public.users (membros do artista).
+-- - Busca somente em artists.name (nome do artista).
 
 CREATE OR REPLACE FUNCTION public.normalize_pt_search(input text)
 RETURNS text
@@ -16,7 +16,7 @@ AS $$
 $$;
 
 CREATE OR REPLACE FUNCTION public.buscar_artistas_para_convite(p_termo text, p_excluir_artista_id uuid)
-RETURNS TABLE (id uuid, name text, profile_url text, image_url text)
+RETURNS TABLE (id uuid, name text, profile_url text, image_url text, musical_style text)
 LANGUAGE sql
 SECURITY DEFINER
 SET search_path = public
@@ -29,7 +29,8 @@ AS $$
     COALESCE(
       NULLIF(trim(COALESCE(a.profile_url, '')), ''),
       lu.member_profile_url
-    ) AS image_url
+    ) AS image_url,
+    a.musical_style
   FROM artists a
   LEFT JOIN LATERAL (
     SELECT u.profile_url AS member_profile_url
@@ -51,19 +52,8 @@ AS $$
   WHERE (p_excluir_artista_id IS NULL OR a.id <> p_excluir_artista_id)
     AND length(trim(coalesce(p_termo, ''))) >= 2
     AND length(public.normalize_pt_search(p_termo)) >= 2
-    AND (
-      strpos(public.normalize_pt_search(a.name), public.normalize_pt_search(p_termo)) > 0
-      OR EXISTS (
-        SELECT 1
-        FROM artist_members am
-        INNER JOIN users u ON u.id = am.user_id
-        WHERE am.artist_id = a.id
-          AND length(public.normalize_pt_search(u.name)) >= 2
-          AND strpos(public.normalize_pt_search(u.name), public.normalize_pt_search(p_termo)) > 0
-      )
-    )
-  ORDER BY a.name
-  LIMIT 40;
+    AND strpos(public.normalize_pt_search(a.name), public.normalize_pt_search(p_termo)) > 0
+  ORDER BY a.name;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.buscar_artistas_para_convite(text, uuid) TO authenticated;

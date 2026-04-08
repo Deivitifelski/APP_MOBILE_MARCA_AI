@@ -79,8 +79,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_events_convite_participacao_unico
   WHERE convite_participacao_id IS NOT NULL;
 
 -- 4) Busca de artistas para enviar convite (não expõe política aberta em artists)
---    Comparação sem acentos (ex.: "joao" encontra "João") e também pelo nome em public.users
---    (membros do artista), pois o nome de palco em artists pode ser diferente do cadastro.
+--    Comparação sem acentos (ex.: "joao" encontra "João") apenas em artists.name.
 --    Retorna profile_url (foto do artista) e image_url (foto para exibir: artista ou fallback do membro).
 CREATE OR REPLACE FUNCTION public.normalize_pt_search(input text)
 RETURNS text
@@ -96,7 +95,7 @@ AS $$
 $$;
 
 CREATE OR REPLACE FUNCTION public.buscar_artistas_para_convite(p_termo text, p_excluir_artista_id uuid)
-RETURNS TABLE (id uuid, name text, profile_url text, image_url text)
+RETURNS TABLE (id uuid, name text, profile_url text, image_url text, musical_style text)
 LANGUAGE sql
 SECURITY DEFINER
 SET search_path = public
@@ -109,7 +108,8 @@ AS $$
     COALESCE(
       NULLIF(trim(COALESCE(a.profile_url, '')), ''),
       lu.member_profile_url
-    ) AS image_url
+    ) AS image_url,
+    a.musical_style
   FROM artists a
   LEFT JOIN LATERAL (
     SELECT u.profile_url AS member_profile_url
@@ -131,19 +131,8 @@ AS $$
   WHERE (p_excluir_artista_id IS NULL OR a.id <> p_excluir_artista_id)
     AND length(trim(coalesce(p_termo, ''))) >= 2
     AND length(public.normalize_pt_search(p_termo)) >= 2
-    AND (
-      strpos(public.normalize_pt_search(a.name), public.normalize_pt_search(p_termo)) > 0
-      OR EXISTS (
-        SELECT 1
-        FROM artist_members am
-        INNER JOIN users u ON u.id = am.user_id
-        WHERE am.artist_id = a.id
-          AND length(public.normalize_pt_search(u.name)) >= 2
-          AND strpos(public.normalize_pt_search(u.name), public.normalize_pt_search(p_termo)) > 0
-      )
-    )
-  ORDER BY a.name
-  LIMIT 40;
+    AND strpos(public.normalize_pt_search(a.name), public.normalize_pt_search(p_termo)) > 0
+  ORDER BY a.name;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.buscar_artistas_para_convite(text, uuid) TO authenticated;

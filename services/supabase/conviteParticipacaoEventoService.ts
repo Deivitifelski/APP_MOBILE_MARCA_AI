@@ -32,6 +32,7 @@ export interface ArtistaBuscaConvite {
   profile_url: string | null;
   /** URL para exibir na busca: foto do artista ou, se vazia, foto de um membro (ex.: owner). */
   image_url?: string | null;
+  musical_style?: string | null;
 }
 
 export async function buscarArtistasParaConvite(
