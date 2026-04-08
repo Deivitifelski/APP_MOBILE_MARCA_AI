@@ -95,6 +95,13 @@ export default function ArtistProfileScreen() {
   
   const [name, setName] = useState('');
   const [musicalStyle, setMusicalStyle] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [isAvailableForGigs, setIsAvailableForGigs] = useState(true);
+  const [averageCacheValue, setAverageCacheValue] = useState('');
+  const [workRolesText, setWorkRolesText] = useState('');
+  const [showFormatsText, setShowFormatsText] = useState('');
   const [profileUrl, setProfileUrl] = useState<string | null>(null);
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -187,6 +194,11 @@ export default function ArtistProfileScreen() {
       return;
     }
 
+    if (averageCacheValue.trim() !== '' && Number.isNaN(Number(averageCacheValue))) {
+      Alert.alert('Atenção', 'Informe um valor numérico válido para o cachê médio');
+      return;
+    }
+
     setLoading(true);
     try {
       // Obter o usuário atual
@@ -251,7 +263,21 @@ export default function ArtistProfileScreen() {
         name: name.trim(),
         musical_style: musicalStyle,
         profile_url: finalProfileUrl || undefined,
-        user_id: user.id
+        user_id: user.id,
+        profile_type: 'artist',
+        whatsapp: whatsapp.trim() || undefined,
+        city: city.trim() || undefined,
+        state: state.trim() || undefined,
+        is_available_for_gigs: isAvailableForGigs,
+        average_cache_value: averageCacheValue.trim() === '' ? null : Number(averageCacheValue),
+        work_roles: workRolesText
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean),
+        show_formats: showFormatsText
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean),
       });
 
       console.log('📊 [ArtistProfileScreen] Resposta do createArtist:', {
@@ -394,6 +420,112 @@ export default function ArtistProfileScreen() {
                   </Text>
                   <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: colors.text }]}>WhatsApp</Text>
+                <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <Ionicons name="logo-whatsapp" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, { color: colors.text }]}
+                    value={whatsapp}
+                    onChangeText={setWhatsapp}
+                    placeholder="(00) 00000-0000"
+                    placeholderTextColor={colors.textSecondary}
+                    keyboardType="phone-pad"
+                  />
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: colors.text }]}>Cidade</Text>
+                <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <Ionicons name="location-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, { color: colors.text }]}
+                    value={city}
+                    onChangeText={setCity}
+                    placeholder="Digite a cidade"
+                    placeholderTextColor={colors.textSecondary}
+                    autoCapitalize="words"
+                  />
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: colors.text }]}>Estado</Text>
+                <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <Ionicons name="map-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, { color: colors.text }]}
+                    value={state}
+                    onChangeText={setState}
+                    placeholder="Ex.: RS"
+                    placeholderTextColor={colors.textSecondary}
+                    autoCapitalize="characters"
+                    maxLength={2}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: colors.text }]}>Disponibilidade para trabalhos</Text>
+                <TouchableOpacity
+                  style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border, justifyContent: 'space-between' }]}
+                  onPress={() => setIsAvailableForGigs((prev) => !prev)}
+                >
+                  <Text style={[styles.input, { color: colors.text }]}>
+                    {isAvailableForGigs ? 'Disponivel para convites' : 'Indisponivel para convites'}
+                  </Text>
+                  <Ionicons
+                    name={isAvailableForGigs ? 'toggle' : 'toggle-outline'}
+                    size={28}
+                    color={isAvailableForGigs ? colors.success : colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: colors.text }]}>Cache medio (R$)</Text>
+                <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <Ionicons name="cash-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, { color: colors.text }]}
+                    value={averageCacheValue}
+                    onChangeText={setAverageCacheValue}
+                    placeholder="Ex.: 1500.00"
+                    placeholderTextColor={colors.textSecondary}
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: colors.text }]}>Funcoes de trabalho (separe por virgula)</Text>
+                <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <Ionicons name="briefcase-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, { color: colors.text }]}
+                    value={workRolesText}
+                    onChangeText={setWorkRolesText}
+                    placeholder="Ex.: Vocalista, Guitarrista"
+                    placeholderTextColor={colors.textSecondary}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: colors.text }]}>Formato de show (separe por virgula)</Text>
+                <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <Ionicons name="albums-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, { color: colors.text }]}
+                    value={showFormatsText}
+                    onChangeText={setShowFormatsText}
+                    placeholder="Ex.: Voz e violao, Banda completa"
+                    placeholderTextColor={colors.textSecondary}
+                  />
+                </View>
               </View>
 
               <TouchableOpacity

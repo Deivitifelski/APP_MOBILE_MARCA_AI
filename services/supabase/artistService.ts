@@ -6,6 +6,14 @@ export interface Artist {
   name: string;
   musical_style?: string;
   profile_url?: string;
+  profile_type?: 'artist' | 'venue';
+  whatsapp?: string;
+  city?: string;
+  state?: string;
+  is_available_for_gigs?: boolean;
+  average_cache_value?: number | null;
+  work_roles?: string[];
+  show_formats?: string[];
   role?: string;
   created_at: string;
   updated_at: string;
@@ -16,6 +24,14 @@ export interface CreateArtistData {
   musical_style?: string;
   profile_url?: string;
   user_id: string;
+  profile_type?: 'artist' | 'venue';
+  whatsapp?: string;
+  city?: string;
+  state?: string;
+  is_available_for_gigs?: boolean;
+  average_cache_value?: number | null;
+  work_roles?: string[];
+  show_formats?: string[];
 }
 
 // Criar perfil do artista
@@ -47,6 +63,14 @@ export const createArtist = async (artistData: CreateArtistData): Promise<{ succ
         name: artistData.name,
         musical_style: artistData.musical_style || null,
         profile_url: artistData.profile_url || null,
+        profile_type: artistData.profile_type || 'artist',
+        whatsapp: artistData.whatsapp?.trim() || null,
+        city: artistData.city?.trim() || null,
+        state: artistData.state?.trim() || null,
+        is_available_for_gigs: artistData.is_available_for_gigs ?? true,
+        average_cache_value: artistData.average_cache_value ?? null,
+        work_roles: artistData.work_roles || [],
+        show_formats: artistData.show_formats || [],
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -157,14 +181,28 @@ export const updateArtist = async (artistId: string, artistData: Partial<CreateA
       profile_url: artistData.profile_url
     });
 
+    const payload = {
+      name: artistData.name,
+      profile_url: artistData.profile_url,
+      musical_style: artistData.musical_style,
+      profile_type: artistData.profile_type,
+      whatsapp: artistData.whatsapp?.trim(),
+      city: artistData.city?.trim(),
+      state: artistData.state?.trim(),
+      is_available_for_gigs: artistData.is_available_for_gigs,
+      average_cache_value: artistData.average_cache_value,
+      work_roles: artistData.work_roles,
+      show_formats: artistData.show_formats,
+      updated_at: new Date().toISOString()
+    };
+
+    const sanitizedPayload = Object.fromEntries(
+      Object.entries(payload).filter(([, value]) => value !== undefined)
+    );
+
     const { data, error } = await supabase
       .from('artists')
-      .update({
-        name: artistData.name,
-        profile_url: artistData.profile_url,
-        musical_style: artistData.musical_style,
-        updated_at: new Date().toISOString()
-      })
+      .update(sanitizedPayload)
       .eq('id', artistId)
       .select();
 
