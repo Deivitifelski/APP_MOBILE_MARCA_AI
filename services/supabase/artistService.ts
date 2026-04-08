@@ -6,7 +6,6 @@ export interface Artist {
   name: string;
   musical_style?: string;
   profile_url?: string;
-  profile_type?: 'artist' | 'venue';
   whatsapp?: string;
   city?: string;
   state?: string;
@@ -24,10 +23,9 @@ export interface CreateArtistData {
   musical_style?: string;
   profile_url?: string;
   user_id: string;
-  profile_type?: 'artist' | 'venue';
-  whatsapp?: string;
-  city?: string;
-  state?: string;
+  whatsapp?: string | null;
+  city?: string | null;
+  state?: string | null;
   is_available_for_gigs?: boolean;
   average_cache_value?: number | null;
   work_roles?: string[];
@@ -57,20 +55,20 @@ export const createArtist = async (artistData: CreateArtistData): Promise<{ succ
     console.log('📊 [createArtist] Created At:', new Date().toISOString());
     console.log('📊 [createArtist] Updated At:', new Date().toISOString());
 
+    const available = artistData.is_available_for_gigs ?? true;
     const { data: artistData_result, error: artistError } = await supabase
       .from('artists')
       .insert({
         name: artistData.name,
         musical_style: artistData.musical_style || null,
         profile_url: artistData.profile_url || null,
-        profile_type: artistData.profile_type || 'artist',
-        whatsapp: artistData.whatsapp?.trim() || null,
-        city: artistData.city?.trim() || null,
-        state: artistData.state?.trim() || null,
-        is_available_for_gigs: artistData.is_available_for_gigs ?? true,
-        average_cache_value: artistData.average_cache_value ?? null,
-        work_roles: artistData.work_roles || [],
-        show_formats: artistData.show_formats || [],
+        whatsapp: available ? (artistData.whatsapp?.trim() || null) : null,
+        city: available ? (artistData.city?.trim() || null) : null,
+        state: available ? (artistData.state?.trim() || null) : null,
+        is_available_for_gigs: available,
+        average_cache_value: available ? (artistData.average_cache_value ?? null) : null,
+        work_roles: available ? (artistData.work_roles || []) : [],
+        show_formats: available ? (artistData.show_formats || []) : [],
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -185,12 +183,29 @@ export const updateArtist = async (artistId: string, artistData: Partial<CreateA
       name: artistData.name,
       profile_url: artistData.profile_url,
       musical_style: artistData.musical_style,
-      profile_type: artistData.profile_type,
-      whatsapp: artistData.whatsapp?.trim(),
-      city: artistData.city?.trim(),
-      state: artistData.state?.trim(),
+      whatsapp:
+        artistData.whatsapp === undefined
+          ? undefined
+          : artistData.whatsapp === null
+            ? null
+            : artistData.whatsapp.trim() || null,
+      city:
+        artistData.city === undefined
+          ? undefined
+          : artistData.city === null
+            ? null
+            : artistData.city.trim() || null,
+      state:
+        artistData.state === undefined
+          ? undefined
+          : artistData.state === null
+            ? null
+            : artistData.state.trim() || null,
       is_available_for_gigs: artistData.is_available_for_gigs,
-      average_cache_value: artistData.average_cache_value,
+      average_cache_value:
+        artistData.average_cache_value === undefined
+          ? undefined
+          : artistData.average_cache_value,
       work_roles: artistData.work_roles,
       show_formats: artistData.show_formats,
       updated_at: new Date().toISOString()

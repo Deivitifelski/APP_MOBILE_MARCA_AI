@@ -20,15 +20,7 @@ import { getCurrentUser } from '../services/supabase/authService';
 import { cacheService } from '../services/cacheService';
 import { deleteImageFromSupabase, extractFileNameFromUrl, uploadUserImage } from '../services/supabase/imageUploadService';
 import { getUserProfile, updateUserProfile, UserProfile } from '../services/supabase/userService';
-
-const estadosBrasil = [
-  'Acre', 'Alagoas', 'Amapá', 'Amazonas', 'Bahia', 'Ceará',
-  'Distrito Federal', 'Espírito Santo', 'Goiás', 'Maranhão',
-  'Mato Grosso', 'Mato Grosso do Sul', 'Minas Gerais', 'Pará',
-  'Paraíba', 'Paraná', 'Pernambuco', 'Piauí', 'Rio de Janeiro',
-  'Rio Grande do Norte', 'Rio Grande do Sul', 'Rondônia',
-  'Roraima', 'Santa Catarina', 'São Paulo', 'Sergipe', 'Tocantins'
-];
+import { ESTADOS_BRASIL } from '../constants/estadosBrasil';
 
 export default function EditarUsuarioScreen() {
   const { colors } = useTheme();
@@ -418,7 +410,7 @@ export default function EditarUsuarioScreen() {
             {showEstados && (
               <View style={[styles.estadosList, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <ScrollView style={styles.estadosScroll} nestedScrollEnabled>
-                  {estadosBrasil.map((estadoItem) => (
+                  {ESTADOS_BRASIL.map((estadoItem) => (
                     <TouchableOpacity
                       key={estadoItem}
                       style={[styles.estadoItem, { borderBottomColor: colors.border }]}

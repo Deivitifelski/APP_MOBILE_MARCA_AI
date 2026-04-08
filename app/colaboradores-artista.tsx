@@ -19,9 +19,10 @@ import OptimizedImage from '../components/OptimizedImage';
 import { useTheme } from '../contexts/ThemeContext';
 import { checkPendingInvite, createArtistInvite } from '../services/supabase/artistInviteService';
 import { getCurrentUser } from '../services/supabase/authService';
-import { addCollaborator, Collaborator, getCollaborators, removeCollaborator, searchUsers, updateCollaboratorRole } from '../services/supabase/collaboratorService';
+import { addCollaborator, Collaborator, getCollaborators, removeCollaborator, searchUsersForCollaboratorInvite, updateCollaboratorRole } from '../services/supabase/collaboratorService';
 import { deletePendingInviteNotifications } from '../services/supabase/notificationService';
 import { useActiveArtist } from '../services/useActiveArtist';
+import { joinArtistStringArrayJson, parseArtistStringArrayFromJson } from '../constants/artistProfileLists';
 
 export default function ColaboradoresArtistaScreen() {
   const { colors } = useTheme();
@@ -61,6 +62,10 @@ export default function ColaboradoresArtistaScreen() {
     role: string;
     createdAt: string;
   } | null>(null);
+
+  const selectedInviteRoleChips = selectedUser
+    ? parseArtistStringArrayFromJson(selectedUser.work_roles)
+    : [];
 
   useEffect(() => {
     loadActiveArtist();
@@ -140,19 +145,22 @@ export default function ColaboradoresArtistaScreen() {
       return;
     }
 
+    if (!activeArtist?.id) {
+      setSearchResults([]);
+      return;
+    }
+
     try {
       setIsSearching(true);
-      const { users, error } = await searchUsers(term);
-      
+      const { users, error } = await searchUsersForCollaboratorInvite(term, activeArtist.id);
+
       if (error) {
+        setSearchResults([]);
+        Alert.alert('Erro na busca', error);
         return;
       }
 
-      // Filtrar usuários que já são colaboradores
-      const existingCollaboratorIds = collaborators.map(c => c.user_id);
-      const filteredUsers = users?.filter(user => !existingCollaboratorIds.includes(user.id)) || [];
-      
-      setSearchResults(filteredUsers);
+      setSearchResults(users || []);
     } finally {
       setIsSearching(false);
     }
@@ -775,6 +783,9 @@ export default function ColaboradoresArtistaScreen() {
           <ScrollView style={[styles.modalContent, { backgroundColor: colors.background }]}>
             <View style={styles.inputContainer}>
               <Text style={[styles.inputLabel, { color: colors.text }]}>Buscar usuário</Text>
+              <Text style={[styles.collaboratorSearchHint, { color: colors.textSecondary }]}>
+                Só aparecem artistas que ativaram &quot;disponível para trabalhos&quot; no perfil.
+              </Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
                 value={searchTerm}
@@ -782,39 +793,112 @@ export default function ColaboradoresArtistaScreen() {
                   setSearchTerm(text);
                   handleSearchUsers(text);
                 }}
-                placeholder="Digite o nome do usuário"
+                placeholder="Nome ou e-mail"
                 placeholderTextColor={colors.textSecondary}
                 autoCapitalize="none"
               />
               
-              {/* Resultados da busca */}
+              {/* Resultados em cards (funções em destaque) */}
               {searchResults.length > 0 && (
-                <View style={[styles.searchResults, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                  {searchResults.map((user) => (
-                    <TouchableOpacity
-                      key={user.id}
-                      style={[styles.searchResultItem, { borderBottomColor: colors.border }]}
-                      onPress={() => handleSelectUser(user)}
-                    >
-                      <OptimizedImage
-                        imageUrl={user.profile_url || ''}
-                        style={styles.userAvatarImage}
-                        cacheKey={`user_search_${user.id}`}
-                        fallbackText={user.name || 'Usuário'}
-                        fallbackIcon="person"
-                        fallbackIconSize={20}
-                        fallbackIconColor="#667eea"
-                      />
-                      <View style={styles.userInfo}>
-                        <Text style={[styles.userName, { color: colors.text }]}>{user.name}</Text>
-                        <Text style={[styles.userEmail, { color: colors.textSecondary }]}>
-                          {user.city && user.state 
-                            ? `${user.city}, ${user.state}`
-                            : user.city || user.state || 'Localização não informada'}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
+                <View style={styles.collaboratorSearchResultsList}>
+                  {searchResults.map((user) => {
+                    const roleChips = parseArtistStringArrayFromJson(user.work_roles);
+                    const formatLabel = joinArtistStringArrayJson(user.show_formats);
+                    return (
+                      <TouchableOpacity
+                        key={user.id}
+                        activeOpacity={0.75}
+                        style={[
+                          styles.collaboratorInviteCard,
+                          { backgroundColor: colors.surface, borderColor: colors.border },
+                        ]}
+                        onPress={() => handleSelectUser(user)}
+                      >
+                        <View style={styles.collaboratorInviteCardHeader}>
+                          <OptimizedImage
+                            imageUrl={user.profile_url || ''}
+                            style={styles.collaboratorInviteCardAvatar}
+                            cacheKey={`user_search_${user.id}`}
+                            fallbackText={user.name || 'Usuário'}
+                            fallbackIcon="person"
+                            fallbackIconSize={22}
+                            fallbackIconColor="#667eea"
+                          />
+                          <View style={styles.collaboratorInviteCardHeaderText}>
+                            <Text style={[styles.collaboratorInviteCardName, { color: colors.text }]} numberOfLines={1}>
+                              {user.name}
+                            </Text>
+                            <Text style={[styles.collaboratorInviteCardEmail, { color: colors.textSecondary }]} numberOfLines={1}>
+                              {user.email}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {user.artist_display_name ? (
+                          <Text style={[styles.collaboratorInviteArtistTitle, { color: colors.primary }]} numberOfLines={2}>
+                            {user.artist_display_name}
+                          </Text>
+                        ) : null}
+
+                        <View style={styles.collaboratorInviteRolesBlock}>
+                          <Text style={[styles.collaboratorInviteSectionLabel, { color: colors.textSecondary }]}>
+                            Funções do artista
+                          </Text>
+                          <View style={styles.collaboratorInviteChipsWrap}>
+                            {roleChips.length > 0 ? (
+                              roleChips.map((role) => (
+                                <View
+                                  key={role}
+                                  style={[
+                                    styles.collaboratorInviteChip,
+                                    {
+                                      backgroundColor: colors.primary + '18',
+                                      borderColor: colors.primary + '44',
+                                    },
+                                  ]}
+                                >
+                                  <Text style={[styles.collaboratorInviteChipText, { color: colors.primary }]} numberOfLines={1}>
+                                    {role}
+                                  </Text>
+                                </View>
+                              ))
+                            ) : (
+                              <Text style={[styles.collaboratorInviteMuted, { color: colors.textSecondary }]}>
+                                Não informado
+                              </Text>
+                            )}
+                          </View>
+                        </View>
+
+                        {user.musical_style ? (
+                          <View style={styles.collaboratorInviteMetaRow}>
+                            <Ionicons name="musical-note-outline" size={14} color={colors.textSecondary} />
+                            <Text style={[styles.collaboratorInviteMetaText, { color: colors.textSecondary }]} numberOfLines={1}>
+                              {user.musical_style}
+                            </Text>
+                          </View>
+                        ) : null}
+
+                        {formatLabel ? (
+                          <View style={styles.collaboratorInviteMetaRow}>
+                            <Ionicons name="albums-outline" size={14} color={colors.textSecondary} />
+                            <Text style={[styles.collaboratorInviteMetaText, { color: colors.textSecondary }]} numberOfLines={2}>
+                              {formatLabel}
+                            </Text>
+                          </View>
+                        ) : null}
+
+                        {(user.whatsapp || user.city || user.state) ? (
+                          <View style={styles.collaboratorInviteMetaRow}>
+                            <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
+                            <Text style={[styles.collaboratorInviteMetaText, { color: colors.textSecondary }]} numberOfLines={2}>
+                              {[user.whatsapp ? `WhatsApp ${user.whatsapp}` : null, [user.city, user.state].filter(Boolean).join(' — ')].filter(Boolean).join(' · ')}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               )}
               
@@ -884,6 +968,41 @@ export default function ColaboradoresArtistaScreen() {
                   <View style={styles.permissionUserInfo}>
                     <Text style={[styles.permissionUserName, { color: colors.text }]}>{selectedUser.name}</Text>
                     <Text style={[styles.permissionUserEmail, { color: colors.textSecondary }]}>{selectedUser.email}</Text>
+                    {selectedUser.artist_display_name ? (
+                      <Text style={[styles.permissionUserEmail, { color: colors.primary }]} numberOfLines={1}>
+                        Perfil artista: {selectedUser.artist_display_name}
+                      </Text>
+                    ) : null}
+                    {selectedUser.musical_style ? (
+                      <Text style={[styles.permissionUserEmail, { color: colors.textSecondary }]} numberOfLines={1}>
+                        Estilo: {selectedUser.musical_style}
+                      </Text>
+                    ) : null}
+                    {(selectedUser.city || selectedUser.state || selectedUser.whatsapp) ? (
+                      <Text style={[styles.permissionUserEmail, { color: colors.textSecondary }]} numberOfLines={2}>
+                        {[selectedUser.whatsapp ? `WhatsApp: ${selectedUser.whatsapp}` : null, [selectedUser.city, selectedUser.state].filter(Boolean).join(' — ')].filter(Boolean).join(' · ')}
+                      </Text>
+                    ) : null}
+                    {selectedInviteRoleChips.length > 0 ? (
+                      <View style={[styles.collaboratorInviteChipsWrap, { marginTop: 10 }]}>
+                        {selectedInviteRoleChips.map((role) => (
+                          <View
+                            key={role}
+                            style={[
+                              styles.collaboratorInviteChip,
+                              {
+                                backgroundColor: colors.primary + '18',
+                                borderColor: colors.primary + '44',
+                              },
+                            ]}
+                          >
+                            <Text style={[styles.collaboratorInviteChipText, { color: colors.primary }]} numberOfLines={1}>
+                              {role}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : null}
                   </View>
                 </View>
               )}
@@ -1540,20 +1659,95 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#fff',
   },
-  searchResults: {
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    backgroundColor: '#fff',
-    maxHeight: 200,
+  collaboratorSearchHint: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 8,
+    marginTop: 2,
   },
-  searchResultItem: {
+  collaboratorSearchResultsList: {
+    marginTop: 12,
+    gap: 12,
+  },
+  collaboratorInviteCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  collaboratorInviteCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    marginBottom: 10,
+  },
+  collaboratorInviteCardAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: 12,
+    overflow: 'hidden',
+  },
+  collaboratorInviteCardHeaderText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  collaboratorInviteCardName: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  collaboratorInviteCardEmail: {
+    fontSize: 13,
+  },
+  collaboratorInviteArtistTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  collaboratorInviteRolesBlock: {
+    marginBottom: 8,
+  },
+  collaboratorInviteSectionLabel: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  collaboratorInviteChipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  collaboratorInviteChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
+    borderWidth: 1,
+    maxWidth: '100%',
+  },
+  collaboratorInviteChipText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  collaboratorInviteMuted: {
+    fontSize: 13,
+    fontStyle: 'italic',
+  },
+  collaboratorInviteMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginTop: 6,
+  },
+  collaboratorInviteMetaText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
   },
   userAvatar: {
     width: 40,

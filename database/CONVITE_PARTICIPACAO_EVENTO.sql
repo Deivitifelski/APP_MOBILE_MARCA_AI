@@ -78,9 +78,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_events_convite_participacao_unico
   ON events (convite_participacao_id)
   WHERE convite_participacao_id IS NOT NULL;
 
--- 4) Busca de artistas para enviar convite (não expõe política aberta em artists)
---    Comparação sem acentos (ex.: "joao" encontra "João") apenas em artists.name.
---    Retorna profile_url (foto do artista) e image_url (foto para exibir: artista ou fallback do membro).
+-- 4) Busca de artistas para enviar convite (SECURITY DEFINER; não depende de RLS aberta em artists)
+--    - Termo com pelo menos 2 caracteres; comparação sem acento apenas em artists.name.
+--    - Lista somente artistas com is_available_for_gigs = TRUE.
+--    - Retorna: profile_url, image_url (fallback: foto de membro owner/admin/...),
+--      musical_style, work_roles e show_formats (jsonb; vazio como []).
 CREATE OR REPLACE FUNCTION public.normalize_pt_search(input text)
 RETURNS text
 LANGUAGE sql
@@ -94,8 +96,19 @@ AS $$
   );
 $$;
 
+-- Troca de colunas de retorno exige DROP (42P13: cannot change return type of existing function)
+DROP FUNCTION IF EXISTS public.buscar_artistas_para_convite(text, uuid);
+
 CREATE OR REPLACE FUNCTION public.buscar_artistas_para_convite(p_termo text, p_excluir_artista_id uuid)
-RETURNS TABLE (id uuid, name text, profile_url text, image_url text, musical_style text)
+RETURNS TABLE (
+  id uuid,
+  name text,
+  profile_url text,
+  image_url text,
+  musical_style text,
+  work_roles jsonb,
+  show_formats jsonb
+)
 LANGUAGE sql
 SECURITY DEFINER
 SET search_path = public
@@ -109,7 +122,9 @@ AS $$
       NULLIF(trim(COALESCE(a.profile_url, '')), ''),
       lu.member_profile_url
     ) AS image_url,
-    a.musical_style
+    a.musical_style,
+    COALESCE(a.work_roles, '[]'::jsonb),
+    COALESCE(a.show_formats, '[]'::jsonb)
   FROM artists a
   LEFT JOIN LATERAL (
     SELECT u.profile_url AS member_profile_url
@@ -129,6 +144,7 @@ AS $$
     LIMIT 1
   ) lu ON true
   WHERE (p_excluir_artista_id IS NULL OR a.id <> p_excluir_artista_id)
+    AND a.is_available_for_gigs IS TRUE
     AND length(trim(coalesce(p_termo, ''))) >= 2
     AND length(public.normalize_pt_search(p_termo)) >= 2
     AND strpos(public.normalize_pt_search(a.name), public.normalize_pt_search(p_termo)) > 0

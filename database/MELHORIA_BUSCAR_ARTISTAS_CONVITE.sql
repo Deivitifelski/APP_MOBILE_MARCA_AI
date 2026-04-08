@@ -15,8 +15,19 @@ AS $$
   );
 $$;
 
+-- Troca de colunas de retorno exige DROP (42P13: cannot change return type of existing function)
+DROP FUNCTION IF EXISTS public.buscar_artistas_para_convite(text, uuid);
+
 CREATE OR REPLACE FUNCTION public.buscar_artistas_para_convite(p_termo text, p_excluir_artista_id uuid)
-RETURNS TABLE (id uuid, name text, profile_url text, image_url text, musical_style text)
+RETURNS TABLE (
+  id uuid,
+  name text,
+  profile_url text,
+  image_url text,
+  musical_style text,
+  work_roles jsonb,
+  show_formats jsonb
+)
 LANGUAGE sql
 SECURITY DEFINER
 SET search_path = public
@@ -30,7 +41,9 @@ AS $$
       NULLIF(trim(COALESCE(a.profile_url, '')), ''),
       lu.member_profile_url
     ) AS image_url,
-    a.musical_style
+    a.musical_style,
+    COALESCE(a.work_roles, '[]'::jsonb),
+    COALESCE(a.show_formats, '[]'::jsonb)
   FROM artists a
   LEFT JOIN LATERAL (
     SELECT u.profile_url AS member_profile_url
@@ -50,6 +63,7 @@ AS $$
     LIMIT 1
   ) lu ON true
   WHERE (p_excluir_artista_id IS NULL OR a.id <> p_excluir_artista_id)
+    AND a.is_available_for_gigs IS TRUE
     AND length(trim(coalesce(p_termo, ''))) >= 2
     AND length(public.normalize_pt_search(p_termo)) >= 2
     AND strpos(public.normalize_pt_search(a.name), public.normalize_pt_search(p_termo)) > 0

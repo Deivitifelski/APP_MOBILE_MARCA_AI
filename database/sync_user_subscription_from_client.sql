@@ -41,12 +41,24 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'error', 'not_authenticated');
   END IF;
 
+  -- Reconcile sem loja: expira apenas linhas “da loja”. Linhas manuais
+  -- (metadata.source = 'manual_db') permanecem active para cortesias / testes.
   IF p_reconcile_clear THEN
     UPDATE public.user_subscriptions
     SET status = 'expired'
-    WHERE user_id = uid AND status IN ('active', 'grace_period');
+    WHERE user_id = uid
+      AND status IN ('active', 'grace_period')
+      AND COALESCE(metadata->>'source', '') <> 'manual_db';
 
-    UPDATE public.users SET plan_is_active = false WHERE id = uid;
+    UPDATE public.users u
+    SET plan_is_active = EXISTS (
+      SELECT 1
+      FROM public.user_subscriptions s
+      WHERE s.user_id = u.id
+        AND s.status IN ('active', 'grace_period')
+    )
+    WHERE u.id = uid;
+
     RETURN jsonb_build_object('ok', true, 'action', 'cleared');
   END IF;
 
@@ -185,7 +197,9 @@ BEGIN
   IF v_status IN ('active', 'grace_period') THEN
     UPDATE public.user_subscriptions
     SET status = 'expired'
-    WHERE user_id = uid AND status IN ('active', 'grace_period');
+    WHERE user_id = uid
+      AND status IN ('active', 'grace_period')
+      AND COALESCE(metadata->>'source', '') <> 'manual_db';
   END IF;
 
   INSERT INTO public.user_subscriptions (
@@ -238,4 +252,4 @@ GRANT EXECUTE ON FUNCTION public.sync_user_subscription_from_client(
 ) TO service_role;
 
 COMMENT ON FUNCTION public.sync_user_subscription_from_client IS
-  'Sincroniza compra/restauração IAP do app: grava user_subscriptions e atualiza users.plan_is_active. metadata.apple_store_confirmed=false até a Edge (ASN V2) confirmar.';
+  'Sincroniza compra/restauração IAP do app: grava user_subscriptions e atualiza users.plan_is_active. metadata.apple_store_confirmed=false até a Edge (ASN V2) confirmar. Linhas com metadata.source=manual_db não são expiradas pelo reconcile_clear nem substituídas ao inserir nova compra IAP.';

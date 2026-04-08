@@ -142,6 +142,55 @@ export const getCollaborators = async (artistId: string): Promise<{
   }
 };
 
+export interface UsuarioBuscaColaborador {
+  id: string;
+  name: string;
+  email: string;
+  profile_url?: string | null;
+  artist_display_name?: string;
+  musical_style?: string | null;
+  whatsapp?: string | null;
+  city?: string | null;
+  state?: string | null;
+  work_roles?: unknown;
+  show_formats?: unknown;
+}
+
+/** Apenas usuários com perfil de artista marcado como disponível para trabalhos (RPC). */
+export const searchUsersForCollaboratorInvite = async (
+  searchTerm: string,
+  artistId: string
+): Promise<{ users: UsuarioBuscaColaborador[] | null; error: string | null }> => {
+  try {
+    const { data, error } = await supabase.rpc('buscar_usuarios_para_convite_colaborador', {
+      p_termo: searchTerm?.trim() || '',
+      p_artista_id: artistId,
+    });
+    if (error) {
+      console.error('searchUsersForCollaboratorInvite:', error.message);
+      return { users: null, error: error.message };
+    }
+    const rows = (data as Record<string, unknown>[]) || [];
+    const users: UsuarioBuscaColaborador[] = rows.map((row) => ({
+      id: String(row.user_id),
+      name: String(row.name ?? ''),
+      email: String(row.email ?? ''),
+      profile_url: (row.artist_image_url as string) || (row.profile_url as string) || null,
+      artist_display_name: row.artist_display_name != null ? String(row.artist_display_name) : undefined,
+      musical_style: row.musical_style != null ? String(row.musical_style) : null,
+      whatsapp: row.whatsapp != null ? String(row.whatsapp) : null,
+      city: row.city != null ? String(row.city) : null,
+      state: row.state != null ? String(row.state) : null,
+      work_roles: row.work_roles,
+      show_formats: row.show_formats,
+    }));
+    return { users, error: null };
+  } catch (e) {
+    console.error('searchUsersForCollaboratorInvite:', e);
+    return { users: null, error: 'Erro de conexão' };
+  }
+};
+
 // Buscar usuários por nome ou email
 export const searchUsers = async (searchTerm: string): Promise<{ users: any[] | null; error: string | null }> => {
   try {

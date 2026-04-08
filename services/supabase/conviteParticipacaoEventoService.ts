@@ -33,6 +33,8 @@ export interface ArtistaBuscaConvite {
   /** URL para exibir na busca: foto do artista ou, se vazia, foto de um membro (ex.: owner). */
   image_url?: string | null;
   musical_style?: string | null;
+  work_roles?: unknown;
+  show_formats?: unknown;
 }
 
 export async function buscarArtistasParaConvite(
@@ -45,7 +47,17 @@ export async function buscarArtistasParaConvite(
       p_excluir_artista_id: excluirArtistaId,
     });
     if (error) return { artists: [], error: error.message };
-    return { artists: (data as ArtistaBuscaConvite[]) || [], error: null };
+    const raw = (data || []) as Record<string, unknown>[];
+    const artists: ArtistaBuscaConvite[] = raw.map((row) => ({
+      id: String(row.id),
+      name: String(row.name ?? ''),
+      profile_url: row.profile_url != null ? String(row.profile_url) : null,
+      image_url: row.image_url != null ? String(row.image_url) : undefined,
+      musical_style: row.musical_style != null ? String(row.musical_style) : undefined,
+      work_roles: row.work_roles,
+      show_formats: row.show_formats,
+    }));
+    return { artists, error: null };
   } catch {
     return { artists: [], error: 'Erro de conexão' };
   }

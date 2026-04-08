@@ -19,6 +19,7 @@ import OptimizedImage from '../components/OptimizedImage';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { getEventById } from '../services/supabase/eventService';
+import { parseArtistStringArrayFromJson } from '../constants/artistProfileLists';
 import {
   buscarArtistasParaConvite,
   enviarConviteParticipacao,
@@ -53,6 +54,8 @@ export default function ConvidarColaboradorEventoScreen() {
   } | null>(null);
   const [artistLocations, setArtistLocations] = useState<Record<string, string>>({});
   const [artistStyles, setArtistStyles] = useState<Record<string, string>>({});
+  const [artistWorkRoles, setArtistWorkRoles] = useState<Record<string, string[]>>({});
+  const [artistShowFormats, setArtistShowFormats] = useState<Record<string, string[]>>({});
 
   const [cacheDraft, setCacheDraft] = useState('R$ 0,00');
   const [whatsDraft, setWhatsDraft] = useState('');
@@ -150,18 +153,36 @@ export default function ConvidarColaboradorEventoScreen() {
         if (!cancelled) {
           setArtistLocations({});
           setArtistStyles({});
+          setArtistWorkRoles({});
+          setArtistShowFormats({});
         }
         return;
       }
 
-      const { data: styleData } = await supabase.from('artists').select('id, musical_style').in('id', ids);
+      const { data: styleData } = await supabase
+        .from('artists')
+        .select('id, musical_style, work_roles, show_formats')
+        .in('id', ids);
       if (!cancelled) {
         const nextStyles: Record<string, string> = {};
-        ((styleData as Array<{ id: string; musical_style?: string | null }> | null) || []).forEach((row) => {
+        const nextWorkRoles: Record<string, string[]> = {};
+        const nextShowFormats: Record<string, string[]> = {};
+        (
+          (styleData as Array<{
+            id: string;
+            musical_style?: string | null;
+            work_roles?: unknown;
+            show_formats?: unknown;
+          }> | null) || []
+        ).forEach((row) => {
           const style = String(row.musical_style || '').trim();
           if (style) nextStyles[row.id] = style;
+          nextWorkRoles[row.id] = parseArtistStringArrayFromJson(row.work_roles);
+          nextShowFormats[row.id] = parseArtistStringArrayFromJson(row.show_formats);
         });
         setArtistStyles(nextStyles);
+        setArtistWorkRoles(nextWorkRoles);
+        setArtistShowFormats(nextShowFormats);
       }
 
       const fetchCityState = async () => {
@@ -337,13 +358,19 @@ export default function ConvidarColaboradorEventoScreen() {
                   const isSelected = selectedArtist?.id === item.id;
                   const artistLocation = artistLocations[item.id] || 'Não informado';
                   const artistStyle = (item.musical_style || artistStyles[item.id] || '').trim();
+                  const rolesFromRpc = parseArtistStringArrayFromJson(item.work_roles);
+                  const formatsFromRpc = parseArtistStringArrayFromJson(item.show_formats);
+                  const roles =
+                    rolesFromRpc.length > 0 ? rolesFromRpc : artistWorkRoles[item.id] || [];
+                  const formats =
+                    formatsFromRpc.length > 0 ? formatsFromRpc : artistShowFormats[item.id] || [];
                   return (
                 <TouchableOpacity
                   style={[
                     styles.row,
                     {
-                      borderBottomColor: colors.border,
-                      backgroundColor: isSelected ? `${colors.primary}14` : 'transparent',
+                      borderColor: isSelected ? `${colors.primary}66` : colors.border,
+                      backgroundColor: isSelected ? `${colors.primary}12` : colors.surface,
                     },
                   ]}
                   onPress={() =>
@@ -368,6 +395,40 @@ export default function ConvidarColaboradorEventoScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={{ color: colors.text, fontWeight: isSelected ? '700' : '500' }}>{item.name}</Text>
                       {!!artistStyle && <Text style={[styles.badgeText, { color: colors.primary }]}>{artistStyle}</Text>}
+                      {roles.length > 0 && (
+                        <View style={styles.rolesWrap}>
+                          {roles.map((role) => (
+                            <View
+                              key={`${item.id}-role-${role}`}
+                              style={[styles.roleChip, { backgroundColor: `${colors.primary}18`, borderColor: `${colors.primary}44` }]}
+                            >
+                              <Text style={[styles.roleChipText, { color: colors.primary }]} numberOfLines={1}>
+                                {role}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                      {formats.length > 0 && (
+                        <View style={styles.rolesWrap}>
+                          {formats.map((fmt) => (
+                            <View
+                              key={`${item.id}-fmt-${fmt}`}
+                              style={[
+                                styles.formatChip,
+                                {
+                                  backgroundColor: `${colors.textSecondary}14`,
+                                  borderColor: `${colors.textSecondary}40`,
+                                },
+                              ]}
+                            >
+                              <Text style={[styles.formatChipText, { color: colors.textSecondary }]} numberOfLines={1}>
+                                {fmt}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
                       <View style={styles.locationRow}>
                         <Ionicons name="location-outline" size={13} color={colors.textSecondary} />
                         <Text style={[styles.locationText, { color: colors.textSecondary }]}>{artistLocation}</Text>
@@ -460,12 +521,47 @@ const styles = StyleSheet.create({
     fontSize: 17,
   },
   messageInput: { minHeight: 88, textAlignVertical: 'top' },
-  row: { paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
+  row: {
+    marginTop: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderRadius: 12,
+  },
   rowContent: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   rowAvatar: { width: 34, height: 34, borderRadius: 17 },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   locationText: { fontSize: 12 },
   badgeText: { fontSize: 12, fontWeight: '700' },
+  rolesWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+    marginBottom: 2,
+  },
+  roleChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    maxWidth: '100%',
+  },
+  roleChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  formatChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    maxWidth: '100%',
+  },
+  formatChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
   selectedWrap: { marginTop: 10, marginBottom: 12 },
   selected: { fontWeight: '500' },
   actions: { flexDirection: 'row', gap: 10, marginTop: 8 },

@@ -331,6 +331,7 @@ serve(async (req) => {
         .eq('user_id', userId)
         .eq('platform', 'ios')
         .in('status', ['active', 'grace_period', 'pending'])
+        .or('metadata->>source.is.null,metadata->>source.neq.manual_db')
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -352,7 +353,21 @@ serve(async (req) => {
             .from('user_subscriptions')
             .update({ status: 'expired' })
             .eq('user_id', userId)
-            .in('status', ['active', 'grace_period']);
+            .in('status', ['active', 'grace_period'])
+            .or('metadata->>source.is.null,metadata->>source.neq.manual_db');
+          const { data: manualOnly } = await supabase
+            .from('user_subscriptions')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('metadata->>source', 'manual_db')
+            .in('status', ['active', 'grace_period'])
+            .maybeSingle();
+          if (manualOnly) {
+            await supabase
+              .from('user_subscriptions')
+              .update({ status: 'expired' })
+              .eq('id', manualOnly.id);
+          }
         }
 
         const metadata = mergeAppleServerMetadata({}, appleMetaLayer);

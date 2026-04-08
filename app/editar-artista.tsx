@@ -10,12 +10,22 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
   View,
+  type TextInputProps,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ESTADOS_BRASIL, normalizeEstadoParaListaExibicao } from '../constants/estadosBrasil';
+import {
+  ARTIST_SHOW_FORMAT_PRESETS,
+  ARTIST_WORK_ROLE_PRESETS,
+  buildOrderedOptionsForPicker,
+  parseArtistStringArrayFromJson,
+} from '../constants/artistProfileLists';
+import { ChipMultiSelectField } from '../components/ChipMultiSelectField';
 import PermissionModal from '../components/PermissionModal';
 import { useActiveArtistContext } from '../contexts/ActiveArtistContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -98,14 +108,85 @@ export default function EditarArtistaScreen() {
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showEstilos, setShowEstilos] = useState(false);
+  const [showEstados, setShowEstados] = useState(false);
   const [imageLoadError, setImageLoadError] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   
   // Campos do formulário
   const [name, setName] = useState('');
   const [musicalStyle, setMusicalStyle] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [isAvailableForGigs, setIsAvailableForGigs] = useState(true);
+  const [averageCacheValue, setAverageCacheValue] = useState('');
+  const [selectedWorkRoles, setSelectedWorkRoles] = useState<string[]>([]);
+  const [selectedShowFormats, setSelectedShowFormats] = useState<string[]>([]);
+  const [workRoleDraft, setWorkRoleDraft] = useState('');
+  const [showFormatDraft, setShowFormatDraft] = useState('');
   const [profileUrl, setProfileUrl] = useState('');
   const [originalProfileUrl, setOriginalProfileUrl] = useState('');
+
+  const formatCurrencyInput = (raw: string): string => {
+    const digitsOnly = raw.replace(/\D/g, '');
+    if (!digitsOnly) return '';
+    const numericValue = Number(digitsOnly) / 100;
+    return numericValue.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  const formatNumberToCurrencyInput = (value: number): string =>
+    value.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  const parseCurrencyInputToNumber = (raw: string): number | null => {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    const normalized = trimmed.replace(/\./g, '').replace(',', '.');
+    const numericValue = Number(normalized);
+    return Number.isNaN(numericValue) ? null : numericValue;
+  };
+
+  const workRoleOptions = buildOrderedOptionsForPicker(ARTIST_WORK_ROLE_PRESETS, selectedWorkRoles);
+  const showFormatOptions = buildOrderedOptionsForPicker(ARTIST_SHOW_FORMAT_PRESETS, selectedShowFormats);
+
+  const toggleWorkRole = (label: string) => {
+    setSelectedWorkRoles((prev) =>
+      prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label]
+    );
+  };
+
+  const toggleShowFormat = (label: string) => {
+    setSelectedShowFormats((prev) =>
+      prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label]
+    );
+  };
+
+  const addCustomWorkRole = () => {
+    const t = workRoleDraft.trim();
+    if (!t) return;
+    if (selectedWorkRoles.some((x) => x.toLowerCase() === t.toLowerCase())) {
+      Alert.alert('Atenção', 'Esta função já está na lista.');
+      return;
+    }
+    setSelectedWorkRoles((prev) => [...prev, t]);
+    setWorkRoleDraft('');
+  };
+
+  const addCustomShowFormat = () => {
+    const t = showFormatDraft.trim();
+    if (!t) return;
+    if (selectedShowFormats.some((x) => x.toLowerCase() === t.toLowerCase())) {
+      Alert.alert('Atenção', 'Este formato já está na lista.');
+      return;
+    }
+    setSelectedShowFormats((prev) => [...prev, t]);
+    setShowFormatDraft('');
+  };
 
   useEffect(() => {
     if (activeArtist) {
@@ -178,6 +259,17 @@ export default function EditarArtistaScreen() {
       setArtist(currentArtist);
       setName(currentArtist.name || '');
       setMusicalStyle(currentArtist.musical_style || '');
+      setWhatsapp(currentArtist.whatsapp || '');
+      setCity(currentArtist.city || '');
+      setState(normalizeEstadoParaListaExibicao(currentArtist.state));
+      setIsAvailableForGigs(currentArtist.is_available_for_gigs ?? true);
+      setAverageCacheValue(
+        currentArtist.average_cache_value != null
+          ? formatNumberToCurrencyInput(Number(currentArtist.average_cache_value))
+          : ''
+      );
+      setSelectedWorkRoles(parseArtistStringArrayFromJson(currentArtist.work_roles));
+      setSelectedShowFormats(parseArtistStringArrayFromJson(currentArtist.show_formats));
       setProfileUrl(currentArtist.profile_url || '');
       setOriginalProfileUrl(currentArtist.profile_url || '');
 
@@ -255,6 +347,27 @@ export default function EditarArtistaScreen() {
       return;
     }
 
+    const parsedAverageCacheValue = parseCurrencyInputToNumber(averageCacheValue);
+    if (isAvailableForGigs && averageCacheValue.trim() !== '' && parsedAverageCacheValue === null) {
+      Alert.alert('Atenção', 'Informe um valor numérico válido para o cachê médio');
+      return;
+    }
+
+    if (isAvailableForGigs) {
+      if (!whatsapp.trim()) {
+        Alert.alert('Atenção', 'Informe o WhatsApp para aparecer na busca de convites.');
+        return;
+      }
+      if (!city.trim()) {
+        Alert.alert('Atenção', 'Informe a cidade para aparecer na busca de convites.');
+        return;
+      }
+      if (!state.trim()) {
+        Alert.alert('Atenção', 'Informe o estado para aparecer na busca de convites.');
+        return;
+      }
+    }
+
     try {
       setIsSaving(true);
       let finalProfileUrl = profileUrl;
@@ -292,6 +405,13 @@ export default function EditarArtistaScreen() {
       const updateResult = await updateArtist(artist.id, {
         name: name.trim(),
         musical_style: musicalStyle.trim() || undefined,
+        whatsapp: isAvailableForGigs ? whatsapp.trim() || null : null,
+        city: isAvailableForGigs ? city.trim() || null : null,
+        state: isAvailableForGigs ? state.trim() || null : null,
+        is_available_for_gigs: isAvailableForGigs,
+        average_cache_value: isAvailableForGigs ? parsedAverageCacheValue : null,
+        work_roles: isAvailableForGigs ? selectedWorkRoles : [],
+        show_formats: isAvailableForGigs ? selectedShowFormats : [],
         profile_url: finalProfileUrl,
       });
 
@@ -340,7 +460,7 @@ export default function EditarArtistaScreen() {
     value: string,
     onChangeText: (text: string) => void,
     placeholder: string,
-    keyboardType: 'default' | 'email-address' | 'phone-pad' = 'default',
+    keyboardType: TextInputProps['keyboardType'] = 'default',
     required: boolean = false,
     maxLength?: number
   ) => (
@@ -457,7 +577,7 @@ export default function EditarArtistaScreen() {
             true,
             50
           )}
-          
+
           {/* Estilo Musical */}
           <View style={styles.inputContainer}>
             <Text style={[styles.inputLabel, { color: colors.text }]}>
@@ -484,6 +604,149 @@ export default function EditarArtistaScreen() {
               <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
+
+          <View style={styles.inputContainer}>
+            <Text style={[styles.inputLabel, { color: colors.text }]}>
+              Disponível para trabalhos
+            </Text>
+            <View
+              style={[
+                styles.switchRow,
+                { borderColor: colors.border, backgroundColor: colors.surface },
+              ]}
+            >
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Text style={{ color: colors.text, fontSize: 16, fontWeight: '500' }}>
+                  Receber convites na busca
+                </Text>
+              </View>
+              <Switch
+                value={isAvailableForGigs}
+                onValueChange={setIsAvailableForGigs}
+                trackColor={{ false: colors.border, true: colors.primary + '80' }}
+                thumbColor={Platform.OS === 'android' ? (isAvailableForGigs ? colors.primary : '#f4f3f4') : undefined}
+                ios_backgroundColor={colors.border}
+              />
+            </View>
+            <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 8, lineHeight: 18 }}>
+              {isAvailableForGigs
+                ? 'Ligado: este artista aparece na busca para receber convites. WhatsApp, cidade e estado são obrigatórios.'
+                : 'Desligado: este artista não aparece na busca de convites até você ligar novamente.'}
+            </Text>
+          </View>
+
+          {isAvailableForGigs && (
+            <>
+              {renderInput(
+                'WhatsApp',
+                whatsapp,
+                setWhatsapp,
+                '(00) 00000-0000',
+                'phone-pad',
+                true
+              )}
+
+              {renderInput(
+                'Cidade',
+                city,
+                setCity,
+                'Digite a cidade',
+                'default',
+                true
+              )}
+
+              <View style={styles.inputContainer}>
+                <Text style={[styles.inputLabel, { color: colors.text }]}>
+                  Estado <Text style={styles.required}>*</Text>
+                </Text>
+                <TouchableOpacity
+                  style={[
+                    styles.estadoSelector,
+                    { borderColor: colors.border, backgroundColor: colors.surface },
+                  ]}
+                  onPress={() => setShowEstados(!showEstados)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.estadoText, { color: state ? colors.text : colors.textSecondary }]}>
+                    {state || 'Selecione seu estado'}
+                  </Text>
+                  <Ionicons
+                    name={showEstados ? 'chevron-up' : 'chevron-down'}
+                    size={20}
+                    color={colors.textSecondary}
+                  />
+                </TouchableOpacity>
+                {showEstados && (
+                  <View style={[styles.estadosList, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <ScrollView style={styles.estadosScroll} nestedScrollEnabled>
+                      {ESTADOS_BRASIL.map((estadoItem) => (
+                        <TouchableOpacity
+                          key={estadoItem}
+                          style={[styles.estadoItem, { borderBottomColor: colors.border }]}
+                          onPress={() => {
+                            setState(estadoItem);
+                            setShowEstados(false);
+                          }}
+                        >
+                          <Text style={[styles.estadoItemText, { color: colors.text }]}>{estadoItem}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Cachê médio (R$)</Text>
+                <View
+                  style={[
+                    styles.input,
+                    {
+                      borderColor: colors.border,
+                      backgroundColor: colors.surface,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                    },
+                  ]}
+                >
+                  <Ionicons name="cash-outline" size={20} color={colors.textSecondary} style={{ marginRight: 8 }} />
+                  <Text style={[styles.currencyPrefix, { color: colors.textSecondary }]}>R$</Text>
+                  <TextInput
+                    style={{ flex: 1, color: colors.text, fontSize: 16 }}
+                    value={averageCacheValue}
+                    onChangeText={(value) => setAverageCacheValue(formatCurrencyInput(value))}
+                    placeholder="Ex.: 1.500,00"
+                    placeholderTextColor={colors.textSecondary}
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+
+              <ChipMultiSelectField
+                title="Funções de trabalho"
+                options={workRoleOptions}
+                selected={selectedWorkRoles}
+                onToggle={toggleWorkRole}
+                draft={workRoleDraft}
+                onDraftChange={setWorkRoleDraft}
+                onAddCustom={addCustomWorkRole}
+                addSectionLabel="Incluir outra função"
+                addPlaceholder="Digite e toque em Adicionar"
+              />
+
+              <ChipMultiSelectField
+                title="Modelo / formato de show"
+                options={showFormatOptions}
+                selected={selectedShowFormats}
+                onToggle={toggleShowFormat}
+                draft={showFormatDraft}
+                onDraftChange={setShowFormatDraft}
+                onAddCustom={addCustomShowFormat}
+                addSectionLabel="Incluir outro formato"
+                addPlaceholder="Digite e toque em Adicionar"
+              />
+            </>
+          )}
         </View>
 
         {/* Informações adicionais */}
@@ -736,6 +999,52 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
   },
+  currencyPrefix: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginRight: 8,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    minHeight: 52,
+  },
+  estadoSelector: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  estadoText: {
+    fontSize: 16,
+    flex: 1,
+  },
+  estadosList: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderRadius: 8,
+    maxHeight: 200,
+    overflow: 'hidden',
+  },
+  estadosScroll: {
+    maxHeight: 200,
+  },
+  estadoItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+  },
+  estadoItemText: {
+    fontSize: 16,
+  },
   infoCard: {
     marginHorizontal: 20,
     marginBottom: 20,
@@ -837,5 +1146,7 @@ const styles = StyleSheet.create({
   },
   estilosModalItemText: {
     fontSize: 16,
+    flex: 1,
+    paddingRight: 12,
   },
 });

@@ -11,18 +11,26 @@ import {
     Platform,
     ScrollView,
     StyleSheet,
+    Switch,
     Text,
     TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ESTADOS_BRASIL } from '../../../constants/estadosBrasil';
+import {
+    ARTIST_SHOW_FORMAT_PRESETS,
+    ARTIST_WORK_ROLE_PRESETS,
+    buildOrderedOptionsForPicker,
+} from '../../../constants/artistProfileLists';
 import { useActiveArtistContext } from '../../../contexts/ActiveArtistContext';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { createArtist } from '../../../services/supabase/artistService';
 import { getCurrentUser } from '../../../services/supabase/authService';
 import { uploadImageToSupabase } from '../../../services/supabase/imageUploadService';
 import { canCreateArtist, FREE_PLAN_MAX_OWNED_ARTIST_PROFILES } from '../../../services/supabase/userService';
+import { ChipMultiSelectField } from '../../../components/ChipMultiSelectField';
 
 const estilosMusicais = [
   'Alternative',
@@ -100,15 +108,75 @@ export default function ArtistProfileScreen() {
   const [state, setState] = useState('');
   const [isAvailableForGigs, setIsAvailableForGigs] = useState(true);
   const [averageCacheValue, setAverageCacheValue] = useState('');
-  const [workRolesText, setWorkRolesText] = useState('');
-  const [showFormatsText, setShowFormatsText] = useState('');
+  const [selectedWorkRoles, setSelectedWorkRoles] = useState<string[]>([]);
+  const [selectedShowFormats, setSelectedShowFormats] = useState<string[]>([]);
   const [profileUrl, setProfileUrl] = useState<string | null>(null);
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showEstilos, setShowEstilos] = useState(false);
+  const [showEstados, setShowEstados] = useState(false);
+  const [workRoleDraft, setWorkRoleDraft] = useState('');
+  const [showFormatDraft, setShowFormatDraft] = useState('');
   const [createdArtistName, setCreatedArtistName] = useState('');
+
+  const formatCurrencyInput = (raw: string): string => {
+    const digitsOnly = raw.replace(/\D/g, '');
+    if (!digitsOnly) return '';
+    const numericValue = Number(digitsOnly) / 100;
+    return numericValue.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  const parseCurrencyInputToNumber = (raw: string): number | null => {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    const normalized = trimmed.replace(/\./g, '').replace(',', '.');
+    const numericValue = Number(normalized);
+    return Number.isNaN(numericValue) ? null : numericValue;
+  };
+
+  const workRoleOptions = buildOrderedOptionsForPicker(ARTIST_WORK_ROLE_PRESETS, selectedWorkRoles);
+  const showFormatOptions = buildOrderedOptionsForPicker(ARTIST_SHOW_FORMAT_PRESETS, selectedShowFormats);
+
+  const toggleWorkRole = (label: string) => {
+    setSelectedWorkRoles((prev) =>
+      prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label]
+    );
+  };
+
+  const toggleShowFormat = (label: string) => {
+    setSelectedShowFormats((prev) =>
+      prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label]
+    );
+  };
+
+  const addCustomWorkRole = () => {
+    const t = workRoleDraft.trim();
+    if (!t) return;
+    const dup = selectedWorkRoles.some((x) => x.toLowerCase() === t.toLowerCase());
+    if (dup) {
+      Alert.alert('Atenção', 'Esta função já está na lista.');
+      return;
+    }
+    setSelectedWorkRoles((prev) => [...prev, t]);
+    setWorkRoleDraft('');
+  };
+
+  const addCustomShowFormat = () => {
+    const t = showFormatDraft.trim();
+    if (!t) return;
+    const dup = selectedShowFormats.some((x) => x.toLowerCase() === t.toLowerCase());
+    if (dup) {
+      Alert.alert('Atenção', 'Este formato já está na lista.');
+      return;
+    }
+    setSelectedShowFormats((prev) => [...prev, t]);
+    setShowFormatDraft('');
+  };
 
   const handleSkipArtistCreation = () => {
     Alert.alert(
@@ -194,9 +262,25 @@ export default function ArtistProfileScreen() {
       return;
     }
 
-    if (averageCacheValue.trim() !== '' && Number.isNaN(Number(averageCacheValue))) {
+    const parsedAverageCacheValue = parseCurrencyInputToNumber(averageCacheValue);
+    if (isAvailableForGigs && averageCacheValue.trim() !== '' && parsedAverageCacheValue === null) {
       Alert.alert('Atenção', 'Informe um valor numérico válido para o cachê médio');
       return;
+    }
+
+    if (isAvailableForGigs) {
+      if (!whatsapp.trim()) {
+        Alert.alert('Atenção', 'Informe o WhatsApp para aparecer na busca de convites.');
+        return;
+      }
+      if (!city.trim()) {
+        Alert.alert('Atenção', 'Informe a cidade para aparecer na busca de convites.');
+        return;
+      }
+      if (!state.trim()) {
+        Alert.alert('Atenção', 'Informe o estado para aparecer na busca de convites.');
+        return;
+      }
     }
 
     setLoading(true);
@@ -264,20 +348,13 @@ export default function ArtistProfileScreen() {
         musical_style: musicalStyle,
         profile_url: finalProfileUrl || undefined,
         user_id: user.id,
-        profile_type: 'artist',
-        whatsapp: whatsapp.trim() || undefined,
-        city: city.trim() || undefined,
-        state: state.trim() || undefined,
+        whatsapp: isAvailableForGigs ? whatsapp.trim() || undefined : undefined,
+        city: isAvailableForGigs ? city.trim() || undefined : undefined,
+        state: isAvailableForGigs ? state.trim() || undefined : undefined,
         is_available_for_gigs: isAvailableForGigs,
-        average_cache_value: averageCacheValue.trim() === '' ? null : Number(averageCacheValue),
-        work_roles: workRolesText
-          .split(',')
-          .map((item) => item.trim())
-          .filter(Boolean),
-        show_formats: showFormatsText
-          .split(',')
-          .map((item) => item.trim())
-          .filter(Boolean),
+        average_cache_value: isAvailableForGigs ? parsedAverageCacheValue : null,
+        work_roles: isAvailableForGigs ? selectedWorkRoles : [],
+        show_formats: isAvailableForGigs ? selectedShowFormats : [],
       });
 
       console.log('📊 [ArtistProfileScreen] Resposta do createArtist:', {
@@ -347,7 +424,6 @@ export default function ArtistProfileScreen() {
                   <Ionicons name="arrow-back" size={24} color={colors.primary} />
                 </TouchableOpacity>
               )}
-              <Text style={[styles.brandName, { color: colors.primary }]}>MarcaAi</Text>
               <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                 {fromSettings 
                   ? 'Adicione um novo perfil de artista' 
@@ -356,7 +432,7 @@ export default function ArtistProfileScreen() {
             </View>
 
             {/* Formulário */}
-            <View style={[styles.form, { backgroundColor: colors.surface }]}>
+            <View style={styles.form}>
               {/* Foto de Perfil */}
               <View style={styles.photoSection}>
                 <Text style={[styles.label, { color: colors.text }]}>Foto do Artista</Text>
@@ -423,110 +499,145 @@ export default function ArtistProfileScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: colors.text }]}>WhatsApp</Text>
-                <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                  <Ionicons name="logo-whatsapp" size={20} color={colors.textSecondary} style={styles.inputIcon} />
-                  <TextInput
-                    style={[styles.input, { color: colors.text }]}
-                    value={whatsapp}
-                    onChangeText={setWhatsapp}
-                    placeholder="(00) 00000-0000"
-                    placeholderTextColor={colors.textSecondary}
-                    keyboardType="phone-pad"
-                  />
-                </View>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: colors.text }]}>Cidade</Text>
-                <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                  <Ionicons name="location-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
-                  <TextInput
-                    style={[styles.input, { color: colors.text }]}
-                    value={city}
-                    onChangeText={setCity}
-                    placeholder="Digite a cidade"
-                    placeholderTextColor={colors.textSecondary}
-                    autoCapitalize="words"
-                  />
-                </View>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: colors.text }]}>Estado</Text>
-                <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                  <Ionicons name="map-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
-                  <TextInput
-                    style={[styles.input, { color: colors.text }]}
-                    value={state}
-                    onChangeText={setState}
-                    placeholder="Ex.: RS"
-                    placeholderTextColor={colors.textSecondary}
-                    autoCapitalize="characters"
-                    maxLength={2}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: colors.text }]}>Disponibilidade para trabalhos</Text>
-                <TouchableOpacity
-                  style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border, justifyContent: 'space-between' }]}
-                  onPress={() => setIsAvailableForGigs((prev) => !prev)}
+                <Text style={[styles.label, { color: colors.text }]}>Disponível para trabalhos</Text>
+                <View
+                  style={[
+                    styles.switchRow,
+                    { backgroundColor: colors.background, borderColor: colors.border },
+                  ]}
                 >
-                  <Text style={[styles.input, { color: colors.text }]}>
-                    {isAvailableForGigs ? 'Disponivel para convites' : 'Indisponivel para convites'}
-                  </Text>
-                  <Ionicons
-                    name={isAvailableForGigs ? 'toggle' : 'toggle-outline'}
-                    size={28}
-                    color={isAvailableForGigs ? colors.success : colors.textSecondary}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: colors.text }]}>Cache medio (R$)</Text>
-                <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                  <Ionicons name="cash-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
-                  <TextInput
-                    style={[styles.input, { color: colors.text }]}
-                    value={averageCacheValue}
-                    onChangeText={setAverageCacheValue}
-                    placeholder="Ex.: 1500.00"
-                    placeholderTextColor={colors.textSecondary}
-                    keyboardType="numeric"
+                  <View style={{ flex: 1, paddingRight: 12 }}>
+                    <Text style={{ color: colors.text, fontSize: 16, fontWeight: '500' }}>
+                      Receber convites na busca
+                    </Text>
+                  </View>
+                  <Switch
+                    value={isAvailableForGigs}
+                    onValueChange={setIsAvailableForGigs}
+                    trackColor={{ false: colors.border, true: colors.primary + '80' }}
+                    thumbColor={Platform.OS === 'android' ? (isAvailableForGigs ? colors.primary : '#f4f3f4') : undefined}
+                    ios_backgroundColor={colors.border}
                   />
                 </View>
+                <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 8, lineHeight: 18 }}>
+                  {isAvailableForGigs
+                    ? 'Ligado: seu artista aparece na busca para receber convites de participação em eventos.'
+                    : 'Desligado: seu artista não aparece na busca de convites até você ligar novamente.'}
+                </Text>
               </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: colors.text }]}>Funcoes de trabalho (separe por virgula)</Text>
-                <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                  <Ionicons name="briefcase-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
-                  <TextInput
-                    style={[styles.input, { color: colors.text }]}
-                    value={workRolesText}
-                    onChangeText={setWorkRolesText}
-                    placeholder="Ex.: Vocalista, Guitarrista"
-                    placeholderTextColor={colors.textSecondary}
-                  />
-                </View>
-              </View>
+              {isAvailableForGigs && (
+                <>
+                  <View style={styles.inputGroup}>
+                    <Text style={[styles.label, { color: colors.text }]}>WhatsApp *</Text>
+                    <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                      <Ionicons name="logo-whatsapp" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                      <TextInput
+                        style={[styles.input, { color: colors.text }]}
+                        value={whatsapp}
+                        onChangeText={setWhatsapp}
+                        placeholder="(00) 00000-0000"
+                        placeholderTextColor={colors.textSecondary}
+                        keyboardType="phone-pad"
+                      />
+                    </View>
+                  </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: colors.text }]}>Formato de show (separe por virgula)</Text>
-                <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                  <Ionicons name="albums-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
-                  <TextInput
-                    style={[styles.input, { color: colors.text }]}
-                    value={showFormatsText}
-                    onChangeText={setShowFormatsText}
-                    placeholder="Ex.: Voz e violao, Banda completa"
-                    placeholderTextColor={colors.textSecondary}
+                  <View style={styles.inputGroup}>
+                    <Text style={[styles.label, { color: colors.text }]}>Cidade *</Text>
+                    <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                      <Ionicons name="location-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                      <TextInput
+                        style={[styles.input, { color: colors.text }]}
+                        value={city}
+                        onChangeText={setCity}
+                        placeholder="Digite a cidade"
+                        placeholderTextColor={colors.textSecondary}
+                        autoCapitalize="words"
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={[styles.label, { color: colors.text }]}>Estado *</Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.estadoSelector,
+                        { borderColor: colors.border, backgroundColor: colors.background },
+                      ]}
+                      onPress={() => setShowEstados(!showEstados)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.estadoText, { color: state ? colors.text : colors.textSecondary }]}>
+                        {state || 'Selecione seu estado'}
+                      </Text>
+                      <Ionicons
+                        name={showEstados ? 'chevron-up' : 'chevron-down'}
+                        size={20}
+                        color={colors.textSecondary}
+                      />
+                    </TouchableOpacity>
+                    {showEstados && (
+                      <View style={[styles.estadosList, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                        <ScrollView style={styles.estadosScroll} nestedScrollEnabled>
+                          {ESTADOS_BRASIL.map((estadoItem) => (
+                            <TouchableOpacity
+                              key={estadoItem}
+                              style={[styles.estadoItem, { borderBottomColor: colors.border }]}
+                              onPress={() => {
+                                setState(estadoItem);
+                                setShowEstados(false);
+                              }}
+                            >
+                              <Text style={[styles.estadoItemText, { color: colors.text }]}>{estadoItem}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                      </View>
+                    )}
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={[styles.label, { color: colors.text }]}>Cachê médio (R$)</Text>
+                    <View style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                      <Ionicons name="cash-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                      <Text style={[styles.currencyPrefix, { color: colors.textSecondary }]}>R$</Text>
+                      <TextInput
+                        style={[styles.input, { color: colors.text }]}
+                        value={averageCacheValue}
+                        onChangeText={(value) => setAverageCacheValue(formatCurrencyInput(value))}
+                        placeholder="Ex.: 1.500,00"
+                        placeholderTextColor={colors.textSecondary}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                  </View>
+
+                  <ChipMultiSelectField
+                    title="Funções de trabalho"
+                    options={workRoleOptions}
+                    selected={selectedWorkRoles}
+                    onToggle={toggleWorkRole}
+                    draft={workRoleDraft}
+                    onDraftChange={setWorkRoleDraft}
+                    onAddCustom={addCustomWorkRole}
+                    addSectionLabel="Incluir outra função"
+                    addPlaceholder="Digite e toque em Adicionar"
                   />
-                </View>
-              </View>
+
+                  <ChipMultiSelectField
+                    title="Modelo / formato de show"
+                    options={showFormatOptions}
+                    selected={selectedShowFormats}
+                    onToggle={toggleShowFormat}
+                    draft={showFormatDraft}
+                    onDraftChange={setShowFormatDraft}
+                    onAddCustom={addCustomShowFormat}
+                    addSectionLabel="Incluir outro formato"
+                    addPlaceholder="Digite e toque em Adicionar"
+                  />
+                </>
+              )}
 
               <TouchableOpacity
                 style={[
@@ -709,8 +820,8 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 24,
-    marginTop: 10,
+    marginBottom: 16,
+    marginTop: 4,
     position: 'relative',
   },
   backButton: {
@@ -720,29 +831,13 @@ const styles = StyleSheet.create({
     padding: 8,
     zIndex: 10,
   },
-  brandName: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 6,
-    letterSpacing: 0.5,
-    textAlign: 'center',
-  },
   subtitle: {
     fontSize: 14,
     textAlign: 'center',
     opacity: 0.7,
   },
   form: {
-    borderRadius: 16,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: Platform.OS === 'android' ? 0 : 0.1,
-    shadowRadius: Platform.OS === 'android' ? 0 : 8,
-    elevation: Platform.OS === 'android' ? 0 : 8,
+    paddingHorizontal: 4,
   },
   photoSection: {
     alignItems: 'center',
@@ -802,6 +897,52 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
+    fontSize: 16,
+  },
+  currencyPrefix: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginRight: 8,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 56,
+  },
+  estadoSelector: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    minHeight: 56,
+  },
+  estadoText: {
+    fontSize: 16,
+    flex: 1,
+  },
+  estadosList: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    maxHeight: 200,
+    overflow: 'hidden',
+  },
+  estadosScroll: {
+    maxHeight: 200,
+  },
+  estadoItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+  },
+  estadoItemText: {
     fontSize: 16,
   },
   finalizarButton: {
@@ -877,6 +1018,8 @@ const styles = StyleSheet.create({
   },
   modalItemText: {
     fontSize: 16,
+    flex: 1,
+    paddingRight: 12,
   },
   successModalOverlay: {
     flex: 1,
