@@ -1241,12 +1241,12 @@ export default function AgendaScreen() {
     const conviteIdForCard = item.convite_participacao_id || conviteIdByEventId[item.id];
     const isInvitedEvent = !!conviteIdForCard;
     const fromParticipantMap = participantAvatarsByEventId[item.id] || [];
-    const collabAvatars: { profile_url: string | null }[] =
+    const collabAvatars: { profile_url: string | null; name: string }[] =
       fromParticipantMap.length > 0
         ? fromParticipantMap
             .filter((p) => !p.isHost)
             .slice(0, MAX_COLLAB_AVATARS_ON_CARD)
-            .map((p) => ({ profile_url: p.profile_url }))
+            .map((p) => ({ profile_url: p.profile_url, name: p.name || 'Participante' }))
         : [];
     
     const timeRange =
@@ -1357,6 +1357,7 @@ export default function AgendaScreen() {
                               imageUrl={a.profile_url || ''}
                               style={styles.collabStackAvatarInner}
                               cacheKey={`collab_stack_${item.id}_${idx}_${a.profile_url || 'none'}`}
+                              fallbackText={a.name || 'Participante'}
                               fallbackIcon="person"
                               fallbackIconSize={9}
                               fallbackIconColor="#FFFFFF"
@@ -1461,6 +1462,7 @@ export default function AgendaScreen() {
                   imageUrl={activeArtist.profile_url || ''}
                   style={[styles.artistAvatar, { borderColor: colors.border }]}
                   cacheKey={`artist_${activeArtist.id}`}
+                  fallbackText={activeArtist.name || 'Artista'}
                   fallbackIcon="musical-notes"
                   fallbackIconSize={24}
                   fallbackIconColor={colors.primary}
@@ -1998,6 +2000,7 @@ export default function AgendaScreen() {
                     imageUrl={p.profile_url || ''}
                     style={styles.inviterAvatar}
                     cacheKey={`participants_modal_${p.id}_${p.profile_url || 'none'}`}
+                    fallbackText={p.name || 'Participante'}
                     fallbackIcon="person"
                     fallbackIconSize={18}
                     fallbackIconColor="#FFFFFF"
@@ -2257,20 +2260,15 @@ export default function AgendaScreen() {
                     onPress={() => handleSelectOtherArtist(artist)}
                   >
                     <View style={styles.removedModalArtistInfo}>
-                      {artist.profile_url ? (
-                        <OptimizedImage
-                          imageUrl={artist.profile_url}
-                          style={styles.removedModalArtistAvatar}
-                          cacheKey={`artist_${artist.id}`}
-                          fallbackIcon="musical-notes"
-                          fallbackIconSize={20}
-                          fallbackIconColor={colors.primary}
-                        />
-                      ) : (
-                        <View style={[styles.removedModalArtistAvatarPlaceholder, { backgroundColor: colors.primary }]}>
-                          <Ionicons name="musical-notes" size={20} color="#fff" />
-                        </View>
-                      )}
+                      <OptimizedImage
+                        imageUrl={artist.profile_url || ''}
+                        style={styles.removedModalArtistAvatar}
+                        cacheKey={`artist_${artist.id}`}
+                        fallbackText={artist.name || 'Artista'}
+                        fallbackIcon="musical-notes"
+                        fallbackIconSize={20}
+                        fallbackIconColor={colors.primary}
+                      />
                       <View style={styles.removedModalArtistDetails}>
                         <Text style={[styles.removedModalArtistName, { color: colors.text }]}>
                           {artist.name}
@@ -2394,20 +2392,15 @@ export default function AgendaScreen() {
                             disabled={isActive}
                           >
                             <View style={styles.artistPickerCardInner}>
-                              {artist.profile_url ? (
-                                <OptimizedImage
-                                  imageUrl={artist.profile_url}
-                                  style={[styles.artistPickerAvatar, { borderColor: colors.border }]}
-                                  cacheKey={`artist_${artist.id}`}
-                                  fallbackIcon="musical-notes"
-                                  fallbackIconSize={20}
-                                  fallbackIconColor={colors.primary}
-                                />
-                              ) : (
-                                <View style={[styles.artistPickerAvatarPlaceholder, { backgroundColor: colors.primary }]}>
-                                  <Ionicons name="musical-notes" size={20} color="#fff" />
-                                </View>
-                              )}
+                              <OptimizedImage
+                                imageUrl={artist.profile_url || ''}
+                                style={[styles.artistPickerAvatar, { borderColor: colors.border }]}
+                                cacheKey={`artist_${artist.id}`}
+                                fallbackText={artist.name || 'Artista'}
+                                fallbackIcon="musical-notes"
+                                fallbackIconSize={20}
+                                fallbackIconColor={colors.primary}
+                              />
                               <View style={styles.artistPickerCardDetails}>
                                 <Text style={[styles.artistPickerCardName, { color: colors.text }, isActive && { color: colors.primary }]}>
                                   {artist.name}

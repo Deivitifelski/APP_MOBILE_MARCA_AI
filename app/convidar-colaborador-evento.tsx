@@ -243,11 +243,6 @@ export default function ConvidarColaboradorEventoScreen() {
   }, [searchResults]);
 
   const selectedLabel = useMemo(() => selectedArtist?.name || 'Nenhum', [selectedArtist]);
-  const selectedLocation = useMemo(() => {
-    if (!selectedArtist) return null;
-    return selectedArtist.location || artistLocations[selectedArtist.id] || 'Não informado';
-  }, [selectedArtist, artistLocations]);
-
   const handleSubmit = async () => {
     if (!eventData || !activeArtist || !currentUserId || !selectedArtist) return;
     const cacheDigits = extractNumericValueString(cacheDraft);
@@ -364,6 +359,7 @@ export default function ConvidarColaboradorEventoScreen() {
                     <OptimizedImage
                       imageUrl={item.image_url ?? item.profile_url ?? ''}
                       style={styles.rowAvatar}
+                      fallbackText={item.name || 'Artista'}
                       fallbackIcon="person"
                       fallbackIconSize={18}
                       fallbackIconColor={colors.primary}
@@ -388,10 +384,6 @@ export default function ConvidarColaboradorEventoScreen() {
 
           <View style={styles.selectedWrap}>
             <Text style={[styles.selected, { color: colors.textSecondary }]}>Convidando: {selectedLabel}</Text>
-            <View style={styles.selectedLocationRow}>
-              <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
-              <Text style={[styles.selectedLocationText, { color: colors.textSecondary }]}>{selectedLocation}</Text>
-            </View>
           </View>
 
           <TextInput
@@ -476,8 +468,6 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 12, fontWeight: '700' },
   selectedWrap: { marginTop: 10, marginBottom: 12 },
   selected: { fontWeight: '500' },
-  selectedLocationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-  selectedLocationText: { fontSize: 13, fontWeight: '500' },
   actions: { flexDirection: 'row', gap: 10, marginTop: 8 },
   btnSecondary: {
     flex: 1,

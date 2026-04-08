@@ -1310,6 +1310,7 @@ export default function DetalhesEventoScreen() {
                         imageUrl={log.actor_profile_url || ''}
                         style={styles.auditAvatar}
                         cacheKey={`audit_${log.actor_user_id || log.id}`}
+                        fallbackText={log.actor_name || 'Usuário'}
                         fallbackIcon="person"
                         fallbackIconSize={14}
                         fallbackIconColor="#FFFFFF"
@@ -1370,6 +1371,7 @@ export default function DetalhesEventoScreen() {
                           imageUrl={participationInviteeProfiles[c.artista_convidado_id] || ''}
                           style={styles.participantAvatar}
                           cacheKey={`participant_${c.artista_convidado_id}`}
+                          fallbackText={nome || 'Artista'}
                           fallbackIcon="person"
                           fallbackIconSize={16}
                           fallbackIconColor="#FFFFFF"

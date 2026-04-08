@@ -676,6 +676,7 @@ export default function ConfiguracoesScreen() {
                 imageUrl={userProfile?.profile_url || ''}
                 style={dynamicStyles.profileAvatarImage}
                 cacheKey={`user_${userProfile?.id || 'current'}`}
+                fallbackText={userProfile?.name || 'Usuário'}
                 fallbackIcon="person"
                 fallbackIconSize={40}
                 fallbackIconColor="#667eea"
@@ -732,6 +733,7 @@ export default function ConfiguracoesScreen() {
                   imageUrl={currentArtist.profile_url || ''}
                   style={dynamicStyles.artistAvatarImage}
                   cacheKey={`artist_config_${currentArtist.id}`}
+                  fallbackText={currentArtist.name || 'Artista'}
                   fallbackIcon="musical-notes"
                   fallbackIconSize={40}
                   fallbackIconColor="#667eea"
@@ -919,6 +921,7 @@ export default function ConfiguracoesScreen() {
                   imageUrl={userProfile.profile_url || ''}
                   cacheKey={`user_modal_${userProfile.id}`}
                   style={dynamicStyles.profileModalImage}
+                  fallbackText={userProfile.name || 'Usuário'}
                   fallbackIcon="person"
                   fallbackIconSize={64}
                   fallbackIconColor={colors.primary}
@@ -989,6 +992,7 @@ export default function ConfiguracoesScreen() {
                   imageUrl={currentArtist.profile_url || ''}
                   cacheKey={`artist_modal_${currentArtist.id}`}
                   style={dynamicStyles.profileModalImage}
+                  fallbackText={currentArtist.name || 'Artista'}
                   fallbackIcon="musical-notes"
                   fallbackIconSize={64}
                   fallbackIconColor={colors.primary}
@@ -1373,6 +1377,7 @@ export default function ConfiguracoesScreen() {
                         imageUrl={artist.profile_url || ''}
                         cacheKey={`delete_artist_${artist.id}`}
                         style={[dynamicStyles.deleteModalArtistImage, { borderColor: colors.border }]}
+                        fallbackText={artist.name || 'Artista'}
                         fallbackIcon="musical-notes"
                         fallbackIconSize={20}
                         fallbackIconColor={colors.primary}

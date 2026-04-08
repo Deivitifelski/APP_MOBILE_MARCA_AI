@@ -587,6 +587,7 @@ export default function ColaboradoresArtistaScreen() {
             imageUrl={item.user.profile_url || ''}
             style={styles.collaboratorAvatar}
             cacheKey={`collaborator_${item.user_id}`}
+            fallbackText={item.user.name || 'Usuário'}
             fallbackIcon="person"
             fallbackIconSize={24}
             fallbackIconColor="#FFFFFF"
@@ -799,6 +800,7 @@ export default function ColaboradoresArtistaScreen() {
                         imageUrl={user.profile_url || ''}
                         style={styles.userAvatarImage}
                         cacheKey={`user_search_${user.id}`}
+                        fallbackText={user.name || 'Usuário'}
                         fallbackIcon="person"
                         fallbackIconSize={20}
                         fallbackIconColor="#667eea"
@@ -874,6 +876,7 @@ export default function ColaboradoresArtistaScreen() {
                     imageUrl={selectedUser.profile_url || ''}
                     style={styles.permissionUserAvatar}
                     cacheKey={`permission_${selectedUser.id}`}
+                    fallbackText={selectedUser.name || 'Usuário'}
                     fallbackIcon="person"
                     fallbackIconSize={24}
                     fallbackIconColor="#FFFFFF"
@@ -983,6 +986,7 @@ export default function ColaboradoresArtistaScreen() {
                     imageUrl={selectedCollaborator.user.profile_url || ''}
                     style={styles.selectedCollaboratorAvatar}
                     cacheKey={`selected_${selectedCollaborator.user_id}`}
+                    fallbackText={selectedCollaborator.user.name || 'Usuário'}
                     fallbackIcon="person"
                     fallbackIconSize={28}
                     fallbackIconColor="#FFFFFF"
@@ -1214,6 +1218,7 @@ export default function ColaboradoresArtistaScreen() {
                     imageUrl={inviteSentData.userImage}
                     style={styles.invitedUserAvatar}
                     cacheKey={`invited_${inviteSentData.userEmail}`}
+                    fallbackText={inviteSentData.userName || 'Usuário'}
                     fallbackIcon="person"
                     fallbackIconSize={32}
                     fallbackIconColor={colors.primary}

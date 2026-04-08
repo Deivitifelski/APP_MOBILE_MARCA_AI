@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, ImageProps, View } from 'react-native';
+import { ActivityIndicator, Image, ImageProps, Text, View } from 'react-native';
 import { cacheService, cacheUtils } from '../services/cacheService';
 
 interface OptimizedImageProps extends Omit<ImageProps, 'source'> {
@@ -8,6 +8,7 @@ interface OptimizedImageProps extends Omit<ImageProps, 'source'> {
   fallbackIcon?: keyof typeof Ionicons.glyphMap;
   fallbackIconSize?: number;
   fallbackIconColor?: string;
+  fallbackText?: string;
   showLoadingIndicator?: boolean;
   cacheKey?: string;
   forceReload?: boolean;
@@ -26,6 +27,7 @@ export default function OptimizedImage({
   fallbackIcon = 'person',
   fallbackIconSize = 40,
   fallbackIconColor = '#667eea',
+  fallbackText,
   showLoadingIndicator = true,
   cacheKey,
   forceReload = false,
@@ -39,6 +41,7 @@ export default function OptimizedImage({
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
   const loadAttempts = useRef(0);
   const maxLoadAttempts = 3;
+  const firstInitial = (fallbackText || '').trim().charAt(0).toUpperCase();
 
   // Gerar chave única para o cache
   const finalCacheKey = cacheKey || cacheUtils.generateImageKey(imageUrl);
@@ -135,11 +138,23 @@ export default function OptimizedImage({
   if (imageLoadError || !currentImageUrl) {
     return (
       <View style={[{ justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0' }, style]}>
-        <Ionicons 
-          name={fallbackIcon} 
-          size={fallbackIconSize} 
-          color={fallbackIconColor} 
-        />
+        {firstInitial ? (
+          <Text
+            style={{
+              color: fallbackIconColor,
+              fontSize: Math.max(12, Math.round(fallbackIconSize * 0.65)),
+              fontWeight: '700',
+            }}
+          >
+            {firstInitial}
+          </Text>
+        ) : (
+          <Ionicons
+            name={fallbackIcon}
+            size={fallbackIconSize}
+            color={fallbackIconColor}
+          />
+        )}
       </View>
     );
   }
