@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -14,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { ESTADOS_BRASIL } from '../constants/estadosBrasil';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import OptimizedImage from '../components/OptimizedImage';
 import { useTheme } from '../contexts/ThemeContext';
@@ -42,6 +44,11 @@ export default function ConvidarColaboradorEventoScreen() {
   const [canInvite, setCanInvite] = useState(false);
 
   const [search, setSearch] = useState('');
+  const [filterCity, setFilterCity] = useState('');
+  const [filterState, setFilterState] = useState('');
+  const [filterRole, setFilterRole] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [showFilterEstados, setShowFilterEstados] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<ArtistaBuscaConvite[]>([]);
@@ -136,14 +143,18 @@ export default function ConvidarColaboradorEventoScreen() {
     const t = setTimeout(async () => {
       setSearchLoading(true);
       setSearchError(null);
-      const { artists, error } = await buscarArtistasParaConvite(search, eventData.artist_id);
+      const { artists, error } = await buscarArtistasParaConvite(search, eventData.artist_id, {
+        cidade: filterCity,
+        estado: filterState,
+        funcao: filterRole,
+      });
       const filtered = artists.filter((a) => !blockedArtists.has(a.id));
       setSearchResults(filtered);
       setSearchError(error);
       setSearchLoading(false);
     }, 350);
     return () => clearTimeout(t);
-  }, [search, canInvite, eventData?.artist_id, blockedArtists]);
+  }, [search, filterCity, filterState, filterRole, canInvite, eventData?.artist_id, blockedArtists]);
 
   useEffect(() => {
     let cancelled = false;
@@ -264,6 +275,26 @@ export default function ConvidarColaboradorEventoScreen() {
   }, [searchResults]);
 
   const selectedLabel = useMemo(() => selectedArtist?.name || 'Nenhum', [selectedArtist]);
+  const activeFiltersCount = useMemo(
+    () =>
+      [filterCity, filterState, filterRole].filter((s) => String(s || '').trim().length >= 2).length,
+    [filterCity, filterState, filterRole]
+  );
+
+  const locationLine = (item: ArtistaBuscaConvite, fallback: string) => {
+    const c = (item.city ?? '').trim();
+    const s = (item.state ?? '').trim();
+    if (c && s) return `${c} / ${s.toUpperCase()}`;
+    if (c) return c;
+    if (s) return s.toUpperCase();
+    return fallback;
+  };
+
+  const whatsAppDisplay = (raw: string | null | undefined) => {
+    const digits = brazilMobileDigits(String(raw ?? ''));
+    if (digits.length < 10) return null;
+    return maskBrazilMobile(digits);
+  };
   const handleSubmit = async () => {
     if (!eventData || !activeArtist || !currentUserId || !selectedArtist) return;
     const cacheDigits = extractNumericValueString(cacheDraft);
@@ -331,7 +362,10 @@ export default function ConvidarColaboradorEventoScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Text style={[styles.label, { color: colors.text }]}>Buscar artista</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Quem convidar</Text>
+          <Text style={[styles.sectionHint, { color: colors.textSecondary }]}>
+            Busque pelo nome (mín. 2 letras). Use filtros para refinar por local e função.
+          </Text>
           <TextInput
             style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
             placeholder="Nome do artista..."
@@ -340,11 +374,107 @@ export default function ConvidarColaboradorEventoScreen() {
             onChangeText={setSearch}
           />
 
+          <TouchableOpacity
+            style={[styles.filterBar, { borderColor: colors.border, backgroundColor: colors.surface }]}
+            onPress={() =>
+              setFiltersOpen((o) => {
+                const next = !o;
+                if (!next) setShowFilterEstados(false);
+                return next;
+              })
+            }
+            activeOpacity={0.7}
+          >
+            <View style={styles.filterBarLeft}>
+              <Ionicons name="options-outline" size={20} color={colors.primary} />
+              <Text style={[styles.filterBarText, { color: colors.text }]}>Filtros</Text>
+              {activeFiltersCount > 0 && (
+                <View style={[styles.filterBadge, { backgroundColor: colors.primary }]}>
+                  <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
+                </View>
+              )}
+            </View>
+            <Ionicons name={filtersOpen ? 'chevron-up' : 'chevron-down'} size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
+
+          {filtersOpen && (
+            <View style={[styles.filterPanel, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+              <TextInput
+                style={[styles.filterInput, { color: colors.text, borderColor: colors.border }]}
+                placeholder="Cidade (opcional)"
+                placeholderTextColor={colors.textSecondary}
+                value={filterCity}
+                onChangeText={setFilterCity}
+              />
+              <Text style={[styles.filterFieldLabel, { color: colors.text }]}>Estado (opcional)</Text>
+              <TouchableOpacity
+                style={[
+                  styles.estadoSelector,
+                  { borderColor: colors.border, backgroundColor: colors.background },
+                ]}
+                onPress={() => setShowFilterEstados(!showFilterEstados)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.estadoText, { color: filterState ? colors.text : colors.textSecondary }]}>
+                  {filterState || 'Selecione o estado'}
+                </Text>
+                <Ionicons
+                  name={showFilterEstados ? 'chevron-up' : 'chevron-down'}
+                  size={20}
+                  color={colors.textSecondary}
+                />
+              </TouchableOpacity>
+              {showFilterEstados && (
+                <View style={[styles.estadosList, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <ScrollView style={styles.estadosScroll} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                    <TouchableOpacity
+                      style={[styles.estadoItem, { borderBottomColor: colors.border }]}
+                      onPress={() => {
+                        setFilterState('');
+                        setShowFilterEstados(false);
+                      }}
+                    >
+                      <Text style={[styles.estadoItemText, { color: colors.textSecondary }]}>Todos os estados</Text>
+                    </TouchableOpacity>
+                    {ESTADOS_BRASIL.map((estadoItem) => (
+                      <TouchableOpacity
+                        key={estadoItem}
+                        style={[styles.estadoItem, { borderBottomColor: colors.border }]}
+                        onPress={() => {
+                          setFilterState(estadoItem);
+                          setShowFilterEstados(false);
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.estadoItemText,
+                            { color: filterState === estadoItem ? colors.primary : colors.text },
+                          ]}
+                        >
+                          {estadoItem}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+              <TextInput
+                style={[styles.filterInput, styles.filterInputLast, { color: colors.text, borderColor: colors.border }]}
+                placeholder="Função — ex.: violão, vocal (opcional)"
+                placeholderTextColor={colors.textSecondary}
+                value={filterRole}
+                onChangeText={setFilterRole}
+              />
+            </View>
+          )}
+
+          <Text style={[styles.subLabel, { color: colors.textSecondary }]}>Resultados</Text>
+
           {searchLoading ? (
             <ActivityIndicator color={colors.primary} style={{ marginTop: 8 }} />
           ) : (
             <FlatList
-              style={{ maxHeight: 210, marginTop: 6 }}
+              style={{ maxHeight: 260, marginTop: 6 }}
               data={searchResults}
               keyExtractor={(item) => item.id}
               keyboardShouldPersistTaps="handled"
@@ -356,7 +486,7 @@ export default function ConvidarColaboradorEventoScreen() {
               renderItem={({ item }) => (
                 (() => {
                   const isSelected = selectedArtist?.id === item.id;
-                  const artistLocation = artistLocations[item.id] || 'Não informado';
+                  const artistLocation = locationLine(item, artistLocations[item.id] || 'Não informado');
                   const artistStyle = (item.musical_style || artistStyles[item.id] || '').trim();
                   const rolesFromRpc = parseArtistStringArrayFromJson(item.work_roles);
                   const formatsFromRpc = parseArtistStringArrayFromJson(item.show_formats);
@@ -364,6 +494,8 @@ export default function ConvidarColaboradorEventoScreen() {
                     rolesFromRpc.length > 0 ? rolesFromRpc : artistWorkRoles[item.id] || [];
                   const formats =
                     formatsFromRpc.length > 0 ? formatsFromRpc : artistShowFormats[item.id] || [];
+                  const whatsShown =
+                    item.show_whatsapp === true ? whatsAppDisplay(item.whatsapp) : null;
                   return (
                 <TouchableOpacity
                   style={[
@@ -374,12 +506,15 @@ export default function ConvidarColaboradorEventoScreen() {
                     },
                   ]}
                   onPress={() =>
-                    setSelectedArtist({
-                      id: item.id,
-                      name: item.name,
-                      location: artistLocation,
-                      musicalStyle: artistStyle || null,
-                    })
+                    {
+                      Keyboard.dismiss();
+                      setSelectedArtist({
+                        id: item.id,
+                        name: item.name,
+                        location: artistLocation,
+                        musicalStyle: artistStyle || null,
+                      });
+                    }
                   }
                 >
                   <View style={styles.rowContent}>
@@ -392,11 +527,51 @@ export default function ConvidarColaboradorEventoScreen() {
                       fallbackIconColor={colors.primary}
                       showLoadingIndicator={false}
                     />
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: colors.text, fontWeight: isSelected ? '700' : '500' }}>{item.name}</Text>
-                      {!!artistStyle && <Text style={[styles.badgeText, { color: colors.primary }]}>{artistStyle}</Text>}
+                    <View style={styles.rowInfo}>
+                      <View style={styles.rowHeader}>
+                        <Text
+                          style={[
+                            styles.artistName,
+                            { color: colors.text, fontWeight: isSelected ? '800' : '700' },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {item.name}
+                        </Text>
+                      </View>
+                      <View style={styles.metaChipsRow}>
+                        {!!artistStyle && (
+                          <Text style={[styles.stylePill, { color: colors.primary, backgroundColor: `${colors.primary}14` }]} numberOfLines={1}>
+                            {artistStyle}
+                          </Text>
+                        )}
+                        {whatsShown != null && (
+                          <View
+                            style={[
+                              styles.whatsTag,
+                              {
+                                backgroundColor: `${colors.success}18`,
+                                borderColor: `${colors.success}50`,
+                              },
+                            ]}
+                          >
+                            <Ionicons name="logo-whatsapp" size={12} color={colors.success} />
+                            <Text style={[styles.whatsTagText, { color: colors.success }]}>WhatsApp</Text>
+                          </View>
+                        )}
+                      </View>
+                      {whatsShown != null && (
+                        <View style={styles.whatsContactRow}>
+                          <Ionicons name="call-outline" size={14} color={colors.textSecondary} />
+                          <Text style={[styles.whatsContactText, { color: colors.text }]} numberOfLines={1}>
+                            {whatsShown}
+                          </Text>
+                        </View>
+                      )}
                       {roles.length > 0 && (
-                        <View style={styles.rolesWrap}>
+                        <>
+                          <Text style={[styles.groupLabel, { color: colors.textSecondary }]}>Funções</Text>
+                          <View style={styles.rolesWrap}>
                           {roles.map((role) => (
                             <View
                               key={`${item.id}-role-${role}`}
@@ -407,10 +582,13 @@ export default function ConvidarColaboradorEventoScreen() {
                               </Text>
                             </View>
                           ))}
-                        </View>
+                          </View>
+                        </>
                       )}
                       {formats.length > 0 && (
-                        <View style={styles.rolesWrap}>
+                        <>
+                          <Text style={[styles.groupLabel, { color: colors.textSecondary }]}>Formatos</Text>
+                          <View style={styles.rolesWrap}>
                           {formats.map((fmt) => (
                             <View
                               key={`${item.id}-fmt-${fmt}`}
@@ -427,7 +605,8 @@ export default function ConvidarColaboradorEventoScreen() {
                               </Text>
                             </View>
                           ))}
-                        </View>
+                          </View>
+                        </>
                       )}
                       <View style={styles.locationRow}>
                         <Ionicons name="location-outline" size={13} color={colors.textSecondary} />
@@ -443,8 +622,13 @@ export default function ConvidarColaboradorEventoScreen() {
             />
           )}
 
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Dados do convite</Text>
           <View style={styles.selectedWrap}>
-            <Text style={[styles.selected, { color: colors.textSecondary }]}>Convidando: {selectedLabel}</Text>
+            <Text style={[styles.selected, { color: colors.textSecondary }]}>
+              Artista selecionado: <Text style={{ color: colors.text, fontWeight: '700' }}>{selectedLabel}</Text>
+            </Text>
           </View>
 
           <TextInput
@@ -511,7 +695,74 @@ const styles = StyleSheet.create({
   backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '700' },
   content: { padding: 16, paddingBottom: 28 },
+  sectionTitle: { fontSize: 18, fontWeight: '800', marginBottom: 4 },
+  sectionHint: { fontSize: 13, lineHeight: 18, marginBottom: 12 },
+  subLabel: { fontSize: 12, fontWeight: '700', marginTop: 4, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.4 },
   label: { fontSize: 14, fontWeight: '600', marginBottom: 6 },
+  filterBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 8,
+  },
+  filterBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  filterBarText: { fontSize: 16, fontWeight: '600' },
+  filterBadge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterBadgeText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  filterPanel: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    gap: 8,
+  },
+  filterInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+  },
+  filterInputLast: { marginBottom: 0 },
+  filterFieldLabel: { fontSize: 13, fontWeight: '600', marginTop: 4, marginBottom: 6 },
+  estadoSelector: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    minHeight: 48,
+  },
+  estadoText: { fontSize: 15, flex: 1 },
+  estadosList: {
+    marginTop: 6,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderRadius: 10,
+    maxHeight: 200,
+    overflow: 'hidden',
+  },
+  estadosScroll: { maxHeight: 200 },
+  estadoItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  estadoItemText: { fontSize: 16 },
+  divider: { height: StyleSheet.hairlineWidth, marginVertical: 16 },
   input: {
     borderWidth: 1,
     borderRadius: 12,
@@ -523,16 +774,42 @@ const styles = StyleSheet.create({
   messageInput: { minHeight: 88, textAlignVertical: 'top' },
   row: {
     marginTop: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: 14,
   },
   rowContent: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  rowAvatar: { width: 34, height: 34, borderRadius: 17 },
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  rowAvatar: { width: 42, height: 42, borderRadius: 21 },
+  rowInfo: { flex: 1 },
+  rowHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  artistName: { fontSize: 17, lineHeight: 22 },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
   locationText: { fontSize: 12 },
-  badgeText: { fontSize: 12, fontWeight: '700' },
+  badgeText: { fontSize: 13, fontWeight: '700', marginTop: 2 },
+  metaChipsRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 4 },
+  stylePill: {
+    fontSize: 12,
+    fontWeight: '700',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    overflow: 'hidden',
+    maxWidth: '100%',
+  },
+  whatsTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  whatsTagText: { fontSize: 11, fontWeight: '800' },
+  whatsContactRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  whatsContactText: { fontSize: 14, fontWeight: '600', flex: 1 },
+  groupLabel: { fontSize: 11, fontWeight: '700', marginTop: 8 },
   rolesWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',

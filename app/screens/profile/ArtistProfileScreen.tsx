@@ -106,7 +106,8 @@ export default function ArtistProfileScreen() {
   const [whatsapp, setWhatsapp] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
-  const [isAvailableForGigs, setIsAvailableForGigs] = useState(true);
+  const [isAvailableForGigs, setIsAvailableForGigs] = useState(false);
+  const [showWhatsappInSearch, setShowWhatsappInSearch] = useState(false);
   const [averageCacheValue, setAverageCacheValue] = useState('');
   const [selectedWorkRoles, setSelectedWorkRoles] = useState<string[]>([]);
   const [selectedShowFormats, setSelectedShowFormats] = useState<string[]>([]);
@@ -352,6 +353,7 @@ export default function ArtistProfileScreen() {
         city: isAvailableForGigs ? city.trim() || undefined : undefined,
         state: isAvailableForGigs ? state.trim() || undefined : undefined,
         is_available_for_gigs: isAvailableForGigs,
+        show_whatsapp: isAvailableForGigs && showWhatsappInSearch,
         average_cache_value: isAvailableForGigs ? parsedAverageCacheValue : null,
         work_roles: isAvailableForGigs ? selectedWorkRoles : [],
         show_formats: isAvailableForGigs ? selectedShowFormats : [],
@@ -513,7 +515,10 @@ export default function ArtistProfileScreen() {
                   </View>
                   <Switch
                     value={isAvailableForGigs}
-                    onValueChange={setIsAvailableForGigs}
+                    onValueChange={(v) => {
+                      setIsAvailableForGigs(v);
+                      if (!v) setShowWhatsappInSearch(false);
+                    }}
                     trackColor={{ false: colors.border, true: colors.primary + '80' }}
                     thumbColor={Platform.OS === 'android' ? (isAvailableForGigs ? colors.primary : '#f4f3f4') : undefined}
                     ios_backgroundColor={colors.border}
@@ -541,6 +546,34 @@ export default function ArtistProfileScreen() {
                         keyboardType="phone-pad"
                       />
                     </View>
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={[styles.label, { color: colors.text }]}>Mostrar WhatsApp na busca</Text>
+                    <View
+                      style={[
+                        styles.switchRow,
+                        { backgroundColor: colors.background, borderColor: colors.border },
+                      ]}
+                    >
+                      <View style={{ flex: 1, paddingRight: 12 }}>
+                        <Text style={{ color: colors.text, fontSize: 16, fontWeight: '500' }}>
+                          Exibir contato para quem convida
+                        </Text>
+                      </View>
+                      <Switch
+                        value={showWhatsappInSearch}
+                        onValueChange={setShowWhatsappInSearch}
+                        trackColor={{ false: colors.border, true: colors.primary + '80' }}
+                        thumbColor={Platform.OS === 'android' ? (showWhatsappInSearch ? colors.primary : '#f4f3f4') : undefined}
+                        ios_backgroundColor={colors.border}
+                      />
+                    </View>
+                    <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 8, lineHeight: 18 }}>
+                      {showWhatsappInSearch
+                        ? 'Ligado: organizadores veem seu WhatsApp ao buscar artistas para convite.'
+                        : 'Desligado: o número continua salvo, mas não aparece na busca de convites.'}
+                    </Text>
                   </View>
 
                   <View style={styles.inputGroup}>

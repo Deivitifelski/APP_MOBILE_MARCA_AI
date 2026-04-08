@@ -119,6 +119,7 @@ export default function EditarArtistaScreen() {
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [isAvailableForGigs, setIsAvailableForGigs] = useState(true);
+  const [showWhatsappInSearch, setShowWhatsappInSearch] = useState(false);
   const [averageCacheValue, setAverageCacheValue] = useState('');
   const [selectedWorkRoles, setSelectedWorkRoles] = useState<string[]>([]);
   const [selectedShowFormats, setSelectedShowFormats] = useState<string[]>([]);
@@ -263,6 +264,7 @@ export default function EditarArtistaScreen() {
       setCity(currentArtist.city || '');
       setState(normalizeEstadoParaListaExibicao(currentArtist.state));
       setIsAvailableForGigs(currentArtist.is_available_for_gigs ?? true);
+      setShowWhatsappInSearch(Boolean(currentArtist.show_whatsapp));
       setAverageCacheValue(
         currentArtist.average_cache_value != null
           ? formatNumberToCurrencyInput(Number(currentArtist.average_cache_value))
@@ -409,6 +411,7 @@ export default function EditarArtistaScreen() {
         city: isAvailableForGigs ? city.trim() || null : null,
         state: isAvailableForGigs ? state.trim() || null : null,
         is_available_for_gigs: isAvailableForGigs,
+        show_whatsapp: isAvailableForGigs && showWhatsappInSearch,
         average_cache_value: isAvailableForGigs ? parsedAverageCacheValue : null,
         work_roles: isAvailableForGigs ? selectedWorkRoles : [],
         show_formats: isAvailableForGigs ? selectedShowFormats : [],
@@ -622,7 +625,10 @@ export default function EditarArtistaScreen() {
               </View>
               <Switch
                 value={isAvailableForGigs}
-                onValueChange={setIsAvailableForGigs}
+                onValueChange={(v) => {
+                  setIsAvailableForGigs(v);
+                  if (!v) setShowWhatsappInSearch(false);
+                }}
                 trackColor={{ false: colors.border, true: colors.primary + '80' }}
                 thumbColor={Platform.OS === 'android' ? (isAvailableForGigs ? colors.primary : '#f4f3f4') : undefined}
                 ios_backgroundColor={colors.border}
@@ -645,6 +651,34 @@ export default function EditarArtistaScreen() {
                 'phone-pad',
                 true
               )}
+
+              <View style={styles.inputContainer}>
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Mostrar WhatsApp na busca</Text>
+                <View
+                  style={[
+                    styles.switchRow,
+                    { borderColor: colors.border, backgroundColor: colors.surface },
+                  ]}
+                >
+                  <View style={{ flex: 1, paddingRight: 12 }}>
+                    <Text style={{ color: colors.text, fontSize: 16, fontWeight: '500' }}>
+                      Exibir contato para quem convida
+                    </Text>
+                  </View>
+                  <Switch
+                    value={showWhatsappInSearch}
+                    onValueChange={setShowWhatsappInSearch}
+                    trackColor={{ false: colors.border, true: colors.primary + '80' }}
+                    thumbColor={Platform.OS === 'android' ? (showWhatsappInSearch ? colors.primary : '#f4f3f4') : undefined}
+                    ios_backgroundColor={colors.border}
+                  />
+                </View>
+                <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 8, lineHeight: 18 }}>
+                  {showWhatsappInSearch
+                    ? 'Ligado: organizadores veem o WhatsApp na busca de convites.'
+                    : 'Desligado: o número permanece cadastrado, mas não aparece na busca.'}
+                </Text>
+              </View>
 
               {renderInput(
                 'Cidade',

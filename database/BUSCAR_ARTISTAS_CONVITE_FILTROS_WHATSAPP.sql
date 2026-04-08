@@ -1,20 +1,7 @@
--- Melhoria na busca de convite de colaborador (rode no SQL Editor se já aplicou CONVITE_PARTICIPACAO_EVENTO.sql antes).
--- - Corrige: nome digitado sem acento não achava cadastro com acento (João vs joao).
--- - Busca somente em artists.name (nome do artista).
+-- Atualiza buscar_artistas_para_convite: whatsapp + cidade/estado no retorno e filtros opcionais.
+-- Rode no SQL Editor do Supabase após CONVITE_PARTICIPACAO_EVENTO / MELHORIA_BUSCAR_ARTISTAS_CONVITE.
 
-CREATE OR REPLACE FUNCTION public.normalize_pt_search(input text)
-RETURNS text
-LANGUAGE sql
-IMMUTABLE
-PARALLEL SAFE
-AS $$
-  SELECT translate(
-    lower(trim(coalesce(input, ''))),
-    'áàãâäéèêëíìîïóòõôöúùûüçñÁÀÃÂÄÉÈÊËÍÌÎÏÓÒÕÔÖÚÙÛÜÇÑ',
-    'aaaaaeeeeiiiiooooouuuucnAAAAAEEEEIIIIOOOOOUUUUCN'
-  );
-$$;
-
+-- Remove assinaturas antigas (evita conflito de overload / tipo de retorno)
 DROP FUNCTION IF EXISTS public.buscar_artistas_para_convite(text, uuid);
 DROP FUNCTION IF EXISTS public.buscar_artistas_para_convite(text, uuid, text, text, text);
 
@@ -58,8 +45,8 @@ AS $$
       WHEN COALESCE(a.show_whatsapp, false) IS TRUE THEN NULLIF(trim(COALESCE(a.whatsapp, '')), '')
       ELSE NULL
     END,
-    NULLIF(trim(COALESCE(a.city, '')), ''),
-    NULLIF(trim(COALESCE(a.state, '')), ''),
+    NULLIF(trim(COALESCE(a.city, '')), '')::text,
+    NULLIF(trim(COALESCE(a.state, '')), '')::text,
     COALESCE(a.show_whatsapp, false)
   FROM artists a
   LEFT JOIN LATERAL (

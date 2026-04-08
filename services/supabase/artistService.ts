@@ -10,6 +10,8 @@ export interface Artist {
   city?: string;
   state?: string;
   is_available_for_gigs?: boolean;
+  /** Se true, o WhatsApp pode aparecer na busca de convites a eventos. */
+  show_whatsapp?: boolean;
   average_cache_value?: number | null;
   work_roles?: string[];
   show_formats?: string[];
@@ -27,6 +29,7 @@ export interface CreateArtistData {
   city?: string | null;
   state?: string | null;
   is_available_for_gigs?: boolean;
+  show_whatsapp?: boolean;
   average_cache_value?: number | null;
   work_roles?: string[];
   show_formats?: string[];
@@ -55,7 +58,7 @@ export const createArtist = async (artistData: CreateArtistData): Promise<{ succ
     console.log('📊 [createArtist] Created At:', new Date().toISOString());
     console.log('📊 [createArtist] Updated At:', new Date().toISOString());
 
-    const available = artistData.is_available_for_gigs ?? true;
+    const available = artistData.is_available_for_gigs ?? false;
     const { data: artistData_result, error: artistError } = await supabase
       .from('artists')
       .insert({
@@ -66,6 +69,7 @@ export const createArtist = async (artistData: CreateArtistData): Promise<{ succ
         city: available ? (artistData.city?.trim() || null) : null,
         state: available ? (artistData.state?.trim() || null) : null,
         is_available_for_gigs: available,
+        show_whatsapp: available ? Boolean(artistData.show_whatsapp) : false,
         average_cache_value: available ? (artistData.average_cache_value ?? null) : null,
         work_roles: available ? (artistData.work_roles || []) : [],
         show_formats: available ? (artistData.show_formats || []) : [],
@@ -202,6 +206,7 @@ export const updateArtist = async (artistId: string, artistData: Partial<CreateA
             ? null
             : artistData.state.trim() || null,
       is_available_for_gigs: artistData.is_available_for_gigs,
+      show_whatsapp: artistData.show_whatsapp,
       average_cache_value:
         artistData.average_cache_value === undefined
           ? undefined

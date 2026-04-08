@@ -81,8 +81,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_events_convite_participacao_unico
 -- 4) Busca de artistas para enviar convite (SECURITY DEFINER; não depende de RLS aberta em artists)
 --    - Termo com pelo menos 2 caracteres; comparação sem acento apenas em artists.name.
 --    - Lista somente artistas com is_available_for_gigs = TRUE.
---    - Retorna: profile_url, image_url (fallback: foto de membro owner/admin/...),
---      musical_style, work_roles e show_formats (jsonb; vazio como []).
+--    - Filtros opcionais: p_cidade, p_estado, p_funcao (substring sem acento; vazio = ignora).
+--    - Retorna também whatsapp, city, state quando preenchidos no perfil.
 CREATE OR REPLACE FUNCTION public.normalize_pt_search(input text)
 RETURNS text
 LANGUAGE sql
@@ -96,10 +96,16 @@ AS $$
   );
 $$;
 
--- Troca de colunas de retorno exige DROP (42P13: cannot change return type of existing function)
 DROP FUNCTION IF EXISTS public.buscar_artistas_para_convite(text, uuid);
+DROP FUNCTION IF EXISTS public.buscar_artistas_para_convite(text, uuid, text, text, text);
 
-CREATE OR REPLACE FUNCTION public.buscar_artistas_para_convite(p_termo text, p_excluir_artista_id uuid)
+CREATE OR REPLACE FUNCTION public.buscar_artistas_para_convite(
+  p_termo text,
+  p_excluir_artista_id uuid,
+  p_cidade text DEFAULT NULL,
+  p_estado text DEFAULT NULL,
+  p_funcao text DEFAULT NULL
+)
 RETURNS TABLE (
   id uuid,
   name text,
@@ -107,7 +113,11 @@ RETURNS TABLE (
   image_url text,
   musical_style text,
   work_roles jsonb,
-  show_formats jsonb
+  show_formats jsonb,
+  whatsapp text,
+  city text,
+  state text,
+  show_whatsapp boolean
 )
 LANGUAGE sql
 SECURITY DEFINER
@@ -124,7 +134,14 @@ AS $$
     ) AS image_url,
     a.musical_style,
     COALESCE(a.work_roles, '[]'::jsonb),
-    COALESCE(a.show_formats, '[]'::jsonb)
+    COALESCE(a.show_formats, '[]'::jsonb),
+    CASE
+      WHEN COALESCE(a.show_whatsapp, false) IS TRUE THEN NULLIF(trim(COALESCE(a.whatsapp, '')), '')
+      ELSE NULL
+    END,
+    NULLIF(trim(COALESCE(a.city, '')), ''),
+    NULLIF(trim(COALESCE(a.state, '')), ''),
+    COALESCE(a.show_whatsapp, false)
   FROM artists a
   LEFT JOIN LATERAL (
     SELECT u.profile_url AS member_profile_url
@@ -148,10 +165,36 @@ AS $$
     AND length(trim(coalesce(p_termo, ''))) >= 2
     AND length(public.normalize_pt_search(p_termo)) >= 2
     AND strpos(public.normalize_pt_search(a.name), public.normalize_pt_search(p_termo)) > 0
+    AND (
+      length(trim(coalesce(p_cidade, ''))) < 2
+      OR (
+        coalesce(trim(a.city), '') <> ''
+        AND strpos(public.normalize_pt_search(a.city), public.normalize_pt_search(p_cidade)) > 0
+      )
+    )
+    AND (
+      length(trim(coalesce(p_estado, ''))) < 2
+      OR (
+        coalesce(trim(a.state), '') <> ''
+        AND (
+          strpos(public.normalize_pt_search(a.state), public.normalize_pt_search(p_estado)) > 0
+          OR upper(trim(a.state)) = upper(trim(p_estado))
+        )
+      )
+    )
+    AND (
+      length(trim(coalesce(p_funcao, ''))) < 2
+      OR EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements_text(coalesce(a.work_roles, '[]'::jsonb)) AS w(v)
+        WHERE length(trim(v)) > 0
+          AND strpos(public.normalize_pt_search(v), public.normalize_pt_search(p_funcao)) > 0
+      )
+    )
   ORDER BY a.name;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.buscar_artistas_para_convite(text, uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.buscar_artistas_para_convite(text, uuid, text, text, text) TO authenticated;
 
 -- 5) RLS
 ALTER TABLE convite_participacao_evento ENABLE ROW LEVEL SECURITY;

@@ -35,16 +35,31 @@ export interface ArtistaBuscaConvite {
   musical_style?: string | null;
   work_roles?: unknown;
   show_formats?: unknown;
+  whatsapp?: string | null;
+  city?: string | null;
+  state?: string | null;
+  /** Só exibir WhatsApp no app quando true (privacidade). */
+  show_whatsapp?: boolean;
+}
+
+export interface BuscarArtistasParaConviteFiltros {
+  cidade?: string;
+  estado?: string;
+  funcao?: string;
 }
 
 export async function buscarArtistasParaConvite(
   termo: string,
-  excluirArtistaId: string
+  excluirArtistaId: string,
+  filtros?: BuscarArtistasParaConviteFiltros
 ): Promise<{ artists: ArtistaBuscaConvite[]; error: string | null }> {
   try {
     const { data, error } = await supabase.rpc('buscar_artistas_para_convite', {
       p_termo: termo?.trim() || '',
       p_excluir_artista_id: excluirArtistaId,
+      p_cidade: filtros?.cidade?.trim() ? filtros.cidade.trim() : null,
+      p_estado: filtros?.estado?.trim() ? filtros.estado.trim() : null,
+      p_funcao: filtros?.funcao?.trim() ? filtros.funcao.trim() : null,
     });
     if (error) return { artists: [], error: error.message };
     const raw = (data || []) as Record<string, unknown>[];
@@ -56,6 +71,10 @@ export async function buscarArtistasParaConvite(
       musical_style: row.musical_style != null ? String(row.musical_style) : undefined,
       work_roles: row.work_roles,
       show_formats: row.show_formats,
+      whatsapp: row.whatsapp != null ? String(row.whatsapp) : null,
+      city: row.city != null ? String(row.city) : null,
+      state: row.state != null ? String(row.state) : null,
+      show_whatsapp: row.show_whatsapp === true,
     }));
     return { artists, error: null };
   } catch {
