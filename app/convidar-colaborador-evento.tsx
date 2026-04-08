@@ -7,6 +7,7 @@ import {
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -49,6 +50,7 @@ export default function ConvidarColaboradorEventoScreen() {
   const [filterRole, setFilterRole] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [showFilterEstados, setShowFilterEstados] = useState(false);
+  const [inviteModalVisible, setInviteModalVisible] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<ArtistaBuscaConvite[]>([]);
@@ -275,6 +277,10 @@ export default function ConvidarColaboradorEventoScreen() {
   }, [searchResults]);
 
   const selectedLabel = useMemo(() => selectedArtist?.name || 'Nenhum', [selectedArtist]);
+  const selectedSearchRow = useMemo(
+    () => (selectedArtist ? searchResults.find((a) => a.id === selectedArtist.id) : undefined),
+    [searchResults, selectedArtist]
+  );
   const activeFiltersCount = useMemo(
     () =>
       [filterCity, filterState, filterRole].filter((s) => String(s || '').trim().length >= 2).length,
@@ -295,6 +301,152 @@ export default function ConvidarColaboradorEventoScreen() {
     if (digits.length < 10) return null;
     return maskBrazilMobile(digits);
   };
+
+  const renderArtistCard = ({ item }: { item: ArtistaBuscaConvite }) => {
+    const isSelected = selectedArtist?.id === item.id;
+    const artistLocation = locationLine(item, artistLocations[item.id] || 'Não informado');
+    const artistStyle = (item.musical_style || artistStyles[item.id] || '').trim();
+    const rolesFromRpc = parseArtistStringArrayFromJson(item.work_roles);
+    const formatsFromRpc = parseArtistStringArrayFromJson(item.show_formats);
+    const roles = rolesFromRpc.length > 0 ? rolesFromRpc : artistWorkRoles[item.id] || [];
+    const formats = formatsFromRpc.length > 0 ? formatsFromRpc : artistShowFormats[item.id] || [];
+    const whatsShown = item.show_whatsapp === true ? whatsAppDisplay(item.whatsapp) : null;
+    const locDisplay = artistLocation.trim() || 'Local não informado';
+    return (
+      <TouchableOpacity
+        style={[
+          styles.rowCard,
+          {
+            borderColor: isSelected ? `${colors.primary}66` : colors.border,
+            backgroundColor: isSelected ? `${colors.primary}12` : colors.surface,
+          },
+        ]}
+        onPress={() => {
+          Keyboard.dismiss();
+          setSelectedArtist({
+            id: item.id,
+            name: item.name,
+            location: locDisplay,
+            musicalStyle: artistStyle || null,
+          });
+          setFunctionDraft('');
+          setMessageDraft('');
+          setInviteModalVisible(true);
+        }}
+        activeOpacity={0.75}
+      >
+        <View style={styles.rowCardInner}>
+          <OptimizedImage
+            imageUrl={item.image_url ?? item.profile_url ?? ''}
+            style={styles.rowAvatarMd}
+            fallbackText={item.name || 'Artista'}
+            fallbackIcon="person"
+            fallbackIconSize={18}
+            fallbackIconColor={colors.primary}
+            showLoadingIndicator={false}
+          />
+          <View style={styles.rowCardInfo}>
+            <View style={styles.rowCardHeader}>
+              <Text
+                style={[styles.artistNameCard, { color: colors.text, fontWeight: isSelected ? '800' : '700' }]}
+                numberOfLines={2}
+              >
+                {item.name}
+              </Text>
+              {isSelected ? <Ionicons name="checkmark-circle" size={22} color={colors.primary} /> : null}
+            </View>
+
+            {(!!artistStyle || whatsShown != null) && (
+              <View style={styles.cardBlockTop}>
+                <View style={styles.metaChipsRow}>
+                  {!!artistStyle && (
+                    <Text
+                      style={[styles.stylePill, { color: colors.primary, backgroundColor: `${colors.primary}14` }]}
+                      numberOfLines={1}
+                    >
+                      {artistStyle}
+                    </Text>
+                  )}
+                  {whatsShown != null && (
+                    <View
+                      style={[
+                        styles.whatsTag,
+                        {
+                          backgroundColor: `${colors.success}18`,
+                          borderColor: `${colors.success}50`,
+                        },
+                      ]}
+                    >
+                      <Ionicons name="logo-whatsapp" size={12} color={colors.success} />
+                      <Text style={[styles.whatsTagText, { color: colors.success }]}>WhatsApp</Text>
+                    </View>
+                  )}
+                </View>
+                {whatsShown != null && (
+                  <View style={styles.whatsContactRow}>
+                    <Ionicons name="call-outline" size={14} color={colors.textSecondary} />
+                    <Text style={[styles.whatsContactText, { color: colors.text }]} numberOfLines={1}>
+                      {whatsShown}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {roles.length > 0 && (
+              <View style={styles.cardBlockSection}>
+                <Text style={[styles.groupLabel, { color: colors.textSecondary }]}>Funções</Text>
+                <View style={styles.rolesWrap}>
+                  {roles.map((role) => (
+                    <View
+                      key={`${item.id}-role-${role}`}
+                      style={[styles.roleChip, { backgroundColor: `${colors.primary}18`, borderColor: `${colors.primary}44` }]}
+                    >
+                      <Text style={[styles.roleChipText, { color: colors.primary }]} numberOfLines={1}>
+                        {role}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {formats.length > 0 && (
+              <View style={styles.cardBlockSection}>
+                <Text style={[styles.groupLabel, { color: colors.textSecondary }]}>Formatos</Text>
+                <View style={styles.rolesWrap}>
+                  {formats.map((fmt) => (
+                    <View
+                      key={`${item.id}-fmt-${fmt}`}
+                      style={[
+                        styles.formatChip,
+                        {
+                          backgroundColor: `${colors.textSecondary}14`,
+                          borderColor: `${colors.textSecondary}40`,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.formatChipText, { color: colors.textSecondary }]} numberOfLines={1}>
+                        {fmt}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            <View style={[styles.cardBlockFooter, { borderTopColor: colors.border }]}>
+              <View style={styles.locationRow}>
+                <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
+                <Text style={[styles.locationText, { color: colors.textSecondary }]}>{locDisplay}</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   const handleSubmit = async () => {
     if (!eventData || !activeArtist || !currentUserId || !selectedArtist) return;
     const cacheDigits = extractNumericValueString(cacheDraft);
@@ -334,6 +486,7 @@ export default function ConvidarColaboradorEventoScreen() {
       Alert.alert('Erro', error || 'Não foi possível enviar o convite.');
       return;
     }
+    setInviteModalVisible(false);
     Alert.alert('Convite enviado', 'O colaborador foi convidado com sucesso.', [
       { text: 'OK', onPress: () => router.back() },
     ]);
@@ -352,7 +505,11 @@ export default function ConvidarColaboradorEventoScreen() {
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView
+        style={styles.flex1}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
         <View style={[styles.header, { borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={24} color={colors.text} />
@@ -361,328 +518,289 @@ export default function ConvidarColaboradorEventoScreen() {
           <View style={styles.backBtn} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Quem convidar</Text>
-          <Text style={[styles.sectionHint, { color: colors.textSecondary }]}>
-            Busque pelo nome (mín. 2 letras). Use filtros para refinar por local e função.
-          </Text>
-          <TextInput
-            style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
-            placeholder="Nome do artista..."
-            placeholderTextColor={colors.textSecondary}
-            value={search}
-            onChangeText={setSearch}
-          />
+        <View style={styles.flex1}>
+          <FlatList
+            style={styles.resultsList}
+            data={search.trim().length < 2 ? [] : searchResults}
+            keyExtractor={(item) => item.id}
+            extraData={selectedArtist?.id}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            contentContainerStyle={styles.resultsListContent}
+            ItemSeparatorComponent={() => <View style={styles.cardSeparator} />}
+            ListHeaderComponent={
+              <View>
+                <View style={styles.searchSection}>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Quem convidar</Text>
+                  <Text style={[styles.sectionHint, { color: colors.textSecondary }]}>
+                    Digite pelo menos 2 letras, use os filtros se quiser e toque em um artista para preencher o convite.
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.searchInput,
+                      { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface },
+                    ]}
+                    placeholder="Nome do artista..."
+                    placeholderTextColor={colors.textSecondary}
+                    value={search}
+                    onChangeText={setSearch}
+                    returnKeyType="search"
+                  />
 
-          <TouchableOpacity
-            style={[styles.filterBar, { borderColor: colors.border, backgroundColor: colors.surface }]}
-            onPress={() =>
-              setFiltersOpen((o) => {
-                const next = !o;
-                if (!next) setShowFilterEstados(false);
-                return next;
-              })
-            }
-            activeOpacity={0.7}
-          >
-            <View style={styles.filterBarLeft}>
-              <Ionicons name="options-outline" size={20} color={colors.primary} />
-              <Text style={[styles.filterBarText, { color: colors.text }]}>Filtros</Text>
-              {activeFiltersCount > 0 && (
-                <View style={[styles.filterBadge, { backgroundColor: colors.primary }]}>
-                  <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
-                </View>
-              )}
-            </View>
-            <Ionicons name={filtersOpen ? 'chevron-up' : 'chevron-down'} size={20} color={colors.textSecondary} />
-          </TouchableOpacity>
-
-          {filtersOpen && (
-            <View style={[styles.filterPanel, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-              <TextInput
-                style={[styles.filterInput, { color: colors.text, borderColor: colors.border }]}
-                placeholder="Cidade (opcional)"
-                placeholderTextColor={colors.textSecondary}
-                value={filterCity}
-                onChangeText={setFilterCity}
-              />
-              <Text style={[styles.filterFieldLabel, { color: colors.text }]}>Estado (opcional)</Text>
-              <TouchableOpacity
-                style={[
-                  styles.estadoSelector,
-                  { borderColor: colors.border, backgroundColor: colors.background },
-                ]}
-                onPress={() => setShowFilterEstados(!showFilterEstados)}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.estadoText, { color: filterState ? colors.text : colors.textSecondary }]}>
-                  {filterState || 'Selecione o estado'}
-                </Text>
-                <Ionicons
-                  name={showFilterEstados ? 'chevron-up' : 'chevron-down'}
-                  size={20}
-                  color={colors.textSecondary}
-                />
-              </TouchableOpacity>
-              {showFilterEstados && (
-                <View style={[styles.estadosList, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                  <ScrollView style={styles.estadosScroll} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-                    <TouchableOpacity
-                      style={[styles.estadoItem, { borderBottomColor: colors.border }]}
-                      onPress={() => {
-                        setFilterState('');
-                        setShowFilterEstados(false);
-                      }}
-                    >
-                      <Text style={[styles.estadoItemText, { color: colors.textSecondary }]}>Todos os estados</Text>
-                    </TouchableOpacity>
-                    {ESTADOS_BRASIL.map((estadoItem) => (
-                      <TouchableOpacity
-                        key={estadoItem}
-                        style={[styles.estadoItem, { borderBottomColor: colors.border }]}
-                        onPress={() => {
-                          setFilterState(estadoItem);
-                          setShowFilterEstados(false);
-                        }}
-                      >
-                        <Text
-                          style={[
-                            styles.estadoItemText,
-                            { color: filterState === estadoItem ? colors.primary : colors.text },
-                          ]}
-                        >
-                          {estadoItem}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
-              <TextInput
-                style={[styles.filterInput, styles.filterInputLast, { color: colors.text, borderColor: colors.border }]}
-                placeholder="Função — ex.: violão, vocal (opcional)"
-                placeholderTextColor={colors.textSecondary}
-                value={filterRole}
-                onChangeText={setFilterRole}
-              />
-            </View>
-          )}
-
-          <Text style={[styles.subLabel, { color: colors.textSecondary }]}>Resultados</Text>
-
-          {searchLoading ? (
-            <ActivityIndicator color={colors.primary} style={{ marginTop: 8 }} />
-          ) : (
-            <FlatList
-              style={{ maxHeight: 260, marginTop: 6 }}
-              data={searchResults}
-              keyExtractor={(item) => item.id}
-              keyboardShouldPersistTaps="handled"
-              ListEmptyComponent={
-                <Text style={{ color: searchError ? colors.error : colors.textSecondary, paddingVertical: 10 }}>
-                  {searchError || (search.trim().length < 2 ? 'Digite pelo menos 2 letras.' : 'Nenhum artista encontrado.')}
-                </Text>
-              }
-              renderItem={({ item }) => (
-                (() => {
-                  const isSelected = selectedArtist?.id === item.id;
-                  const artistLocation = locationLine(item, artistLocations[item.id] || 'Não informado');
-                  const artistStyle = (item.musical_style || artistStyles[item.id] || '').trim();
-                  const rolesFromRpc = parseArtistStringArrayFromJson(item.work_roles);
-                  const formatsFromRpc = parseArtistStringArrayFromJson(item.show_formats);
-                  const roles =
-                    rolesFromRpc.length > 0 ? rolesFromRpc : artistWorkRoles[item.id] || [];
-                  const formats =
-                    formatsFromRpc.length > 0 ? formatsFromRpc : artistShowFormats[item.id] || [];
-                  const whatsShown =
-                    item.show_whatsapp === true ? whatsAppDisplay(item.whatsapp) : null;
-                  return (
-                <TouchableOpacity
-                  style={[
-                    styles.row,
-                    {
-                      borderColor: isSelected ? `${colors.primary}66` : colors.border,
-                      backgroundColor: isSelected ? `${colors.primary}12` : colors.surface,
-                    },
-                  ]}
-                  onPress={() =>
-                    {
-                      Keyboard.dismiss();
-                      setSelectedArtist({
-                        id: item.id,
-                        name: item.name,
-                        location: artistLocation,
-                        musicalStyle: artistStyle || null,
-                      });
+                  <TouchableOpacity
+                    style={[styles.filterBar, { borderColor: colors.border, backgroundColor: colors.surface }]}
+                    onPress={() =>
+                      setFiltersOpen((o) => {
+                        const next = !o;
+                        if (!next) setShowFilterEstados(false);
+                        return next;
+                      })
                     }
-                  }
-                >
-                  <View style={styles.rowContent}>
-                    <OptimizedImage
-                      imageUrl={item.image_url ?? item.profile_url ?? ''}
-                      style={styles.rowAvatar}
-                      fallbackText={item.name || 'Artista'}
-                      fallbackIcon="person"
-                      fallbackIconSize={18}
-                      fallbackIconColor={colors.primary}
-                      showLoadingIndicator={false}
-                    />
-                    <View style={styles.rowInfo}>
-                      <View style={styles.rowHeader}>
-                        <Text
-                          style={[
-                            styles.artistName,
-                            { color: colors.text, fontWeight: isSelected ? '800' : '700' },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {item.name}
-                        </Text>
-                      </View>
-                      <View style={styles.metaChipsRow}>
-                        {!!artistStyle && (
-                          <Text style={[styles.stylePill, { color: colors.primary, backgroundColor: `${colors.primary}14` }]} numberOfLines={1}>
-                            {artistStyle}
-                          </Text>
-                        )}
-                        {whatsShown != null && (
-                          <View
-                            style={[
-                              styles.whatsTag,
-                              {
-                                backgroundColor: `${colors.success}18`,
-                                borderColor: `${colors.success}50`,
-                              },
-                            ]}
-                          >
-                            <Ionicons name="logo-whatsapp" size={12} color={colors.success} />
-                            <Text style={[styles.whatsTagText, { color: colors.success }]}>WhatsApp</Text>
-                          </View>
-                        )}
-                      </View>
-                      {whatsShown != null && (
-                        <View style={styles.whatsContactRow}>
-                          <Ionicons name="call-outline" size={14} color={colors.textSecondary} />
-                          <Text style={[styles.whatsContactText, { color: colors.text }]} numberOfLines={1}>
-                            {whatsShown}
-                          </Text>
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.filterBarLeft}>
+                      <Ionicons name="options-outline" size={20} color={colors.primary} />
+                      <Text style={[styles.filterBarText, { color: colors.text }]}>Filtros</Text>
+                      {activeFiltersCount > 0 && (
+                        <View style={[styles.filterBadge, { backgroundColor: colors.primary }]}>
+                          <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
                         </View>
                       )}
-                      {roles.length > 0 && (
-                        <>
-                          <Text style={[styles.groupLabel, { color: colors.textSecondary }]}>Funções</Text>
-                          <View style={styles.rolesWrap}>
-                          {roles.map((role) => (
-                            <View
-                              key={`${item.id}-role-${role}`}
-                              style={[styles.roleChip, { backgroundColor: `${colors.primary}18`, borderColor: `${colors.primary}44` }]}
-                            >
-                              <Text style={[styles.roleChipText, { color: colors.primary }]} numberOfLines={1}>
-                                {role}
-                              </Text>
-                            </View>
-                          ))}
-                          </View>
-                        </>
-                      )}
-                      {formats.length > 0 && (
-                        <>
-                          <Text style={[styles.groupLabel, { color: colors.textSecondary }]}>Formatos</Text>
-                          <View style={styles.rolesWrap}>
-                          {formats.map((fmt) => (
-                            <View
-                              key={`${item.id}-fmt-${fmt}`}
-                              style={[
-                                styles.formatChip,
-                                {
-                                  backgroundColor: `${colors.textSecondary}14`,
-                                  borderColor: `${colors.textSecondary}40`,
-                                },
-                              ]}
-                            >
-                              <Text style={[styles.formatChipText, { color: colors.textSecondary }]} numberOfLines={1}>
-                                {fmt}
-                              </Text>
-                            </View>
-                          ))}
-                          </View>
-                        </>
-                      )}
-                      <View style={styles.locationRow}>
-                        <Ionicons name="location-outline" size={13} color={colors.textSecondary} />
-                        <Text style={[styles.locationText, { color: colors.textSecondary }]}>{artistLocation}</Text>
-                      </View>
                     </View>
-                    {isSelected && <Ionicons name="checkmark-circle" size={22} color={colors.primary} />}
-                  </View>
-                </TouchableOpacity>
-                  );
-                })()
-              )}
-            />
-          )}
+                    <Ionicons name={filtersOpen ? 'chevron-up' : 'chevron-down'} size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
 
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Dados do convite</Text>
-          <View style={styles.selectedWrap}>
-            <Text style={[styles.selected, { color: colors.textSecondary }]}>
-              Artista selecionado: <Text style={{ color: colors.text, fontWeight: '700' }}>{selectedLabel}</Text>
-            </Text>
-          </View>
-
-          <TextInput
-            style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
-            placeholder="R$ 0,00"
-            placeholderTextColor={colors.textSecondary}
-            keyboardType="numeric"
-            value={cacheDraft}
-            onChangeText={(t) => setCacheDraft(formatCurrencyBRLInput(t))}
+                  {filtersOpen && (
+                    <View style={[styles.filterPanel, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+                      <TextInput
+                        style={[styles.filterInput, { color: colors.text, borderColor: colors.border }]}
+                        placeholder="Cidade (opcional)"
+                        placeholderTextColor={colors.textSecondary}
+                        value={filterCity}
+                        onChangeText={setFilterCity}
+                      />
+                      <Text style={[styles.filterFieldLabel, { color: colors.text }]}>Estado (opcional)</Text>
+                      <TouchableOpacity
+                        style={[
+                          styles.estadoSelector,
+                          { borderColor: colors.border, backgroundColor: colors.background },
+                        ]}
+                        onPress={() => setShowFilterEstados(!showFilterEstados)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.estadoText, { color: filterState ? colors.text : colors.textSecondary }]}>
+                          {filterState || 'Selecione o estado'}
+                        </Text>
+                        <Ionicons
+                          name={showFilterEstados ? 'chevron-up' : 'chevron-down'}
+                          size={20}
+                          color={colors.textSecondary}
+                        />
+                      </TouchableOpacity>
+                      {showFilterEstados && (
+                        <View style={[styles.estadosList, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                          <ScrollView style={styles.estadosScroll} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                            <TouchableOpacity
+                              style={[styles.estadoItem, { borderBottomColor: colors.border }]}
+                              onPress={() => {
+                                setFilterState('');
+                                setShowFilterEstados(false);
+                              }}
+                            >
+                              <Text style={[styles.estadoItemText, { color: colors.textSecondary }]}>Todos os estados</Text>
+                            </TouchableOpacity>
+                            {ESTADOS_BRASIL.map((estadoItem) => (
+                              <TouchableOpacity
+                                key={estadoItem}
+                                style={[styles.estadoItem, { borderBottomColor: colors.border }]}
+                                onPress={() => {
+                                  setFilterState(estadoItem);
+                                  setShowFilterEstados(false);
+                                }}
+                              >
+                                <Text
+                                  style={[
+                                    styles.estadoItemText,
+                                    { color: filterState === estadoItem ? colors.primary : colors.text },
+                                  ]}
+                                >
+                                  {estadoItem}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        </View>
+                      )}
+                      <TextInput
+                        style={[
+                          styles.filterInput,
+                          styles.filterInputLast,
+                          { color: colors.text, borderColor: colors.border },
+                        ]}
+                        placeholder="Função — ex.: violão, vocal (opcional)"
+                        placeholderTextColor={colors.textSecondary}
+                        value={filterRole}
+                        onChangeText={setFilterRole}
+                      />
+                    </View>
+                  )}
+                </View>
+                <View style={styles.listSectionHeader}>
+                  <Text style={[styles.subLabel, { color: colors.textSecondary }]}>Artistas</Text>
+                  {searchLoading ? <ActivityIndicator color={colors.primary} size="small" /> : null}
+                </View>
+              </View>
+            }
+            ListEmptyComponent={
+              searchLoading && search.trim().length >= 2 ? (
+                <View style={styles.listEmptyLoading}>
+                  <ActivityIndicator color={colors.primary} />
+                </View>
+              ) : (
+                <Text style={[styles.emptyResults, { color: searchError ? colors.error : colors.textSecondary }]}>
+                  {searchError ||
+                    (search.trim().length < 2 ? 'Digite pelo menos 2 letras para buscar.' : 'Nenhum artista encontrado.')}
+                </Text>
+              )
+            }
+            renderItem={renderArtistCard}
           />
-          <TextInput
-            style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
-            placeholder="(XX) XXXXX-XXXX"
-            placeholderTextColor={colors.textSecondary}
-            keyboardType="phone-pad"
-            value={whatsDraft}
-            onChangeText={(t) => setWhatsDraft(maskBrazilMobile(t))}
-          />
-          <TextInput
-            style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
-            placeholder="Função (ex.: violão, voz, percussão)"
-            placeholderTextColor={colors.textSecondary}
-            value={functionDraft}
-            onChangeText={setFunctionDraft}
-          />
-          <TextInput
-            style={[styles.input, styles.messageInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
-            placeholder="Mensagem (opcional)"
-            placeholderTextColor={colors.textSecondary}
-            value={messageDraft}
-            onChangeText={setMessageDraft}
-            multiline
-          />
-
-          <View style={styles.actions}>
-            <TouchableOpacity style={[styles.btnSecondary, { borderColor: colors.border }]} onPress={() => router.back()}>
-              <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Cancelar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.btnPrimary, { backgroundColor: colors.primary, opacity: selectedArtist ? 1 : 0.45 }]}
-              onPress={() => void handleSubmit()}
-              disabled={!selectedArtist || sending}
-            >
-              {sending ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimaryText}>Enviar convite</Text>}
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
+        </View>
       </KeyboardAvoidingView>
+
+      <Modal
+        visible={inviteModalVisible && selectedArtist != null}
+        animationType="slide"
+        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setInviteModalVisible(false);
+        }}
+      >
+        <SafeAreaView style={[styles.inviteModalRoot, { backgroundColor: colors.background }]} edges={['top', 'left', 'right', 'bottom']}>
+          <KeyboardAvoidingView
+            style={styles.flex1}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+          >
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+              <TouchableOpacity
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setInviteModalVisible(false);
+                }}
+                style={styles.modalCloseBtn}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="close" size={26} color={colors.text} />
+              </TouchableOpacity>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Convite</Text>
+              <View style={styles.modalCloseBtn} />
+            </View>
+
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator
+              contentContainerStyle={styles.inviteFormScroll}
+              nestedScrollEnabled
+            >
+              <Text style={[styles.formPanelTitle, { color: colors.text }]}>Dados do convite</Text>
+              <View style={[styles.inviteArtistBanner, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <OptimizedImage
+                  imageUrl={selectedSearchRow?.image_url ?? selectedSearchRow?.profile_url ?? ''}
+                  style={styles.inviteBannerAvatar}
+                  fallbackText={selectedLabel}
+                  fallbackIcon="person"
+                  fallbackIconSize={16}
+                  fallbackIconColor={colors.primary}
+                  showLoadingIndicator={false}
+                />
+                <View style={styles.inviteBannerText}>
+                  <Text style={[styles.selectedLine, { color: colors.textSecondary, marginBottom: 0 }]}>
+                    Convidando
+                  </Text>
+                  <Text style={[styles.inviteBannerName, { color: colors.text }]} numberOfLines={2}>
+                    {selectedLabel}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setInviteModalVisible(false);
+                }}
+                style={styles.formChangeArtistBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="arrow-back-outline" size={16} color={colors.primary} />
+                <Text style={[styles.formChangeArtistText, { color: colors.primary }]}>Trocar artista</Text>
+              </TouchableOpacity>
+
+              <TextInput
+                style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
+                placeholder="Cachê oferecido (R$)"
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="numeric"
+                value={cacheDraft}
+                onChangeText={(t) => setCacheDraft(formatCurrencyBRLInput(t))}
+              />
+              <TextInput
+                style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
+                placeholder="WhatsApp do contratante (opcional)"
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="phone-pad"
+                value={whatsDraft}
+                onChangeText={(t) => setWhatsDraft(maskBrazilMobile(t))}
+              />
+              <TextInput
+                style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
+                placeholder="Função no evento (ex.: violão, voz)"
+                placeholderTextColor={colors.textSecondary}
+                value={functionDraft}
+                onChangeText={setFunctionDraft}
+              />
+              <TextInput
+                style={[
+                  styles.input,
+                  styles.messageInput,
+                  { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface },
+                ]}
+                placeholder="Mensagem (opcional)"
+                placeholderTextColor={colors.textSecondary}
+                value={messageDraft}
+                onChangeText={setMessageDraft}
+                multiline
+              />
+
+              <View style={styles.actions}>
+                <TouchableOpacity
+                  style={[styles.btnSecondary, { borderColor: colors.border, backgroundColor: colors.background }]}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setInviteModalVisible(false);
+                  }}
+                >
+                  <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Fechar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btnPrimary, { backgroundColor: colors.primary }]}
+                  onPress={() => void handleSubmit()}
+                  disabled={sending}
+                >
+                  {sending ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimaryText}>Enviar convite</Text>}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  flex1: { flex: 1 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   header: {
     height: 56,
@@ -694,10 +812,69 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '700' },
-  content: { padding: 16, paddingBottom: 28 },
-  sectionTitle: { fontSize: 18, fontWeight: '800', marginBottom: 4 },
-  sectionHint: { fontSize: 13, lineHeight: 18, marginBottom: 12 },
-  subLabel: { fontSize: 12, fontWeight: '700', marginTop: 4, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.4 },
+  resultsList: { flex: 1 },
+  resultsListContent: { paddingHorizontal: 16, paddingBottom: 24, flexGrow: 1 },
+  cardSeparator: { height: 10 },
+  listSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 6,
+    marginTop: 4,
+  },
+  listEmptyLoading: { paddingVertical: 32, alignItems: 'center' },
+  searchSection: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 6,
+  },
+  searchInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    marginBottom: 10,
+    fontSize: 17,
+  },
+  emptyResults: { paddingVertical: 24, fontSize: 15, lineHeight: 22, paddingHorizontal: 16 },
+  inviteModalRoot: { flex: 1 },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  modalCloseBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  modalTitle: { fontSize: 17, fontWeight: '700' },
+  inviteFormScroll: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32 },
+  inviteArtistBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  inviteBannerAvatar: { width: 48, height: 48, borderRadius: 24 },
+  inviteBannerText: { flex: 1, minWidth: 0 },
+  inviteBannerName: { fontSize: 17, fontWeight: '700', marginTop: 2 },
+  formPanelTitle: { fontSize: 16, fontWeight: '800', marginBottom: 6 },
+  selectedLine: { fontWeight: '500', marginBottom: 8 },
+  formChangeArtistBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 12,
+    alignSelf: 'flex-start',
+  },
+  formChangeArtistText: { fontSize: 14, fontWeight: '600' },
+  sectionTitle: { fontSize: 17, fontWeight: '800', marginBottom: 2 },
+  sectionHint: { fontSize: 12, lineHeight: 17, marginBottom: 8 },
+  subLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
   label: { fontSize: 14, fontWeight: '600', marginBottom: 6 },
   filterBar: {
     flexDirection: 'row',
@@ -735,7 +912,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   filterInputLast: { marginBottom: 0 },
-  filterFieldLabel: { fontSize: 13, fontWeight: '600', marginTop: 4, marginBottom: 6 },
+  filterFieldLabel: { fontSize: 13, fontWeight: '600', marginTop: 2, marginBottom: 6 },
   estadoSelector: {
     borderWidth: 1,
     borderRadius: 10,
@@ -762,7 +939,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   estadoItemText: { fontSize: 16 },
-  divider: { height: StyleSheet.hairlineWidth, marginVertical: 16 },
   input: {
     borderWidth: 1,
     borderRadius: 12,
@@ -771,23 +947,26 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     fontSize: 17,
   },
-  messageInput: { minHeight: 88, textAlignVertical: 'top' },
-  row: {
-    marginTop: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
+  messageInput: { minHeight: 72, textAlignVertical: 'top' },
+  rowCard: {
     borderWidth: 1,
     borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
   },
-  rowContent: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  rowAvatar: { width: 42, height: 42, borderRadius: 21 },
-  rowInfo: { flex: 1 },
-  rowHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  artistName: { fontSize: 17, lineHeight: 22 },
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
-  locationText: { fontSize: 12 },
-  badgeText: { fontSize: 13, fontWeight: '700', marginTop: 2 },
-  metaChipsRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 4 },
+  rowCardInner: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  rowAvatarMd: { width: 48, height: 48, borderRadius: 24 },
+  rowCardInfo: { flex: 1, minWidth: 0 },
+  rowCardHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
+  artistNameCard: { fontSize: 17, lineHeight: 22, flex: 1, minWidth: 0 },
+  cardBlockTop: { marginTop: 8, gap: 6 },
+  cardBlockSection: { marginTop: 10 },
+  cardBlockFooter: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  metaChipsRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   stylePill: {
     fontSize: 12,
     fontWeight: '700',
@@ -807,15 +986,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   whatsTagText: { fontSize: 11, fontWeight: '800' },
-  whatsContactRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  whatsContactRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   whatsContactText: { fontSize: 14, fontWeight: '600', flex: 1 },
-  groupLabel: { fontSize: 11, fontWeight: '700', marginTop: 8 },
+  groupLabel: { fontSize: 11, fontWeight: '700', marginBottom: 6 },
   rolesWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    marginTop: 6,
-    marginBottom: 2,
   },
   roleChip: {
     borderWidth: 1,
@@ -824,10 +1001,7 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     maxWidth: '100%',
   },
-  roleChipText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
+  roleChipText: { fontSize: 11, fontWeight: '600' },
   formatChip: {
     borderWidth: 1,
     borderRadius: 999,
@@ -835,13 +1009,10 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     maxWidth: '100%',
   },
-  formatChipText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  selectedWrap: { marginTop: 10, marginBottom: 12 },
-  selected: { fontWeight: '500' },
-  actions: { flexDirection: 'row', gap: 10, marginTop: 8 },
+  formatChipText: { fontSize: 11, fontWeight: '600' },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  locationText: { fontSize: 13, flex: 1, lineHeight: 18 },
+  actions: { flexDirection: 'row', gap: 10, marginTop: 4 },
   btnSecondary: {
     flex: 1,
     borderWidth: 1,
