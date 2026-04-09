@@ -845,9 +845,7 @@ export default function ConfiguracoesScreen() {
             {renderSettingItem(
               'diamond',
               premiumEntitlementActive ? 'Minha assinatura' : 'Assine Premium',
-              premiumEntitlementActive
-                ? 'Gerenciar ou cancelar na App Store / Google Play'
-                : 'Ver planos mensal e anual',
+              premiumEntitlementActive ? 'Gerenciar minha assinatura' : 'Ver planos mensal e anual',
               () => router.push('/assine-premium'),
               undefined,
               premiumEntitlementActive ? '#D97706' : undefined
