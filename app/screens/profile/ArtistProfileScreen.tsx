@@ -99,6 +99,10 @@ export default function ArtistProfileScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
   const fromSettings = params.fromSettings === 'true';
+  /** Fluxo “mais um artista” (ex.: agenda) — mesmo formulário, com voltar/cancelar sem alerta de onboarding. */
+  const fromSecondary = params.secondary === 'true';
+  const hasBackNavigation = fromSettings || fromSecondary;
+  const isFirstOnboarding = !fromSettings && !fromSecondary;
   const { setActiveArtist } = useActiveArtistContext();
   
   const [name, setName] = useState('');
@@ -180,20 +184,7 @@ export default function ArtistProfileScreen() {
   };
 
   const handleSkipArtistCreation = () => {
-    Alert.alert(
-      'Pular Criação de Artista',
-      'Você pode criar seu perfil de artista mais tarde nas configurações.\n\nEnquanto isso, você poderá:\n\n• Receber convites de outros artistas\n• Se tornar colaborador de um artista existente\n• Gerenciar eventos como membro de uma equipe',
-      [
-        {
-          text: 'Cancelar',
-          style: 'cancel'
-        },
-        {
-          text: 'Continuar',
-          onPress: () => router.replace('/(tabs)/agenda')
-        }
-      ]
-    );
+    router.replace('/(tabs)/agenda');
   };
 
   const pickImage = async () => {
@@ -399,11 +390,9 @@ export default function ArtistProfileScreen() {
 
   const handleCloseSuccessModal = () => {
     setShowSuccessModal(false);
-    if (fromSettings) {
-      // Se veio das configurações, voltar para lá
+    if (fromSettings || fromSecondary) {
       router.back();
     } else {
-      // Senão, ir para a agenda (primeiro acesso)
       router.replace('/(tabs)/agenda');
     }
   };
@@ -418,17 +407,19 @@ export default function ArtistProfileScreen() {
           <View style={styles.content}>
             {/* Header */}
             <View style={styles.header}>
-              {fromSettings && (
-                <TouchableOpacity 
+              {hasBackNavigation && (
+                <TouchableOpacity
                   style={styles.backButton}
                   onPress={() => router.back()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Voltar"
                 >
                   <Ionicons name="arrow-back" size={24} color={colors.primary} />
                 </TouchableOpacity>
               )}
               <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-                {fromSettings 
-                  ? 'Adicione um novo perfil de artista' 
+                {fromSettings || fromSecondary
+                  ? 'Adicione um novo perfil de artista'
                   : 'Configure o perfil do artista'}
               </Text>
             </View>
@@ -686,8 +677,7 @@ export default function ArtistProfileScreen() {
                 </Text>
               </TouchableOpacity>
 
-              {/* Mostrar opções alternativas apenas se NÃO vier das configurações */}
-              {!fromSettings && (
+              {isFirstOnboarding && (
                 <>
                   <View style={styles.divider}>
                     <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
@@ -699,7 +689,24 @@ export default function ArtistProfileScreen() {
                     style={[styles.skipButton, { backgroundColor: colors.background, borderColor: colors.border }]}
                     onPress={handleSkipArtistCreation}
                   >
-                    <Text style={[styles.skipButtonText, { color: colors.primary }]}>Criar Mais Tarde</Text>
+                    <Text style={[styles.skipButtonText, { color: colors.primary }]}>Criar mais tarde</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+
+              {hasBackNavigation && (
+                <>
+                  <View style={styles.divider}>
+                    <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+                    <Text style={[styles.dividerText, { color: colors.textSecondary }]}>ou</Text>
+                    <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.skipButton, { backgroundColor: colors.background, borderColor: colors.border }]}
+                    onPress={() => router.back()}
+                  >
+                    <Text style={[styles.skipButtonText, { color: colors.primary }]}>Cancelar</Text>
                   </TouchableOpacity>
                 </>
               )}

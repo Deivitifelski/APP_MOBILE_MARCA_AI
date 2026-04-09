@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import NetInfo from '@react-native-community/netinfo';
 import * as Linking from 'expo-linking';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -24,6 +24,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import OptimizedImage from '../../components/OptimizedImage';
 import PermissionModal from '../../components/PermissionModal';
+import TransientToast from '../../components/TransientToast';
 import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
@@ -85,7 +86,8 @@ export default function AgendaScreen() {
   const [isLoadingArtistPicker, setIsLoadingArtistPicker] = useState(false);
   const [showNewUserModal, setShowNewUserModal] = useState(false);
   const [welcomeStep, setWelcomeStep] = useState(0);
-  const params = useLocalSearchParams<{ showNewUserModal?: string }>();
+  const params = useLocalSearchParams<{ showNewUserModal?: string; eventCreatedToast?: string }>();
+  const [eventCreatedToastMessage, setEventCreatedToastMessage] = useState<string | null>(null);
   const [showNoConnectionModal, setShowNoConnectionModal] = useState(false);
   const [isRetryingConnection, setIsRetryingConnection] = useState(false);
   const [showInviteEventInfoModal, setShowInviteEventInfoModal] = useState(false);
@@ -112,6 +114,12 @@ export default function AgendaScreen() {
       setWelcomeStep(0);
     }
   }, [params.showNewUserModal]);
+
+  useEffect(() => {
+    if (params.eventCreatedToast !== '1') return;
+    setEventCreatedToastMessage('Evento criado com sucesso!');
+    router.setParams({ eventCreatedToast: undefined });
+  }, [params.eventCreatedToast]);
 
   // Bloquear segundo toque: por tempo (debounce) e por ref até sair da tela
   const isNavigatingToEventRef = useRef(false);
@@ -192,7 +200,7 @@ export default function AgendaScreen() {
       );
       return;
     }
-    router.push('/cadastro-artista');
+    router.push('/cadastro-artista?secondary=true');
   };
 
   // ✅ VERIFICAR ROLE DIRETAMENTE NO BANCO
@@ -302,6 +310,65 @@ export default function AgendaScreen() {
     });
     return map;
   }, [events]);
+
+  /** Evita múltiplos toques no FAB / dia vazio abrindo várias telas de novo evento. */
+  const isOpeningAddEventRef = useRef(false);
+  const [isOpeningAddEventScreen, setIsOpeningAddEventScreen] = useState(false);
+
+  const openAddEventScreen = useCallback(
+    async (navParams: { selectedMonth: number; selectedYear: number; selectedDate: string }) => {
+      if (isOpeningAddEventRef.current) return;
+      if (!activeArtist) {
+        Alert.alert('Erro', 'Nenhum artista selecionado.');
+        return;
+      }
+      isOpeningAddEventRef.current = true;
+      setIsOpeningAddEventScreen(true);
+      try {
+        const { user } = await getCurrentUser();
+        if (!user) {
+          Alert.alert('Erro', 'Usuário não encontrado');
+          return;
+        }
+
+        const { data: memberData, error: roleError } = await supabase
+          .from('artist_members')
+          .select('role')
+          .eq('user_id', user.id)
+          .eq('artist_id', activeArtist.id)
+          .single();
+
+        if (roleError || !memberData) {
+          Alert.alert('Erro', 'Você não tem acesso a este artista');
+          return;
+        }
+
+        const allowedRoles = ['admin', 'editor', 'owner'];
+        const canCreate = allowedRoles.includes(memberData.role);
+
+        if (!canCreate) {
+          setShowPermissionModal(true);
+          return;
+        }
+
+        router.push({
+          pathname: '/adicionar-evento',
+          params: {
+            selectedMonth: navParams.selectedMonth,
+            selectedYear: navParams.selectedYear,
+            selectedDate: navParams.selectedDate,
+          },
+        });
+      } catch {
+        Alert.alert('Erro', 'Erro ao verificar permissões');
+      } finally {
+        isOpeningAddEventRef.current = false;
+        setIsOpeningAddEventScreen(false);
+      }
+    },
+    [activeArtist],
+  );
+
   const calendarMatrix = useMemo(() => {
     const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
     const firstWeekDay = firstDayOfMonth.getDay();
@@ -1034,58 +1101,13 @@ export default function AgendaScreen() {
     setCurrentDate(newDate);
   };
 
-  const handleAddShow = async () => {
-    if (!activeArtist) {
-      Alert.alert('Erro', 'Nenhum artista selecionado.');
-      return;
-    }
-
-    // ✅ VERIFICAR PERMISSÃO ATUALIZADA DO BANCO (sempre que clicar)
-    try {
-      const { user } = await getCurrentUser();
-      if (!user) {
-        Alert.alert('Erro', 'Usuário não encontrado');
-        return;
-      }
-
-      // Buscar role atual do usuário DIRETO DO BANCO
-      const { data: memberData, error: roleError } = await supabase
-        .from('artist_members')
-        .select('role')
-        .eq('user_id', user.id)
-        .eq('artist_id', activeArtist.id)
-        .single();
-
-      if (roleError || !memberData) {
-        Alert.alert('Erro', 'Você não tem acesso a este artista');
-        return;
-      }
-
-      const userRole = memberData.role;
-
-      // Verificar se pode criar eventos (admin, editor, owner)
-      const allowedRoles = ['admin', 'editor', 'owner'];
-      const canCreate = allowedRoles.includes(userRole);
-      
-      if (!canCreate) {
-        setShowPermissionModal(true);
-        return;
-      }
-
-      // Se tem permissão, navegar para tela de adicionar evento
-      const selectedDate = new Date(currentYear, currentMonth, 1);
-      
-      router.push({
-        pathname: '/adicionar-evento',
-        params: { 
-          selectedMonth: currentMonth,
-          selectedYear: currentYear,
-          selectedDate: selectedDate.toISOString()
-        }
-      });
-    } catch (error) {
-      Alert.alert('Erro', 'Erro ao verificar permissões');
-    }
+  const handleAddShow = () => {
+    const selectedDate = new Date(currentYear, currentMonth, 1);
+    void openAddEventScreen({
+      selectedMonth: currentMonth,
+      selectedYear: currentYear,
+      selectedDate: selectedDate.toISOString(),
+    });
   };
 
   const handleCreateArtist = () => {
@@ -1391,59 +1413,13 @@ export default function AgendaScreen() {
     }
 
     // Se não houver eventos, navegar para criar evento com a data setada
-    if (!activeArtist) {
-      Alert.alert('Erro', 'Nenhum artista selecionado.');
-      return;
-    }
-
-    // Verificar permissão para criar eventos
-    try {
-      const { user } = await getCurrentUser();
-      if (!user) {
-        Alert.alert('Erro', 'Usuário não encontrado');
-        return;
-      }
-
-      // Buscar role atual do usuário DIRETO DO BANCO
-      const { data: memberData, error: roleError } = await supabase
-        .from('artist_members')
-        .select('role')
-        .eq('user_id', user.id)
-        .eq('artist_id', activeArtist.id)
-        .single();
-
-      if (roleError || !memberData) {
-        Alert.alert('Erro', 'Você não tem acesso a este artista');
-        return;
-      }
-
-      const userRole = memberData.role;
-
-      // Verificar se pode criar eventos (admin, editor, owner)
-      const allowedRoles = ['admin', 'editor', 'owner'];
-      const canCreate = allowedRoles.includes(userRole);
-      
-      if (!canCreate) {
-        setShowPermissionModal(true);
-        return;
-      }
-
-      // Parse da data do dateString (formato: YYYY-MM-DD)
-      const [year, month, day] = dateString.split('-').map(Number);
-      const selectedDate = new Date(year, month - 1, day);
-
-      // Navegar para tela de adicionar evento com a data setada
-      router.push({
-        pathname: '/adicionar-evento',
-        params: { 
-          selectedMonth: month - 1, // month é 0-indexed
-          selectedYear: year,
-          selectedDate: selectedDate.toISOString()
-        }
-      });
-    } catch (error) {
-      Alert.alert('Erro', 'Erro ao verificar permissões');
-    }
+    const [year, month, day] = dateString.split('-').map(Number);
+    const selectedDate = new Date(year, month - 1, day);
+    void openAddEventScreen({
+      selectedMonth: month - 1,
+      selectedYear: year,
+      selectedDate: selectedDate.toISOString(),
+    });
   };
 
   return (
@@ -1678,6 +1654,7 @@ export default function AgendaScreen() {
                           ]}
                           onPress={() => handleDayPress(day.dateString)}
                           activeOpacity={0.7}
+                          disabled={isOpeningAddEventScreen && !hasEvents}
                         >
                           <Text
                             style={[
@@ -1728,10 +1705,19 @@ export default function AgendaScreen() {
       {/* Botão flutuante para adicionar show - só aparece quando há artistas */}
       {activeArtist && (
         <TouchableOpacity
-          style={[styles.fab, { backgroundColor: colors.primary }]}
+          style={[
+            styles.fab,
+            { backgroundColor: colors.primary, opacity: isOpeningAddEventScreen ? 0.85 : 1 },
+          ]}
           onPress={handleAddShow}
+          disabled={isOpeningAddEventScreen}
+          accessibilityState={{ busy: isOpeningAddEventScreen }}
         >
-          <Ionicons name="add" size={24} color="#fff" />
+          {isOpeningAddEventScreen ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <Ionicons name="add" size={24} color="#fff" />
+          )}
         </TouchableOpacity>
       )}
 
@@ -2434,6 +2420,12 @@ export default function AgendaScreen() {
           </View>
         </View>
       </Modal>
+
+      <TransientToast
+        message={eventCreatedToastMessage}
+        onDismiss={() => setEventCreatedToastMessage(null)}
+        colors={colors}
+      />
     </View>
   );
 }

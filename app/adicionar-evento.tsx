@@ -4,7 +4,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
 import {
     Alert,
-    Animated,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -257,159 +256,6 @@ const TimePickerComponent = ({ selectedTime, onTimeChange, colors }: { selectedT
   );
 };
 
-// Modal de Sucesso Elegante
-const SuccessModal = ({ 
-  visible, 
-  onClose, 
-  event, 
-  colors 
-}: { 
-  visible: boolean; 
-  onClose: () => void; 
-  event: any;
-  colors: any;
-}) => {
-  const scaleValue = React.useRef(new Animated.Value(0)).current;
-
-  React.useEffect(() => {
-    if (visible) {
-      Animated.spring(scaleValue, {
-        toValue: 1,
-        tension: 50,
-        friction: 7,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      scaleValue.setValue(0);
-    }
-  }, [visible]);
-
-  const formatDate = (dateString: string) => {
-    // Parse manual da data para evitar problemas de fuso horário
-    // dateString está no formato "YYYY-MM-DD"
-    const [year, month, day] = dateString.split('-').map(Number);
-    const date = new Date(year, month - 1, day); // month é 0-indexed no Date
-    return date.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric'
-    });
-  };
-
-  const formatCurrency = (value?: number | null) => {
-    if (value == null || Number.isNaN(value)) return 'Não informado';
-    return value.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    });
-  };
-
-  const getTagColor = (tag: string) => {
-    switch (tag) {
-      case 'ensaio':
-        return '#10B981';
-      case 'evento':
-        return '#667eea';
-      case 'reunião':
-        return '#F59E0B';
-      default:
-        return '#667eea';
-    }
-  };
-
-  const getTagLabel = (tag: string) => {
-    switch (tag) {
-      case 'ensaio':
-        return 'Ensaio';
-      case 'evento':
-        return 'Evento';
-      case 'reunião':
-        return 'Reunião';
-      default:
-        return 'Evento';
-    }
-  };
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <View style={[styles.successModalOverlay, { backgroundColor: 'rgba(0, 0, 0, 0.7)' }]}>
-        <Animated.View 
-          style={[
-            styles.successModalContent,
-            { 
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-              transform: [{ scale: scaleValue }]
-            }
-          ]}
-        >
-          {/* Ícone de Sucesso com Animação */}
-          <View style={[styles.successIconContainer, { backgroundColor: '#10B981' }]}>
-            <Ionicons name="checkmark" size={48} color="#fff" />
-          </View>
-
-          {/* Título */}
-          <Text style={[styles.successTitle, { color: colors.text }]}>
-            Evento Criado!
-          </Text>
-
-          {/* Subtítulo */}
-          <Text style={[styles.successSubtitle, { color: colors.textSecondary }]}>
-            Seu evento foi adicionado com sucesso à agenda
-          </Text>
-
-          {/* Informações do Evento */}
-          {event && (
-            <View style={[styles.eventInfoCard, { backgroundColor: colors.background }]}>
-              {/* Nome do Evento */}
-              <View style={styles.eventInfoRow}>
-                <Ionicons name="calendar" size={20} color={colors.primary} />
-                <Text style={[styles.eventInfoText, { color: colors.text }]}>
-                  {event.name}
-                </Text>
-              </View>
-
-              {/* Data */}
-              <View style={styles.eventInfoRow}>
-                <Ionicons name="time-outline" size={20} color={colors.primary} />
-                <Text style={[styles.eventInfoText, { color: colors.textSecondary }]}>
-                  {formatDate(event.event_date)}
-                </Text>
-              </View>
-
-              {/* Valor */}
-              <View style={styles.eventInfoRow}>
-                <Ionicons name="cash-outline" size={20} color={colors.primary} />
-                <Text style={[styles.eventInfoValue, { color: '#10B981' }]}>
-                  {formatCurrency(event.value)}
-                </Text>
-              </View>
-
-              {/* Tag */}
-              <View style={[styles.eventTag, { backgroundColor: getTagColor(event.tag) }]}>
-                <Text style={styles.eventTagText}>{getTagLabel(event.tag)}</Text>
-              </View>
-            </View>
-          )}
-
-          {/* Botão */}
-          <TouchableOpacity
-            style={[styles.successButton, { backgroundColor: colors.primary }]}
-            onPress={onClose}
-          >
-            <Text style={styles.successButtonText}>Voltar à Agenda</Text>
-          </TouchableOpacity>
-        </Animated.View>
-      </View>
-    </Modal>
-  );
-};
-
 export default function AdicionarEventoScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
@@ -448,8 +294,6 @@ export default function AdicionarEventoScreen() {
   const [showTimeInicioModal, setShowTimeInicioModal] = useState(false);
   const [showTimeFimModal, setShowTimeFimModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [createdEvent, setCreatedEvent] = useState<any>(null);
   const [contractUri, setContractUri] = useState<string | null>(null);
   const [contractName, setContractName] = useState<string | null>(null);
   const [contractMime, setContractMime] = useState<string | null>(null);
@@ -559,9 +403,8 @@ export default function AdicionarEventoScreen() {
 
       const result = await createEvent(eventData);
 
-      if (result.success && result.event) {
-        setCreatedEvent(result.event);
-        setShowSuccessModal(true);
+      if (result.success) {
+        router.replace({ pathname: '/(tabs)/agenda', params: { eventCreatedToast: '1' } });
       } else {
         Alert.alert('Erro', result.error || 'Erro ao salvar evento');
       }
@@ -1113,17 +956,6 @@ export default function AdicionarEventoScreen() {
         </View>
       </Modal>
 
-      {/* Modal de Sucesso */}
-      <SuccessModal
-        visible={showSuccessModal}
-        onClose={() => {
-          setShowSuccessModal(false);
-          router.back();
-        }}
-        event={createdEvent}
-        colors={colors}
-      />
-
     </SafeAreaView>
   );
 }
@@ -1551,103 +1383,5 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-  },
-  // Estilos do Modal de Sucesso
-  successModalOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  successModalContent: {
-    width: '100%',
-    maxWidth: 400,
-    borderRadius: 24,
-    padding: 32,
-    alignItems: 'center',
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 10,
-    },
-    shadowOpacity: Platform.OS === 'android' ? 0 : 0.3,
-    shadowRadius: Platform.OS === 'android' ? 0 : 20,
-    elevation: Platform.OS === 'android' ? 0 : 10,
-  },
-  successIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  successTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  successSubtitle: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 22,
-  },
-  eventInfoCard: {
-    width: '100%',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    gap: 16,
-  },
-  eventInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  eventInfoText: {
-    fontSize: 16,
-    fontWeight: '600',
-    flex: 1,
-  },
-  eventInfoValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  eventTag: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginTop: 4,
-  },
-  eventTagText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  successButton: {
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 16,
-    borderRadius: 12,
-    gap: 8,
-    shadowColor: '#667eea',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: Platform.OS === 'android' ? 0 : 0.3,
-    shadowRadius: Platform.OS === 'android' ? 0 : 8,
-    elevation: Platform.OS === 'android' ? 0 : 4,
-  },
-  successButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
   },
 });
