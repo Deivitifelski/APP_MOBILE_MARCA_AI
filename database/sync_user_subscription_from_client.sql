@@ -120,9 +120,10 @@ BEGIN
     ELSE 'monthly'
   END;
 
-  SELECT id INTO v_existing_tx_id
-  FROM public.user_subscriptions
-  WHERE user_id = uid AND store_latest_transaction_id = v_tx
+  SELECT s.id INTO v_existing_tx_id
+  FROM public.user_subscriptions s
+  WHERE s.user_id = uid AND s.store_latest_transaction_id = v_tx
+  ORDER BY s.updated_at DESC NULLS LAST, s.created_at DESC
   LIMIT 1;
 
   IF v_existing_tx_id IS NOT NULL THEN
@@ -180,9 +181,10 @@ BEGIN
     RETURN jsonb_build_object('ok', true, 'action', 'noop_idempotent');
   END IF;
 
-  SELECT id INTO v_existing_sub_id
-  FROM public.user_subscriptions
-  WHERE user_id = uid AND store_original_transaction_id = v_orig
+  SELECT s.id INTO v_existing_sub_id
+  FROM public.user_subscriptions s
+  WHERE s.user_id = uid AND s.store_original_transaction_id = v_orig
+  ORDER BY s.updated_at DESC NULLS LAST, s.created_at DESC
   LIMIT 1;
 
   IF v_existing_sub_id IS NOT NULL THEN
