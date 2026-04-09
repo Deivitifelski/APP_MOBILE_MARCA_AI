@@ -21,6 +21,63 @@ export interface LeaveArtistValidation {
 }
 
 /**
+ * Carrega tudo para a tela "Sair do artista" em uma RPC (melhor performance).
+ */
+export const fetchLeaveArtistScreenData = async (
+  artistId: string,
+): Promise<{ validation: LeaveArtistValidation | null; error: string | null }> => {
+  try {
+    const { data, error } = await supabase.rpc('get_leave_artist_screen_data', {
+      p_artist_id: artistId,
+    });
+    if (error) {
+      return { validation: null, error: error.message };
+    }
+    const row = data as {
+      ok?: boolean;
+      error?: string | null;
+      validation?: Record<string, unknown> | null;
+    } | null;
+    if (!row || row.ok !== true) {
+      const code = row?.error ?? 'unknown';
+      const msg =
+        code === 'not_authenticated'
+          ? 'Faça login novamente.'
+          : code === 'not_member'
+            ? 'Você não tem acesso a este artista.'
+            : code === 'no_collaborators'
+              ? 'Nenhum colaborador encontrado.'
+              : 'Não foi possível carregar os dados.';
+      return { validation: null, error: msg };
+    }
+    const v = row.validation;
+    if (!v || typeof v !== 'object') {
+      return { validation: null, error: 'Resposta inválida do servidor.' };
+    }
+    const warnings = Array.isArray(v.warning)
+      ? (v.warning as unknown[]).map((x) => String(x))
+      : [];
+    const validation: LeaveArtistValidation = {
+      canLeave: Boolean(v.canLeave),
+      isOnlyCollaborator: Boolean(v.isOnlyCollaborator),
+      totalCollaborators: Number(v.totalCollaborators) || 0,
+      userRole: String(v.userRole ?? ''),
+      isOnlyAdmin: Boolean(v.isOnlyAdmin),
+      totalAdmins: Number(v.totalAdmins) || 0,
+      action: v.action as LeaveArtistValidation['action'],
+      title: String(v.title ?? ''),
+      message: String(v.message ?? ''),
+      buttonText: String(v.buttonText ?? ''),
+      buttonColor: v.buttonColor as LeaveArtistValidation['buttonColor'],
+      warning: warnings,
+    };
+    return { validation, error: null };
+  } catch {
+    return { validation: null, error: 'Erro de conexão' };
+  }
+};
+
+/**
  * ✅ Valida se o usuário pode sair do artista e retorna informações detalhadas
  * @param userId - ID do usuário atual
  * @param artistId - ID do artista

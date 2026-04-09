@@ -18,29 +18,17 @@ import { clearActiveArtist } from '../services/artistContext';
 import { cacheService } from '../services/cacheService';
 import { deleteArtist } from '../services/supabase/artistService';
 import { getCurrentUser } from '../services/supabase/authService';
-import { getCollaborators, leaveArtist } from '../services/supabase/collaboratorService';
-import { LeaveArtistValidation, validateLeaveArtist } from '../services/supabase/leaveArtistValidation';
+import { leaveArtist } from '../services/supabase/collaboratorService';
+import {
+  fetchLeaveArtistScreenData,
+  type LeaveArtistValidation,
+} from '../services/supabase/leaveArtistValidation';
 import { clearPermissionsCache } from '../services/supabase/permissionsService';
 import { useActiveArtist } from '../services/useActiveArtist';
-
-interface Collaborator {
-  user_id: string;
-  artist_id: string;
-  role: 'owner' | 'admin' | 'editor' | 'viewer';
-  created_at: string;
-  updated_at: string;
-  user: {
-    id: string;
-    name: string;
-    email: string;
-    profile_url?: string;
-  };
-}
 
 export default function SairArtistaScreen() {
   const { colors } = useTheme();
   const { activeArtist, loadActiveArtist } = useActiveArtist();
-  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [validation, setValidation] = useState<LeaveArtistValidation | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -57,35 +45,18 @@ export default function SairArtistaScreen() {
     
     try {
       setIsLoading(true);
-      
-      // Buscar usuário atual
-      const { user } = await getCurrentUser();
-      if (!user) {
-        Alert.alert('Erro', 'Usuário não encontrado');
-        return;
-      }
 
-      // Buscar todos os colaboradores do artista
-      const { collaborators, error } = await getCollaborators(activeArtist.id);
-      
-      if (error) {
-        Alert.alert('Erro', 'Erro ao carregar colaboradores');
-        return;
-      }
-
-      setCollaborators((collaborators || []) as Collaborator[]);
-
-      // ✅ Validar situação de saída do artista
-      const { validation: validationResult, error: validationError } = await validateLeaveArtist(
-        user.id,
-        activeArtist.id
+      const { validation: validationResult, error: loadError } = await fetchLeaveArtistScreenData(
+        activeArtist.id,
       );
 
-      if (validationError) {
-        console.error('Erro ao validar saída:', validationError);
-      } else {
-        setValidation(validationResult);
+      if (loadError) {
+        Alert.alert('Erro', loadError);
+        setValidation(null);
+        return;
       }
+
+      setValidation(validationResult);
 
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
@@ -243,8 +214,7 @@ export default function SairArtistaScreen() {
     );
   }
 
-  const adminCount = collaborators.filter(c => c.role === 'admin').length;
-  const eligibleCollaborators = collaborators.filter(c => c.role !== 'admin');
+  const totalCollaborators = validation?.totalCollaborators ?? 0;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -273,10 +243,10 @@ export default function SairArtistaScreen() {
           <View style={styles.infoContent}>
             <Text style={[styles.infoTitle, { color: colors.primary }]}>Informações do Artista</Text>
             <Text style={[styles.infoText, { color: colors.primary }]}>
-              • Total de colaboradores: {validation?.totalCollaborators || collaborators.length}
+              • Total de colaboradores: {totalCollaborators}
             </Text>
             <Text style={[styles.infoText, { color: colors.primary }]}>
-              • Administradores: {validation?.totalAdmins || adminCount}
+              • Administradores: {validation?.totalAdmins ?? 0}
             </Text>
             <Text style={[styles.infoText, { color: colors.primary }]}>
               • Permissão: {validation?.userRole || 'Carregando...'}
@@ -428,7 +398,7 @@ export default function SairArtistaScreen() {
                   <View style={styles.optionSteps}>
                     <View style={styles.stepItem}>
                       <Ionicons name="warning" size={16} color={colors.error} />
-                      <Text style={[styles.stepText, { color: colors.error }]}>Remove todos os {collaborators.length} colaboradores</Text>
+                      <Text style={[styles.stepText, { color: colors.error }]}>Remove todos os {totalCollaborators} colaboradores</Text>
                     </View>
                     <View style={styles.stepItem}>
                       <Ionicons name="warning" size={16} color={colors.error} />
@@ -481,7 +451,7 @@ export default function SairArtistaScreen() {
                 <View style={styles.warningItem}>
                   <Ionicons name="close-circle" size={20} color={colors.error} />
                   <Text style={[styles.warningItemText, { color: colors.error }]}>
-                    Todos os {collaborators.length} colaboradores serão removidos
+                    Todos os {totalCollaborators} colaboradores serão removidos
                   </Text>
                 </View>
                 <View style={styles.warningItem}>
