@@ -90,6 +90,7 @@ export default function AgendaScreen() {
   const [eventCreatedToastMessage, setEventCreatedToastMessage] = useState<string | null>(null);
   const [showNoConnectionModal, setShowNoConnectionModal] = useState(false);
   const [isRetryingConnection, setIsRetryingConnection] = useState(false);
+  const [isLoadingMonthEvents, setIsLoadingMonthEvents] = useState(false);
   const [showInviteEventInfoModal, setShowInviteEventInfoModal] = useState(false);
   const [selectedInviteEventInfo, setSelectedInviteEventInfo] = useState<any | null>(null);
   const [inviteCancelReason, setInviteCancelReason] = useState('');
@@ -229,16 +230,10 @@ export default function AgendaScreen() {
     }
   };
 
-  // Verificar role quando artista mudar
+  // Verificar role quando artista mudar (eventos são carregados no efeito mês/ano/artista)
   useEffect(() => {
-    // Limpar eventos imediatamente quando artista muda
     setEvents([]);
     checkUserRole();
-    
-    // Carregar eventos do novo artista
-    if (activeArtist) {
-      loadEvents(true);
-    }
   }, [activeArtist]);
 
   const checkUserRole = async () => {
@@ -667,12 +662,31 @@ export default function AgendaScreen() {
   }, [activeArtist]);
 
   useEffect(() => {
-    if (activeArtist) {
-      loadEvents(true);
-      setImageLoadError(false); // Reset image error state when artist changes
-    } else {
-      setEvents([]); // Limpar eventos se não houver artista
+    if (!activeArtist) {
+      setEvents([]);
+      setIsLoadingMonthEvents(false);
+      return;
     }
+
+    setImageLoadError(false);
+
+    let cancelled = false;
+    setIsLoadingMonthEvents(true);
+    void (async () => {
+      try {
+        await loadEvents(true);
+      } finally {
+        if (!cancelled) {
+          setIsLoadingMonthEvents(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // loadEvents usa activeArtist/currentMonth/currentYear do fechamento atual
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- evita reexecução a cada render
   }, [activeArtist, currentMonth, currentYear]);
 
   // Reset image error when artist profile_url changes
@@ -1499,19 +1513,41 @@ export default function AgendaScreen() {
         {/* Navegação do mês */}
         <View style={styles.monthNavigation}>
           <TouchableOpacity
-            style={[styles.navButton, { backgroundColor: colors.secondary }]}
+            style={[
+              styles.navButton,
+              { backgroundColor: colors.secondary },
+              !!activeArtist && isLoadingMonthEvents && { opacity: 0.45 },
+            ]}
             onPress={() => navigateMonth('prev')}
+            disabled={!!activeArtist && isLoadingMonthEvents}
+            accessibilityState={{ disabled: !!activeArtist && isLoadingMonthEvents }}
           >
             <Ionicons name="chevron-back" size={24} color={colors.primary} />
           </TouchableOpacity>
-          
-          <Text style={[styles.monthYear, { color: colors.text }]}>
-            {months[currentMonth]} / {currentYear}
-          </Text>
-          
+
+          <View style={styles.monthTitleBlock}>
+            <Text style={[styles.monthYear, { color: colors.text }]}>
+              {months[currentMonth]} / {currentYear}
+            </Text>
+            {activeArtist && isLoadingMonthEvents ? (
+              <View style={styles.monthLoadingRow}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={[styles.monthLoadingText, { color: colors.textSecondary }]}>
+                  Carregando eventos…
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
           <TouchableOpacity
-            style={[styles.navButton, { backgroundColor: colors.secondary }]}
+            style={[
+              styles.navButton,
+              { backgroundColor: colors.secondary },
+              !!activeArtist && isLoadingMonthEvents && { opacity: 0.45 },
+            ]}
             onPress={() => navigateMonth('next')}
+            disabled={!!activeArtist && isLoadingMonthEvents}
+            accessibilityState={{ disabled: !!activeArtist && isLoadingMonthEvents }}
           >
             <Ionicons name="chevron-forward" size={24} color={colors.primary} />
           </TouchableOpacity>
@@ -2488,6 +2524,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  monthTitleBlock: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    minHeight: 44,
+  },
+  monthLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+  },
+  monthLoadingText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
   navButton: {
     padding: 8,
     borderRadius: 8,
@@ -2495,6 +2548,7 @@ const styles = StyleSheet.create({
   monthYear: {
     fontSize: 18,
     fontWeight: '600',
+    textAlign: 'center',
   },
   todayRow: {
     flexDirection: 'row',
