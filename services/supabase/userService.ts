@@ -260,34 +260,59 @@ export type UserSubscriptionTableCheck = {
   error: string | null;
 };
 
+function metadataAppleStoreConfirmed(metadata: unknown): boolean {
+  if (!metadata || typeof metadata !== 'object') return false;
+  return (metadata as { apple_store_confirmed?: unknown }).apple_store_confirmed === true;
+}
+
 /**
- * Consulta direta em `user_subscriptions` (colunas status e expires_at), ideal para checagem no toque do botão.
- * Vigente: status `active` ou `grace_period` e `expires_at` nulo ou no futuro.
+ * Consulta `user_subscriptions`: Premium se active/grace com expiração válida,
+ * ou `pending` com expires_at no futuro e sem confirmação Apple (igual à RPC `user_subscription_is_active`).
  */
 export const checkUserSubscriptionFromTable = async (
   userId: string,
 ): Promise<UserSubscriptionTableCheck> => {
   try {
-    const { data, error } = await supabase
+    const { data: rows, error } = await supabase
       .from('user_subscriptions')
-      .select('status, expires_at')
+      .select('status, expires_at, metadata')
       .eq('user_id', userId)
-      .in('status', ['active', 'grace_period'])
-      .maybeSingle();
+      .in('status', ['active', 'grace_period', 'pending']);
 
     if (error) {
       return { isActive: false, status: null, error: error.message };
     }
-    if (!data) {
+    if (!rows?.length) {
       return { isActive: false, status: null, error: null };
     }
-    const expiresOk = !data.expires_at || new Date(data.expires_at) > new Date();
-    const statusOk = data.status === 'active' || data.status === 'grace_period';
-    return {
-      isActive: Boolean(statusOk && expiresOk),
-      status: data.status,
-      error: null,
-    };
+
+    const now = Date.now();
+    let bestStatus: string | null = null;
+
+    for (const row of rows) {
+      const exp = row.expires_at ? new Date(row.expires_at).getTime() : null;
+      const expiresOk = exp == null || exp > now;
+      if (!expiresOk) continue;
+
+      if (row.status === 'active' || row.status === 'grace_period') {
+        return { isActive: true, status: row.status, error: null };
+      }
+      if (
+        row.status === 'pending' &&
+        row.expires_at &&
+        exp != null &&
+        exp > now &&
+        !metadataAppleStoreConfirmed(row.metadata)
+      ) {
+        bestStatus = 'pending';
+      }
+    }
+
+    if (bestStatus === 'pending') {
+      return { isActive: true, status: 'pending', error: null };
+    }
+
+    return { isActive: false, status: null, error: null };
   } catch {
     return { isActive: false, status: null, error: 'Erro de conexão' };
   }

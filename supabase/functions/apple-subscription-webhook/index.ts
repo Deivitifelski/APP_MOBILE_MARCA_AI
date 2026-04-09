@@ -1,6 +1,10 @@
 /**
  * App Store Server Notifications V2 → Supabase (`user_subscriptions` + `users.plan_is_active`)
  *
+ * Evita duplicar linha do app: 1) update por store_latest_transaction_id; 2) por store_original_transaction_id;
+ * 3) senão, consolida a última linha iOS pending|active|grace do usuário (mesmo UUID + appAccountToken).
+ * Só INSERT se não existir nada para casar — o registro pending criado pelo RPC do app vira active no UPDATE.
+ *
  * Deploy: `supabase functions deploy apple-subscription-webhook` (legado; preferir `activate-subscription`)
  * URL:    https://<ref>.supabase.co/functions/v1/apple-subscription-webhook
  *
@@ -116,14 +120,13 @@ async function syncUserPlanActive(
 ): Promise<void> {
   if (!supabase) return;
 
-  const now = Date.now();
   let planActive = false;
 
   if (status === 'revoked' || status === 'expired') {
     planActive = false;
   } else if (status === 'active' || status === 'grace_period') {
     planActive = true;
-  } else if (expiresAtIso && new Date(expiresAtIso).getTime() > now) {
+  } else if (status === 'pending' && expiresAtIso && new Date(expiresAtIso).getTime() > Date.now()) {
     planActive = true;
   }
 
@@ -353,7 +356,7 @@ serve(async (req) => {
             .from('user_subscriptions')
             .update({ status: 'expired' })
             .eq('user_id', userId)
-            .in('status', ['active', 'grace_period'])
+            .in('status', ['active', 'grace_period', 'pending'])
             .or('metadata->>source.is.null,metadata->>source.neq.manual_db');
           const { data: manualOnly } = await supabase
             .from('user_subscriptions')

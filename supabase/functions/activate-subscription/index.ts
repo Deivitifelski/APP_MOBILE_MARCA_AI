@@ -1,6 +1,8 @@
 /**
  * App Store Server Notifications V2 → Supabase (`user_subscriptions` + `users.plan_is_active`)
  *
+ * Fluxo anti-duplicata: UPDATE por transactionId → por originalTransactionId → consolida pending do app; INSERT só se não houver linha compatível.
+ *
  * Deploy: `supabase functions deploy activate-subscription`
  * URL:    https://<ref>.supabase.co/functions/v1/activate-subscription
  *
@@ -116,14 +118,13 @@ async function syncUserPlanActive(
 ): Promise<void> {
   if (!supabase) return;
 
-  const now = Date.now();
   let planActive = false;
 
   if (status === 'revoked' || status === 'expired') {
     planActive = false;
   } else if (status === 'active' || status === 'grace_period') {
     planActive = true;
-  } else if (expiresAtIso && new Date(expiresAtIso).getTime() > now) {
+  } else if (status === 'pending' && expiresAtIso && new Date(expiresAtIso).getTime() > Date.now()) {
     planActive = true;
   }
 
@@ -352,7 +353,7 @@ serve(async (req) => {
             .from('user_subscriptions')
             .update({ status: 'expired' })
             .eq('user_id', userId)
-            .in('status', ['active', 'grace_period'])
+            .in('status', ['active', 'grace_period', 'pending'])
             .or('metadata->>source.is.null,metadata->>source.neq.manual_db');
           // Índice único (um active por usuário): assinatura Apple real substitui cortesia manual.
           const { data: manualOnly } = await supabase

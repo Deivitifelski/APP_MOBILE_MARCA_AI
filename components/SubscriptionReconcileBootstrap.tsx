@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { AppState, InteractionManager } from 'react-native';
+import { Alert, AppState, InteractionManager } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { refreshSubscriptionStateFromDatabase } from '../services/subscriptionSyncService';
@@ -28,7 +28,17 @@ export default function SubscriptionReconcileBootstrap() {
       debounceTimerRef.current = setTimeout(() => {
         debounceTimerRef.current = null;
         InteractionManager.runAfterInteractions(() => {
-          void refreshSubscriptionStateFromDatabase().catch(() => {});
+          void refreshSubscriptionStateFromDatabase()
+            .then((r) => {
+              if (r.paymentConfirmationFailed) {
+                Alert.alert(
+                  'Pagamento não confirmado',
+                  'Não recebemos a confirmação da loja no prazo esperado. Sua conta voltou ao plano gratuito. Verifique o pagamento ou, se já foi cobrado, use Restaurar compras em Assine Premium.',
+                  [{ text: 'OK' }],
+                );
+              }
+            })
+            .catch(() => {});
         });
       }, DEBOUNCE_MS);
     };

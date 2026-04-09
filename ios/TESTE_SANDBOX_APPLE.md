@@ -75,6 +75,13 @@ Se ainda aparecer **`Xcode`**: scheme local ou build antigo — repita o passo 1
 
 O app chama a RPC **`sync_user_subscription_from_client`** após a compra. O webhook é complementar.
 
+**Antes de publicar uma versão com assinatura:** no Supabase (SQL Editor, como `postgres`), aplique/atualize os scripts do repositório:
+
+- `database/user_subscription_is_active_rpc.sql` — `user_subscription_is_active`, `any_users_have_active_subscription`, **`expire_stale_pending_subscriptions_for_user`** (expira `pending` após 1 dia sem confirmação; o app chama essa RPC ao abrir).
+- `database/sync_user_subscription_from_client.sql` — sync pós-compra / reconcile.
+
+Sem a função de expirar, o app ainda funciona, mas pendings antigos podem não ser fechados automaticamente no banco.
+
 ---
 
 **Referência offline de preços:** o arquivo `MarcaAI.storekit` na pasta `ios/` fica só como documentação; não precisa estar no target. Para UI local rápida, você pode **temporariamente** escolher esse arquivo no Scheme (sabendo que aí não é sandbox real).

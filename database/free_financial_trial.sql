@@ -69,13 +69,7 @@ BEGIN
     lim_det := COALESCE(lim_det, 3);
   END IF;
 
-  SELECT EXISTS (
-    SELECT 1
-    FROM public.user_subscriptions s
-    WHERE s.user_id = uid
-      AND s.status IN ('active', 'grace_period')
-      AND (s.expires_at IS NULL OR s.expires_at > now())
-  ) INTO premium;
+  premium := public.user_subscription_is_active(uid);
 
   SELECT
     COALESCE(u.free_financial_trial_exports_used, 0),
@@ -134,13 +128,7 @@ BEGIN
     lim_det := COALESCE(lim_det, 3);
   END IF;
 
-  SELECT EXISTS (
-    SELECT 1
-    FROM public.user_subscriptions s
-    WHERE s.user_id = uid
-      AND s.status IN ('active', 'grace_period')
-      AND (s.expires_at IS NULL OR s.expires_at > now())
-  ) INTO premium;
+  premium := public.user_subscription_is_active(uid);
 
   IF premium THEN
     RETURN jsonb_build_object('ok', true, 'reason', 'premium');

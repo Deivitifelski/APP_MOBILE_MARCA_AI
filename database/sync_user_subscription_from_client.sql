@@ -30,6 +30,7 @@ DECLARE
   v_status text;
   v_purchased timestamptz;
   v_expires timestamptz;
+  v_expires_from_store timestamptz;
   v_existing_tx_id uuid;
   v_existing_sub_id uuid;
   v_billing text;
@@ -47,16 +48,11 @@ BEGIN
     UPDATE public.user_subscriptions
     SET status = 'expired'
     WHERE user_id = uid
-      AND status IN ('active', 'grace_period')
+      AND status IN ('active', 'grace_period', 'pending')
       AND COALESCE(metadata->>'source', '') <> 'manual_db';
 
     UPDATE public.users u
-    SET plan_is_active = EXISTS (
-      SELECT 1
-      FROM public.user_subscriptions s
-      WHERE s.user_id = u.id
-        AND s.status IN ('active', 'grace_period')
-    )
+    SET plan_is_active = public.user_subscription_is_active(u.id)
     WHERE u.id = uid;
 
     RETURN jsonb_build_object('ok', true, 'action', 'cleared');
@@ -98,7 +94,8 @@ BEGIN
   IF p_expires_at_ms IS NOT NULL AND p_expires_at_ms < v_now_ms THEN
     v_status := 'expired';
   ELSE
-    v_status := 'active';
+    -- App só marca pendente; ASN V2 (webhook) passa a active após confirmação da Apple.
+    v_status := 'pending';
   END IF;
 
   IF p_purchased_at_ms IS NOT NULL THEN
@@ -108,9 +105,9 @@ BEGIN
   END IF;
 
   IF p_expires_at_ms IS NOT NULL THEN
-    v_expires := to_timestamp(p_expires_at_ms / 1000.0);
+    v_expires_from_store := to_timestamp(p_expires_at_ms / 1000.0);
   ELSE
-    v_expires := NULL;
+    v_expires_from_store := NULL;
   END IF;
 
   -- SKU fixo (PT/EN por nome do produto na loja) — não usar só LIKE '%annual%'
@@ -133,27 +130,53 @@ BEGIN
       product_id = v_product,
       billing_period = v_billing,
       platform = p_platform,
-      status = v_status,
+      status = CASE
+        WHEN v_status = 'expired' THEN 'expired'
+        WHEN COALESCE((metadata->>'apple_store_confirmed')::boolean, false)
+          AND status IN ('active', 'grace_period') THEN status
+        ELSE 'pending'
+      END,
       purchased_at = v_purchased,
-      expires_at = v_expires,
+      expires_at = CASE
+        WHEN v_status = 'expired' THEN v_expires_from_store
+        WHEN COALESCE((metadata->>'apple_store_confirmed')::boolean, false)
+          AND status IN ('active', 'grace_period') THEN COALESCE(v_expires_from_store, expires_at)
+        ELSE clock_timestamp() + interval '1 day'
+      END,
       auto_renew = COALESCE(p_auto_renew, TRUE),
-      metadata = jsonb_build_object(
-        'source', COALESCE(nullif(btrim(p_source), ''), 'client_sync'),
-        'purchaseTokenPresent', (p_purchase_token IS NOT NULL AND btrim(p_purchase_token) <> ''),
-        'apple_store_confirmed', false,
-        'client_sync_at_ms', v_now_ms
-      )
+      metadata = CASE
+        WHEN COALESCE((metadata->>'apple_store_confirmed')::boolean, false) THEN
+          metadata
+            || jsonb_build_object(
+              'client_resync_at_ms', v_now_ms,
+              'source', COALESCE(nullif(btrim(p_source), ''), metadata->>'source', 'client_sync')
+            )
+        ELSE jsonb_build_object(
+          'source', COALESCE(nullif(btrim(p_source), ''), 'client_sync'),
+          'purchaseTokenPresent', (p_purchase_token IS NOT NULL AND btrim(p_purchase_token) <> ''),
+          'apple_store_confirmed', false,
+          'client_sync_at_ms', v_now_ms,
+          'store_expires_at_client_ms', p_expires_at_ms
+        )
+      END
     WHERE id = v_existing_tx_id;
 
-    v_plan_active :=
+    SELECT
       CASE
-        WHEN v_status = 'revoked' THEN false
-        WHEN v_status = 'expired' THEN false
-        WHEN v_status IN ('active', 'grace_period') THEN true
-        WHEN v_expires IS NOT NULL AND v_expires > now() THEN true
+        WHEN s.status = 'revoked' OR s.status = 'expired' THEN false
+        WHEN s.status IN ('active', 'grace_period') THEN true
+        WHEN s.status = 'pending'
+          AND s.expires_at IS NOT NULL
+          AND s.expires_at > clock_timestamp()
+          AND COALESCE((s.metadata->>'apple_store_confirmed')::boolean, false) = false
+          THEN true
         ELSE false
-      END;
-    UPDATE public.users SET plan_is_active = v_plan_active WHERE id = uid;
+      END
+    INTO v_plan_active
+    FROM public.user_subscriptions s
+    WHERE s.id = v_existing_tx_id;
+
+    UPDATE public.users SET plan_is_active = COALESCE(v_plan_active, false) WHERE id = uid;
     RETURN jsonb_build_object('ok', true, 'action', 'noop_idempotent');
   END IF;
 
@@ -167,39 +190,73 @@ BEGIN
       product_id = v_product,
       billing_period = v_billing,
       platform = p_platform,
-      status = v_status,
+      status = CASE
+        WHEN v_status = 'expired' THEN 'expired'
+        WHEN COALESCE((metadata->>'apple_store_confirmed')::boolean, false)
+          AND status IN ('active', 'grace_period') THEN status
+        ELSE 'pending'
+      END,
       purchased_at = v_purchased,
-      expires_at = v_expires,
+      expires_at = CASE
+        WHEN v_status = 'expired' THEN v_expires_from_store
+        WHEN COALESCE((metadata->>'apple_store_confirmed')::boolean, false)
+          AND status IN ('active', 'grace_period') THEN COALESCE(v_expires_from_store, expires_at)
+        ELSE clock_timestamp() + interval '1 day'
+      END,
       cancelled_at = NULL,
       store_original_transaction_id = v_orig,
       store_latest_transaction_id = v_tx,
       auto_renew = COALESCE(p_auto_renew, TRUE),
-      metadata = jsonb_build_object(
-        'source', COALESCE(nullif(btrim(p_source), ''), 'client_sync'),
-        'purchaseTokenPresent', (p_purchase_token IS NOT NULL AND btrim(p_purchase_token) <> ''),
-        'apple_store_confirmed', false,
-        'client_sync_at_ms', v_now_ms
-      )
+      metadata = CASE
+        WHEN COALESCE((metadata->>'apple_store_confirmed')::boolean, false) THEN
+          metadata
+            || jsonb_build_object(
+              'client_resync_at_ms', v_now_ms,
+              'source', COALESCE(nullif(btrim(p_source), ''), metadata->>'source', 'client_sync')
+            )
+        ELSE jsonb_build_object(
+          'source', COALESCE(nullif(btrim(p_source), ''), 'client_sync'),
+          'purchaseTokenPresent', (p_purchase_token IS NOT NULL AND btrim(p_purchase_token) <> ''),
+          'apple_store_confirmed', false,
+          'client_sync_at_ms', v_now_ms,
+          'store_expires_at_client_ms', p_expires_at_ms
+        )
+      END
     WHERE id = v_existing_sub_id;
 
-    v_plan_active :=
+    SELECT
       CASE
-        WHEN v_status = 'revoked' THEN false
-        WHEN v_status = 'expired' THEN false
-        WHEN v_status IN ('active', 'grace_period') THEN true
-        WHEN v_expires IS NOT NULL AND v_expires > now() THEN true
+        WHEN s.status = 'revoked' OR s.status = 'expired' THEN false
+        WHEN s.status IN ('active', 'grace_period') THEN true
+        WHEN s.status = 'pending'
+          AND s.expires_at IS NOT NULL
+          AND s.expires_at > clock_timestamp()
+          AND COALESCE((s.metadata->>'apple_store_confirmed')::boolean, false) = false
+          THEN true
         ELSE false
-      END;
-    UPDATE public.users SET plan_is_active = v_plan_active WHERE id = uid;
+      END
+    INTO v_plan_active
+    FROM public.user_subscriptions s
+    WHERE s.id = v_existing_sub_id;
+
+    UPDATE public.users SET plan_is_active = COALESCE(v_plan_active, false) WHERE id = uid;
     RETURN jsonb_build_object('ok', true, 'action', 'updated');
   END IF;
 
-  IF v_status IN ('active', 'grace_period') THEN
+  -- Nova compra IAP (pending): só expira outras pendentes da loja; não mexe em active/grace (webhook troca depois).
+  IF v_status = 'pending' THEN
     UPDATE public.user_subscriptions
     SET status = 'expired'
     WHERE user_id = uid
-      AND status IN ('active', 'grace_period')
+      AND status = 'pending'
       AND COALESCE(metadata->>'source', '') <> 'manual_db';
+  END IF;
+
+  -- Pending: expires_at = +1 dia (janela até o webhook); expired: data real da loja.
+  IF v_status = 'pending' THEN
+    v_expires := clock_timestamp() + interval '1 day';
+  ELSE
+    v_expires := v_expires_from_store;
   END IF;
 
   INSERT INTO public.user_subscriptions (
@@ -216,18 +273,12 @@ BEGIN
       'source', COALESCE(nullif(btrim(p_source), ''), 'client_sync'),
       'purchaseTokenPresent', (p_purchase_token IS NOT NULL AND btrim(p_purchase_token) <> ''),
       'apple_store_confirmed', false,
-      'client_sync_at_ms', v_now_ms
+      'client_sync_at_ms', v_now_ms,
+      'store_expires_at_client_ms', p_expires_at_ms
     )
   );
 
-  v_plan_active :=
-    CASE
-      WHEN v_status = 'revoked' THEN false
-      WHEN v_status = 'expired' THEN false
-      WHEN v_status IN ('active', 'grace_period') THEN true
-      WHEN v_expires IS NOT NULL AND v_expires > now() THEN true
-      ELSE false
-    END;
+  v_plan_active := (v_status = 'pending');
   UPDATE public.users SET plan_is_active = v_plan_active WHERE id = uid;
 
   RETURN jsonb_build_object('ok', true, 'action', 'inserted');
@@ -252,4 +303,4 @@ GRANT EXECUTE ON FUNCTION public.sync_user_subscription_from_client(
 ) TO service_role;
 
 COMMENT ON FUNCTION public.sync_user_subscription_from_client IS
-  'Sincroniza compra/restauração IAP do app: grava user_subscriptions e atualiza users.plan_is_active. metadata.apple_store_confirmed=false até a Edge (ASN V2) confirmar. Linhas com metadata.source=manual_db não são expiradas pelo reconcile_clear nem substituídas ao inserir nova compra IAP.';
+  'IAP: pending com expires_at = agora+1 dia; plan_is_active true enquanto pending na janela (Premium). Webhook confirma → active. store_expires_at_client_ms no metadata.';

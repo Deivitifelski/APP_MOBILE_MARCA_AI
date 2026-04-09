@@ -229,19 +229,47 @@ export type ReconcileResult =
 
 let reconcileInFlight: Promise<ReconcileResult> | null = null;
 
+export type RefreshSubscriptionFromDbResult = {
+  /** True quando pending passou da janela de 1 dia sem confirmação da loja (usuário volta ao free). */
+  paymentConfirmationFailed?: boolean;
+};
+
 /**
- * Após login ou ao voltar ao app (bootstrap): só lê `user_subscriptions` no Supabase e invalida cache local.
- * Quem define se o plano está ativo é a tabela (webhooks / sync após compra); não consulta Apple/Google aqui.
+ * Após login / foreground: expira pending vencido, revalida tabela + cache.
  */
-export async function refreshSubscriptionStateFromDatabase(): Promise<void> {
+export async function refreshSubscriptionStateFromDatabase(): Promise<RefreshSubscriptionFromDbResult> {
   const {
     data: { session },
   } = await supabase.auth.getSession();
   const userId = session?.user?.id;
-  if (!userId) return;
+  if (!userId) return {};
+
+  let stale = false;
+  try {
+    const { data: expireData, error: expireErr } = await supabase.rpc(
+      'expire_stale_pending_subscriptions_for_user',
+    );
+    if (expireErr && __DEV__) {
+      console.warn('[subscriptionSync] expire_stale_pending_subscriptions_for_user', expireErr.message);
+    }
+    if (
+      !expireErr &&
+      expireData &&
+      typeof expireData === 'object' &&
+      (expireData as { stale_pending_expired?: boolean }).stale_pending_expired === true
+    ) {
+      stale = true;
+    }
+  } catch (e) {
+    if (__DEV__) {
+      console.warn('[subscriptionSync] expire stale pending RPC indisponível', e);
+    }
+  }
 
   await checkUserSubscriptionFromTable(userId);
   await cacheService.invalidateUserData(userId).catch(() => undefined);
+
+  return { paymentConfirmationFailed: Boolean(stale) };
 }
 
 /**
