@@ -2,14 +2,14 @@ import { useEffect, useRef } from 'react';
 import { AppState, InteractionManager } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { reconcileSubscriptionWithStore } from '../services/subscriptionSyncService';
+import { refreshSubscriptionStateFromDatabase } from '../services/subscriptionSyncService';
 
 const DEBOUNCE_MS = 1600;
 const FOREGROUND_MIN_INTERVAL_MS = 2.5 * 60 * 1000;
 
 /**
- * Em background: alinha IAP ↔ Supabase após login e ao voltar ao app (com throttle).
- * Não bloqueia navegação nem splash — usa InteractionManager + debounce.
+ * Após login e ao voltar ao app (com throttle): só revalida via tabela `user_subscriptions` + invalida cache.
+ * Não chama a loja (IAP); compra/restaurar/tela Premium cuidam do sync com a loja quando necessário.
  */
 export default function SubscriptionReconcileBootstrap() {
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -23,12 +23,12 @@ export default function SubscriptionReconcileBootstrap() {
       }
     };
 
-    const queueReconcile = () => {
+    const queueRefreshFromDb = () => {
       clearDebounce();
       debounceTimerRef.current = setTimeout(() => {
         debounceTimerRef.current = null;
         InteractionManager.runAfterInteractions(() => {
-          void reconcileSubscriptionWithStore().catch(() => {});
+          void refreshSubscriptionStateFromDatabase().catch(() => {});
         });
       }, DEBOUNCE_MS);
     };
@@ -36,7 +36,7 @@ export default function SubscriptionReconcileBootstrap() {
     const onAuth = (event: string, session: Session | null) => {
       if (!session?.user?.id) return;
       if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
-        queueReconcile();
+        queueRefreshFromDb();
       }
     };
 
@@ -52,7 +52,7 @@ export default function SubscriptionReconcileBootstrap() {
       void supabase.auth.getSession().then(({ data: { session } }) => {
         if (!session?.user?.id) return;
         lastForegroundRunRef.current = Date.now();
-        queueReconcile();
+        queueRefreshFromDb();
       });
     });
 

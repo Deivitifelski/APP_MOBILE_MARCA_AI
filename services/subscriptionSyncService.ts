@@ -2,13 +2,13 @@ import {
   getActiveSubscriptions,
   getAvailablePurchases,
   initConnection,
-  syncIOS,
   type ActiveSubscription,
   type Purchase,
 } from 'expo-iap';
 import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { cacheService } from './cacheService';
+import { checkUserSubscriptionFromTable } from './supabase/userService';
 
 const PREMIUM_SKUS = ['marcaai_mensal_app', 'marcaai_anual_app'] as const;
 const MONTHLY_SKU = 'marcaai_mensal_app';
@@ -230,10 +230,28 @@ export type ReconcileResult =
 let reconcileInFlight: Promise<ReconcileResult> | null = null;
 
 /**
+ * Após login ou ao voltar ao app (bootstrap): só lê `user_subscriptions` no Supabase e invalida cache local.
+ * Quem define se o plano está ativo é a tabela (webhooks / sync após compra); não consulta Apple/Google aqui.
+ */
+export async function refreshSubscriptionStateFromDatabase(): Promise<void> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const userId = session?.user?.id;
+  if (!userId) return;
+
+  await checkUserSubscriptionFromTable(userId);
+  await cacheService.invalidateUserData(userId).catch(() => undefined);
+}
+
+/**
  * Alinha `user_subscriptions` com a loja (IAP), sem bloquear UI.
  * - Loja com Premium ativo → RPC sync (upsert / atualiza expiração).
  * - Loja sem Premium (consulta bem-sucedida e vazia) → RPC reconcile_clear.
  * Não chama `endConnection` (outras telas podem usar IAP).
+ *
+ * iOS: não usa `syncIOS()` em lugar nenhum deste serviço — evita App Store sync / restore automático
+ * e o sheet de login da Apple (reconcile roda no login e ao voltar ao foreground).
  */
 export async function reconcileSubscriptionWithStore(): Promise<ReconcileResult> {
   if (reconcileInFlight) return reconcileInFlight;
@@ -248,10 +266,6 @@ export async function reconcileSubscriptionWithStore(): Promise<ReconcileResult>
 
       const okInit = await initConnection().catch(() => false);
       if (!okInit) return 'skipped_init_failed';
-
-      if (Platform.OS === 'ios') {
-        await syncIOS().catch(() => undefined);
-      }
 
       let payload: SyncPayload | null = null;
       let storeResponded = false;
@@ -330,10 +344,6 @@ export async function syncSubscriptionAfterRestore(): Promise<boolean> {
 
   const okInit = await initConnection().catch(() => false);
   if (!okInit) return false;
-
-  if (Platform.OS === 'ios') {
-    await syncIOS().catch(() => undefined);
-  }
 
   const purchases = await getAvailablePurchases({ onlyIncludeActiveItemsIOS: true });
   const purchase = resolveActivePremiumPurchase(purchases);

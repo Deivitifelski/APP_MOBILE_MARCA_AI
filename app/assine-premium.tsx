@@ -10,7 +10,6 @@ import {
   purchaseUpdatedListener,
   requestPurchase,
   restorePurchases,
-  syncIOS,
   type Product,
   type Purchase,
 } from 'expo-iap';
@@ -213,10 +212,6 @@ export default function AssinePremiumScreen() {
   /** Atualiza qual SKU a loja considera ativo (para “Gerenciar assinatura”). */
   const syncPurchasedStatus = useCallback(async () => {
     try {
-      if (Platform.OS === 'ios') {
-        await syncIOS().catch(() => undefined);
-      }
-
       const activeSubs = await getActiveSubscriptions(PREMIUM_SKUS);
       if (
         __DEV__ &&
@@ -270,14 +265,9 @@ export default function AssinePremiumScreen() {
       };
 
       /**
-       * No iOS, após o modal de login da App Store (sandbox), a primeira `fetchProducts` costuma
-       * voltar [] antes da sessão da loja estar pronta. `syncIOS` + novas tentativas com atraso
-       * alinham com o comportamento que a Apple documenta para “atualizar” o estado local.
+       * No iOS, após login sandbox da loja, a primeira busca de produtos pode voltar vazia;
+       * novas tentativas com atraso substituem sync com a App Store (evita sheet de login).
        */
-      if (Platform.OS === 'ios') {
-        await syncIOS().catch(() => undefined);
-      }
-
       let { filtered, raw } = await fetchPremiumSubsOnce();
       logIapProductFetchDiagnostics({
         attemptLabel: Platform.OS === 'ios' ? 'iOS tentativa 1' : 'Android tentativa 1',
@@ -287,7 +277,6 @@ export default function AssinePremiumScreen() {
 
       if (Platform.OS === 'ios' && filtered.length === 0) {
         await sleep(1200);
-        await syncIOS().catch(() => undefined);
         ({ filtered, raw } = await fetchPremiumSubsOnce());
         logIapProductFetchDiagnostics({
           attemptLabel: 'iOS tentativa 2 (após delay)',
@@ -298,7 +287,6 @@ export default function AssinePremiumScreen() {
 
       if (Platform.OS === 'ios' && filtered.length === 0) {
         await sleep(2200);
-        await syncIOS().catch(() => undefined);
         ({ filtered, raw } = await fetchPremiumSubsOnce());
         logIapProductFetchDiagnostics({
           attemptLabel: 'iOS tentativa 3 (após delay)',
