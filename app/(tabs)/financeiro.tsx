@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PermissionModal from '../../components/PermissionModal';
 import PremiumTrialUpsellModal from '../../components/PremiumTrialUpsellModal';
 import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
+import { useSharedTabMonth } from '../../contexts/SharedTabMonthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { formatCalendarDate } from '../../lib/dateUtils';
 import {
@@ -57,7 +58,7 @@ export default function FinanceiroScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const { viewedMonthDate: selectedDate, navigateMonth } = useSharedTabMonth();
   const [events, setEvents] = useState<EventWithExpenses[]>([]);
   const [standaloneExpenses, setStandaloneExpenses] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -265,16 +266,6 @@ export default function FinanceiroScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const navigateMonth = (direction: 'prev' | 'next') => {
-    const newDate = new Date(selectedDate);
-    if (direction === 'prev') {
-      newDate.setMonth(currentMonth - 1);
-    } else {
-      newDate.setMonth(currentMonth + 1);
-    }
-    setSelectedDate(newDate);
   };
 
   const formatCurrency = (value: number) => {

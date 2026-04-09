@@ -26,6 +26,7 @@ import OptimizedImage from '../../components/OptimizedImage';
 import PermissionModal from '../../components/PermissionModal';
 import TransientToast from '../../components/TransientToast';
 import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
+import { useSharedTabMonth } from '../../contexts/SharedTabMonthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { setAppIconBadge } from '../../services/appIconBadge';
@@ -62,7 +63,7 @@ type AgendaParticipantRow = {
 export default function AgendaScreen() {
   const { colors, isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const { viewedMonthDate: currentDate, navigateMonth } = useSharedTabMonth();
   const [events, setEvents] = useState<any[]>([]);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [showPermissionModal, setShowPermissionModal] = useState(false);
@@ -1104,16 +1105,6 @@ export default function AgendaScreen() {
     if (!q) return artistPickerList;
     return artistPickerList.filter((a) => (a.name || '').toLowerCase().includes(q));
   }, [artistPickerList, artistPickerSearch]);
-
-  const navigateMonth = (direction: 'prev' | 'next') => {
-    const newDate = new Date(currentDate);
-    if (direction === 'prev') {
-      newDate.setMonth(currentMonth - 1);
-    } else {
-      newDate.setMonth(currentMonth + 1);
-    }
-    setCurrentDate(newDate);
-  };
 
   const handleAddShow = () => {
     const selectedDate = new Date(currentYear, currentMonth, 1);
