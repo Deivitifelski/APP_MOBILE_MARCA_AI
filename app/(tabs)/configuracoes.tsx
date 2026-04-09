@@ -25,7 +25,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { artistImageUpdateService } from '../../services/artistImageUpdateService';
 import { cacheService } from '../../services/cacheService';
 import { RealtimeSubscription, subscribeToUsers } from '../../services/realtimeService';
-import { getArtists } from '../../services/supabase/artistService';
+import { fetchArtistsForDeleteAccountModal, getArtists } from '../../services/supabase/artistService';
 import { deleteAccount, getCurrentUser, logoutUser, updatePassword } from '../../services/supabase/authService';
 import { createFeedback } from '../../services/supabase/feedbackService';
 import { getUserPermissions } from '../../services/supabase/permissionsService';
@@ -383,21 +383,21 @@ export default function ConfiguracoesScreen() {
     setDeleteConfirmationInput('');
     setDeleteConfirmationError('');
     setIsLoadingArtistsForDelete(true);
-    
+
     try {
-      const { user } = await getCurrentUser();
-      if (user) {
-        const { artists, error } = await getArtists(user.id);
-        if (!error && artists) {
-          setUserArtistsForDelete(artists);
-        }
+      const { artists, error } = await fetchArtistsForDeleteAccountModal();
+      if (!error && artists) {
+        setUserArtistsForDelete(artists);
+      } else {
+        setUserArtistsForDelete([]);
       }
     } catch (error) {
       console.warn('Erro ao carregar artistas para exclusão', error);
+      setUserArtistsForDelete([]);
     } finally {
       setIsLoadingArtistsForDelete(false);
     }
-    
+
     setShowDeleteModal(true);
   };
 

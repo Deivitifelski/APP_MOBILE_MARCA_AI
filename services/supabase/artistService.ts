@@ -155,6 +155,35 @@ export const getArtists = async (userId: string): Promise<{ artists: Artist[] | 
   }
 };
 
+/** Lista de artistas para o modal "Excluir conta" (1 RPC em vez de 2 queries). */
+export const fetchArtistsForDeleteAccountModal = async (): Promise<{
+  artists: Artist[] | null;
+  error: string | null;
+}> => {
+  try {
+    const { data, error } = await supabase.rpc('get_delete_account_modal_artists');
+    if (error) {
+      return { artists: null, error: error.message };
+    }
+    const raw = data as unknown;
+    if (!Array.isArray(raw)) {
+      return { artists: [], error: null };
+    }
+    const artists: Artist[] = raw.map((row: Record<string, unknown>) => ({
+      id: String(row.id),
+      name: String(row.name ?? ''),
+      profile_url: (row.profile_url as string) || undefined,
+      musical_style: (row.musical_style as string) || undefined,
+      role: (row.role as Artist['role']) || 'viewer',
+      created_at: String(row.created_at ?? ''),
+      updated_at: String(row.updated_at ?? ''),
+    }));
+    return { artists, error: null };
+  } catch {
+    return { artists: null, error: 'Erro de conexão' };
+  }
+};
+
 // Buscar artista por ID
 export const getArtistById = async (artistId: string): Promise<{ artist: Artist | null; error: string | null }> => {
   try {
