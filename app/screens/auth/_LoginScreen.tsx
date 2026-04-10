@@ -32,6 +32,7 @@ import {
     saveFCMToken,
 } from '../../../services/supabase/userService';
 import { sanitizeLoginParentStackIfNeeded } from '../../../lib/resetToLoginStack';
+import { maybeShowConnectionError } from '../../../utils/maybeShowConnectionError';
 
 // Configurar Google Sign-In: webClientId obrigatório (Android + Supabase). iosClientId só no iOS.
 GoogleSignin.configure({
@@ -56,7 +57,6 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showCompleteProfileModal, setShowCompleteProfileModal] = useState(false);
-  const [showNoInternetModal, setShowNoInternetModal] = useState(false);
   const [showEmailConfirmationModal, setShowEmailConfirmationModal] = useState(false);
   const [emailConfirmationError, setEmailConfirmationError] = useState<string>('');
   const [resendingEmail, setResendingEmail] = useState(false);
@@ -66,13 +66,11 @@ export default function LoginScreen() {
 
   const modalStateRef = useRef({
     showCompleteProfileModal,
-    showNoInternetModal,
     showEmailConfirmationModal,
     showForgotPasswordModal,
   });
   modalStateRef.current = {
     showCompleteProfileModal,
-    showNoInternetModal,
     showEmailConfirmationModal,
     showForgotPasswordModal,
   };
@@ -97,10 +95,6 @@ export default function LoginScreen() {
         const m = modalStateRef.current;
         if (m.showCompleteProfileModal) {
           setShowCompleteProfileModal(false);
-          return true;
-        }
-        if (m.showNoInternetModal) {
-          setShowNoInternetModal(false);
           return true;
         }
         if (m.showEmailConfirmationModal) {
@@ -417,10 +411,9 @@ export default function LoginScreen() {
       const result = await loginUser(email, password);
       
       if (result.error) {
-        // Verificar se é erro de rede
         const errorMsg = result.error.message?.toLowerCase() || '';
-        if (errorMsg.includes('network') || errorMsg.includes('fetch') || errorMsg.includes('failed')) {
-          setShowNoInternetModal(true);
+        if (maybeShowConnectionError(null, result.error.message)) {
+          /* modal global */
         } else if (errorMsg.includes('email não confirmado') || errorMsg.includes('email not confirmed')) {
           // Apenas mostrar modal de confirmação de email se o erro for especificamente sobre isso
           setEmailConfirmationError(result.error.message);
@@ -432,9 +425,11 @@ export default function LoginScreen() {
       } else if (result.data?.user) {
         if (result.data.user.email_confirmed_at) {
           const userCheck = await checkUserExists(result.data.user.id);
-          
+
           if (userCheck.error) {
-            Alert.alert('Atenção', 'Erro ao verificar dados do usuário');
+            if (!maybeShowConnectionError(null, userCheck.error)) {
+              Alert.alert('Atenção', 'Erro ao verificar dados do usuário');
+            }
             return;
           }
           
@@ -467,12 +462,8 @@ export default function LoginScreen() {
           Alert.alert('Atenção', 'Erro ao verificar dados do usuário');
         }
       }
-    } catch (error: any) {
-      // Verificar se é erro de rede
-      const errorMsg = error?.message?.toLowerCase() || '';
-      if (errorMsg.includes('network') || errorMsg.includes('fetch') || errorMsg.includes('failed')) {
-        setShowNoInternetModal(true);
-      } else {
+    } catch (error: unknown) {
+      if (!maybeShowConnectionError(error)) {
         Alert.alert('Atenção', 'Ocorreu um erro inesperado');
       }
     } finally {
@@ -734,46 +725,6 @@ export default function LoginScreen() {
           </View>
         </View>
       )}
-
-      {/* Modal de Sem Internet */}
-      <Modal
-        visible={showNoInternetModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowNoInternetModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
-            <View style={styles.modalHeader}>
-              <View style={[styles.modalIcon, { backgroundColor: isDarkMode ? 'rgba(102, 126, 234, 0.15)' : 'rgba(102, 126, 234, 0.1)' }]}>
-                <Ionicons name="cloud-offline-outline" size={40} color={colors.primary} />
-              </View>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
-                Você está sem internet
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              style={[
-                styles.modalContinueButton, 
-                { 
-                  backgroundColor: colors.primary,
-                  width: '100%',
-                  paddingVertical: 16,
-                  borderRadius: 12,
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }
-              ]}
-              onPress={() => setShowNoInternetModal(false)}
-            >
-              <Text style={{ fontSize: 16, fontWeight: '600', color: '#FFFFFF' }}>
-                Entendi
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
 
       {/* Modal de Confirmação de Email */}
       <Modal

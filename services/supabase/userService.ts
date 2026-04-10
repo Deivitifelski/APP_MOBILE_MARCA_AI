@@ -40,8 +40,9 @@ export const checkUserExists = async (userId: string): Promise<{ exists: boolean
 
     const exists = data !== null;
     return { exists, error: null };
-  } catch (error) {
-    return { exists: false, error: 'Erro de conexão' };
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    return { exists: false, error: msg.trim() || 'Erro de conexão' };
   }
 };
 

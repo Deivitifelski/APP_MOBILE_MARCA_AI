@@ -8,6 +8,7 @@ import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppSplashScreen from '../components/AppSplashScreen';
 import AuthDeepLinkHandler from '../components/AuthDeepLinkHandler';
+import ConnectionErrorModalHost from '../components/ConnectionErrorModalHost';
 import SubscriptionReconcileBootstrap from '../components/SubscriptionReconcileBootstrap';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { ActiveArtistProvider } from '../contexts/ActiveArtistContext';
@@ -158,6 +159,7 @@ export default function RootLayout() {
         <ThemeProvider>
           <ActiveArtistProvider>
             <PermissionsProvider>
+              <ConnectionErrorModalHost />
               <NavigationAndStack />
             </PermissionsProvider>
           </ActiveArtistProvider>

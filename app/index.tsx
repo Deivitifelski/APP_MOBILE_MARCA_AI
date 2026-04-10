@@ -27,6 +27,8 @@ const LOADING_TIMEOUT_MS = 8000;
 export default function Index() {
   const navigation = useNavigation();
   const hasNavigated = useRef(false);
+  /** Evita corrida: timer/modal "sem conexão" abriu mas checkAuth ainda chama goToLogin/navigateTo. */
+  const authNavigationBlockedRef = useRef(false);
   const safetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showOfflineModal, setShowOfflineModal] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -41,6 +43,7 @@ export default function Index() {
   const openOfflineModal = useCallback(() => {
     if (hasNavigated.current) return;
     clearSafetyTimer();
+    authNavigationBlockedRef.current = true;
     setShowOfflineModal(true);
   }, [clearSafetyTimer]);
 
@@ -55,7 +58,7 @@ export default function Index() {
 
   const navigateTo = useCallback(
     (route: string) => {
-      if (hasNavigated.current) return;
+      if (hasNavigated.current || authNavigationBlockedRef.current) return;
       hasNavigated.current = true;
       clearSafetyTimer();
       setShowOfflineModal(false);
@@ -65,7 +68,7 @@ export default function Index() {
   );
 
   const goToLogin = useCallback(() => {
-    if (hasNavigated.current) return;
+    if (hasNavigated.current || authNavigationBlockedRef.current) return;
     hasNavigated.current = true;
     clearSafetyTimer();
     setShowOfflineModal(false);
@@ -121,7 +124,7 @@ export default function Index() {
 
       if (userCheck.error) {
         if (isLikelyNetworkFailure(null, userCheck.error)) {
-          applyArtistRedirect(artistRedirect);
+          openOfflineModal();
           return;
         }
         goToLogin();
@@ -135,11 +138,6 @@ export default function Index() {
 
       applyArtistRedirect(artistRedirect);
     } catch (e) {
-      if (isLikelyNetworkFailure(e) && session?.user?.email_confirmed_at) {
-        const artistRedirect = await checkArtistsAndRedirect(session.user.id);
-        applyArtistRedirect(artistRedirect);
-        return;
-      }
       if (isLikelyNetworkFailure(e)) {
         openOfflineModal();
         return;
@@ -155,6 +153,7 @@ export default function Index() {
     if (isRetrying || hasNavigated.current) return;
     setIsRetrying(true);
     try {
+      authNavigationBlockedRef.current = false;
       hasNavigated.current = false;
       setShowOfflineModal(false);
       scheduleSafetyTimer();

@@ -25,6 +25,7 @@ import {
   extractNumericValueString,
   formatCurrencyBRLInput,
 } from '../utils/currencyBRLInput';
+import { maybeShowConnectionError } from '../utils/maybeShowConnectionError';
 
 interface EventoForm {
   nome: string;
@@ -345,15 +346,25 @@ export default function AdicionarEventoScreen() {
     try {
       // Obter o usuário atual e seu artista
       const { user, error: userError } = await getCurrentUser();
-      
-      if (userError || !user) {
+
+      if (!user) {
+        if (maybeShowConnectionError(null, userError)) {
+          return;
+        }
         Alert.alert('Erro', 'Usuário não encontrado. Faça login novamente.');
         return;
       }
 
       const { artists, error: artistsError } = await getArtists(user.id);
-      
-      if (artistsError || !artists || artists.length === 0) {
+
+      if (maybeShowConnectionError(null, artistsError)) {
+        return;
+      }
+      if (artistsError) {
+        Alert.alert('Erro', artistsError);
+        return;
+      }
+      if (!artists || artists.length === 0) {
         Alert.alert('Erro', 'Nenhum artista encontrado. Crie um perfil de artista primeiro.');
         return;
       }
@@ -368,7 +379,12 @@ export default function AdicionarEventoScreen() {
           fileName: contractName,
         });
         if (!upload.success || !upload.url) {
-          Alert.alert('Erro', upload.error || 'Não foi possível enviar o contrato.');
+          const uerr = upload.error ?? '';
+          if (maybeShowConnectionError(null, uerr)) {
+            /* modal global */
+          } else {
+            Alert.alert('Erro', uerr || 'Não foi possível enviar o contrato.');
+          }
           return;
         }
         contractUrl = upload.url;
@@ -406,10 +422,15 @@ export default function AdicionarEventoScreen() {
       if (result.success) {
         router.replace({ pathname: '/(tabs)/agenda', params: { eventCreatedToast: '1' } });
       } else {
-        Alert.alert('Erro', result.error || 'Erro ao salvar evento');
+        const errMsg = result.error ?? '';
+        if (!maybeShowConnectionError(null, errMsg)) {
+          Alert.alert('Erro', errMsg || 'Erro ao salvar evento');
+        }
       }
-    } catch {
-      Alert.alert('Erro', 'Erro ao salvar evento');
+    } catch (e) {
+      if (!maybeShowConnectionError(e)) {
+        Alert.alert('Erro', 'Erro ao salvar evento');
+      }
     } finally {
       setIsLoading(false);
     }

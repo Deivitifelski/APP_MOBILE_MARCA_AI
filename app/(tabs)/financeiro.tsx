@@ -28,6 +28,7 @@ import {
   formatCurrencyBRLInput,
 } from '../../utils/currencyBRLInput';
 import { supabase } from '../../lib/supabase';
+import { getCurrentUser } from '../../services/supabase/authService';
 import { generateFinancialReport } from '../../services/financialReportService';
 import {
   deleteArtistMonthRevenueGoal,
@@ -41,6 +42,7 @@ import {
   consumeFinancialTrialAction,
   getFinancialTrialStatus,
 } from '../../services/supabase/userService';
+import { maybeShowConnectionError } from '../../utils/maybeShowConnectionError';
 // import * as FileSystem from 'expo-file-system';
 
 interface EventWithExpenses {
@@ -87,13 +89,18 @@ export default function FinanceiroScreen() {
 
   // Obter usuário atual
   useEffect(() => {
-    const getCurrentUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
+    const loadUserId = async () => {
+      const { user, error } = await getCurrentUser();
+      if (user?.id) {
         setCurrentUserId(user.id);
+        return;
       }
+      if (maybeShowConnectionError(null, error)) {
+        return;
+      }
+      setCurrentUserId(null);
     };
-    getCurrentUser();
+    void loadUserId();
   }, []);
 
 
@@ -224,7 +231,9 @@ export default function FinanceiroScreen() {
       const { events: monthEvents, error: eventsError } = await getEventsByMonth(activeArtist.id, currentYear, currentMonth);
       
       if (eventsError) {
-        Alert.alert('Erro ao Carregar Eventos', eventsError || 'Não foi possível carregar os eventos do mês.');
+        if (!maybeShowConnectionError(null, eventsError)) {
+          Alert.alert('Erro ao Carregar Eventos', eventsError || 'Não foi possível carregar os eventos do mês.');
+        }
         return;
       }
 
@@ -258,11 +267,17 @@ export default function FinanceiroScreen() {
       } else {
         setStandaloneExpenses([]);
       }
-    } catch (error: any) {
-      Alert.alert(
-        'Erro ao Carregar Finanças', 
-        error?.message || 'Ocorreu um erro inesperado ao carregar os dados financeiros. Tente novamente.'
-      );
+    } catch (error: unknown) {
+      if (!maybeShowConnectionError(error)) {
+        const msg =
+          error && typeof error === 'object' && 'message' in error && typeof (error as { message: unknown }).message === 'string'
+            ? (error as { message: string }).message
+            : '';
+        Alert.alert(
+          'Erro ao Carregar Finanças',
+          msg || 'Ocorreu um erro inesperado ao carregar os dados financeiros. Tente novamente.',
+        );
+      }
     } finally {
       setIsLoading(false);
     }
@@ -429,12 +444,16 @@ export default function FinanceiroScreen() {
       return;
     }
 
-    if (!currentUserId) {
+    const { user, error: authErr } = await getCurrentUser();
+    if (maybeShowConnectionError(null, authErr)) {
+      return;
+    }
+    if (!user?.id) {
       Alert.alert('Erro', 'Usuário não encontrado. Faça login novamente.');
       return;
     }
 
-    if (!(await ensureFinanceExportModalAllowed(currentUserId))) return;
+    if (!(await ensureFinanceExportModalAllowed(user.id))) return;
 
     setShowExportModal(true);
   };
@@ -442,11 +461,15 @@ export default function FinanceiroScreen() {
   const generateReport = async (includeFinancials: boolean) => {
     if (!activeArtist) return;
 
-    if (!currentUserId) {
+    const { user, error: authErr } = await getCurrentUser();
+    if (maybeShowConnectionError(null, authErr)) {
+      return;
+    }
+    if (!user?.id) {
       Alert.alert('Erro', 'Usuário não encontrado. Faça login novamente.');
       return;
     }
-    if (!(await consumeExportTrialIfNeeded(currentUserId))) return;
+    if (!(await consumeExportTrialIfNeeded(user.id))) return;
 
     setShowExportModal(false);
     
@@ -494,11 +517,15 @@ export default function FinanceiroScreen() {
   const copyAsText = async (includeFinancials: boolean) => {
     if (!activeArtist) return;
 
-    if (!currentUserId) {
+    const { user, error: authErr } = await getCurrentUser();
+    if (maybeShowConnectionError(null, authErr)) {
+      return;
+    }
+    if (!user?.id) {
       Alert.alert('Erro', 'Usuário não encontrado. Faça login novamente.');
       return;
     }
-    if (!(await consumeExportTrialIfNeeded(currentUserId))) return;
+    if (!(await consumeExportTrialIfNeeded(user.id))) return;
 
     setShowExportModal(false);
 

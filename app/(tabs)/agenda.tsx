@@ -38,7 +38,7 @@ import { cancelarParticipacaoAceita } from '../../services/supabase/conviteParti
 import { getEventById, getEventsByMonthWithRole } from '../../services/supabase/eventService';
 import { useNotifications } from '../../services/useNotifications';
 import { buildWhatsAppUrl } from '../../utils/brazilPhone';
-import { isLikelyNetworkFailure } from '../../utils/isLikelyNetworkFailure';
+import { maybeShowConnectionError } from '../../utils/maybeShowConnectionError';
 
 const months = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -88,8 +88,6 @@ export default function AgendaScreen() {
   const [welcomeStep, setWelcomeStep] = useState(0);
   const params = useLocalSearchParams<{ showNewUserModal?: string; eventCreatedToast?: string }>();
   const [eventCreatedToastMessage, setEventCreatedToastMessage] = useState<string | null>(null);
-  const [showNoConnectionModal, setShowNoConnectionModal] = useState(false);
-  const [isRetryingConnection, setIsRetryingConnection] = useState(false);
   const [isLoadingMonthEvents, setIsLoadingMonthEvents] = useState(false);
   const [showInviteEventInfoModal, setShowInviteEventInfoModal] = useState(false);
   const [selectedInviteEventInfo, setSelectedInviteEventInfo] = useState<any | null>(null);
@@ -318,8 +316,9 @@ export default function AgendaScreen() {
       isOpeningAddEventRef.current = true;
       setIsOpeningAddEventScreen(true);
       try {
-        const { user } = await getCurrentUser();
+        const { user, error: authErr } = await getCurrentUser();
         if (!user) {
+          if (maybeShowConnectionError(null, authErr)) return;
           Alert.alert('Erro', 'Usuário não encontrado');
           return;
         }
@@ -331,7 +330,12 @@ export default function AgendaScreen() {
           .eq('artist_id', activeArtist.id)
           .single();
 
-        if (roleError || !memberData) {
+        if (roleError) {
+          if (maybeShowConnectionError(roleError, roleError.message)) return;
+          Alert.alert('Erro', 'Você não tem acesso a este artista');
+          return;
+        }
+        if (!memberData) {
           Alert.alert('Erro', 'Você não tem acesso a este artista');
           return;
         }
@@ -352,8 +356,10 @@ export default function AgendaScreen() {
             selectedDate: navParams.selectedDate,
           },
         });
-      } catch {
-        Alert.alert('Erro', 'Erro ao verificar permissões');
+      } catch (e) {
+        if (!maybeShowConnectionError(e)) {
+          Alert.alert('Erro', 'Erro ao verificar permissões');
+        }
       } finally {
         isOpeningAddEventRef.current = false;
         setIsOpeningAddEventScreen(false);
@@ -764,9 +770,10 @@ export default function AgendaScreen() {
     }
 
     try {
-      const { user } = await getCurrentUser();
+      const { user, error: authErr } = await getCurrentUser();
       if (!user) {
         isNavigatingToEventRef.current = false;
+        if (maybeShowConnectionError(null, authErr)) return;
         Alert.alert('Erro', 'Usuário não encontrado');
         return;
       }
@@ -778,7 +785,13 @@ export default function AgendaScreen() {
         .eq('artist_id', activeArtist.id)
         .single();
 
-      if (roleError || !memberData) {
+      if (roleError) {
+        isNavigatingToEventRef.current = false;
+        if (maybeShowConnectionError(roleError, roleError.message)) return;
+        Alert.alert('Erro', 'Você não tem acesso a este artista');
+        return;
+      }
+      if (!memberData) {
         isNavigatingToEventRef.current = false;
         Alert.alert('Erro', 'Você não tem acesso a este artista');
         return;
@@ -814,7 +827,9 @@ export default function AgendaScreen() {
       router.push(`/detalhes-evento?eventId=${eventId}`);
     } catch (error) {
       isNavigatingToEventRef.current = false;
-      Alert.alert('Erro', 'Erro ao verificar permissões');
+      if (!maybeShowConnectionError(error)) {
+        Alert.alert('Erro', 'Erro ao verificar permissões');
+      }
     }
   };
 
@@ -862,8 +877,16 @@ export default function AgendaScreen() {
           currentMonth,
           eventsData
         );
-        setShowNoConnectionModal(false);
         return true;
+      }
+
+      if (maybeShowConnectionError(null, result.error, { onRetry: () => void retryAgendaConnection() })) {
+        if (cachedEvents) {
+          setEvents(cachedEvents);
+        } else {
+          setEvents([]);
+        }
+        return false;
       }
 
       const isAccessDenied =
@@ -877,19 +900,23 @@ export default function AgendaScreen() {
         return true;
       }
 
-      if (isLikelyNetworkFailure(null, result.error)) {
+      setEvents([]);
+      return true;
+    } catch (error: any) {
+      if (maybeShowConnectionError(error, undefined, { onRetry: () => void retryAgendaConnection() })) {
+        const cachedEvents = await cacheService.getEventsData<any[]>(
+          cacheKeyArtist,
+          currentYear,
+          currentMonth
+        );
         if (cachedEvents) {
           setEvents(cachedEvents);
         } else {
           setEvents([]);
         }
-        setShowNoConnectionModal(true);
         return false;
       }
 
-      setEvents([]);
-      return true;
-    } catch (error: any) {
       const isAccessDenied =
         error?.code === 'P0001' ||
         (error?.message &&
@@ -901,43 +928,22 @@ export default function AgendaScreen() {
         return true;
       }
 
-      if (isLikelyNetworkFailure(error)) {
-        const cachedEvents = await cacheService.getEventsData<any[]>(
-          cacheKeyArtist,
-          currentYear,
-          currentMonth
-        );
-        if (cachedEvents) {
-          setEvents(cachedEvents);
-        } else {
-          setEvents([]);
-        }
-        setShowNoConnectionModal(true);
-        return false;
-      }
-
       setEvents([]);
       return true;
     }
   };
 
   const retryAgendaConnection = async () => {
-    setIsRetryingConnection(true);
     try {
       await refreshActiveArtist();
       await loadUnreadCount();
       await checkIfUserHasArtists();
       if (activeArtist) {
         await checkUserRole();
-        const ok = await loadEvents(true);
-        if (ok) {
-          setShowNoConnectionModal(false);
-        }
-      } else {
-        setShowNoConnectionModal(false);
+        await loadEvents(true);
       }
-    } finally {
-      setIsRetryingConnection(false);
+    } catch {
+      /* erros tratados nos serviços / modal de conexão */
     }
   };
 
@@ -1787,46 +1793,6 @@ export default function AgendaScreen() {
                 Nenhum evento para este dia.
               </Text>
             )}
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        visible={showNoConnectionModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowNoConnectionModal(false)}
-      >
-        <View style={styles.networkModalOverlay}>
-          <View
-            style={[
-              styles.networkModalCard,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-                shadowColor: isDarkMode ? '#000' : '#1e293b',
-              },
-            ]}
-          >
-            <View style={[styles.networkModalIcon, { backgroundColor: `${colors.primary}18` }]}>
-              <Ionicons name="cloud-offline-outline" size={22} color={colors.primary} />
-            </View>
-            <Text style={[styles.networkModalTitle, { color: colors.text }]}>Sem conexão</Text>
-            <Text style={[styles.networkModalMessage, { color: colors.textSecondary }]}>
-              Confira sua internet e toque para tentar de novo.
-            </Text>
-            <TouchableOpacity
-              style={[styles.networkModalButton, { backgroundColor: colors.primary }]}
-              onPress={() => void retryAgendaConnection()}
-              disabled={isRetryingConnection}
-              activeOpacity={0.85}
-            >
-              {isRetryingConnection ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Text style={styles.networkModalButtonText}>Tentar novamente</Text>
-              )}
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -3045,60 +3011,6 @@ const styles = StyleSheet.create({
   },
   collabStackAvatarOverlap: {
     marginLeft: -8,
-  },
-  networkModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.45)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-  networkModalCard: {
-    width: '100%',
-    maxWidth: 280,
-    borderRadius: 20,
-    paddingVertical: 20,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: Platform.OS === 'android' ? 0 : 0.12,
-    shadowRadius: 24,
-    elevation: Platform.OS === 'android' ? 6 : 0,
-  },
-  networkModalIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  networkModalTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 6,
-    letterSpacing: -0.2,
-  },
-  networkModalMessage: {
-    fontSize: 13,
-    textAlign: 'center',
-    lineHeight: 18,
-    marginBottom: 18,
-    paddingHorizontal: 2,
-  },
-  networkModalButton: {
-    width: '100%',
-    minHeight: 42,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  networkModalButtonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600',
   },
   // Estilos do Modal de Remoção
   removedModalOverlay: {

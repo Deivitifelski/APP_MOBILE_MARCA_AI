@@ -77,16 +77,35 @@ export const logoutUser = async (): Promise<{ error: string | null }> => {
   }
 };
 
+/**
+ * `getUser()` revalida com o servidor; offline costuma falhar mesmo com sessão salva.
+ * Usa `getSession()` como fallback para ainda expor o usuário da sessão local.
+ */
 export const getCurrentUser = async () => {
   try {
     const { data: { user }, error } = await supabase.auth.getUser();
-    
-    if (error) {
-      return { user: null, error: error.message };
+
+    if (user) {
+      return { user, error: null };
     }
 
-    return { user, error: null };
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+    if (session?.user) {
+      return { user: session.user, error: null };
+    }
+
+    const msg = error?.message ?? sessionError?.message ?? null;
+    return { user: null, error: msg };
   } catch {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        return { user: session.user, error: null };
+      }
+    } catch {
+      /* ignore */
+    }
     return { user: null, error: 'Erro de conexão' };
   }
 };
