@@ -12,7 +12,7 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
@@ -20,14 +20,17 @@ import { supabase } from '../lib/supabase';
 import { removeEventContractByUrl, uploadEventContractFile } from '../services/supabase/eventContractUploadService';
 import { getEventById, updateEvent, UpdateEventData } from '../services/supabase/eventService';
 import {
-  extractNumericValueString,
-  formatCurrencyBRLInput,
+    extractNumericValueString,
+    formatCurrencyBRLInput,
 } from '../utils/currencyBRLInput';
+import BrazilStatePickerModal, { BrazilStateFieldButton } from '../components/BrazilStatePickerModal';
+import { parseCityUf } from '../lib/brazilGeo';
 
 interface EventoForm {
   nome: string;
   valor: string;
   cidade: string;
+  estadoUf: string;
   telefoneContratante: string;
   data: Date;
   horarioInicio: Date;
@@ -247,6 +250,7 @@ export default function EditarEventoScreen() {
     nome: '',
     valor: '',
     cidade: '',
+    estadoUf: '',
     telefoneContratante: '',
     data: new Date(),
     // 00:00/00:00 significa "horário não definido"
@@ -260,6 +264,7 @@ export default function EditarEventoScreen() {
   const [showDateModal, setShowDateModal] = useState(false);
   const [showTimeInicioModal, setShowTimeInicioModal] = useState(false);
   const [showTimeFimModal, setShowTimeFimModal] = useState(false);
+  const [showEstadoModal, setShowEstadoModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingEvent, setIsLoadingEvent] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -318,10 +323,23 @@ export default function EditarEventoScreen() {
         const endTime = new Date();
         endTime.setHours(endHour, endMinute, 0, 0);
 
+        const rawCity = event.city || '';
+        const colUf = event.state_uf;
+        let cidade = rawCity.trim();
+        let estadoUf = '';
+        if (colUf != null && String(colUf).trim()) {
+          estadoUf = String(colUf).trim().toUpperCase().slice(0, 2);
+        } else {
+          const parsed = parseCityUf(rawCity);
+          cidade = parsed.cityLabel;
+          estadoUf = parsed.uf || '';
+        }
+
         setForm({
           nome: event.name,
           valor: event.value != null ? formatCurrencyBRLInput((event.value * 100).toString()) : '',
-          cidade: event.city || '',
+          cidade,
+          estadoUf,
           telefoneContratante: maskPhone(event.contractor_phone || ''),
           data: eventDate,
           horarioInicio: startTime,
@@ -412,6 +430,9 @@ export default function EditarEventoScreen() {
         description: form.descricao.trim() || undefined,
         ...(isInviteParticipationEvent ? {} : { value: parseFloat(numericValue) }),
         city: form.cidade.trim() || undefined,
+        state_uf: form.estadoUf.trim()
+          ? form.estadoUf.trim().toUpperCase().slice(0, 2)
+          : null,
         contractor_phone: form.telefoneContratante.trim() || undefined,
         event_date: form.data.toISOString().split('T')[0],
         // Importante: manter padrão do banco (HH:MM) para não gerar "mudanças" falsas no histórico
@@ -584,18 +605,37 @@ export default function EditarEventoScreen() {
           />
         </View>
 
-        {/* Cidade */}
+        {/* Cidade e estado (opcionais) */}
         <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: colors.text }]}>Cidade</Text>
+          <Text style={[styles.label, { color: colors.text }]}>Cidade (opcional)</Text>
           <TextInput
-            style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+            style={[
+              styles.input,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                color: colors.text,
+                opacity: isInviteParticipationEvent ? 0.8 : 1,
+              },
+            ]}
             value={form.cidade}
+            editable={!isInviteParticipationEvent}
             onChangeText={(text) => updateForm('cidade', text)}
-            placeholder="Ex: Rio de Janeiro"
+            placeholder="Ex.: Rio de Janeiro"
             placeholderTextColor={colors.textSecondary}
             autoCorrect={false}
             autoCapitalize="words"
             returnKeyType="next"
+          />
+        </View>
+        <View style={[styles.inputGroup, { opacity: isInviteParticipationEvent ? 0.8 : 1 }]}>
+          <Text style={[styles.label, { color: colors.text }]}>Estado (opcional)</Text>
+          <BrazilStateFieldButton
+            selectedUf={form.estadoUf}
+            onPress={() => {
+              if (!isInviteParticipationEvent) setShowEstadoModal(true);
+            }}
+            colors={colors}
           />
         </View>
 
@@ -1011,6 +1051,12 @@ export default function EditarEventoScreen() {
         </View>
       </Modal>
 
+      <BrazilStatePickerModal
+        visible={showEstadoModal}
+        onClose={() => setShowEstadoModal(false)}
+        selectedUf={form.estadoUf}
+        onSelect={(uf) => updateForm('estadoUf', uf ?? '')}
+      />
     </SafeAreaView>
   );
 }

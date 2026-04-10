@@ -582,6 +582,25 @@ export default function FinanceiroScreen() {
     });
   };
 
+  const openFinanceInsights = () => {
+    if (!activeArtist) return;
+    if (financeViewMode === 'year') {
+      router.push({
+        pathname: '/financeiro-insights',
+        params: { scope: 'year', year: String(annualSummaryYear) },
+      });
+      return;
+    }
+    router.push({
+      pathname: '/financeiro-insights',
+      params: {
+        scope: 'month',
+        year: String(currentYear),
+        month: String(currentMonth),
+      },
+    });
+  };
+
   const handleExportFinancialReport = async () => {
     if (!activeArtist) return;
     if (financeViewMode === 'month' && events.length === 0) {
@@ -1581,6 +1600,27 @@ export default function FinanceiroScreen() {
                 })}
               </View>
             )}
+
+            {activeArtist && (
+              <View style={styles.goalSection}>
+                <TouchableOpacity
+                  style={[styles.detailsButton, { backgroundColor: colors.primary + '18' }]}
+                  onPress={openFinanceInsights}
+                  activeOpacity={0.85}
+                >
+                  <View style={[styles.detailsButtonIconCircle, { backgroundColor: colors.primary + '28' }]}>
+                    <Ionicons name="stats-chart-outline" size={22} color={colors.primary} />
+                  </View>
+                  <View style={styles.detailsButtonTextWrap}>
+                    <Text style={[styles.detailsButtonTitle, { color: colors.text }]}>Ver estatísticas</Text>
+                    <Text style={[styles.detailsButtonSub, { color: colors.textSecondary }]}>
+                      Rankings de cidades, estados e cachês do ano {annualSummaryYear}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={22} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+            )}
           </>
         ) : (
           <>
@@ -1643,26 +1683,48 @@ export default function FinanceiroScreen() {
           </View>
         )}
 
-        {hasAccess && activeArtist && (
+        {activeArtist && (
           <View style={styles.goalSection}>
+            {hasAccess ? (
+              <TouchableOpacity
+                style={[styles.detailsButton, { backgroundColor: colors.primary + '18' }]}
+                onPress={() => void openFinanceDetails()}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.detailsButtonIconCircle, { backgroundColor: colors.primary + '28' }]}>
+                  <Ionicons name="analytics-outline" size={22} color={colors.primary} />
+                </View>
+                <View style={styles.detailsButtonTextWrap}>
+                  <Text style={[styles.detailsButtonTitle, { color: colors.text }]}>Ver detalhes</Text>
+                  <Text style={[styles.detailsButtonSub, { color: colors.textSecondary }]}>
+                    Gráficos, legenda e maiores despesas e lucros
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+            ) : null}
+
             <TouchableOpacity
-              style={[styles.detailsButton, { backgroundColor: colors.primary + '18' }]}
-              onPress={() => void openFinanceDetails()}
+              style={[
+                styles.detailsButton,
+                { backgroundColor: colors.primary + '18', marginTop: hasAccess ? 10 : 0 },
+              ]}
+              onPress={openFinanceInsights}
               activeOpacity={0.85}
             >
               <View style={[styles.detailsButtonIconCircle, { backgroundColor: colors.primary + '28' }]}>
-                <Ionicons name="analytics-outline" size={22} color={colors.primary} />
+                <Ionicons name="stats-chart-outline" size={22} color={colors.primary} />
               </View>
               <View style={styles.detailsButtonTextWrap}>
-                <Text style={[styles.detailsButtonTitle, { color: colors.text }]}>Ver detalhes</Text>
+                <Text style={[styles.detailsButtonTitle, { color: colors.text }]}>Ver estatísticas</Text>
                 <Text style={[styles.detailsButtonSub, { color: colors.textSecondary }]}>
-                  Gráficos, legenda e maiores despesas e lucros
+                  Rankings de cidades, estados e cachês de {months[currentMonth]} de {currentYear}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={22} color={colors.textSecondary} />
             </TouchableOpacity>
 
-            {monthRevenueGoal != null && monthRevenueGoal > 0 ? (
+            {hasAccess && monthRevenueGoal != null && monthRevenueGoal > 0 ? (
               <View style={[styles.goalCard, { backgroundColor: colors.surface }]}>
                 <View style={styles.goalHeaderRow}>
                   <Text style={[styles.goalTitle, { color: colors.text }]}>Meta de receita do mês</Text>
@@ -1688,7 +1750,7 @@ export default function FinanceiroScreen() {
                   <Text style={[styles.goalCongrats, { color: colors.success }]}>Meta atingida</Text>
                 ) : null}
               </View>
-            ) : (
+            ) : hasAccess ? (
               <TouchableOpacity
                 style={[styles.goalCompactRow, { backgroundColor: colors.surface }]}
                 onPress={openGoalModal}
@@ -1701,7 +1763,7 @@ export default function FinanceiroScreen() {
                 </Text>
                 <Text style={[styles.goalCompactAction, { color: colors.primary }]}>Definir</Text>
               </TouchableOpacity>
-            )}
+            ) : null}
           </View>
         )}
 

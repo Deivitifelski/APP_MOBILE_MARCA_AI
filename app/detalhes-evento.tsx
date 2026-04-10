@@ -26,6 +26,7 @@ import PermissionModal from '../components/PermissionModal';
 import OptimizedImage from '../components/OptimizedImage';
 import { useTheme } from '../contexts/ThemeContext';
 import { formatCalendarDate } from '../lib/dateUtils';
+import { formatBrazilStateChoice } from '../lib/brazilGeo';
 import { supabase } from '../lib/supabase';
 import { getEventAuditLog, type EventAuditLogRow } from '../services/supabase/eventAuditService';
 import { getEventCreatorName } from '../services/supabase/eventCreatorService';
@@ -62,6 +63,19 @@ function formatLocalDateToISO(d: Date): string {
     const mo = String(d.getMonth() + 1).padStart(2, '0');
     const da = String(d.getDate()).padStart(2, '0');
     return `${y}-${mo}-${da}`;
+}
+
+function formatEventLocationLine(ev: Event): string {
+  const city = (ev.city || '').trim();
+  const rawUf = ev.state_uf;
+  const u =
+    rawUf != null && String(rawUf).trim()
+      ? String(rawUf).trim().toUpperCase().slice(0, 2)
+      : '';
+  if (city && u) return `${city}, ${u}`;
+  if (city) return city;
+  if (u) return formatBrazilStateChoice(u) || u;
+  return 'Não informado';
 }
 
 const CLONE_MONTH_NAMES = [
@@ -927,6 +941,7 @@ export default function DetalhesEventoScreen() {
           end_time: event.end_time,
           value: event.value,
           city: event.city,
+          state_uf: event.state_uf ?? null,
           contractor_phone: event.contractor_phone,
           confirmed: event.confirmed,
           tag: event.tag,
@@ -1078,7 +1093,7 @@ export default function DetalhesEventoScreen() {
 
             <View style={styles.detailRow}>
               <Ionicons name="location" size={20} color={colors.primary} />
-              <Text style={[styles.detailText, { color: colors.text }]}>{event.city || 'Não informado'}</Text>
+              <Text style={[styles.detailText, { color: colors.text }]}>{formatEventLocationLine(event)}</Text>
             </View>
 
             <View style={styles.detailRow}>

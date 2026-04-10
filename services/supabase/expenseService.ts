@@ -249,6 +249,32 @@ export const getStandaloneExpensesByArtistYear = async (
   }
 };
 
+/** Despesas e receitas avulsas entre `startDate` e `endDate` (YYYY-MM-DD, inclusive). */
+export const getStandaloneExpensesByArtistDateRange = async (
+  artistId: string,
+  startDate: string,
+  endDate: string
+): Promise<{ success: boolean; error: string | null; expenses?: Expense[] }> => {
+  try {
+    const { data, error } = await supabase
+      .from('event_expenses')
+      .select('*')
+      .eq('artist_id', artistId)
+      .is('event_id', null)
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .order('date', { ascending: false });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, error: null, expenses: data || [] };
+  } catch {
+    return { success: false, error: 'Erro de conexão' };
+  }
+};
+
 const EXPENSE_IN_CHUNK = 90;
 
 /** Soma dos valores de despesas vinculadas a eventos, por `event_id`. */

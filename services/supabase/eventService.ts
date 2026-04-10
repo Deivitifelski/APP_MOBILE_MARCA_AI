@@ -58,6 +58,7 @@ export interface Event {
   end_time: string;
   value?: number;
   city?: string;
+  state_uf?: string | null;
   contractor_phone?: string;
   confirmed: boolean;
   tag: 'ensaio' | 'evento' | 'reunião';
@@ -93,6 +94,7 @@ export interface CreateEventData {
   end_time: string;
   value?: number;
   city?: string;
+  state_uf?: string | null;
   contractor_phone?: string;
   confirmed?: boolean;
   tag?: 'ensaio' | 'evento' | 'reunião';
@@ -113,6 +115,7 @@ export interface UpdateEventData {
   description?: string;
   value?: number;
   city?: string;
+  state_uf?: string | null;
   contractor_phone?: string;
   event_date?: string;
   start_time?: string;
@@ -148,6 +151,9 @@ export const createEvent = async (eventData: CreateEventData): Promise<{ success
         // Preservar R$ 0,00 (0 é um valor válido; `|| null` convertia 0 em null)
         value: eventData.value ?? null,
         city: eventData.city || null,
+        state_uf: eventData.state_uf != null && String(eventData.state_uf).trim()
+          ? String(eventData.state_uf).trim().toUpperCase().slice(0, 2)
+          : null,
         contractor_phone: eventData.contractor_phone || null,
         confirmed: eventData.confirmed || false,
         tag: eventData.tag || 'evento', // Default para 'evento' se não especificado
@@ -268,6 +274,32 @@ export const getEventsByYear = async (
     const startDate = new Date(year, 0, 1).toISOString().split('T')[0];
     const endDate = new Date(year, 11, 31).toISOString().split('T')[0];
 
+    const { data, error } = await supabase
+      .from('events')
+      .select('*')
+      .eq('artist_id', artistId)
+      .eq('ativo', true)
+      .gte('event_date', startDate)
+      .lte('event_date', endDate)
+      .order('event_date', { ascending: true });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, error: null, events: data || [] };
+  } catch {
+    return { success: false, error: 'Erro de conexão' };
+  }
+};
+
+/** Eventos ativos do artista entre `startDate` e `endDate` (inclusive), formato YYYY-MM-DD. */
+export const getEventsByDateRange = async (
+  artistId: string,
+  startDate: string,
+  endDate: string
+): Promise<{ success: boolean; error: string | null; events?: Event[] }> => {
+  try {
     const { data, error } = await supabase
       .from('events')
       .select('*')

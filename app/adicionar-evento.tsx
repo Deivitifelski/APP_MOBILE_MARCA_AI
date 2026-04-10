@@ -12,7 +12,7 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View
+    View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
@@ -26,11 +26,13 @@ import {
   formatCurrencyBRLInput,
 } from '../utils/currencyBRLInput';
 import { maybeShowConnectionError } from '../utils/maybeShowConnectionError';
+import BrazilStatePickerModal, { BrazilStateFieldButton } from '../components/BrazilStatePickerModal';
 
 interface EventoForm {
   nome: string;
   valor: string;
   cidade: string;
+  estadoUf: string;
   telefoneContratante: string;
   data: Date;
   horarioInicio: Date;
@@ -279,6 +281,7 @@ export default function AdicionarEventoScreen() {
     nome: '',
     valor: '',
     cidade: '',
+    estadoUf: '',
     telefoneContratante: '',
     data: initialDate,
     // 00:00/00:00 significa "horário não definido"
@@ -294,6 +297,7 @@ export default function AdicionarEventoScreen() {
   const [showDateModal, setShowDateModal] = useState(false);
   const [showTimeInicioModal, setShowTimeInicioModal] = useState(false);
   const [showTimeFimModal, setShowTimeFimModal] = useState(false);
+  const [showEstadoModal, setShowEstadoModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [contractUri, setContractUri] = useState<string | null>(null);
   const [contractName, setContractName] = useState<string | null>(null);
@@ -409,6 +413,9 @@ export default function AdicionarEventoScreen() {
         end_time: form.horarioFim.toTimeString().split(' ')[0].substring(0, 5), // HH:MM
         value: numericValue !== '' ? parseFloat(numericValue) : undefined,
         city: form.cidade.trim() || undefined,
+        state_uf: form.estadoUf.trim()
+          ? form.estadoUf.trim().toUpperCase().slice(0, 2)
+          : null,
         contractor_phone: form.telefoneContratante.trim() || undefined,
         confirmed: form.status === 'confirmado',
         tag: form.tag,
@@ -534,18 +541,26 @@ export default function AdicionarEventoScreen() {
           />
         </View>
 
-        {/* Cidade */}
+        {/* Cidade e estado (opcionais) */}
         <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: colors.text }]}>Cidade</Text>
+          <Text style={[styles.label, { color: colors.text }]}>Cidade (opcional)</Text>
           <TextInput
             style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
             value={form.cidade}
             onChangeText={(text) => updateForm('cidade', text)}
-            placeholder="Ex: Rio de Janeiro"
+            placeholder="Ex.: Rio de Janeiro"
             placeholderTextColor={colors.textSecondary}
             autoCorrect={false}
             autoCapitalize="words"
             returnKeyType="next"
+          />
+        </View>
+        <View style={styles.inputGroup}>
+          <Text style={[styles.label, { color: colors.text }]}>Estado (opcional)</Text>
+          <BrazilStateFieldButton
+            selectedUf={form.estadoUf}
+            onPress={() => setShowEstadoModal(true)}
+            colors={colors}
           />
         </View>
 
@@ -977,6 +992,12 @@ export default function AdicionarEventoScreen() {
         </View>
       </Modal>
 
+      <BrazilStatePickerModal
+        visible={showEstadoModal}
+        onClose={() => setShowEstadoModal(false)}
+        selectedUf={form.estadoUf}
+        onSelect={(uf) => updateForm('estadoUf', uf ?? '')}
+      />
     </SafeAreaView>
   );
 }
