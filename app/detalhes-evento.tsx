@@ -23,9 +23,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import PermissionModal from '../components/PermissionModal';
+import TransientToast from '../components/TransientToast';
 import OptimizedImage from '../components/OptimizedImage';
 import { useTheme } from '../contexts/ThemeContext';
 import { formatCalendarDate } from '../lib/dateUtils';
+import { consumePendingEventUpdatedToast } from '../lib/pendingEventUpdatedToast';
 import { formatBrazilStateChoice } from '../lib/brazilGeo';
 import { supabase } from '../lib/supabase';
 import { getEventAuditLog, type EventAuditLogRow } from '../services/supabase/eventAuditService';
@@ -206,7 +208,7 @@ function CloneEventMonthCalendar({
 
 export default function DetalhesEventoScreen() {
   const { colors, isDarkMode } = useTheme();
-  const params = useLocalSearchParams();
+  const params = useLocalSearchParams<{ eventId?: string }>();
   const eventId = params.eventId as string;
 
   const [event, setEvent] = useState<Event | null>(null);
@@ -242,6 +244,7 @@ export default function DetalhesEventoScreen() {
   const [removeParticipationConvite, setRemoveParticipationConvite] = useState<ConviteParticipacaoEventoRow | null>(null);
   const [removeParticipationMotivo, setRemoveParticipationMotivo] = useState('');
   const [removingParticipation, setRemovingParticipation] = useState(false);
+  const [eventUpdatedToastMessage, setEventUpdatedToastMessage] = useState<string | null>(null);
 
   // Obter usuário atual
   useEffect(() => {
@@ -475,6 +478,8 @@ export default function DetalhesEventoScreen() {
   // Recarregar dados quando a tela receber foco (ex: voltar da tela de editar)
   useFocusEffect(
     React.useCallback(() => {
+      const toastMsg = consumePendingEventUpdatedToast();
+      if (toastMsg) setEventUpdatedToastMessage(toastMsg);
       loadEventData(false); // Reload silencioso
     }, [eventId])
   );
@@ -994,6 +999,11 @@ export default function DetalhesEventoScreen() {
         <View style={styles.loadingContainer}>
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Carregando evento...</Text>
         </View>
+        <TransientToast
+          message={eventUpdatedToastMessage}
+          onDismiss={() => setEventUpdatedToastMessage(null)}
+          colors={colors}
+        />
       </SafeAreaView>
     );
   }
@@ -1016,6 +1026,11 @@ export default function DetalhesEventoScreen() {
             O evento solicitado não foi encontrado ou foi removido.
           </Text>
         </View>
+        <TransientToast
+          message={eventUpdatedToastMessage}
+          onDismiss={() => setEventUpdatedToastMessage(null)}
+          colors={colors}
+        />
       </SafeAreaView>
     );
   }
@@ -1668,6 +1683,11 @@ export default function DetalhesEventoScreen() {
         </View>
       </Modal>
 
+      <TransientToast
+        message={eventUpdatedToastMessage}
+        onDismiss={() => setEventUpdatedToastMessage(null)}
+        colors={colors}
+      />
     </SafeAreaView>
   );
 }

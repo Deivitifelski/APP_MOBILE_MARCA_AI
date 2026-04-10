@@ -25,6 +25,7 @@ import {
 } from '../utils/currencyBRLInput';
 import BrazilStatePickerModal, { BrazilStateFieldButton } from '../components/BrazilStatePickerModal';
 import { parseCityUf } from '../lib/brazilGeo';
+import { setPendingEventUpdatedToast } from '../lib/pendingEventUpdatedToast';
 
 interface EventoForm {
   nome: string;
@@ -479,16 +480,8 @@ export default function EditarEventoScreen() {
             );
           }
         }
-        Alert.alert(
-          'Sucesso',
-          'Evento atualizado com sucesso!',
-          [
-            {
-              text: 'OK',
-              onPress: () => router.back(),
-            },
-          ]
-        );
+        setPendingEventUpdatedToast('Evento atualizado com sucesso!');
+        router.back();
       } else {
         const errorDetail =
           typeof result.error === 'string'
