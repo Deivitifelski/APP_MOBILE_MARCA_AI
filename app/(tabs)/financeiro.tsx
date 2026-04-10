@@ -1257,12 +1257,9 @@ export default function FinanceiroScreen() {
                 </View>
 
                 <View style={[styles.annualTotalEventsBanner, { backgroundColor: colors.surface }]}>
-                  <View style={styles.annualTotalEventsLeft}>
-                    <Ionicons name="musical-notes-outline" size={22} color={colors.primary} />
-                    <Text style={[styles.annualTotalEventsLabel, { color: colors.text }]}>
-                      Eventos no ano
-                    </Text>
-                  </View>
+                  <Text style={[styles.annualTotalEventsLabel, { color: colors.textSecondary }]}>
+                    Eventos no ano
+                  </Text>
                   <Text style={[styles.annualTotalEventsValue, { color: colors.text }]}>
                     {yearTotals.eventCount}
                   </Text>
@@ -1280,12 +1277,9 @@ export default function FinanceiroScreen() {
                   </Text>
                 </View>
                 <View style={[styles.annualTotalEventsBanner, { backgroundColor: colors.surface }]}>
-                  <View style={styles.annualTotalEventsLeft}>
-                    <Ionicons name="musical-notes-outline" size={22} color={colors.primary} />
-                    <Text style={[styles.annualTotalEventsLabel, { color: colors.text }]}>
-                      Eventos no ano
-                    </Text>
-                  </View>
+                  <Text style={[styles.annualTotalEventsLabel, { color: colors.textSecondary }]}>
+                    Eventos no ano
+                  </Text>
                   <Text style={[styles.annualTotalEventsValue, { color: colors.text }]}>
                     {yearTotals.eventCount}
                   </Text>
@@ -2010,6 +2004,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     alignSelf: 'stretch',
+    width: '100%',
     marginTop: 12,
     paddingVertical: 16,
     paddingHorizontal: 16,
@@ -2020,23 +2015,16 @@ const styles = StyleSheet.create({
     shadowRadius: Platform.OS === 'android' ? 0 : 3.84,
     elevation: Platform.OS === 'android' ? 0 : 5,
   },
-  annualTotalEventsLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-    minWidth: 0,
-  },
   annualTotalEventsLabel: {
     fontSize: 15,
     fontWeight: '600',
-    flexShrink: 1,
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 12,
   },
   annualTotalEventsValue: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '700',
-    marginLeft: 12,
-    minWidth: 36,
     textAlign: 'right',
   },
   annualMonthCard: {
