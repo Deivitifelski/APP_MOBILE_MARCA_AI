@@ -259,6 +259,34 @@ export const getEventsByMonth = async (artistId: string, year: number, month: nu
   }
 };
 
+/** Eventos ativos do artista entre 1º de jan e 31 de dezem do ano (inclusive). */
+export const getEventsByYear = async (
+  artistId: string,
+  year: number
+): Promise<{ success: boolean; error: string | null; events?: Event[] }> => {
+  try {
+    const startDate = new Date(year, 0, 1).toISOString().split('T')[0];
+    const endDate = new Date(year, 11, 31).toISOString().split('T')[0];
+
+    const { data, error } = await supabase
+      .from('events')
+      .select('*')
+      .eq('artist_id', artistId)
+      .eq('ativo', true)
+      .gte('event_date', startDate)
+      .lte('event_date', endDate)
+      .order('event_date', { ascending: true });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, error: null, events: data || [] };
+  } catch {
+    return { success: false, error: 'Erro de conexão' };
+  }
+};
+
 // Buscar evento por ID (só retorna se ativo = true; evento "deletado" = não encontrado)
 export const getEventById = async (eventId: string): Promise<{ success: boolean; error: string | null; event?: Event }> => {
   try {

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     Alert,
     Clipboard,
@@ -35,8 +35,14 @@ import {
   getArtistMonthRevenueGoal,
   upsertArtistMonthRevenueGoal,
 } from '../../services/supabase/artistMonthRevenueGoalService';
-import { getEventsByMonth } from '../../services/supabase/eventService';
-import { deleteStandaloneExpense, getExpensesByEvent, getStandaloneExpensesByArtist } from '../../services/supabase/expenseService';
+import { getEventsByMonth, getEventsByYear } from '../../services/supabase/eventService';
+import {
+  deleteStandaloneExpense,
+  getExpenseTotalsByEventIds,
+  getExpensesByEvent,
+  getStandaloneExpensesByArtist,
+  getStandaloneExpensesByArtistYear,
+} from '../../services/supabase/expenseService';
 import {
   checkUserSubscriptionFromTable,
   consumeFinancialTrialAction,
@@ -56,11 +62,42 @@ interface EventWithExpenses {
   city?: string;
 }
 
+type FinanceViewMode = 'month' | 'year';
+
+interface YearMonthSummary {
+  monthIndex: number;
+  eventCount: number;
+  revenueFromEvents: number;
+  standaloneIncome: number;
+  eventLinkedExpenses: number;
+  standaloneExpensesPositive: number;
+}
+
+function calendarMonthIndexFromDbDate(dateStr: string | undefined | null): number | null {
+  if (!dateStr || typeof dateStr !== 'string') return null;
+  const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  const month = parseInt(m[2], 10);
+  if (month < 1 || month > 12) return null;
+  return month - 1;
+}
+
+function emptyYearSummaries(): YearMonthSummary[] {
+  return Array.from({ length: 12 }, (_, monthIndex) => ({
+    monthIndex,
+    eventCount: 0,
+    revenueFromEvents: 0,
+    standaloneIncome: 0,
+    eventLinkedExpenses: 0,
+    standaloneExpensesPositive: 0,
+  }));
+}
+
 export default function FinanceiroScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { viewedMonthDate: selectedDate, navigateMonth } = useSharedTabMonth();
+  const { viewedMonthDate: selectedDate, navigateMonth, setViewedMonthDate } = useSharedTabMonth();
   const [events, setEvents] = useState<EventWithExpenses[]>([]);
   const [standaloneExpenses, setStandaloneExpenses] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -82,6 +119,10 @@ export default function FinanceiroScreen() {
     message: string;
     title?: string;
   }>({ visible: false, message: '' });
+
+  const [financeViewMode, setFinanceViewMode] = useState<FinanceViewMode>('month');
+  const [annualSummaryYear, setAnnualSummaryYear] = useState(() => selectedDate.getFullYear());
+  const [yearMonthSummaries, setYearMonthSummaries] = useState<YearMonthSummary[]>(emptyYearSummaries);
 
   const currentMonth = selectedDate.getMonth();
   const currentYear = selectedDate.getFullYear();
@@ -200,36 +241,20 @@ export default function FinanceiroScreen() {
     void loadMonthRevenueGoal();
   }, [loadMonthRevenueGoal]);
 
-  // ✅ Carregar dados financeiros (eventos sempre, valores só com permissão)
-  useEffect(() => {
-    if (activeArtist && hasAccess !== null) {
-      loadFinancialData();
-    }
-  }, [activeArtist, hasAccess, currentMonth, currentYear]);
-
-  // Recarregar ao voltar para a aba (ex.: após adicionar evento, despesa ou receita)
-  useFocusEffect(
-    React.useCallback(() => {
-      if (activeArtist && hasAccess !== null) {
-        loadFinancialData();
-      }
-      if (activeArtist?.id && currentUserId) {
-        void loadMonthRevenueGoal();
-      }
-    }, [activeArtist?.id, hasAccess, currentMonth, currentYear, currentUserId, loadMonthRevenueGoal])
-  );
-
-  const loadFinancialData = async () => {
+  const loadFinancialData = React.useCallback(async () => {
     if (!activeArtist) {
       return;
     }
-    
+
     try {
       setIsLoading(true);
 
-      // Buscar eventos do mês usando o artista ativo
-      const { events: monthEvents, error: eventsError } = await getEventsByMonth(activeArtist.id, currentYear, currentMonth);
-      
+      const { events: monthEvents, error: eventsError } = await getEventsByMonth(
+        activeArtist.id,
+        currentYear,
+        currentMonth
+      );
+
       if (eventsError) {
         if (!maybeShowConnectionError(null, eventsError)) {
           Alert.alert('Erro ao Carregar Eventos', eventsError || 'Não foi possível carregar os eventos do mês.');
@@ -237,32 +262,29 @@ export default function FinanceiroScreen() {
         return;
       }
 
-      // Para cada evento, buscar suas despesas
       const eventsWithExpenses = await Promise.all(
         (monthEvents || []).map(async (event) => {
-          const { success, expenses, error: expensesError } = await getExpensesByEvent(event.id);
-          
+          const { success, expenses } = await getExpensesByEvent(event.id);
+
           const totalExpenses = expenses?.reduce((sum, expense) => sum + expense.value, 0) || 0;
-          
+
           return {
             ...event,
             expenses: expenses || [],
-            totalExpenses
+            totalExpenses,
           };
         })
       );
 
       setEvents(eventsWithExpenses);
 
-      // Buscar transações avulsas do artista (despesas E receitas)
-      const { success: expensesSuccess, expenses: standalone, error: standaloneError } = await getStandaloneExpensesByArtist(
-        activeArtist.id, 
-        currentMonth, 
+      const { success: expensesSuccess, expenses: standalone } = await getStandaloneExpensesByArtist(
+        activeArtist.id,
+        currentMonth,
         currentYear
       );
 
       if (expensesSuccess && standalone) {
-        // Separar despesas (valor > 0) de receitas (valor < 0)
         setStandaloneExpenses(standalone);
       } else {
         setStandaloneExpenses([]);
@@ -281,7 +303,123 @@ export default function FinanceiroScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [activeArtist, currentYear, currentMonth]);
+
+  const loadAnnualFinancialData = React.useCallback(async () => {
+    if (!activeArtist) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+
+      const { events: yearEvents, error: eventsError } = await getEventsByYear(activeArtist.id, annualSummaryYear);
+
+      if (eventsError) {
+        if (!maybeShowConnectionError(null, eventsError)) {
+          Alert.alert('Erro ao Carregar Eventos', eventsError || 'Não foi possível carregar os eventos do ano.');
+        }
+        return;
+      }
+
+      const ids = (yearEvents || []).map((e) => e.id);
+      const { success: totOk, totalsByEventId, error: totErr } = await getExpenseTotalsByEventIds(ids);
+
+      if (!totOk || !totalsByEventId) {
+        if (!maybeShowConnectionError(null, totErr)) {
+          Alert.alert('Erro', totErr || 'Não foi possível carregar despesas dos eventos.');
+        }
+        return;
+      }
+
+      const { success: stOk, expenses: standaloneYear } = await getStandaloneExpensesByArtistYear(
+        activeArtist.id,
+        annualSummaryYear
+      );
+
+      const buckets = emptyYearSummaries();
+
+      for (const event of yearEvents || []) {
+        const mi = calendarMonthIndexFromDbDate(event.event_date);
+        if (mi === null) continue;
+        buckets[mi].eventCount += 1;
+        buckets[mi].revenueFromEvents += event.value || 0;
+        buckets[mi].eventLinkedExpenses += totalsByEventId[event.id] || 0;
+      }
+
+      if (stOk && standaloneYear) {
+        for (const row of standaloneYear) {
+          const mi = calendarMonthIndexFromDbDate(row.date || '');
+          if (mi === null) continue;
+          if (row.value > 0) {
+            buckets[mi].standaloneExpensesPositive += row.value;
+          } else if (row.value < 0) {
+            buckets[mi].standaloneIncome += Math.abs(row.value);
+          }
+        }
+      }
+
+      setYearMonthSummaries(buckets);
+    } catch (error: unknown) {
+      if (!maybeShowConnectionError(error)) {
+        const msg =
+          error && typeof error === 'object' && 'message' in error && typeof (error as { message: unknown }).message === 'string'
+            ? (error as { message: string }).message
+            : '';
+        Alert.alert(
+          'Erro ao Carregar Finanças',
+          msg || 'Ocorreu um erro inesperado ao carregar o resumo anual. Tente novamente.',
+        );
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [activeArtist, annualSummaryYear]);
+
+  // ✅ Carregar dados financeiros (mês ou ano)
+  useEffect(() => {
+    if (!activeArtist || hasAccess === null) return;
+    if (financeViewMode === 'month') {
+      void loadFinancialData();
+    } else {
+      void loadAnnualFinancialData();
+    }
+  }, [
+    activeArtist,
+    hasAccess,
+    financeViewMode,
+    currentMonth,
+    currentYear,
+    annualSummaryYear,
+    loadFinancialData,
+    loadAnnualFinancialData,
+  ]);
+
+  // Recarregar ao voltar para a aba (ex.: após adicionar evento, despesa ou receita)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!activeArtist || hasAccess === null) return;
+      if (financeViewMode === 'month') {
+        void loadFinancialData();
+        if (activeArtist.id && currentUserId) {
+          void loadMonthRevenueGoal();
+        }
+      } else {
+        void loadAnnualFinancialData();
+      }
+    }, [
+      activeArtist?.id,
+      hasAccess,
+      financeViewMode,
+      currentMonth,
+      currentYear,
+      annualSummaryYear,
+      currentUserId,
+      loadMonthRevenueGoal,
+      loadFinancialData,
+      loadAnnualFinancialData,
+    ])
+  );
 
   const formatCurrency = (value: number) => {
     return value.toLocaleString('pt-BR', {
@@ -660,6 +798,27 @@ export default function FinanceiroScreen() {
       ? Math.min(999, Math.round((totalRevenueWithIncome / monthRevenueGoal) * 100))
       : 0;
 
+  const yearTotals = useMemo(() => {
+    return yearMonthSummaries.reduce(
+      (acc, m) => {
+        const revenue = m.revenueFromEvents + m.standaloneIncome;
+        const expenses = m.eventLinkedExpenses + m.standaloneExpensesPositive;
+        return {
+          eventCount: acc.eventCount + m.eventCount,
+          totalRevenue: acc.totalRevenue + revenue,
+          totalExpenses: acc.totalExpenses + expenses,
+          netProfit: acc.netProfit + (revenue - expenses),
+        };
+      },
+      { eventCount: 0, totalRevenue: 0, totalExpenses: 0, netProfit: 0 }
+    );
+  }, [yearMonthSummaries]);
+
+  const goToMonthFromAnnual = (monthIndex: number) => {
+    setViewedMonthDate(new Date(annualSummaryYear, monthIndex, 1));
+    setFinanceViewMode('month');
+  };
+
   const openGoalModal = () => {
     setGoalInputText(
       monthRevenueGoal != null && monthRevenueGoal > 0
@@ -931,7 +1090,6 @@ export default function FinanceiroScreen() {
           <Text style={[styles.title, { color: colors.text }]}>Financeiro</Text>
           
           <View style={styles.headerButtons}>
-            {/* Botão de exportação - apenas para owners e editors */}
             {hasAccess && events.length > 0 && (
               <TouchableOpacity
                 style={styles.headerIconButton}
@@ -945,8 +1103,7 @@ export default function FinanceiroScreen() {
               </TouchableOpacity>
             )}
 
-            {/* Botão Adicionar - apenas editor, admin e owner (bloqueado para visualizador) */}
-            {hasAccess && (
+            {financeViewMode === 'month' && hasAccess && (
               <TouchableOpacity
                 style={styles.headerIconButton}
                 onPress={() => setShowAddModal(true)}
@@ -956,24 +1113,252 @@ export default function FinanceiroScreen() {
             )}
           </View>
         </View>
+
+        <View style={[styles.modeToggleRow, { backgroundColor: colors.background }]}>
+          <TouchableOpacity
+            style={[
+              styles.modeTogglePill,
+              financeViewMode === 'month' && { backgroundColor: colors.primary },
+            ]}
+            onPress={() => setFinanceViewMode('month')}
+            activeOpacity={0.85}
+          >
+            <Ionicons
+              name="calendar-outline"
+              size={18}
+              color={financeViewMode === 'month' ? '#fff' : colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.modeToggleLabel,
+                { color: financeViewMode === 'month' ? '#fff' : colors.textSecondary },
+              ]}
+            >
+              Mês
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.modeTogglePill,
+              financeViewMode === 'year' && { backgroundColor: colors.primary },
+            ]}
+            onPress={() => {
+              setAnnualSummaryYear(selectedDate.getFullYear());
+              setFinanceViewMode('year');
+            }}
+            activeOpacity={0.85}
+          >
+            <Ionicons
+              name="albums-outline"
+              size={18}
+              color={financeViewMode === 'year' ? '#fff' : colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.modeToggleLabel,
+                { color: financeViewMode === 'year' ? '#fff' : colors.textSecondary },
+              ]}
+            >
+              Ano
+            </Text>
+          </TouchableOpacity>
+        </View>
         
-        {/* Navegação de mês */}
         <View style={[styles.monthNavigation, { backgroundColor: colors.background }]}>
-          <TouchableOpacity onPress={() => navigateMonth('prev')} style={styles.navButton}>
-            <Ionicons name="chevron-back" size={24} color={colors.primary} />
-          </TouchableOpacity>
-          
-          <Text style={[styles.monthText, { color: colors.text }]}>
-            {months[currentMonth]} {currentYear}
-          </Text>
-          
-          <TouchableOpacity onPress={() => navigateMonth('next')} style={styles.navButton}>
-            <Ionicons name="chevron-forward" size={24} color={colors.primary} />
-          </TouchableOpacity>
+          {financeViewMode === 'month' ? (
+            <>
+              <TouchableOpacity onPress={() => navigateMonth('prev')} style={styles.navButton}>
+                <Ionicons name="chevron-back" size={24} color={colors.primary} />
+              </TouchableOpacity>
+              <Text style={[styles.monthText, { color: colors.text }]}>
+                {months[currentMonth]} {currentYear}
+              </Text>
+              <TouchableOpacity onPress={() => navigateMonth('next')} style={styles.navButton}>
+                <Ionicons name="chevron-forward" size={24} color={colors.primary} />
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <TouchableOpacity
+                onPress={() => setAnnualSummaryYear((y) => y - 1)}
+                style={styles.navButton}
+              >
+                <Ionicons name="chevron-back" size={24} color={colors.primary} />
+              </TouchableOpacity>
+              <Text style={[styles.monthText, { color: colors.text }]}>{annualSummaryYear}</Text>
+              <TouchableOpacity
+                onPress={() => setAnnualSummaryYear((y) => y + 1)}
+                style={styles.navButton}
+              >
+                <Ionicons name="chevron-forward" size={24} color={colors.primary} />
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </View>
 
       <ScrollView style={[styles.content, { backgroundColor: colors.background }]}>
+        {financeViewMode === 'year' ? (
+          <>
+            <Text style={[styles.sectionTitle, { color: colors.text, paddingHorizontal: 20, marginBottom: 4 }]}>
+              Resumo de {annualSummaryYear}
+            </Text>
+            <Text style={[styles.annualHint, { color: colors.textSecondary }]}>
+              Toque em um mês para ver o financeiro daquele mês
+            </Text>
+
+            {hasAccess ? (
+              <View style={styles.summaryContainer}>
+                <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
+                  <Text style={[styles.summaryLabel, { color: colors.textSecondary }]} numberOfLines={1}>
+                    Lucro líquido no ano
+                  </Text>
+                  <Text
+                    style={[
+                      styles.summaryValue,
+                      { color: yearTotals.netProfit >= 0 ? colors.success : colors.error },
+                    ]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.6}
+                  >
+                    {formatCurrency(yearTotals.netProfit)}
+                  </Text>
+                </View>
+
+                <View style={styles.summaryRow}>
+                  <View style={[styles.summaryItem, { backgroundColor: colors.surface }]}>
+                    <Text style={[styles.summaryItemLabel, { color: colors.textSecondary }]} numberOfLines={1}>
+                      Receitas no ano
+                    </Text>
+                    <Text
+                      style={[styles.summaryItemValue, { color: colors.success }]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.7}
+                    >
+                      {formatCurrency(yearTotals.totalRevenue)}
+                    </Text>
+                  </View>
+
+                  <View style={[styles.summaryItem, { backgroundColor: colors.surface }]}>
+                    <Text style={[styles.summaryItemLabel, { color: colors.textSecondary }]} numberOfLines={1}>
+                      Despesas no ano
+                    </Text>
+                    <Text
+                      style={[styles.summaryItemValue, { color: colors.error }]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.7}
+                    >
+                      {formatCurrency(yearTotals.totalExpenses)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={[styles.annualTotalEventsBanner, { backgroundColor: colors.surface }]}>
+                  <View style={styles.annualTotalEventsLeft}>
+                    <Ionicons name="musical-notes-outline" size={22} color={colors.primary} />
+                    <Text style={[styles.annualTotalEventsLabel, { color: colors.text }]}>
+                      Eventos no ano
+                    </Text>
+                  </View>
+                  <Text style={[styles.annualTotalEventsValue, { color: colors.text }]}>
+                    {yearTotals.eventCount}
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.summaryContainer}>
+                <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
+                  <Ionicons name="lock-closed" size={32} color={colors.textSecondary} style={{ marginBottom: 8 }} />
+                  <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+                    Valores financeiros ocultos
+                  </Text>
+                  <Text style={[styles.lockedSubtext, { color: colors.textSecondary }]}>
+                    Apenas gerentes e editores podem visualizar valores. Abaixo, quantidade de eventos por mês.
+                  </Text>
+                </View>
+                <View style={[styles.annualTotalEventsBanner, { backgroundColor: colors.surface }]}>
+                  <View style={styles.annualTotalEventsLeft}>
+                    <Ionicons name="musical-notes-outline" size={22} color={colors.primary} />
+                    <Text style={[styles.annualTotalEventsLabel, { color: colors.text }]}>
+                      Eventos no ano
+                    </Text>
+                  </View>
+                  <Text style={[styles.annualTotalEventsValue, { color: colors.text }]}>
+                    {yearTotals.eventCount}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {isLoading ? (
+              <View style={styles.loadingContainer}>
+                <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+                  Carregando resumo do ano...
+                </Text>
+              </View>
+            ) : (
+              <View style={[styles.eventsSection, { paddingTop: 4 }]}>
+                {yearMonthSummaries.map((row) => {
+                  const totalRev = row.revenueFromEvents + row.standaloneIncome;
+                  const totalExp = row.eventLinkedExpenses + row.standaloneExpensesPositive;
+                  const net = totalRev - totalExp;
+                  const hasData = row.eventCount > 0 || totalRev > 0 || totalExp > 0;
+                  return (
+                    <TouchableOpacity
+                      key={row.monthIndex}
+                      style={[styles.annualMonthCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                      onPress={() => goToMonthFromAnnual(row.monthIndex)}
+                      activeOpacity={0.75}
+                    >
+                      <View style={styles.annualMonthCardHeader}>
+                        <Text style={[styles.annualMonthName, { color: colors.text }]}>{months[row.monthIndex]}</Text>
+                        <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+                      </View>
+                      <Text style={[styles.annualMonthStat, { color: colors.textSecondary }]}>
+                        {row.eventCount} evento{row.eventCount !== 1 ? 's' : ''}
+                        {hasAccess && hasData
+                          ? ` · Líquido ${formatCurrency(net)}`
+                          : ''}
+                      </Text>
+                      {hasAccess && hasData ? (
+                        <View style={styles.annualMonthNumbers}>
+                          <View style={styles.annualMonthNumberCol}>
+                            <Text style={[styles.annualMonthNumLabel, { color: colors.textSecondary }]}>
+                              Receitas
+                            </Text>
+                            <Text style={[styles.annualMonthNumValue, { color: colors.success }]}>
+                              {formatCurrency(totalRev)}
+                            </Text>
+                          </View>
+                          <View style={styles.annualMonthNumberCol}>
+                            <Text style={[styles.annualMonthNumLabel, { color: colors.textSecondary }]}>
+                              Despesas
+                            </Text>
+                            <Text style={[styles.annualMonthNumValue, { color: colors.error }]}>
+                              {formatCurrency(totalExp)}
+                            </Text>
+                          </View>
+                        </View>
+                      ) : !hasData ? (
+                        <Text style={[styles.annualMonthEmpty, { color: colors.textSecondary }]}>
+                          Sem movimentação neste mês
+                        </Text>
+                      ) : (
+                        <Text style={[styles.annualMonthEmpty, { color: colors.textSecondary }]}>
+                          Toque para ver o mês na agenda e no financeiro
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </>
+        ) : (
+          <>
         {/* Resumo financeiro */}
         {hasAccess ? (
           <View style={styles.summaryContainer}>
@@ -1256,6 +1641,8 @@ export default function FinanceiroScreen() {
               </View>
             )}
           </View>
+        )}
+          </>
         )}
 
       </ScrollView>
@@ -1591,6 +1978,105 @@ const styles = StyleSheet.create({
   monthText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  modeToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 4,
+    marginBottom: 8,
+  },
+  modeTogglePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+  },
+  modeToggleLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  annualHint: {
+    fontSize: 13,
+    paddingHorizontal: 20,
+    marginBottom: 12,
+    lineHeight: 18,
+  },
+  annualTotalEventsBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    alignSelf: 'stretch',
+    marginTop: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: Platform.OS === 'android' ? 16 : 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: Platform.OS === 'android' ? 4 : 2 },
+    shadowOpacity: Platform.OS === 'android' ? 0 : 0.1,
+    shadowRadius: Platform.OS === 'android' ? 0 : 3.84,
+    elevation: Platform.OS === 'android' ? 0 : 5,
+  },
+  annualTotalEventsLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+    minWidth: 0,
+  },
+  annualTotalEventsLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  annualTotalEventsValue: {
+    fontSize: 22,
+    fontWeight: '700',
+    marginLeft: 12,
+    minWidth: 36,
+    textAlign: 'right',
+  },
+  annualMonthCard: {
+    marginBottom: 10,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  annualMonthCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  annualMonthName: {
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  annualMonthStat: {
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  annualMonthNumbers: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  annualMonthNumberCol: {
+    flex: 1,
+  },
+  annualMonthNumLabel: {
+    fontSize: 11,
+    marginBottom: 2,
+  },
+  annualMonthNumValue: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  annualMonthEmpty: {
+    fontSize: 13,
+    fontStyle: 'italic',
   },
   loadingContainer: {
     flex: 1,
