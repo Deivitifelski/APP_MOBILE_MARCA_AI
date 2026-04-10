@@ -248,6 +248,9 @@ export default function FinanceiroInsightsScreen() {
             </>
           ) : null}
         </Text>
+        <Text style={[styles.rankingScopeNote, { color: colors.textSecondary }]}>
+          Sem cidade e sem UF: não entram no top cidade nem no top estado.
+        </Text>
 
         <ScrollView
           horizontal
@@ -817,6 +820,12 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   scroll: { padding: 16, paddingBottom: Platform.OS === 'ios' ? 40 : 24 },
   hint: { fontSize: 13, lineHeight: 19, marginBottom: 14 },
+  rankingScopeNote: {
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: -8,
+    marginBottom: 10,
+  },
   chipsRow: { flexDirection: 'row', gap: 8, paddingBottom: 14, flexWrap: 'nowrap' },
   chip: {
     paddingHorizontal: 14,

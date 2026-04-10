@@ -592,6 +592,7 @@ export interface EventWithRole {
   end_time: string;
   value?: number | null; // NULL para viewer
   city?: string;
+  state_uf?: string | null;
   contractor_phone?: string;
   confirmed: boolean;
   tag: 'ensaio' | 'evento' | 'reunião';

@@ -27,6 +27,7 @@ import TransientToast from '../../components/TransientToast';
 import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
 import { useSharedTabMonth } from '../../contexts/SharedTabMonthContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { formatEventLocationSlash } from '../../lib/brazilGeo';
 import { supabase } from '../../lib/supabase';
 import { setAppIconBadge } from '../../services/appIconBadge';
 import { artistImageUpdateService } from '../../services/artistImageUpdateService';
@@ -1261,7 +1262,11 @@ export default function AgendaScreen() {
         : '';
     const metaLineParts: string[] = [];
     if (timeRange) metaLineParts.push(timeRange);
-    if (item.city?.trim()) metaLineParts.push(item.city.trim());
+    const locationLine = formatEventLocationSlash({
+      city: item.city,
+      state_uf: item.state_uf,
+    });
+    if (locationLine) metaLineParts.push(locationLine);
     const metaLine = metaLineParts.join(' · ');
 
     return (

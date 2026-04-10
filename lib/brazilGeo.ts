@@ -68,3 +68,35 @@ export function parseCityUf(raw: string | null | undefined): { cityLabel: string
   }
   return { cityLabel: t, uf: null };
 }
+
+/**
+ * Linha de local para cards (agenda): `Cidade/UF` se ambos; senão só cidade ou só UF.
+ * Evita duplicar UF quando `city` já termina com `/UF` e `state_uf` coincide.
+ */
+export function formatEventLocationSlash(ev: {
+  city?: string | null;
+  state_uf?: string | null;
+}): string {
+  const uf =
+    ev.state_uf != null && String(ev.state_uf).trim()
+      ? String(ev.state_uf).trim().toUpperCase().slice(0, 2)
+      : '';
+  let city = (ev.city || '').trim();
+
+  if (uf && city) {
+    const upper = city.toUpperCase();
+    if (upper.endsWith(`/${uf}`)) {
+      city = city.slice(0, -(uf.length + 1)).trim();
+    } else {
+      const p = parseCityUf(city);
+      if (p.uf === uf && p.cityLabel) {
+        city = p.cityLabel;
+      }
+    }
+  }
+
+  if (city && uf) return `${city}/${uf}`;
+  if (city) return city;
+  if (uf) return uf;
+  return '';
+}
