@@ -288,6 +288,44 @@ export const getExpenseTotalsByEventIds = async (
   }
 };
 
+/** Todas as despesas vinculadas a eventos, agrupadas por `event_id` (para relatórios em lote). */
+export const getExpensesGroupedByEventIds = async (
+  eventIds: string[]
+): Promise<{ success: boolean; error: string | null; byEventId?: Record<string, Expense[]> }> => {
+  try {
+    const unique = [...new Set(eventIds.filter(Boolean))];
+    const byEventId: Record<string, Expense[]> = {};
+
+    if (unique.length === 0) {
+      return { success: true, error: null, byEventId };
+    }
+
+    for (let i = 0; i < unique.length; i += EXPENSE_IN_CHUNK) {
+      const chunk = unique.slice(i, i + EXPENSE_IN_CHUNK);
+      const { data, error } = await supabase
+        .from('event_expenses')
+        .select('*')
+        .in('event_id', chunk)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      for (const row of data || []) {
+        const eid = row.event_id as string | null;
+        if (!eid) continue;
+        if (!byEventId[eid]) byEventId[eid] = [];
+        byEventId[eid].push(row as Expense);
+      }
+    }
+
+    return { success: true, error: null, byEventId };
+  } catch {
+    return { success: false, error: 'Erro de conexão' };
+  }
+};
+
 // Deletar despesa avulsa
 export const deleteStandaloneExpense = async (expenseId: string): Promise<{ success: boolean; error: string | null }> => {
   try {

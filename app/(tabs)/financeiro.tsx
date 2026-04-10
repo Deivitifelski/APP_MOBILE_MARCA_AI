@@ -29,7 +29,11 @@ import {
 } from '../../utils/currencyBRLInput';
 import { supabase } from '../../lib/supabase';
 import { getCurrentUser } from '../../services/supabase/authService';
-import { generateFinancialReport } from '../../services/financialReportService';
+import {
+  generateFinancialReport,
+  generateYearlyFinancialReport,
+  type YearlyReportMonthBlock,
+} from '../../services/financialReportService';
 import {
   deleteArtistMonthRevenueGoal,
   getArtistMonthRevenueGoal,
@@ -40,6 +44,7 @@ import {
   deleteStandaloneExpense,
   getExpenseTotalsByEventIds,
   getExpensesByEvent,
+  getExpensesGroupedByEventIds,
   getStandaloneExpensesByArtist,
   getStandaloneExpensesByArtistYear,
 } from '../../services/supabase/expenseService';
@@ -578,8 +583,13 @@ export default function FinanceiroScreen() {
   };
 
   const handleExportFinancialReport = async () => {
-    if (!activeArtist || events.length === 0) {
+    if (!activeArtist) return;
+    if (financeViewMode === 'month' && events.length === 0) {
       Alert.alert('Aviso', 'Não há eventos para exportar neste mês.');
+      return;
+    }
+    if (financeViewMode === 'year' && !yearHasExportableData) {
+      Alert.alert('Aviso', 'Não há movimentação neste ano para exportar.');
       return;
     }
 
@@ -611,45 +621,77 @@ export default function FinanceiroScreen() {
     if (!(await consumeExportTrialIfNeeded(user.id))) return;
 
     setShowExportModal(false);
-    
-    // Separar despesas (valor > 0) e receitas (valor < 0)
-    const standaloneExpensesOnly = standaloneExpenses.filter(item => item.value > 0);
-    const standaloneIncome = standaloneExpenses.filter(item => item.value < 0);
-    
+
     try {
+      if (financeViewMode === 'year') {
+        const blocks = await fetchYearExportBlocks();
+        if (!blocks) return;
+        const hasAny = blocks.some(
+          (b) =>
+            b.events.length > 0 || b.standaloneIncome.length > 0 || b.standaloneExpenses.length > 0
+        );
+        if (!hasAny) {
+          Alert.alert('Aviso', 'Não há dados neste ano para exportar.');
+          return;
+        }
+        const result = await generateYearlyFinancialReport({
+          year: annualSummaryYear,
+          artistName: activeArtist.name,
+          includeFinancials,
+          months: blocks,
+        });
+        if (result.success && result.uri) {
+          await Sharing.shareAsync(result.uri, {
+            mimeType: 'application/pdf',
+            dialogTitle: 'Compartilhar relatório anual',
+            UTI: 'com.adobe.pdf',
+          });
+        } else {
+          Alert.alert('Erro', result.error || 'Não foi possível gerar o PDF');
+        }
+        return;
+      }
+
+      const standaloneExpensesOnly = standaloneExpenses.filter((item) => item.value > 0);
+      const standaloneIncome = standaloneExpenses.filter((item) => item.value < 0);
+
       const result = await generateFinancialReport({
         events,
         month: currentMonth,
         year: currentYear,
         artistName: activeArtist.name,
         includeFinancials,
-        standaloneIncome: standaloneIncome.map(item => ({
+        standaloneIncome: standaloneIncome.map((item) => ({
           id: item.id,
           description: item.description,
           value: item.value,
           date: item.date,
-          category: item.category
+          category: item.category,
         })),
-        standaloneExpenses: standaloneExpensesOnly.map(item => ({
+        standaloneExpenses: standaloneExpensesOnly.map((item) => ({
           id: item.id,
           description: item.description,
           value: item.value,
           date: item.date,
-          category: item.category
-        }))
+          category: item.category,
+        })),
       });
-      
+
       if (result.success && result.uri) {
         await Sharing.shareAsync(result.uri, {
           mimeType: 'application/pdf',
           dialogTitle: 'Compartilhar Relatório Financeiro',
-          UTI: 'com.adobe.pdf'
+          UTI: 'com.adobe.pdf',
         });
       } else {
         Alert.alert('Erro', result.error || 'Não foi possível gerar o PDF');
       }
-    } catch (error: any) {
-      Alert.alert('Erro', error?.message || 'Erro ao gerar o documento');
+    } catch (error: unknown) {
+      const msg =
+        error && typeof error === 'object' && 'message' in error
+          ? String((error as { message: unknown }).message)
+          : 'Erro ao gerar o documento';
+      Alert.alert('Erro', msg);
     }
   };
 
@@ -682,6 +724,93 @@ export default function FinanceiroScreen() {
         currency: 'BRL'
       });
     };
+
+    if (financeViewMode === 'year') {
+      const blocks = await fetchYearExportBlocks();
+      if (!blocks) return;
+      const hasAny = blocks.some(
+        (b) =>
+          b.events.length > 0 || b.standaloneIncome.length > 0 || b.standaloneExpenses.length > 0
+      );
+      if (!hasAny) {
+        Alert.alert('Aviso', 'Não há dados neste ano para copiar.');
+        return;
+      }
+
+      let yearText = `📊 RELATÓRIO FINANCEIRO — ANO ${annualSummaryYear}\n`;
+      yearText += `${activeArtist.name.toUpperCase()}\n`;
+      yearText += `Gerado: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}\n`;
+      yearText += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+      let yRev = 0;
+      let yExp = 0;
+      for (const block of blocks) {
+        for (const ev of block.events) {
+          yRev += ev.value || 0;
+          yExp += ev.totalExpenses;
+        }
+        yRev += block.standaloneIncome.reduce((s, i) => s + Math.abs(i.value), 0);
+        yExp += block.standaloneExpenses.reduce((s, e) => s + e.value, 0);
+      }
+
+      for (const block of blocks) {
+        const mName = months[block.monthIndex];
+        yearText += `▶ ${mName} ${annualSummaryYear}\n`;
+        const has =
+          block.events.length > 0 ||
+          block.standaloneIncome.length > 0 ||
+          block.standaloneExpenses.length > 0;
+        if (!has) {
+          yearText += `   (sem movimentação)\n\n`;
+          continue;
+        }
+
+        if (includeFinancials) {
+          block.events.forEach((event, index) => {
+            yearText += `   ${index + 1}. ${event.name} — ${formatDate(event.event_date)}\n`;
+            if (event.city) yearText += `      Local: ${event.city}\n`;
+            yearText += `      Receita: ${formatCurrency(event.value || 0)}\n`;
+            yearText += `      Despesas: ${formatCurrency(event.totalExpenses)}\n`;
+            yearText += `      Líquido: ${formatCurrency((event.value || 0) - event.totalExpenses)}\n`;
+          });
+          if (block.standaloneIncome.length > 0) {
+            yearText += `   💵 Receitas avulsas:\n`;
+            block.standaloneIncome.forEach((inc) => {
+              yearText += `      • ${inc.description} — ${formatCurrency(Math.abs(inc.value))} (${formatDate(inc.date)})\n`;
+            });
+          }
+          if (block.standaloneExpenses.length > 0) {
+            yearText += `   💸 Despesas avulsas:\n`;
+            block.standaloneExpenses.forEach((ex) => {
+              yearText += `      • ${ex.description} — ${formatCurrency(ex.value)} (${formatDate(ex.date)})\n`;
+            });
+          }
+        } else {
+          block.events.forEach((event, index) => {
+            yearText += `   ${index + 1}. ${event.name}\n`;
+            yearText += `      ${getDayOfWeek(event.event_date)}, ${formatDate(event.event_date)}\n`;
+            if (event.city) yearText += `      📍 ${event.city}\n`;
+          });
+        }
+        yearText += `\n`;
+      }
+
+      if (includeFinancials) {
+        yearText += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        yearText += `💰 RESUMO DO ANO ${annualSummaryYear}\n`;
+        yearText += `Receitas totais: ${formatCurrency(yRev)}\n`;
+        yearText += `Despesas totais: ${formatCurrency(yExp)}\n`;
+        yearText += `Lucro líquido: ${formatCurrency(yRev - yExp)}\n`;
+      }
+
+      yearText += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+      yearText += `Marca AI - Gestão de Shows\n`;
+      yearText += includeFinancials ? `Relatório anual completo` : `Relatório anual sem valores`;
+
+      Clipboard.setString(yearText);
+      Alert.alert('✅ Copiado!', 'Relatório anual copiado para a área de transferência. Cole em qualquer aplicativo de mensagem.');
+      return;
+    }
 
     let text = `📊 RELATÓRIO FINANCEIRO\n`;
     text += `${activeArtist.name.toUpperCase()}\n`;
@@ -814,6 +943,81 @@ export default function FinanceiroScreen() {
       { eventCount: 0, totalRevenue: 0, totalExpenses: 0, netProfit: 0 }
     );
   }, [yearMonthSummaries]);
+
+  const yearHasExportableData = useMemo(() => {
+    return yearMonthSummaries.some(
+      (r) =>
+        r.eventCount > 0 ||
+        r.revenueFromEvents + r.standaloneIncome + r.eventLinkedExpenses + r.standaloneExpensesPositive > 0
+    );
+  }, [yearMonthSummaries]);
+
+  const fetchYearExportBlocks = React.useCallback(async (): Promise<YearlyReportMonthBlock[] | null> => {
+    if (!activeArtist) return null;
+    const y = annualSummaryYear;
+    const { events: yearEvents, error: evErr } = await getEventsByYear(activeArtist.id, y);
+    if (evErr) {
+      if (!maybeShowConnectionError(null, evErr)) {
+        Alert.alert('Erro', evErr || 'Não foi possível carregar os eventos do ano.');
+      }
+      return null;
+    }
+    const list = yearEvents || [];
+    const ids = list.map((e) => e.id);
+    const { success, byEventId, error: grpErr } = await getExpensesGroupedByEventIds(ids);
+    if (!success || !byEventId) {
+      if (!maybeShowConnectionError(null, grpErr)) {
+        Alert.alert('Erro', grpErr || 'Não foi possível carregar despesas dos eventos.');
+      }
+      return null;
+    }
+
+    const eventsWithExpenses: EventWithExpenses[] = list.map((event) => {
+      const expList = byEventId[event.id] || [];
+      const totalExpenses = expList.reduce((s, e) => s + (e.value || 0), 0);
+      return {
+        ...event,
+        expenses: expList.map((e) => ({
+          ...e,
+          name: (e.name || e.description || 'Despesa').trim(),
+        })),
+        totalExpenses,
+      };
+    });
+
+    const { success: stOk, expenses: standaloneYear } = await getStandaloneExpensesByArtistYear(
+      activeArtist.id,
+      y
+    );
+    const standalone = stOk && standaloneYear ? standaloneYear : [];
+
+    const mapTx = (item: (typeof standalone)[0]) => ({
+      id: item.id,
+      description: item.description || '',
+      value: item.value,
+      date: item.date || '',
+      category: item.category,
+    });
+
+    const blocks: YearlyReportMonthBlock[] = [];
+    for (let m = 0; m < 12; m++) {
+      const monthEvents = eventsWithExpenses.filter(
+        (e) => calendarMonthIndexFromDbDate(e.event_date) === m
+      );
+      const monthStandalone = standalone.filter(
+        (row) => calendarMonthIndexFromDbDate(row.date || '') === m
+      );
+      const inc = monthStandalone.filter((r) => r.value < 0).map(mapTx);
+      const exp = monthStandalone.filter((r) => r.value > 0).map(mapTx);
+      blocks.push({
+        monthIndex: m,
+        events: monthEvents,
+        standaloneIncome: inc,
+        standaloneExpenses: exp,
+      });
+    }
+    return blocks;
+  }, [activeArtist, annualSummaryYear]);
 
   const goToMonthFromAnnual = (monthIndex: number) => {
     setViewedMonthDate(new Date(annualSummaryYear, monthIndex, 1));
@@ -1091,7 +1295,9 @@ export default function FinanceiroScreen() {
           <Text style={[styles.title, { color: colors.text }]}>Financeiro</Text>
           
           <View style={styles.headerButtons}>
-            {hasAccess && events.length > 0 && (
+            {hasAccess &&
+              ((financeViewMode === 'month' && events.length > 0) ||
+                (financeViewMode === 'year' && yearHasExportableData)) && (
               <TouchableOpacity
                 style={styles.headerIconButton}
                 onPress={handleExportFinancialReport}
@@ -1309,42 +1515,56 @@ export default function FinanceiroScreen() {
                       activeOpacity={0.75}
                     >
                       <View style={styles.annualMonthCardHeader}>
-                        <Text style={[styles.annualMonthName, { color: colors.text }]}>{months[row.monthIndex]}</Text>
-                        <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+                        <View style={styles.annualMonthTitleGroup}>
+                          <Text style={[styles.annualMonthName, { color: colors.text }]}>
+                            {months[row.monthIndex]}
+                          </Text>
+                          <View
+                            style={[
+                              styles.annualMonthEventBadge,
+                              { backgroundColor: colors.background, borderColor: colors.border },
+                            ]}
+                          >
+                            <Text style={[styles.annualMonthEventBadgeText, { color: colors.textSecondary }]}>
+                              {row.eventCount} {row.eventCount === 1 ? 'evento' : 'eventos'}
+                            </Text>
+                          </View>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
                       </View>
-                      <Text style={[styles.annualMonthStat, { color: colors.textSecondary }]}>
-                        {row.eventCount} evento{row.eventCount !== 1 ? 's' : ''}
-                      </Text>
+
                       {hasAccess && hasData ? (
-                        <View style={styles.annualMonthNumbers}>
-                          <View style={styles.annualMonthNumberCol}>
-                            <Text style={[styles.annualMonthNumLabel, { color: colors.textSecondary }]}>
-                              Receitas
-                            </Text>
-                            <Text style={[styles.annualMonthNumValue, { color: receitaAzul }]}>
-                              {formatCurrency(totalRev)}
-                            </Text>
-                          </View>
-                          <View style={styles.annualMonthNumberCol}>
-                            <Text style={[styles.annualMonthNumLabel, { color: colors.textSecondary }]}>
-                              Despesas
-                            </Text>
-                            <Text style={[styles.annualMonthNumValue, { color: colors.error }]}>
-                              {formatCurrency(totalExp)}
-                            </Text>
-                          </View>
-                          <View style={styles.annualMonthNumberCol}>
-                            <Text style={[styles.annualMonthNumLabel, { color: colors.textSecondary }]}>
-                              Líquido
-                            </Text>
-                            <Text
-                              style={[
-                                styles.annualMonthNumValue,
-                                { color: net >= 0 ? colors.success : colors.error },
-                              ]}
-                            >
-                              {formatCurrency(net)}
-                            </Text>
+                        <View style={[styles.annualMonthNumbersWrap, { borderTopColor: colors.border }]}>
+                          <View style={styles.annualMonthNumbers}>
+                            <View style={styles.annualMonthNumberCol}>
+                              <Text style={[styles.annualMonthNumLabel, { color: colors.textSecondary }]}>
+                                Receitas
+                              </Text>
+                              <Text style={[styles.annualMonthNumValue, { color: receitaAzul }]}>
+                                {formatCurrency(totalRev)}
+                              </Text>
+                            </View>
+                            <View style={styles.annualMonthNumberCol}>
+                              <Text style={[styles.annualMonthNumLabel, { color: colors.textSecondary }]}>
+                                Despesas
+                              </Text>
+                              <Text style={[styles.annualMonthNumValue, { color: colors.error }]}>
+                                {formatCurrency(totalExp)}
+                              </Text>
+                            </View>
+                            <View style={styles.annualMonthNumberCol}>
+                              <Text style={[styles.annualMonthNumLabel, { color: colors.textSecondary }]}>
+                                Líquido
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.annualMonthNumValue,
+                                  { color: net >= 0 ? colors.success : colors.error },
+                                ]}
+                              >
+                                {formatCurrency(net)}
+                              </Text>
+                            </View>
                           </View>
                         </View>
                       ) : !hasData ? (
@@ -1816,13 +2036,17 @@ export default function FinanceiroScreen() {
               <View style={styles.exportInfoRow}>
                 <Ionicons name="calendar-outline" size={18} color={colors.primary} />
                 <Text style={[styles.exportInfoText, { color: colors.text }]}>
-                  {months[currentMonth]} de {currentYear}
+                  {financeViewMode === 'year'
+                    ? `Ano ${annualSummaryYear} (todos os meses)`
+                    : `${months[currentMonth]} de ${currentYear}`}
                 </Text>
               </View>
               <View style={styles.exportInfoRow}>
                 <Ionicons name="musical-notes-outline" size={18} color={colors.primary} />
                 <Text style={[styles.exportInfoText, { color: colors.text }]}>
-                  {events.length} evento{events.length !== 1 ? 's' : ''}
+                  {financeViewMode === 'year'
+                    ? `${yearTotals.eventCount} evento${yearTotals.eventCount !== 1 ? 's' : ''} no ano`
+                    : `${events.length} evento${events.length !== 1 ? 's' : ''}`}
                 </Text>
               </View>
               {activeArtist && (
@@ -1854,7 +2078,9 @@ export default function FinanceiroScreen() {
                       Com Valores Financeiros
                     </Text>
                     <Text style={[styles.exportOptionDescription, { color: colors.textSecondary }]}>
-                      PDF completo com receitas, despesas e lucros
+                      {financeViewMode === 'year'
+                        ? 'PDF do ano, mês a mês, com receitas, despesas e lucros'
+                        : 'PDF completo com receitas, despesas e lucros'}
                     </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
@@ -1872,7 +2098,9 @@ export default function FinanceiroScreen() {
                       Sem Valores Financeiros
                     </Text>
                     <Text style={[styles.exportOptionDescription, { color: colors.textSecondary }]}>
-                      PDF apenas com agenda e locais dos eventos
+                      {financeViewMode === 'year'
+                        ? 'PDF do ano por mês: nomes, datas e cidades (sem valores)'
+                        : 'PDF apenas com agenda e locais dos eventos'}
                     </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
@@ -2039,8 +2267,8 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   annualMonthCard: {
-    marginBottom: 10,
-    padding: 14,
+    marginBottom: 12,
+    padding: 16,
     borderRadius: 12,
     borderWidth: 1,
   },
@@ -2048,19 +2276,39 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    gap: 10,
+    marginBottom: 0,
+  },
+  annualMonthTitleGroup: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    minWidth: 0,
   },
   annualMonthName: {
     fontSize: 17,
     fontWeight: '700',
   },
-  annualMonthStat: {
-    fontSize: 14,
-    marginBottom: 8,
+  annualMonthEventBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  annualMonthEventBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  annualMonthNumbersWrap: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   annualMonthNumbers: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
   },
   annualMonthNumberCol: {
     flex: 1,

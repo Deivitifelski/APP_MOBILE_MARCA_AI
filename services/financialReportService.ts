@@ -2,6 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { formatCalendarDate } from '../lib/dateUtils';
+import { FINANCIAL_REPORT_HTML_STYLES } from './yearlyFinancialReportHtml';
 
 interface EventWithExpenses {
   id: string;
@@ -134,238 +135,20 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-          * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-          }
-          
-          body {
-            font-family: 'Helvetica', 'Arial', sans-serif;
-            padding: 40px;
-            color: #333;
-            background: white;
-            line-height: 1.5;
-          }
-          
-          .header-section {
-            display: flex;
-            align-items: flex-start;
-            gap: 20px;
-            margin-bottom: 20px;
-          }
-          
-          .logo {
-            width: 70px;
-            height: 70px;
-            background: #667eea;
-            border-radius: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-          }
-          
-          .logo-text {
-            font-size: 42px;
-            font-weight: bold;
-            color: #ffffff;
-            line-height: 1;
-          }
-          
-          .header-content {
-            flex: 1;
-          }
-          
-          .artist-name {
-            font-size: 32px;
-            font-weight: bold;
-            color: #333;
-            margin-bottom: 6px;
-            letter-spacing: 0.5px;
-            line-height: 1.2;
-          }
-          
-          .report-title {
-            font-size: 20px;
-            color: #333;
-            font-weight: 700;
-            margin-bottom: 6px;
-          }
-          
-          .generated-info {
-            font-size: 11px;
-            color: #666;
-            line-height: 1.5;
-          }
-          
-          .header-divider {
-            height: 2px;
-            background: #333;
-            margin: 20px 0 30px 0;
-          }
-          
-          .section-title {
-            font-size: 20px;
-            font-weight: bold;
-            color: #333;
-            margin: 40px 0 25px 0;
-            padding-bottom: 10px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-          }
-          
-          .summary-section {
-            margin-top: 50px;
-            padding-top: 30px;
-            border-top: 2px solid #d1d5db;
-            page-break-inside: avoid;
-            page-break-before: auto;
-          }
-          
-          .summary-title {
-            font-size: 20px;
-            font-weight: bold;
-            color: #333;
-            text-align: center;
-            margin-bottom: 25px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-          }
-          
-          .summary-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 20px;
-            page-break-inside: avoid;
-          }
-          
-          .summary-item {
-            text-align: center;
-            padding: 25px 20px;
-            border: 2px solid #d1d5db;
-            background: white;
-            page-break-inside: avoid;
-          }
-          
-          .summary-label {
-            font-size: 14px;
-            color: #333;
-            margin-bottom: 15px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-          }
-          
-          .summary-value {
-            font-size: 32px;
-            font-weight: bold;
-            color: #333;
-            line-height: 1.2;
-          }
-          
-          .event-card {
-            background: white;
-            padding: 15px 0;
-            margin-bottom: 20px;
-            page-break-inside: avoid;
-          }
-          
-          .event-card-title {
-            font-size: 15px;
-            font-weight: 700;
-            color: #333;
-            margin-bottom: 12px;
-          }
-          
-          .event-table {
-            width: 100%;
-            border-collapse: collapse;
-            border: 2px solid #333;
-            margin-top: 12px;
-          }
-          
-          .event-table thead {
-            background: #f3f4f6;
-          }
-          
-          .event-table th {
-            padding: 10px;
-            text-align: left;
-            font-weight: 700;
-            font-size: 12px;
-            color: #333;
-            border: 1px solid #333;
-            background: #f3f4f6;
-          }
-          
-          .event-table td {
-            padding: 8px 10px;
-            border: 1px solid #333;
-            font-size: 13px;
-            color: #333;
-          }
-          
-          .event-table tbody tr:nth-child(even) {
-            background: #f9fafb;
-          }
-          
-          .event-table tr.total-row {
-            font-weight: 700;
-            background: #f3f4f6;
-            border-top: 2px solid #333;
-            font-size: 14px;
-          }
-          
-          .event-label {
-            color: #333;
-          }
-          
-          .event-value {
-            text-align: right;
-            color: #333;
-          }
-          
-          .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: #666;
-            border: 1px dashed #d1d5db;
-            border-radius: 8px;
-            background: #f9fafb;
-          }
-          
-          .footer {
-            margin-top: 50px;
-            padding-top: 25px;
-            border-top: 1px solid #e5e7eb;
-            text-align: center;
-            color: #666;
-            font-size: 11px;
-            line-height: 1.6;
-          }
-          
-          @media print {
-            body {
-              padding: 20px;
-            }
-          }
-        </style>
+        <style>${FINANCIAL_REPORT_HTML_STYLES}</style>
       </head>
       <body>
         <!-- Cabeçalho -->
         <div class="header-section">
           <div class="logo">
-            <div class="logo-text">M</div>
+            <div class="logo-inner">
+              <div class="logo-text">M</div>
+            </div>
           </div>
           <div class="header-content">
             ${artistName ? `<h1 class="artist-name">${artistName.toUpperCase()}</h1>` : ''}
-            <h2 class="report-title">Relatório Financeiro - ${months[month]}/${year}</h2>
-            <p class="generated-info">
-              Relatório gerado: ${dataGeracao} pelo aplicativo Marca AI.
-            </p>
+            <h2 class="report-title">Relatório financeiro · ${months[month]} / ${year}</h2>
+            <p class="generated-info">Gerado em ${dataGeracao} · Marca AI</p>
           </div>
         </div>
         
@@ -373,55 +156,55 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
 
         ${events.length > 0 ? `
         <!-- Detalhamento dos Eventos -->
-        <h3 class="section-title">DETALHAMENTO DOS EVENTOS</h3>
+        <h3 class="section-title">Detalhamento dos eventos</h3>
         ${includeFinancials ? events.map((event, index) => `
           <div class="event-card">
             <div class="event-card-title">
-              ${index + 1}. ${event.name} - ${formatCalendarDate(event.event_date)}
+              ${index + 1}. ${event.name} · ${formatCalendarDate(event.event_date)}
             </div>
-            <table class="event-table">
+            <table class="event-table cols-2">
               <thead>
                 <tr>
-                  <th>Descrição</th>
-                  <th style="text-align: right;">Valor</th>
+                  <th class="cell-desc">Descrição</th>
+                  <th class="cell-val">Valor (R$)</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td class="event-label">Receita do Evento</td>
-                  <td class="event-value">R$ ${formatNumber(event.value || 0)}</td>
+                  <td class="cell-desc">Receita do evento</td>
+                  <td class="cell-val">${formatNumber(event.value || 0)}</td>
                 </tr>
                 ${event.expenses.length > 0 ? event.expenses.map(expense => `
                 <tr>
-                  <td class="event-label">${expense.name}</td>
-                  <td class="event-value">-R$ ${formatNumber(expense.value)}</td>
+                  <td class="cell-desc">${expense.name}</td>
+                  <td class="cell-val">− ${formatNumber(expense.value)}</td>
                 </tr>
                 `).join('') : ''}
                 <tr class="total-row">
-                  <td class="event-label">Lucro Líquido</td>
-                  <td class="event-value">R$ ${formatNumber((event.value || 0) - event.totalExpenses)}</td>
+                  <td class="cell-desc">Lucro líquido</td>
+                  <td class="cell-val">${formatNumber((event.value || 0) - event.totalExpenses)}</td>
                 </tr>
               </tbody>
             </table>
           </div>
         `).join('') : `
-          <table class="event-table" style="margin-top: 20px;">
+          <table class="event-table cols-3-agenda">
             <thead>
               <tr>
-                <th style="width: 40%;">Nome do Evento</th>
-                <th style="width: 35%; text-align: center;">Data</th>
-                <th style="width: 25%; text-align: center;">Cidade</th>
+                <th class="cell-desc">Evento</th>
+                <th class="cell-date">Data</th>
+                <th class="cell-city">Cidade</th>
               </tr>
             </thead>
             <tbody>
               ${events.map(event => `
               <tr>
-                <td class="event-label">${event.name}</td>
-                <td class="event-value" style="text-align: center;">
+                <td class="cell-desc">${event.name}</td>
+                <td class="cell-date">
                   <strong>${getDayOfWeek(event.event_date)}</strong><br/>
                   ${formatCalendarDate(event.event_date)}
                 </td>
-                <td class="event-value" style="text-align: center;">${event.city || '-'}</td>
+                <td class="cell-city">${event.city || '—'}</td>
               </tr>
               `).join('')}
             </tbody>
@@ -430,26 +213,26 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
         
         <!-- Receitas Avulsas -->
         ${includeFinancials && standaloneIncome.length > 0 ? `
-        <h3 class="section-title">RECEITAS AVULSAS</h3>
+        <h3 class="section-title">Receitas avulsas</h3>
         <table class="event-table">
           <thead>
             <tr>
-              <th>Descrição</th>
-              <th style="text-align: center;">Data</th>
-              <th style="text-align: right;">Valor</th>
+              <th class="cell-desc">Descrição</th>
+              <th class="cell-date">Data</th>
+              <th class="cell-val">Valor (R$)</th>
             </tr>
           </thead>
           <tbody>
             ${standaloneIncome.map(income => `
             <tr>
-              <td class="event-label">${income.description}</td>
-              <td class="event-value" style="text-align: center;">${formatCalendarDate(income.date)}</td>
-              <td class="event-value">R$ ${formatNumber(Math.abs(income.value))}</td>
+              <td class="cell-desc">${income.description}</td>
+              <td class="cell-date">${formatCalendarDate(income.date)}</td>
+              <td class="cell-val">${formatNumber(Math.abs(income.value))}</td>
             </tr>
             `).join('')}
             <tr class="total-row">
-              <td colspan="2" class="event-label">Total Receitas Avulsas</td>
-              <td class="event-value">R$ ${formatNumber(standaloneIncomeTotal)}</td>
+              <td colspan="2" class="cell-desc">Total receitas avulsas</td>
+              <td class="cell-val">${formatNumber(standaloneIncomeTotal)}</td>
             </tr>
           </tbody>
         </table>
@@ -457,26 +240,26 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
 
         <!-- Despesas Avulsas -->
         ${includeFinancials && standaloneExpenses.length > 0 ? `
-        <h3 class="section-title">DESPESAS AVULSAS</h3>
+        <h3 class="section-title">Despesas avulsas</h3>
         <table class="event-table">
           <thead>
             <tr>
-              <th>Descrição</th>
-              <th style="text-align: center;">Data</th>
-              <th style="text-align: right;">Valor</th>
+              <th class="cell-desc">Descrição</th>
+              <th class="cell-date">Data</th>
+              <th class="cell-val">Valor (R$)</th>
             </tr>
           </thead>
           <tbody>
             ${standaloneExpenses.map(expense => `
             <tr>
-              <td class="event-label">${expense.description}</td>
-              <td class="event-value" style="text-align: center;">${formatCalendarDate(expense.date)}</td>
-              <td class="event-value">R$ ${formatNumber(expense.value)}</td>
+              <td class="cell-desc">${expense.description}</td>
+              <td class="cell-date">${formatCalendarDate(expense.date)}</td>
+              <td class="cell-val">${formatNumber(expense.value)}</td>
             </tr>
             `).join('')}
             <tr class="total-row">
-              <td colspan="2" class="event-label">Total Despesas Avulsas</td>
-              <td class="event-value">R$ ${formatNumber(standaloneExpensesTotal)}</td>
+              <td colspan="2" class="cell-desc">Total despesas avulsas</td>
+              <td class="cell-val">${formatNumber(standaloneExpensesTotal)}</td>
             </tr>
           </tbody>
         </table>
@@ -485,18 +268,18 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
         <!-- Resumo Financeiro -->
         ${includeFinancials ? `
         <div class="summary-section">
-          <div class="summary-title">RESUMO FINANCEIRO</div>
+          <div class="summary-title">Resumo do período</div>
           <div class="summary-grid">
             <div class="summary-item">
-              <div class="summary-label">Receitas Totais</div>
+              <div class="summary-label">Receitas totais</div>
               <div class="summary-value">${formatCurrency(totalRevenueWithIncome)}</div>
             </div>
             <div class="summary-item">
-              <div class="summary-label">Despesas Totais</div>
+              <div class="summary-label">Despesas totais</div>
               <div class="summary-value">${formatCurrency(totalExpensesWithStandalone)}</div>
             </div>
             <div class="summary-item">
-              <div class="summary-label">Lucro Líquido</div>
+              <div class="summary-label">Lucro líquido</div>
               <div class="summary-value">${formatCurrency(netProfit)}</div>
             </div>
           </div>
@@ -510,8 +293,8 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
         `}
 
         <div class="footer">
-          <p>Marca AI - Gestão Profissional de Shows e Eventos</p>
-          <p>Documento gerado automaticamente • ${includeFinancials ? 'Relatório Completo' : 'Relatório Sem Valores'}</p>
+          <p>Marca AI · Gestão de shows e eventos</p>
+          <p>${includeFinancials ? 'Relatório com valores financeiros' : 'Relatório sem valores financeiros'}</p>
         </div>
       </body>
     </html>
@@ -598,5 +381,360 @@ export const generateFinancialReport = async (data: FinancialReportData): Promis
   } catch (error: any) {
     const errorMessage = error?.message || 'Erro desconhecido';
     return { success: false, error: errorMessage };
+  }
+};
+
+// ——— Relatório anual (cada mês detalhado) ———
+
+export interface YearlyReportMonthBlock {
+  monthIndex: number;
+  events: EventWithExpenses[];
+  standaloneIncome: StandaloneTransaction[];
+  standaloneExpenses: StandaloneTransaction[];
+}
+
+export interface YearlyFinancialReportData {
+  year: number;
+  artistName?: string;
+  includeFinancials?: boolean;
+  months: YearlyReportMonthBlock[];
+}
+
+const expenseLineLabel = (e: { name?: string; description?: string }) =>
+  (e.name || e.description || 'Despesa').trim();
+
+export const generateYearlyFinancialReport = async (
+  data: YearlyFinancialReportData
+): Promise<{ success: boolean; error?: string; uri?: string }> => {
+  const monthsPt = [
+    'Janeiro',
+    'Fevereiro',
+    'Março',
+    'Abril',
+    'Maio',
+    'Junho',
+    'Julho',
+    'Agosto',
+    'Setembro',
+    'Outubro',
+    'Novembro',
+    'Dezembro',
+  ];
+
+  try {
+    const { year, artistName, includeFinancials = true, months: monthBlocks } = data;
+
+    const getDayOfWeek = (dateString: string) => {
+      const [y, m, d] = dateString.split('-').map(Number);
+      const date = new Date(y, m - 1, d);
+      const daysOfWeek = [
+        'Domingo',
+        'Segunda-feira',
+        'Terça-feira',
+        'Quarta-feira',
+        'Quinta-feira',
+        'Sexta-feira',
+        'Sábado',
+      ];
+      return daysOfWeek[date.getDay()];
+    };
+
+    const formatCurrency = (value: number) =>
+      value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    const formatNumber = (value: number) =>
+      value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    let totalRevEvents = 0;
+    let totalExpEvents = 0;
+    let totalStandaloneInc = 0;
+    let totalStandaloneExp = 0;
+
+    for (const block of monthBlocks) {
+      for (const ev of block.events) {
+        totalRevEvents += ev.value || 0;
+        totalExpEvents += ev.totalExpenses;
+      }
+      totalStandaloneInc += block.standaloneIncome.reduce((s, i) => s + Math.abs(i.value), 0);
+      totalStandaloneExp += block.standaloneExpenses.reduce((s, e) => s + e.value, 0);
+    }
+
+    const totalRevenueWithIncome = totalRevEvents + totalStandaloneInc;
+    const totalExpensesAll = totalExpEvents + totalStandaloneExp;
+    const netProfit = totalRevenueWithIncome - totalExpensesAll;
+
+    const now = new Date();
+    const dataGeracao = `${now.toLocaleDateString('pt-BR')} às ${now.toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    })}hs`;
+
+    const renderMonthBody = (block: YearlyReportMonthBlock): string => {
+      const { monthIndex, events, standaloneIncome, standaloneExpenses } = block;
+      const mLabel = monthsPt[monthIndex];
+      const hasAny =
+        events.length > 0 || standaloneIncome.length > 0 || standaloneExpenses.length > 0;
+
+      const evCount = events.length;
+      const evLabel = evCount === 1 ? 'evento' : 'eventos';
+      let html = `<h3 class="section-title">${mLabel} · ${year}<span class="month-event-meta">${evCount} ${evLabel}</span></h3>`;
+
+      if (!hasAny) {
+        html += `<div class="empty-month">Sem movimentação neste mês.</div>`;
+        return html;
+      }
+
+      if (events.length > 0) {
+        html += `<h4 class="subsection-title">Eventos</h4>`;
+        if (includeFinancials) {
+          html += events
+            .map(
+              (event, index) => `
+          <div class="event-card">
+            <div class="event-card-title">
+              ${index + 1}. ${event.name} · ${formatCalendarDate(event.event_date)}
+            </div>
+            <table class="event-table cols-2">
+              <thead>
+                <tr>
+                  <th class="cell-desc">Descrição</th>
+                  <th class="cell-val">Valor (R$)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="cell-desc">Receita do evento</td>
+                  <td class="cell-val">${formatNumber(event.value || 0)}</td>
+                </tr>
+                ${event.expenses.length > 0
+                  ? event.expenses
+                      .map(
+                        (expense) => `
+                <tr>
+                  <td class="cell-desc">${expenseLineLabel(expense)}</td>
+                  <td class="cell-val">− ${formatNumber(expense.value)}</td>
+                </tr>
+                `
+                      )
+                      .join('')
+                  : ''}
+                <tr class="total-row">
+                  <td class="cell-desc">Lucro líquido</td>
+                  <td class="cell-val">${formatNumber((event.value || 0) - event.totalExpenses)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        `
+            )
+            .join('');
+        } else {
+          html += `
+          <table class="event-table cols-3-agenda">
+            <thead>
+              <tr>
+                <th class="cell-desc">Evento</th>
+                <th class="cell-date">Data</th>
+                <th class="cell-city">Cidade</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${events
+                .map(
+                  (event) => `
+              <tr>
+                <td class="cell-desc">${event.name}</td>
+                <td class="cell-date">
+                  <strong>${getDayOfWeek(event.event_date)}</strong><br/>
+                  ${formatCalendarDate(event.event_date)}
+                </td>
+                <td class="cell-city">${event.city || '—'}</td>
+              </tr>
+              `
+                )
+                .join('')}
+            </tbody>
+          </table>
+        `;
+        }
+      }
+
+      if (includeFinancials && standaloneIncome.length > 0) {
+        const incTotal = standaloneIncome.reduce((s, i) => s + Math.abs(i.value), 0);
+        html += `<h4 class="subsection-title">Receitas avulsas</h4>`;
+        html += `
+        <table class="event-table">
+          <thead>
+            <tr>
+              <th class="cell-desc">Descrição</th>
+              <th class="cell-date">Data</th>
+              <th class="cell-val">Valor (R$)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${standaloneIncome
+              .map(
+                (income) => `
+            <tr>
+              <td class="cell-desc">${income.description}</td>
+              <td class="cell-date">${formatCalendarDate(income.date)}</td>
+              <td class="cell-val">${formatNumber(Math.abs(income.value))}</td>
+            </tr>
+            `
+              )
+              .join('')}
+            <tr class="total-row">
+              <td colspan="2" class="cell-desc">Total receitas avulsas · ${mLabel}</td>
+              <td class="cell-val">${formatNumber(incTotal)}</td>
+            </tr>
+          </tbody>
+        </table>
+        `;
+      }
+
+      if (includeFinancials && standaloneExpenses.length > 0) {
+        const expTotal = standaloneExpenses.reduce((s, e) => s + e.value, 0);
+        html += `<h4 class="subsection-title">Despesas avulsas</h4>`;
+        html += `
+        <table class="event-table">
+          <thead>
+            <tr>
+              <th class="cell-desc">Descrição</th>
+              <th class="cell-date">Data</th>
+              <th class="cell-val">Valor (R$)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${standaloneExpenses
+              .map(
+                (expense) => `
+            <tr>
+              <td class="cell-desc">${expense.description}</td>
+              <td class="cell-date">${formatCalendarDate(expense.date)}</td>
+              <td class="cell-val">${formatNumber(expense.value)}</td>
+            </tr>
+            `
+              )
+              .join('')}
+            <tr class="total-row">
+              <td colspan="2" class="cell-desc">Total despesas avulsas · ${mLabel}</td>
+              <td class="cell-val">${formatNumber(expTotal)}</td>
+            </tr>
+          </tbody>
+        </table>
+        `;
+      }
+
+      return html;
+    };
+
+    const monthsHtml = `<div class="months-wrap">${monthBlocks
+      .map((block) => `<div class="month-block">${renderMonthBody(block)}</div>`)
+      .join('')}</div>`;
+
+    const summaryYearHtml = includeFinancials
+      ? `
+        <div class="summary-section">
+          <div class="summary-title">Resumo do ano ${year}</div>
+          <div class="summary-grid">
+            <div class="summary-item">
+              <div class="summary-label">Receitas totais</div>
+              <div class="summary-value">${formatCurrency(totalRevenueWithIncome)}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Despesas totais</div>
+              <div class="summary-value">${formatCurrency(totalExpensesAll)}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Lucro líquido</div>
+              <div class="summary-value">${formatCurrency(netProfit)}</div>
+            </div>
+          </div>
+        </div>
+      `
+      : '';
+
+    const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>${FINANCIAL_REPORT_HTML_STYLES}</style>
+      </head>
+      <body>
+        <div class="header-section">
+          <div class="logo">
+            <div class="logo-inner">
+              <div class="logo-text">M</div>
+            </div>
+          </div>
+          <div class="header-content">
+            ${artistName ? `<h1 class="artist-name">${artistName.toUpperCase()}</h1>` : ''}
+            <h2 class="report-title">Relatório financeiro · ano ${year}</h2>
+            <p class="generated-info">Detalhamento por mês · Gerado em ${dataGeracao} · Marca AI</p>
+          </div>
+        </div>
+        <div class="header-divider"></div>
+        ${monthsHtml}
+        ${summaryYearHtml}
+        <div class="footer">
+          <p>Marca AI · Gestão de shows e eventos</p>
+          <p>${includeFinancials ? 'Relatório anual com valores financeiros' : 'Relatório anual sem valores financeiros'}</p>
+        </div>
+      </body>
+    </html>
+    `;
+
+    const totalItems = monthBlocks.reduce(
+      (acc, b) =>
+        acc + b.events.length + b.standaloneIncome.length + b.standaloneExpenses.length,
+      0
+    );
+    if (totalItems > 120) {
+      console.warn('⚠️ Relatório anual com muitos itens:', totalItems);
+    }
+
+    const isAvailable = await Sharing.isAvailableAsync();
+    if (!isAvailable) {
+      return { success: false, error: 'Compartilhamento não disponível neste dispositivo' };
+    }
+
+    const timeoutMs = 90000;
+    const pdfPromise = Print.printToFileAsync({ html: htmlContent, base64: false });
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(
+        () =>
+          reject(
+            new Error(
+              `Timeout: a geração do relatório anual excedeu ${timeoutMs / 1000} segundos. Tente exportar sem valores ou um ano com menos eventos.`
+            )
+          ),
+        timeoutMs
+      )
+    );
+
+    const result = await Promise.race([pdfPromise, timeoutPromise]);
+    const uri = result.uri;
+    if (!uri) {
+      return { success: false, error: 'Falha ao gerar arquivo PDF (URI vazio)' };
+    }
+
+    const fileName = `Relatorio_Financeiro_Ano_${year}_${Date.now()}.pdf`;
+    const shareableUri = `${FileSystem.documentDirectory}${fileName}`;
+    await FileSystem.copyAsync({ from: uri, to: shareableUri });
+
+    const fileInfo = await FileSystem.getInfoAsync(shareableUri);
+    if (!fileInfo.exists) {
+      throw new Error('Falha ao copiar PDF para documentDirectory');
+    }
+
+    return { success: true, uri: shareableUri };
+  } catch (pdfError: unknown) {
+    const msg =
+      pdfError && typeof pdfError === 'object' && 'message' in pdfError
+        ? String((pdfError as { message: unknown }).message)
+        : 'Erro ao gerar documento';
+    return { success: false, error: msg };
   }
 };
