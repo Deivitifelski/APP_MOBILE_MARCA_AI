@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import NetInfo from '@react-native-community/netinfo';
 import * as Linking from 'expo-linking';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -107,8 +106,6 @@ export default function AgendaScreen() {
   const [participantsModalTitle, setParticipantsModalTitle] = useState('');
   const [participantsModalList, setParticipantsModalList] = useState<AgendaParticipantRow[]>([]);
   const [participantsModalExpanded, setParticipantsModalExpanded] = useState(false);
-
-  const retryAgendaConnectionRef = useRef<() => Promise<void>>(async () => undefined);
 
   useEffect(() => {
     if (params.showNewUserModal === '1') {
@@ -943,32 +940,6 @@ export default function AgendaScreen() {
       setIsRetryingConnection(false);
     }
   };
-
-  useEffect(() => {
-    retryAgendaConnectionRef.current = retryAgendaConnection;
-  });
-
-  useEffect(() => {
-    const unsub = NetInfo.addEventListener((state) => {
-      const offline =
-        state.isConnected === false || state.isInternetReachable === false;
-      if (offline) {
-        setShowNoConnectionModal(true);
-        return;
-      }
-      const online =
-        state.isConnected === true && state.isInternetReachable !== false;
-      if (online) {
-        setShowNoConnectionModal((open) => {
-          if (open) {
-            setTimeout(() => void retryAgendaConnectionRef.current(), 0);
-          }
-          return open;
-        });
-      }
-    });
-    return () => unsub();
-  }, []);
 
   const handleUserRemovedFromArtist = async () => {
     try {
@@ -1826,36 +1797,34 @@ export default function AgendaScreen() {
         animationType="fade"
         onRequestClose={() => setShowNoConnectionModal(false)}
       >
-        <View style={styles.removedModalOverlay}>
-          <View style={[styles.removedModalContent, { backgroundColor: colors.surface }]}>
-            <View style={[styles.removedModalIcon, { backgroundColor: `${colors.primary}22` }]}>
-              <Ionicons name="cloud-offline-outline" size={40} color={colors.primary} />
+        <View style={styles.networkModalOverlay}>
+          <View
+            style={[
+              styles.networkModalCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                shadowColor: isDarkMode ? '#000' : '#1e293b',
+              },
+            ]}
+          >
+            <View style={[styles.networkModalIcon, { backgroundColor: `${colors.primary}18` }]}>
+              <Ionicons name="cloud-offline-outline" size={22} color={colors.primary} />
             </View>
-            <Text style={[styles.removedModalTitle, { color: colors.text }]}>
-              Sem conexão com a internet
-            </Text>
-            <Text style={[styles.removedModalMessage, { color: colors.textSecondary }]}>
-              Não foi possível carregar as informações da agenda. Verifique sua rede e tente novamente.
+            <Text style={[styles.networkModalTitle, { color: colors.text }]}>Sem conexão</Text>
+            <Text style={[styles.networkModalMessage, { color: colors.textSecondary }]}>
+              Confira sua internet e toque para tentar de novo.
             </Text>
             <TouchableOpacity
-              style={[
-                styles.deletedEventModalButton,
-                {
-                  backgroundColor: colors.primary,
-                  width: '100%',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: 48,
-                },
-              ]}
+              style={[styles.networkModalButton, { backgroundColor: colors.primary }]}
               onPress={() => void retryAgendaConnection()}
               disabled={isRetryingConnection}
               activeOpacity={0.85}
             >
               {isRetryingConnection ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Text style={styles.deletedEventModalButtonText}>Tentar novamente</Text>
+                <Text style={styles.networkModalButtonText}>Tentar novamente</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -3076,6 +3045,60 @@ const styles = StyleSheet.create({
   },
   collabStackAvatarOverlap: {
     marginLeft: -8,
+  },
+  networkModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  networkModalCard: {
+    width: '100%',
+    maxWidth: 280,
+    borderRadius: 20,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: Platform.OS === 'android' ? 0 : 0.12,
+    shadowRadius: 24,
+    elevation: Platform.OS === 'android' ? 6 : 0,
+  },
+  networkModalIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  networkModalTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 6,
+    letterSpacing: -0.2,
+  },
+  networkModalMessage: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 18,
+    paddingHorizontal: 2,
+  },
+  networkModalButton: {
+    width: '100%',
+    minHeight: 42,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  networkModalButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
   },
   // Estilos do Modal de Remoção
   removedModalOverlay: {

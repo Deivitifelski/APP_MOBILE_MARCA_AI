@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import NetInfo from '@react-native-community/netinfo';
 import { useNavigation } from '@react-navigation/native';
 import { router } from 'expo-router';
 import { dispatchResetToLogin } from '../lib/resetToLoginStack';
@@ -24,10 +23,6 @@ import { checkUserExists } from '../services/supabase/userService';
 import { isLikelyNetworkFailure } from '../utils/isLikelyNetworkFailure';
 
 const LOADING_TIMEOUT_MS = 8000;
-
-function isNetOffline(state: { isConnected: boolean | null; isInternetReachable: boolean | null }) {
-  return state.isConnected === false || state.isInternetReachable === false;
-}
 
 export default function Index() {
   const navigation = useNavigation();
@@ -77,16 +72,6 @@ export default function Index() {
     dispatchResetToLogin(navigation);
   }, [clearSafetyTimer, navigation]);
 
-  /** Evita mandar para login sem rede (mensagem de erro nem sempre indica rede). */
-  const goToLoginUnlessOffline = useCallback(async () => {
-    const net = await NetInfo.fetch();
-    if (isNetOffline(net)) {
-      openOfflineModal();
-      return;
-    }
-    goToLogin();
-  }, [goToLogin, openOfflineModal]);
-
   const applyArtistRedirect = useCallback(
     (artistRedirect: Awaited<ReturnType<typeof checkArtistsAndRedirect>>) => {
       setAppIconBadge(0);
@@ -113,12 +98,12 @@ export default function Index() {
           openOfflineModal();
           return;
         }
-        await goToLoginUnlessOffline();
+        goToLogin();
         return;
       }
 
       if (!session?.user) {
-        await goToLoginUnlessOffline();
+        goToLogin();
         return;
       }
 
@@ -139,7 +124,7 @@ export default function Index() {
           applyArtistRedirect(artistRedirect);
           return;
         }
-        await goToLoginUnlessOffline();
+        goToLogin();
         return;
       }
 
@@ -159,9 +144,9 @@ export default function Index() {
         openOfflineModal();
         return;
       }
-      await goToLoginUnlessOffline();
+      goToLogin();
     }
-  }, [applyArtistRedirect, goToLogin, goToLoginUnlessOffline, navigateTo, openOfflineModal]);
+  }, [applyArtistRedirect, goToLogin, navigateTo, openOfflineModal]);
 
   const checkAuthRef = useRef(checkAuthStatus);
   checkAuthRef.current = checkAuthStatus;
@@ -170,10 +155,6 @@ export default function Index() {
     if (isRetrying || hasNavigated.current) return;
     setIsRetrying(true);
     try {
-      const net = await NetInfo.fetch();
-      if (isNetOffline(net)) {
-        return;
-      }
       hasNavigated.current = false;
       setShowOfflineModal(false);
       scheduleSafetyTimer();
@@ -182,20 +163,6 @@ export default function Index() {
       setIsRetrying(false);
     }
   }, [isRetrying, scheduleSafetyTimer]);
-
-  const retryRef = useRef(handleRetryConnection);
-  retryRef.current = handleRetryConnection;
-
-  useEffect(() => {
-    if (!showOfflineModal) return;
-    const unsub = NetInfo.addEventListener((state) => {
-      const online = state.isConnected === true && state.isInternetReachable !== false;
-      if (online) {
-        setTimeout(() => void retryRef.current(), 0);
-      }
-    });
-    return () => unsub();
-  }, [showOfflineModal]);
 
   useEffect(() => {
     const interactionTask = InteractionManager.runAfterInteractions(() => {
@@ -237,11 +204,11 @@ export default function Index() {
         <View style={styles.offlineOverlay}>
           <View style={styles.offlineCard}>
             <View style={styles.offlineIconWrap}>
-              <Ionicons name="cloud-offline-outline" size={40} color="#667eea" />
+              <Ionicons name="cloud-offline-outline" size={22} color="#667eea" />
             </View>
-            <Text style={styles.offlineTitle}>Sem conexão com a internet</Text>
+            <Text style={styles.offlineTitle}>Sem conexão</Text>
             <Text style={styles.offlineMessage}>
-              Verifique sua rede e tente novamente para continuar.
+              Confira sua internet e tente de novo.
             </Text>
             <TouchableOpacity
               style={styles.offlineButton}
@@ -250,7 +217,7 @@ export default function Index() {
               activeOpacity={0.85}
             >
               {isRetrying ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <Text style={styles.offlineButtonText}>Tentar novamente</Text>
               )}
@@ -306,53 +273,63 @@ const styles = StyleSheet.create({
   },
   offlineOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    paddingHorizontal: 32,
   },
   offlineCard: {
     width: '100%',
-    maxWidth: 340,
+    maxWidth: 280,
     backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
+    borderRadius: 20,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
     alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(102, 126, 234, 0.12)',
+    shadowColor: '#1a1a2e',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: Platform.OS === 'android' ? 0 : 0.12,
+    shadowRadius: 24,
+    elevation: Platform.OS === 'android' ? 6 : 0,
   },
   offlineIconWrap: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: 'rgba(102, 126, 234, 0.12)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(102, 126, 234, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   offlineTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
     color: '#1a1a2e',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
+    letterSpacing: -0.2,
   },
   offlineMessage: {
-    fontSize: 15,
-    color: '#555',
+    fontSize: 13,
+    color: '#64748b',
     textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 22,
+    lineHeight: 18,
+    marginBottom: 18,
+    paddingHorizontal: 4,
   },
   offlineButton: {
     backgroundColor: '#667eea',
     width: '100%',
-    minHeight: 48,
+    minHeight: 42,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
   offlineButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
   },
 });
