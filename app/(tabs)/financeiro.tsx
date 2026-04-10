@@ -94,7 +94,8 @@ function emptyYearSummaries(): YearMonthSummary[] {
 }
 
 export default function FinanceiroScreen() {
-  const { colors } = useTheme();
+  const { colors, isDarkMode } = useTheme();
+  const receitaAzul = isDarkMode ? '#60a5fa' : '#2563eb';
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { viewedMonthDate: selectedDate, navigateMonth, setViewedMonthDate } = useSharedTabMonth();
@@ -934,7 +935,7 @@ export default function FinanceiroScreen() {
           <View style={styles.eventValues}>
             <View style={styles.eventValueRow}>
               <Text style={[styles.eventValueLabel, { color: colors.textSecondary }]}>Receita:</Text>
-              <Text style={[styles.eventRevenue, { color: colors.success }]}>
+              <Text style={[styles.eventRevenue, { color: receitaAzul }]}>
                 {formatCurrency(item.value || 0)}
               </Text>
             </View>
@@ -1232,7 +1233,7 @@ export default function FinanceiroScreen() {
                       Receitas no ano
                     </Text>
                     <Text
-                      style={[styles.summaryItemValue, { color: colors.success }]}
+                      style={[styles.summaryItemValue, { color: receitaAzul }]}
                       numberOfLines={1}
                       adjustsFontSizeToFit
                       minimumFontScale={0.7}
@@ -1313,9 +1314,6 @@ export default function FinanceiroScreen() {
                       </View>
                       <Text style={[styles.annualMonthStat, { color: colors.textSecondary }]}>
                         {row.eventCount} evento{row.eventCount !== 1 ? 's' : ''}
-                        {hasAccess && hasData
-                          ? ` · Líquido ${formatCurrency(net)}`
-                          : ''}
                       </Text>
                       {hasAccess && hasData ? (
                         <View style={styles.annualMonthNumbers}>
@@ -1323,7 +1321,7 @@ export default function FinanceiroScreen() {
                             <Text style={[styles.annualMonthNumLabel, { color: colors.textSecondary }]}>
                               Receitas
                             </Text>
-                            <Text style={[styles.annualMonthNumValue, { color: colors.success }]}>
+                            <Text style={[styles.annualMonthNumValue, { color: receitaAzul }]}>
                               {formatCurrency(totalRev)}
                             </Text>
                           </View>
@@ -1333,6 +1331,19 @@ export default function FinanceiroScreen() {
                             </Text>
                             <Text style={[styles.annualMonthNumValue, { color: colors.error }]}>
                               {formatCurrency(totalExp)}
+                            </Text>
+                          </View>
+                          <View style={styles.annualMonthNumberCol}>
+                            <Text style={[styles.annualMonthNumLabel, { color: colors.textSecondary }]}>
+                              Líquido
+                            </Text>
+                            <Text
+                              style={[
+                                styles.annualMonthNumValue,
+                                { color: net >= 0 ? colors.success : colors.error },
+                              ]}
+                            >
+                              {formatCurrency(net)}
                             </Text>
                           </View>
                         </View>
@@ -1376,7 +1387,7 @@ export default function FinanceiroScreen() {
                   Receita Bruta
                 </Text>
                 <Text 
-                  style={[styles.summaryItemValue, { color: colors.success }]}
+                  style={[styles.summaryItemValue, { color: receitaAzul }]}
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.7}
