@@ -164,6 +164,69 @@ function resolveActivePremiumSkuFromPurchases(purchases: Purchase[]): string | n
   return pool[0] ? effectivePremiumSkuForIos(pool[0]) : null;
 }
 
+/**
+ * StoreKit / Google Play frequentemente devolvem "usuário cancelou" quando o fluxo só foi
+ * interrompido: cartão recusado, banco bloqueou, folha de verificação da Apple, etc.
+ */
+const IAP_PURCHASE_FLOW_INCOMPLETE_BODY =
+  'A cobrança não foi concluída na loja. Isso pode ocorrer se o cartão foi recusado, o banco bloqueou a transação ou a Apple pediu verificação da conta em Ajustes → Apple ID → Pagamento e Envio. Confira e tente novamente.';
+
+function sanitizeIapErrorMessage(message: string): string {
+  return message
+    .replace(/^Calling the ['"]requestPurchase['"] function has failed\s*->\s*Caused by:\s*/i, '')
+    .replace(/^Calling the ['"]requestPurchase['"] function has failed\s*:\s*/i, '')
+    .trim();
+}
+
+function purchaseErrorLooksLikeUserDismissal(error: unknown): boolean {
+  const rec = error as { code?: string; message?: string };
+  const code = rec?.code;
+  if (
+    code === ErrorCode.UserCancelled ||
+    code === ErrorCode.Interrupted ||
+    code === ErrorCode.DeferredPayment
+  ) {
+    return true;
+  }
+  const msg = (
+    rec?.message ??
+    (error instanceof Error ? error.message : typeof error === 'string' ? error : '')
+  ).toLowerCase();
+  return (
+    msg.includes('user cancel') ||
+    msg.includes('user_cancelled') ||
+    msg.includes('user-cancelled') ||
+    msg.includes('cancelled the purchase') ||
+    msg.includes('canceled the purchase') ||
+    msg.includes('e_user_cancelled')
+  );
+}
+
+function userFacingPurchaseMessage(error: unknown): string {
+  const rec = error as { code?: string; message?: string };
+  const raw = rec?.message ?? (error instanceof Error ? error.message : '');
+  const inner = raw ? sanitizeIapErrorMessage(raw) : '';
+  const low = inner.toLowerCase();
+
+  if (rec?.code === ErrorCode.NetworkError || low.includes('network')) {
+    return 'Verifique sua conexão com a internet e tente novamente.';
+  }
+  if (
+    rec?.code === ErrorCode.BillingUnavailable ||
+    (low.includes('billing') && low.includes('unavailable'))
+  ) {
+    return 'A loja de aplicativos não está disponível no momento. Tente novamente em alguns minutos.';
+  }
+  if (rec?.code === ErrorCode.IapNotAvailable) {
+    return 'Compras dentro do app não estão disponíveis neste dispositivo ou conta.';
+  }
+  if (rec?.code === ErrorCode.AlreadyOwned || low.includes('already owned')) {
+    return 'Esta assinatura já consta na sua conta da loja. Use Restaurar compras para sincronizar.';
+  }
+
+  return 'Não foi possível concluir o pagamento. Verifique o método de pagamento na App Store ou Google Play e tente novamente.';
+}
+
 export default function AssinePremiumScreen() {
   const { colors } = useTheme();
   const [loading, setLoading] = useState(true);
@@ -176,6 +239,15 @@ export default function AssinePremiumScreen() {
   const [planIsActive, setPlanIsActive] = useState(false);
   /** Evita Alert a cada abertura da tela: a loja pode reentregar compra sem o usuário ter tocado em “Assinar”. */
   const userStartedPurchaseFlowRef = useRef(false);
+  /** Evita dois alerts seguidos (listener nativo + reject do requestPurchase). */
+  const purchaseErrorAlertAtRef = useRef(0);
+
+  const showDebouncedPurchaseAlert = useCallback((title: string, message: string) => {
+    const now = Date.now();
+    if (now - purchaseErrorAlertAtRef.current < 900) return;
+    purchaseErrorAlertAtRef.current = now;
+    Alert.alert(title, message);
+  }, []);
   /** Um aviso em __DEV__ se a assinatura vier do StoreKit “Xcode” (local), não do sandbox Apple. */
   const warnedStoreKitXcodeRef = useRef(false);
 
@@ -390,6 +462,7 @@ export default function AssinePremiumScreen() {
 
     subscriptions.push(
       purchaseErrorListener((purchaseError) => {
+        const hadStartedFlow = userStartedPurchaseFlowRef.current;
         userStartedPurchaseFlowRef.current = false;
         setProcessingSku(null);
         const code = purchaseError?.code;
@@ -398,13 +471,13 @@ export default function AssinePremiumScreen() {
           code === ErrorCode.Interrupted ||
           code === ErrorCode.DeferredPayment
         ) {
+          if (hadStartedFlow) {
+            showDebouncedPurchaseAlert('Assinatura não finalizada', IAP_PURCHASE_FLOW_INCOMPLETE_BODY);
+          }
           return;
         }
-        const rawMessage = purchaseError?.message?.trim();
-        const message = rawMessage
-          ? `Nao foi possivel concluir sua assinatura. Detalhes: ${rawMessage}`
-          : 'Nao foi possivel concluir sua assinatura agora. Tente novamente em instantes.';
-        Alert.alert('Assinatura nao concluida', message);
+        const friendly = userFacingPurchaseMessage(purchaseError);
+        showDebouncedPurchaseAlert('Assinatura não concluída', friendly);
       }),
     );
 
@@ -413,7 +486,7 @@ export default function AssinePremiumScreen() {
       // Não chamar disconnect/endConnection aqui: ao sair da tela isso derrubava a sessão da loja e o iOS
       // pedia login de novo ao voltar. Outras telas também usam IAP (ex.: reconcile). Só removemos listeners.
     };
-  }, [loadProducts, refreshPlanFromDb, syncPurchasedStatus]);
+  }, [loadProducts, refreshPlanFromDb, showDebouncedPurchaseAlert, syncPurchasedStatus]);
 
   useEffect(() => {
     if (!iosIapHydrated) return;
@@ -474,11 +547,14 @@ export default function AssinePremiumScreen() {
     } catch (purchaseStartError) {
       userStartedPurchaseFlowRef.current = false;
       setProcessingSku(null);
-      const details = purchaseStartError instanceof Error ? purchaseStartError.message : '';
-      const msg = details
-        ? `Nao foi possivel iniciar a compra. Detalhes: ${details}`
-        : 'Nao foi possivel iniciar a compra.';
-      Alert.alert('Erro ao iniciar assinatura', msg);
+      if (purchaseErrorLooksLikeUserDismissal(purchaseStartError)) {
+        showDebouncedPurchaseAlert('Assinatura não finalizada', IAP_PURCHASE_FLOW_INCOMPLETE_BODY);
+        return;
+      }
+      showDebouncedPurchaseAlert(
+        'Não foi possível assinar',
+        userFacingPurchaseMessage(purchaseStartError),
+      );
     }
   };
 
