@@ -10,6 +10,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextStyle,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -80,6 +81,11 @@ export default function FinanceiroInsightsScreen() {
   const [loading, setLoading] = useState(false);
   const [insights, setInsights] = useState<EventInsightsResult | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  /** Seções recolhidas por padrão para ocupar menos a tela; o usuário expande o que quiser ver. */
+  const [openFinance, setOpenFinance] = useState(false);
+  const [openCities, setOpenCities] = useState(false);
+  const [openStates, setOpenStates] = useState(false);
+  const [openDetails, setOpenDetails] = useState(false);
 
   useEffect(() => {
     const scope = params.scope;
@@ -349,8 +355,22 @@ export default function FinanceiroInsightsScreen() {
         ) : insights ? (
           <>
             {hasAccess ? (
-              <>
-                <SectionTitle colors={colors.text}>Resumo financeiro do período</SectionTitle>
+              <ExpandableBlock
+                title="Resumo financeiro do período"
+                summary={
+                  (() => {
+                    const liq =
+                      insights.revenueFromEvents +
+                      insights.standaloneIncomeTotal -
+                      insights.expensesLinkedToEvents -
+                      insights.standaloneExpenseTotal;
+                    return `Líquido aprox.: ${formatCurrency(liq)} · toque para ver detalhes`;
+                  })()
+                }
+                expanded={openFinance}
+                onToggle={() => setOpenFinance((v) => !v)}
+                colors={colors}
+              >
                 <View style={[styles.card, { backgroundColor: colors.surface, marginBottom: 4 }]}>
                   <FinanceSummaryRow
                     label="Receitas de eventos (cachê)"
@@ -397,42 +417,66 @@ export default function FinanceiroInsightsScreen() {
                     strong
                   />
                 </View>
-              </>
+              </ExpandableBlock>
             ) : null}
 
-            <SectionTitle colors={colors.text}>Top cidades (por eventos)</SectionTitle>
-            <BucketCard
-              rows={insights.topCitiesByCount}
+            <ExpandableBlock
+              title="Top cidades"
+              summary={
+                insights.topCitiesByCount.length === 0
+                  ? 'Sem cidades no período'
+                  : `${insights.topCitiesByCount.length} no ranking · 1º: ${insights.topCitiesByCount[0].label}`
+              }
+              expanded={openCities}
+              onToggle={() => setOpenCities((v) => !v)}
               colors={colors}
-              formatCurrency={formatCurrency}
-              mode="count"
-              showMoney={hasAccess}
-              emptyHint="Nenhuma cidade cadastrada nos eventos deste período."
-            />
+            >
+              <SectionSubtitle colors={colors.textSecondary}>Por quantidade de eventos</SectionSubtitle>
+              <BucketCard
+                rows={insights.topCitiesByCount}
+                colors={colors}
+                formatCurrency={formatCurrency}
+                mode="count"
+                showMoney={hasAccess}
+                emptyHint="Nenhuma cidade cadastrada nos eventos deste período."
+              />
 
-            {hasAccess ? (
-              <>
-                <SectionTitle colors={colors.text}>Top cidades (por cachê total)</SectionTitle>
-                <BucketCard
-                  rows={insights.topCitiesByValue}
-                  colors={colors}
-                  formatCurrency={formatCurrency}
-                  mode="value"
-                  showMoney
-                  emptyHint="Sem valores ou cidades no período."
-                />
-              </>
-            ) : null}
+              {hasAccess ? (
+                <>
+                  <SectionSubtitle colors={colors.textSecondary}>Por cachê total</SectionSubtitle>
+                  <BucketCard
+                    rows={insights.topCitiesByValue}
+                    colors={colors}
+                    formatCurrency={formatCurrency}
+                    mode="value"
+                    showMoney
+                    emptyHint="Sem valores ou cidades no período."
+                  />
+                </>
+              ) : null}
+            </ExpandableBlock>
 
-            <SectionTitle colors={colors.text}>Top estados (UF)</SectionTitle>
             {insights.eventsWithUfParsed === 0 ? (
-              <View style={[styles.card, { backgroundColor: colors.surface }]}>
-                <Text style={{ color: colors.textSecondary, lineHeight: 20 }}>
-                  Nenhum evento com UF reconhecida. Inclua a sigla no campo cidade (ex.: Porto Alegre, RS).
-                </Text>
-              </View>
-            ) : (
               <>
+                <SectionTitle colors={colors.text}>Top estados (UF)</SectionTitle>
+                <View style={[styles.card, { backgroundColor: colors.surface }]}>
+                  <Text style={{ color: colors.textSecondary, lineHeight: 20 }}>
+                    Nenhum evento com UF reconhecida. Inclua a sigla no campo cidade (ex.: Porto Alegre, RS).
+                  </Text>
+                </View>
+              </>
+            ) : (
+              <ExpandableBlock
+                title="Top estados (UF)"
+                summary={
+                  insights.topStatesByCount[0]
+                    ? `${insights.topStatesByCount.length} UF no ranking · 1º: ${insights.topStatesByCount[0].label}`
+                    : 'Ver por quantidade e por cachê'
+                }
+                expanded={openStates}
+                onToggle={() => setOpenStates((v) => !v)}
+                colors={colors}
+              >
                 <SectionSubtitle colors={colors.textSecondary}>Por quantidade de eventos</SectionSubtitle>
                 <BucketCard
                   rows={insights.topStatesByCount}
@@ -455,56 +499,74 @@ export default function FinanceiroInsightsScreen() {
                     />
                   </>
                 ) : null}
-              </>
+              </ExpandableBlock>
             )}
 
             {hasAccess ? (
               <>
-                <SectionTitle colors={colors.text}>Maiores cachês</SectionTitle>
-                <EventValueList
-                  rows={insights.highestCache}
+                <ExpandableBlock
+                  title="Cachês, despesas e avulsos"
+                  summary="Maiores/menores cachês, despesas em eventos, receitas e despesas avulsas"
+                  expanded={openDetails}
+                  onToggle={() => setOpenDetails((v) => !v)}
                   colors={colors}
-                  formatCurrency={formatCurrency}
-                  variant="high"
-                  emptyHint="Nenhum evento com cachê maior que zero no período."
-                />
+                >
+                  <SectionTitle colors={colors.text} style={styles.sectionTitleNested}>
+                    Maiores cachês
+                  </SectionTitle>
+                  <EventValueList
+                    rows={insights.highestCache}
+                    colors={colors}
+                    formatCurrency={formatCurrency}
+                    variant="high"
+                    emptyHint="Nenhum evento com cachê maior que zero no período."
+                  />
 
-                <SectionTitle colors={colors.text}>Menores cachês</SectionTitle>
-                <EventValueList
-                  rows={insights.lowestCache}
-                  colors={colors}
-                  formatCurrency={formatCurrency}
-                  variant="low"
-                  emptyHint="Nenhum evento com cachê maior que zero no período."
-                />
+                  <SectionTitle colors={colors.text} style={styles.sectionTitleNested}>
+                    Menores cachês
+                  </SectionTitle>
+                  <EventValueList
+                    rows={insights.lowestCache}
+                    colors={colors}
+                    formatCurrency={formatCurrency}
+                    variant="low"
+                    emptyHint="Nenhum evento com cachê maior que zero no período."
+                  />
 
-                <SectionTitle colors={colors.text}>Maiores despesas em eventos</SectionTitle>
-                <NamedAmountList
-                  rows={insights.topEventExpenses}
-                  colors={colors}
-                  formatCurrency={formatCurrency}
-                  valueColor={colors.error}
-                  emptyHint="Nenhuma despesa registrada nos eventos deste período."
-                />
+                  <SectionTitle colors={colors.text} style={styles.sectionTitleNested}>
+                    Maiores despesas em eventos
+                  </SectionTitle>
+                  <NamedAmountList
+                    rows={insights.topEventExpenses}
+                    colors={colors}
+                    formatCurrency={formatCurrency}
+                    valueColor={colors.error}
+                    emptyHint="Nenhuma despesa registrada nos eventos deste período."
+                  />
 
-                <SectionTitle colors={colors.text}>Receitas avulsas</SectionTitle>
-                <NamedAmountList
-                  rows={insights.topStandaloneIncome}
-                  colors={colors}
-                  formatCurrency={formatCurrency}
-                  valueColor={receitaAzul}
-                  emptyHint="Nenhuma receita avulsa neste período."
-                />
+                  <SectionTitle colors={colors.text} style={styles.sectionTitleNested}>
+                    Receitas avulsas
+                  </SectionTitle>
+                  <NamedAmountList
+                    rows={insights.topStandaloneIncome}
+                    colors={colors}
+                    formatCurrency={formatCurrency}
+                    valueColor={receitaAzul}
+                    emptyHint="Nenhuma receita avulsa neste período."
+                  />
 
-                <SectionTitle colors={colors.text}>Despesas avulsas</SectionTitle>
-                <NamedAmountList
-                  rows={insights.topStandaloneExpenses}
-                  colors={colors}
-                  formatCurrency={formatCurrency}
-                  valueColor={colors.error}
-                  emptyHint="Nenhuma despesa avulsa neste período."
-                  marginBottom
-                />
+                  <SectionTitle colors={colors.text} style={styles.sectionTitleNested}>
+                    Despesas avulsas
+                  </SectionTitle>
+                  <NamedAmountList
+                    rows={insights.topStandaloneExpenses}
+                    colors={colors}
+                    formatCurrency={formatCurrency}
+                    valueColor={colors.error}
+                    emptyHint="Nenhuma despesa avulsa neste período."
+                    marginBottom
+                  />
+                </ExpandableBlock>
               </>
             ) : (
               <View style={[styles.lockNote, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -600,8 +662,66 @@ export default function FinanceiroInsightsScreen() {
   );
 }
 
-function SectionTitle({ children, colors }: { children: string; colors: string }) {
-  return <Text style={[styles.sectionTitle, { color: colors }]}>{children}</Text>;
+function ExpandableBlock({
+  title,
+  summary,
+  expanded,
+  onToggle,
+  colors,
+  children,
+}: {
+  title: string;
+  summary: string;
+  expanded: boolean;
+  onToggle: () => void;
+  colors: ReturnType<typeof useTheme>['colors'];
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.expandableWrap}>
+      <TouchableOpacity
+        onPress={onToggle}
+        style={[
+          styles.expandHeader,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.border,
+          },
+        ]}
+        activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        accessibilityLabel={`${title}. ${expanded ? 'Recolher' : 'Expandir'}`}
+      >
+        <View style={styles.expandHeaderText}>
+          <Text style={[styles.expandTitle, { color: colors.text }]}>{title}</Text>
+          {!expanded ? (
+            <Text style={[styles.expandSummary, { color: colors.textSecondary }]} numberOfLines={2}>
+              {summary}
+            </Text>
+          ) : null}
+        </View>
+        <Ionicons
+          name={expanded ? 'chevron-up' : 'chevron-down'}
+          size={22}
+          color={colors.textSecondary}
+        />
+      </TouchableOpacity>
+      {expanded ? <View style={styles.expandBody}>{children}</View> : null}
+    </View>
+  );
+}
+
+function SectionTitle({
+  children,
+  colors,
+  style,
+}: {
+  children: string;
+  colors: string;
+  style?: TextStyle;
+}) {
+  return <Text style={[styles.sectionTitle, { color: colors }, style]}>{children}</Text>;
 }
 
 function SectionSubtitle({ children, colors }: { children: string; colors: string }) {
@@ -853,7 +973,22 @@ const styles = StyleSheet.create({
   financeSummaryValue: { fontSize: 15, fontVariant: ['tabular-nums'] },
   errorText: { marginBottom: 12, fontSize: 14 },
   loaderPad: { paddingVertical: 32 },
+  expandableWrap: { marginBottom: 10 },
+  expandHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  expandHeaderText: { flex: 1, minWidth: 0 },
+  expandTitle: { fontSize: 16, fontWeight: '700' },
+  expandSummary: { fontSize: 13, lineHeight: 18, marginTop: 4 },
+  expandBody: { marginTop: 8 },
   sectionTitle: { fontSize: 17, fontWeight: '700', marginBottom: 8, marginTop: 6 },
+  sectionTitleNested: { marginTop: 4 },
   sectionSubtitle: { fontSize: 12, fontWeight: '600', marginBottom: 6, marginTop: 4, textTransform: 'uppercase' },
   card: { borderRadius: 10, padding: 14 },
   listRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 12 },
