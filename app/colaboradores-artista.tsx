@@ -976,7 +976,7 @@ export default function ColaboradoresArtistaScreen() {
               <Text style={[styles.permissionTitle, { color: colors.text }]}>Enviar Convite de Colaboração</Text>
               
               <Text style={[styles.permissionDescription, { color: colors.textSecondary }] }>
-                Escolha o nível de acesso. Abaixo, um resumo do que a pessoa pode e não pode fazer.
+                Toque para escolher. Os detalhes de permissões aparecem só na opção selecionada.
               </Text>
               
               {selectedUser && (
@@ -1007,70 +1007,82 @@ export default function ColaboradoresArtistaScreen() {
               </Text>
               
               <View style={styles.permissionOptions}>
-                {COLLABORATOR_ROLES_FOR_PICKER.map((role) => (
-                  <TouchableOpacity
-                    key={role.value}
-                    style={[
-                      styles.permissionOption,
-                      { backgroundColor: colors.surface, borderColor: colors.border },
-                      newCollaboratorRole === role.value && [styles.permissionOptionSelected, { backgroundColor: colors.primary + '15', borderColor: colors.primary }]
-                    ]}
-                    onPress={() => setNewCollaboratorRole(role.value)}
-                    activeOpacity={0.85}
-                  >
-                    <View style={styles.permissionOptionContent}>
-                      <Text style={[
-                        styles.permissionOptionLabel,
-                        { color: colors.text },
-                        newCollaboratorRole === role.value && [styles.permissionOptionLabelSelected, { color: colors.primary }]
+                {COLLABORATOR_ROLES_FOR_PICKER.map((role) => {
+                  const isSel = newCollaboratorRole === role.value;
+                  return (
+                    <TouchableOpacity
+                      key={role.value}
+                      style={[
+                        styles.permissionOption,
+                        isSel ? styles.permissionOptionExpanded : styles.permissionOptionCollapsed,
+                        { backgroundColor: colors.surface, borderColor: colors.border },
+                        isSel && [styles.permissionOptionSelected, { backgroundColor: colors.primary + '15', borderColor: colors.primary }]
+                      ]}
+                      onPress={() => setNewCollaboratorRole(role.value)}
+                      activeOpacity={0.85}
+                    >
+                      <View style={styles.permissionOptionContent}>
+                        <Text style={[
+                          styles.permissionOptionLabel,
+                          { color: colors.text },
+                          isSel && [styles.permissionOptionLabelSelected, { color: colors.primary }]
+                        ]}>
+                          {role.label}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.permissionOptionDescription,
+                            { color: colors.textSecondary },
+                            isSel && styles.permissionOptionDescriptionSelected,
+                            !isSel && styles.permissionOptionDescriptionOneLine,
+                          ]}
+                          numberOfLines={isSel ? undefined : 2}
+                        >
+                          {role.summary}
+                        </Text>
+                        {isSel ? (
+                          <>
+                            <Text style={[styles.permissionPowersHeading, { color: colors.textSecondary }]}>
+                              Pode
+                            </Text>
+                            {role.powers.map((line) => (
+                              <View key={line} style={styles.permissionPowerRow}>
+                                <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                                <Text style={[styles.permissionPowerText, { color: colors.text }]}>{line}</Text>
+                              </View>
+                            ))}
+                            {role.limitations?.length ? (
+                              <>
+                                <Text style={[styles.permissionPowersHeading, { color: colors.textSecondary, marginTop: 6 }]}>
+                                  Não pode
+                                </Text>
+                                {role.limitations.map((line) => (
+                                  <View key={line} style={styles.permissionPowerRow}>
+                                    <Ionicons name="close-circle" size={14} color={colors.warning ?? '#f59e0b'} />
+                                    <Text style={[styles.permissionPowerText, { color: colors.textSecondary }]}>{line}</Text>
+                                  </View>
+                                ))}
+                              </>
+                            ) : null}
+                          </>
+                        ) : null}
+                      </View>
+                      <View style={[
+                        styles.permissionRadio,
+                        { borderColor: colors.border },
+                        isSel && [styles.permissionRadioSelected, { borderColor: colors.primary }]
                       ]}>
-                        {role.label}
-                      </Text>
-                      <Text style={[
-                        styles.permissionOptionDescription,
-                        { color: colors.textSecondary },
-                        newCollaboratorRole === role.value && styles.permissionOptionDescriptionSelected
-                      ]}>
-                        {role.summary}
-                      </Text>
-                      <Text style={[styles.permissionPowersHeading, { color: colors.textSecondary }]}>
-                        Pode
-                      </Text>
-                      {role.powers.map((line) => (
-                        <View key={line} style={styles.permissionPowerRow}>
-                          <Ionicons name="checkmark-circle" size={16} color={colors.success} />
-                          <Text style={[styles.permissionPowerText, { color: colors.text }]}>{line}</Text>
-                        </View>
-                      ))}
-                      {role.limitations?.length ? (
-                        <>
-                          <Text style={[styles.permissionPowersHeading, { color: colors.textSecondary, marginTop: 8 }]}>
-                            Não pode
-                          </Text>
-                          {role.limitations.map((line) => (
-                            <View key={line} style={styles.permissionPowerRow}>
-                              <Ionicons name="close-circle" size={16} color={colors.warning ?? '#f59e0b'} />
-                              <Text style={[styles.permissionPowerText, { color: colors.textSecondary }]}>{line}</Text>
-                            </View>
-                          ))}
-                        </>
-                      ) : null}
-                    </View>
-                    <View style={[
-                      styles.permissionRadio,
-                      { borderColor: colors.border },
-                      newCollaboratorRole === role.value && [styles.permissionRadioSelected, { borderColor: colors.primary }]
-                    ]}>
-                      {newCollaboratorRole === role.value && (
-                        <View style={[styles.permissionRadioInner, { backgroundColor: colors.primary }]} />
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                ))}
+                        {isSel && (
+                          <View style={[styles.permissionRadioInner, { backgroundColor: colors.primary }]} />
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
               
               <View style={[styles.permissionWarning, { backgroundColor: colors.secondary, borderColor: colors.border }] }>
-                <Ionicons name="information-circle" size={20} color="#ff9800" />
+                <Ionicons name="information-circle" size={18} color="#ff9800" />
                 <Text style={[styles.permissionWarningText, { color: colors.textSecondary }] }>
                   A pessoa recebe uma notificação e pode aceitar ou recusar.
                 </Text>
@@ -1154,75 +1166,86 @@ export default function ColaboradoresArtistaScreen() {
 
             {/* Opções de Role */}
             <View style={styles.roleOptionsContainer}>
-              {COLLABORATOR_ROLES_FOR_PICKER.map((role) => (
-                <TouchableOpacity
-                  key={role.value}
-                  style={[
-                    styles.roleOptionCard,
-                    selectedRole === role.value && styles.roleOptionCardSelected
-                  ]}
-                  onPress={() => setSelectedRole(role.value)}
-                  activeOpacity={0.85}
-                >
-                  <View style={styles.roleOptionHeader}>
-                    <View style={[styles.roleIconCircle, { backgroundColor: role.modalColor + '20' }]}>
-                      <Ionicons name={role.modalIcon} size={24} color={role.modalColor} />
-                    </View>
-                    <View style={styles.roleLabelContainer}>
-                      <Text style={[
-                        styles.roleOptionLabel,
-                        selectedRole === role.value && styles.roleOptionLabelSelected
-                      ]}>
-                        {role.label}
-                      </Text>
-                      <Text style={[
-                        styles.roleOptionDescription,
-                        selectedRole === role.value && styles.roleOptionDescriptionSelected
-                      ]}>
-                        {role.summary}
-                      </Text>
-                    </View>
-                    <View style={[
-                      styles.roleRadio,
-                      selectedRole === role.value && styles.roleRadioSelected
-                    ]}>
-                      {selectedRole === role.value && (
-                        <View style={[styles.roleRadioInner, { backgroundColor: role.modalColor }]} />
-                      )}
-                    </View>
-                  </View>
-
-                  <Text style={styles.rolePowersSectionTitle}>Pode</Text>
-                  <View style={styles.roleFeaturesList}>
-                    {role.powers.map((feature) => (
-                      <View key={feature} style={styles.roleFeatureItem}>
-                        <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+              {COLLABORATOR_ROLES_FOR_PICKER.map((role) => {
+                const roleSel = selectedRole === role.value;
+                return (
+                  <TouchableOpacity
+                    key={role.value}
+                    style={[
+                      styles.roleOptionCard,
+                      roleSel ? styles.roleOptionCardExpanded : styles.roleOptionCardCollapsed,
+                      roleSel && styles.roleOptionCardSelected
+                    ]}
+                    onPress={() => setSelectedRole(role.value)}
+                    activeOpacity={0.85}
+                  >
+                    <View style={[styles.roleOptionHeader, !roleSel && styles.roleOptionHeaderCompact]}>
+                      <View style={[styles.roleIconCircle, { backgroundColor: role.modalColor + '20' }, roleSel ? null : styles.roleIconCircleSmall]}>
+                        <Ionicons name={role.modalIcon} size={roleSel ? 22 : 18} color={role.modalColor} />
+                      </View>
+                      <View style={styles.roleLabelContainer}>
                         <Text style={[
-                          styles.roleFeatureText,
-                          selectedRole === role.value && { color: role.modalColor }
+                          styles.roleOptionLabel,
+                          roleSel && styles.roleOptionLabelSelected
                         ]}>
-                          {feature}
+                          {role.label}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.roleOptionDescription,
+                            roleSel && styles.roleOptionDescriptionSelected,
+                          ]}
+                          numberOfLines={roleSel ? undefined : 2}
+                        >
+                          {role.summary}
                         </Text>
                       </View>
-                    ))}
-                  </View>
-                  {role.limitations?.length ? (
-                    <>
-                      <Text style={[styles.rolePowersSectionTitle, { marginTop: 10 }]}>Não pode</Text>
-                      <View style={styles.roleFeaturesList}>
-                        {role.limitations.map((line) => (
-                          <View key={line} style={styles.roleFeatureItem}>
-                            <Ionicons name="close-circle" size={16} color="#F59E0B" />
-                            <Text style={[styles.roleFeatureText, { color: '#64748b' }]}>
-                              {line}
-                            </Text>
-                          </View>
-                        ))}
+                      <View style={[
+                        styles.roleRadio,
+                        roleSel && styles.roleRadioSelected
+                      ]}>
+                        {roleSel && (
+                          <View style={[styles.roleRadioInner, { backgroundColor: role.modalColor }]} />
+                        )}
                       </View>
-                    </>
-                  ) : null}
-                </TouchableOpacity>
-              ))}
+                    </View>
+
+                    {roleSel ? (
+                      <>
+                        <Text style={styles.rolePowersSectionTitle}>Pode</Text>
+                        <View style={styles.roleFeaturesList}>
+                          {role.powers.map((feature) => (
+                            <View key={feature} style={styles.roleFeatureItem}>
+                              <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                              <Text style={[
+                                styles.roleFeatureText,
+                                { color: role.modalColor }
+                              ]}>
+                                {feature}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                        {role.limitations?.length ? (
+                          <>
+                            <Text style={[styles.rolePowersSectionTitle, { marginTop: 6 }]}>Não pode</Text>
+                            <View style={styles.roleFeaturesList}>
+                              {role.limitations.map((line) => (
+                                <View key={line} style={styles.roleFeatureItem}>
+                                  <Ionicons name="close-circle" size={14} color="#F59E0B" />
+                                  <Text style={[styles.roleFeatureText, { color: '#64748b' }]}>
+                                    {line}
+                                  </Text>
+                                </View>
+                              ))}
+                            </View>
+                          </>
+                        ) : null}
+                      </>
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             {/* Warning */}
@@ -1823,18 +1846,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   roleOptionLabel: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   roleOptionLabelSelected: {
     color: '#667eea',
   },
   roleOptionDescription: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#666',
-    lineHeight: 20,
+    lineHeight: 16,
   },
   roleOptionDescriptionSelected: {
     color: '#667eea',
@@ -1984,27 +2007,27 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   permissionTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 12,
+    marginBottom: 8,
     textAlign: 'center',
   },
   permissionDescription: {
-    fontSize: 15,
+    fontSize: 13,
     color: '#666',
-    marginBottom: 20,
+    marginBottom: 12,
     textAlign: 'left',
-    lineHeight: 22,
+    lineHeight: 18,
     paddingHorizontal: 4,
   },
   permissionUserCard: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: Platform.OS === 'android' ? 0 : 0.1,
@@ -2013,9 +2036,9 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   permissionUserAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#667eea',
     justifyContent: 'center',
     alignItems: 'center',
@@ -2031,13 +2054,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   permissionUserName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#333',
     marginBottom: 2,
   },
   permissionUserEmail: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#666',
   },
   permissionUserLocationRow: {
@@ -2047,9 +2070,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   permissionDetails: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#333',
-    marginBottom: 20,
+    marginBottom: 10,
     alignSelf: 'flex-start',
     width: '100%',
   },
@@ -2059,18 +2082,26 @@ const styles = StyleSheet.create({
   },
   permissionOptions: {
     width: '100%',
-    gap: 12,
-    marginBottom: 20,
+    gap: 8,
+    marginBottom: 14,
   },
   permissionOption: {
     backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 16,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#e9ecef',
     flexDirection: 'row',
-    alignItems: 'flex-start',
     justifyContent: 'space-between',
+  },
+  permissionOptionCollapsed: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+  },
+  permissionOptionExpanded: {
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    alignItems: 'flex-start',
   },
   permissionOptionSelected: {
     borderColor: '#667eea',
@@ -2078,77 +2109,81 @@ const styles = StyleSheet.create({
   },
   permissionOptionContent: {
     flex: 1,
+    minWidth: 0,
   },
   permissionOptionLabel: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   permissionOptionLabelSelected: {
     color: '#667eea',
   },
   permissionOptionDescription: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#666',
-    lineHeight: 20,
-    marginBottom: 4,
+    lineHeight: 16,
+    marginBottom: 0,
+  },
+  permissionOptionDescriptionOneLine: {
+    marginBottom: 0,
   },
   permissionOptionDescriptionSelected: {
     color: '#667eea',
   },
   permissionPowersHeading: {
-    fontSize: 13,
-    fontWeight: '600',
-    marginTop: 10,
-    marginBottom: 4,
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 8,
+    marginBottom: 3,
+    letterSpacing: 0.2,
   },
   permissionPowerRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 8,
-    marginBottom: 6,
-    paddingRight: 4,
+    gap: 6,
+    marginBottom: 3,
+    paddingRight: 2,
   },
   permissionPowerText: {
     flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
   },
   permissionRadio: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     borderWidth: 2,
     borderColor: '#ddd',
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 12,
-    marginTop: 4,
+    marginLeft: 10,
     alignSelf: 'center',
   },
   permissionRadioSelected: {
     borderColor: '#667eea',
   },
   permissionRadioInner: {
-    width: 8,
-    height: 8,
+    width: 7,
+    height: 7,
     borderRadius: 4,
   },
   permissionWarning: {
     backgroundColor: '#fff3cd',
     borderRadius: 8,
-    padding: 12,
+    padding: 10,
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
   },
   permissionWarningText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#856404',
     marginLeft: 8,
     flex: 1,
-    lineHeight: 18,
+    lineHeight: 16,
   },
   roleModalContainer: {
     flex: 1,
@@ -2250,63 +2285,82 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   roleOptionsContainer: {
-    gap: 16,
-    marginBottom: 24,
+    gap: 8,
+    marginBottom: 16,
   },
   roleOptionCard: {
     backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 2,
+    borderRadius: 12,
+    borderWidth: 1,
     borderColor: '#e9ecef',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: Platform.OS === 'android' ? 0 : 0.05,
-    shadowRadius: Platform.OS === 'android' ? 0 : 8,
-    elevation: Platform.OS === 'android' ? 0 : 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: Platform.OS === 'android' ? 0 : 0.04,
+    shadowRadius: Platform.OS === 'android' ? 0 : 4,
+    elevation: Platform.OS === 'android' ? 0 : 2,
+  },
+  roleOptionCardCollapsed: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  roleOptionCardExpanded: {
+    paddingVertical: 12,
+    paddingHorizontal: 12,
   },
   roleOptionCardSelected: {
     borderColor: '#667eea',
+    borderWidth: 2,
     backgroundColor: '#f8f9ff',
     shadowColor: '#667eea',
-    shadowOpacity: Platform.OS === 'android' ? 0 : 0.2,
+    shadowOpacity: Platform.OS === 'android' ? 0 : 0.12,
   },
   roleOptionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
+  },
+  roleOptionHeaderCompact: {
+    marginBottom: 0,
   },
   roleIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 10,
+  },
+  roleIconCircleSmall: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 10,
   },
   roleLabelContainer: {
     flex: 1,
   },
   rolePowersSectionTitle: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
     color: '#64748b',
-    marginBottom: 6,
-    marginTop: 4,
+    marginBottom: 4,
+    marginTop: 2,
+    letterSpacing: 0.2,
   },
   roleFeaturesList: {
-    gap: 10,
-    paddingLeft: 8,
+    gap: 4,
+    paddingLeft: 4,
   },
   roleFeatureItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 8,
+    gap: 6,
   },
   roleFeatureText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#666',
     flex: 1,
+    lineHeight: 16,
   },
   roleWarning: {
     backgroundColor: '#FEF3C7',
