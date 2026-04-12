@@ -24,6 +24,79 @@ import { deletePendingInviteNotifications } from '../services/supabase/notificat
 import { useActiveArtist } from '../services/useActiveArtist';
 import { joinArtistStringArrayJson, parseArtistStringArrayFromJson } from '../constants/artistProfileLists';
 
+type CollaboratorInviteRole = 'owner' | 'admin' | 'editor' | 'viewer';
+
+/** Textos alinhados às regras reais (agenda, finanças, colaboradores, perfil). */
+const COLLABORATOR_ROLES_CONFIG: {
+  value: CollaboratorInviteRole;
+  label: string;
+  summary: string;
+  powers: string[];
+  limitations?: string[];
+  modalIcon: React.ComponentProps<typeof Ionicons>['name'];
+  modalColor: string;
+}[] = [
+  {
+    value: 'admin',
+    label: 'Administrador',
+    summary: 'Controle total sobre agenda, finanças, equipe e perfil do artista.',
+    powers: [
+      'Ver eventos e todos os valores financeiros',
+      'Criar, editar e excluir eventos e despesas',
+      'Convidar colaboradores, alterar permissões e remover membros',
+      'Editar perfil do artista e excluir o artista',
+      'Gerenciar convites pendentes',
+    ],
+    modalIcon: 'shield-checkmark',
+    modalColor: '#FF6B35',
+  },
+  {
+    value: 'owner',
+    label: 'Gerente',
+    summary: 'Mesmo acesso operacional do administrador, com restrição ao gerir outros admins.',
+    powers: [
+      'Ver e editar agenda, finanças, perfil e eventos (como o administrador)',
+      'Convidar e gerenciar colaboradores com papel Editor ou Visualizador',
+    ],
+    limitations: [
+      'Não pode alterar nem remover um Administrador (apenas outro Admin pode)',
+    ],
+    modalIcon: 'star',
+    modalColor: '#FFD700',
+  },
+  {
+    value: 'editor',
+    label: 'Editor',
+    summary: 'Cuida do dia a dia da agenda e das finanças, sem apagar eventos nem gerir equipe.',
+    powers: [
+      'Ver eventos com valores financeiros e exportar dados financeiros',
+      'Criar e editar eventos e despesas',
+      'Ver a lista de colaboradores',
+    ],
+    limitations: [
+      'Não exclui eventos nem altera permissões de ninguém',
+      'Não edita perfil do artista nem exclui o artista',
+    ],
+    modalIcon: 'create',
+    modalColor: '#4ECDC4',
+  },
+  {
+    value: 'viewer',
+    label: 'Visualizador',
+    summary: 'Somente leitura: acompanha agenda e equipe, sem ver valores nem alterar nada.',
+    powers: [
+      'Ver agenda e informações do artista',
+      'Ver lista de colaboradores e receber notificações',
+    ],
+    limitations: [
+      'Não vê cachês, receitas ou outros valores financeiros',
+      'Não cria, edita ou exclui eventos ou despesas',
+    ],
+    modalIcon: 'eye',
+    modalColor: '#95A5A6',
+  },
+];
+
 export default function ColaboradoresArtistaScreen() {
   const { colors } = useTheme();
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
@@ -1012,12 +1085,7 @@ export default function ColaboradoresArtistaScreen() {
               </Text>
               
               <View style={styles.permissionOptions}>
-                {[
-                  { label: 'Administrador', value: 'admin', description: 'Acesso total e controle completo' },
-                  { label: 'Gerente', value: 'owner', description: 'Alterar permissões, editar eventos e ver finanças' },
-                  { label: 'Editor', value: 'editor', description: 'Pode editar eventos e despesas' },
-                  { label: 'Visualizador', value: 'viewer', description: 'Pode apenas visualizar' }
-                ].map((role) => (
+                {COLLABORATOR_ROLES_CONFIG.map((role) => (
                   <TouchableOpacity
                     key={role.value}
                     style={[
@@ -1025,7 +1093,8 @@ export default function ColaboradoresArtistaScreen() {
                       { backgroundColor: colors.surface, borderColor: colors.border },
                       newCollaboratorRole === role.value && [styles.permissionOptionSelected, { backgroundColor: colors.primary + '15', borderColor: colors.primary }]
                     ]}
-                    onPress={() => setNewCollaboratorRole(role.value as any)}
+                    onPress={() => setNewCollaboratorRole(role.value)}
+                    activeOpacity={0.85}
                   >
                     <View style={styles.permissionOptionContent}>
                       <Text style={[
@@ -1040,8 +1109,30 @@ export default function ColaboradoresArtistaScreen() {
                         { color: colors.textSecondary },
                         newCollaboratorRole === role.value && styles.permissionOptionDescriptionSelected
                       ]}>
-                        {role.description}
+                        {role.summary}
                       </Text>
+                      <Text style={[styles.permissionPowersHeading, { color: colors.textSecondary }]}>
+                        O que essa pessoa poderá fazer:
+                      </Text>
+                      {role.powers.map((line) => (
+                        <View key={line} style={styles.permissionPowerRow}>
+                          <Ionicons name="checkmark-circle" size={16} color={newCollaboratorRole === role.value ? colors.primary : colors.textSecondary} />
+                          <Text style={[styles.permissionPowerText, { color: colors.text }]}>{line}</Text>
+                        </View>
+                      ))}
+                      {role.limitations?.length ? (
+                        <>
+                          <Text style={[styles.permissionPowersHeading, { color: colors.textSecondary, marginTop: 8 }]}>
+                            Limitações:
+                          </Text>
+                          {role.limitations.map((line) => (
+                            <View key={line} style={styles.permissionPowerRow}>
+                              <Ionicons name="close-circle" size={16} color={colors.warning ?? '#f59e0b'} />
+                              <Text style={[styles.permissionPowerText, { color: colors.textSecondary }]}>{line}</Text>
+                            </View>
+                          ))}
+                        </>
+                      ) : null}
                     </View>
                     <View style={[
                       styles.permissionRadio,
@@ -1049,7 +1140,7 @@ export default function ColaboradoresArtistaScreen() {
                       newCollaboratorRole === role.value && [styles.permissionRadioSelected, { borderColor: colors.primary }]
                     ]}>
                       {newCollaboratorRole === role.value && (
-                        <View style={styles.permissionRadioInner} />
+                        <View style={[styles.permissionRadioInner, { backgroundColor: colors.primary }]} />
                       )}
                     </View>
                   </TouchableOpacity>
@@ -1141,51 +1232,19 @@ export default function ColaboradoresArtistaScreen() {
 
             {/* Opções de Role */}
             <View style={styles.roleOptionsContainer}>
-              {[
-                { 
-                  label: 'Administrador', 
-                  value: 'admin', 
-                  icon: 'shield-checkmark',
-                  color: '#FF6B35',
-                  description: 'Acesso total',
-                  features: ['Gerenciar tudo', 'Controle completo', 'Todas as permissões']
-                },
-                { 
-                  label: 'Gerente', 
-                  value: 'owner', 
-                  icon: 'star',
-                  color: '#FFD700',
-                  description: 'Gerenciamento do artista',
-                  features: ['Alterar permissões', 'Editar eventos', 'Ver finanças']
-                },
-                { 
-                  label: 'Editor', 
-                  value: 'editor', 
-                  icon: 'create',
-                  color: '#4ECDC4',
-                  description: 'Edição de conteúdo',
-                  features: ['Criar eventos', 'Editar eventos', 'Ver finanças']
-                },
-                { 
-                  label: 'Visualizador', 
-                  value: 'viewer', 
-                  icon: 'eye',
-                  color: '#95A5A6',
-                  description: 'Apenas visualização',
-                  features: ['Ver eventos', 'Ver colaboradores', 'Sem edição']
-                }
-              ].map((role) => (
+              {COLLABORATOR_ROLES_CONFIG.map((role) => (
                 <TouchableOpacity
                   key={role.value}
                   style={[
                     styles.roleOptionCard,
                     selectedRole === role.value && styles.roleOptionCardSelected
                   ]}
-                  onPress={() => setSelectedRole(role.value as any)}
+                  onPress={() => setSelectedRole(role.value)}
+                  activeOpacity={0.85}
                 >
                   <View style={styles.roleOptionHeader}>
-                    <View style={[styles.roleIconCircle, { backgroundColor: role.color + '20' }]}>
-                      <Ionicons name={role.icon as any} size={24} color={role.color} />
+                    <View style={[styles.roleIconCircle, { backgroundColor: role.modalColor + '20' }]}>
+                      <Ionicons name={role.modalIcon} size={24} color={role.modalColor} />
                     </View>
                     <View style={styles.roleLabelContainer}>
                       <Text style={[
@@ -1198,7 +1257,7 @@ export default function ColaboradoresArtistaScreen() {
                         styles.roleOptionDescription,
                         selectedRole === role.value && styles.roleOptionDescriptionSelected
                       ]}>
-                        {role.description}
+                        {role.summary}
                       </Text>
                     </View>
                     <View style={[
@@ -1206,25 +1265,40 @@ export default function ColaboradoresArtistaScreen() {
                       selectedRole === role.value && styles.roleRadioSelected
                     ]}>
                       {selectedRole === role.value && (
-                        <View style={[styles.roleRadioInner, { backgroundColor: role.color }]} />
+                        <View style={[styles.roleRadioInner, { backgroundColor: role.modalColor }]} />
                       )}
                     </View>
                   </View>
-                  
-                  {/* Features List */}
+
+                  <Text style={styles.rolePowersSectionTitle}>O que essa pessoa poderá fazer</Text>
                   <View style={styles.roleFeaturesList}>
-                    {role.features.map((feature, index) => (
-                      <View key={index} style={styles.roleFeatureItem}>
-                        <Ionicons name="checkmark-circle" size={16} color={role.color} />
+                    {role.powers.map((feature) => (
+                      <View key={feature} style={styles.roleFeatureItem}>
+                        <Ionicons name="checkmark-circle" size={16} color={role.modalColor} />
                         <Text style={[
                           styles.roleFeatureText,
-                          selectedRole === role.value && { color: role.color }
+                          selectedRole === role.value && { color: role.modalColor }
                         ]}>
                           {feature}
                         </Text>
                       </View>
                     ))}
                   </View>
+                  {role.limitations?.length ? (
+                    <>
+                      <Text style={[styles.rolePowersSectionTitle, { marginTop: 10 }]}>Limitações</Text>
+                      <View style={styles.roleFeaturesList}>
+                        {role.limitations.map((line) => (
+                          <View key={line} style={styles.roleFeatureItem}>
+                            <Ionicons name="close-circle" size={16} color="#F59E0B" />
+                            <Text style={[styles.roleFeatureText, { color: '#64748b' }]}>
+                              {line}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    </>
+                  ) : null}
                 </TouchableOpacity>
               ))}
             </View>
@@ -2058,7 +2132,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e9ecef',
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
   },
   permissionOptionSelected: {
@@ -2084,6 +2158,26 @@ const styles = StyleSheet.create({
   permissionOptionDescriptionSelected: {
     color: '#667eea',
   },
+  permissionPowersHeading: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  permissionPowerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 6,
+    paddingRight: 4,
+  },
+  permissionPowerText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+  },
   permissionRadio: {
     width: 20,
     height: 20,
@@ -2093,6 +2187,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 12,
+    marginTop: 4,
+    alignSelf: 'center',
   },
   permissionRadioSelected: {
     borderColor: '#667eea',
@@ -2101,7 +2197,6 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#667eea',
   },
   permissionWarning: {
     backgroundColor: '#fff3cd',
@@ -2254,13 +2349,22 @@ const styles = StyleSheet.create({
   roleLabelContainer: {
     flex: 1,
   },
+  rolePowersSectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748b',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    marginTop: 4,
+  },
   roleFeaturesList: {
     gap: 10,
     paddingLeft: 8,
   },
   roleFeatureItem: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 8,
   },
   roleFeatureText: {
