@@ -22,6 +22,9 @@ export type BrazilUfMapProps = {
   fillActive: string;
   fillInactive: string;
   strokeColor: string;
+  onLoadEnd?: () => void;
+  /** Ex.: `#ffffff` para captura PNG com fundo sólido */
+  htmlBackgroundColor?: string;
 };
 
 /** Mapa SVG via WebView (evita RNSVGSvgView, que exige módulo nativo do react-native-svg). */
@@ -30,7 +33,12 @@ export function BrazilUfMap({
   fillActive,
   fillInactive,
   strokeColor,
+  onLoadEnd,
+  htmlBackgroundColor,
 }: BrazilUfMapProps) {
+  const bg = htmlBackgroundColor ?? 'transparent';
+  const solidBg = Boolean(htmlBackgroundColor && htmlBackgroundColor !== 'transparent');
+
   const html = useMemo(() => {
     const activeLower = new Set<string>();
     for (const u of activeUfs) {
@@ -51,7 +59,7 @@ export function BrazilUfMap({
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
 <style>
-html,body{margin:0;padding:0;background:transparent;}
+html,body{margin:0;padding:0;background:${escapeXmlAttr(bg)};}
 svg{display:block;width:100%;height:auto;max-width:100%;}
 </style>
 </head>
@@ -59,7 +67,7 @@ svg{display:block;width:100%;height:auto;max-width:100%;}
 <svg viewBox="0 0 ${VIEWBOX_W} ${VIEWBOX_H}" xmlns="http://www.w3.org/2000/svg">${pathsHtml}</svg>
 </body>
 </html>`;
-  }, [activeUfs, fillActive, fillInactive, strokeColor]);
+  }, [activeUfs, fillActive, fillInactive, strokeColor, bg]);
 
   return (
     <View
@@ -73,17 +81,18 @@ svg{display:block;width:100%;height:auto;max-width:100%;}
       <WebView
         originWhitelist={['*']}
         source={{ html }}
-        style={{ flex: 1, backgroundColor: 'transparent' }}
+        style={{ flex: 1, backgroundColor: solidBg ? htmlBackgroundColor : 'transparent' }}
         scrollEnabled={false}
         showsHorizontalScrollIndicator={false}
         showsVerticalScrollIndicator={false}
         bounces={false}
         overScrollMode="never"
         androidLayerType="hardware"
-        opaque={false}
+        opaque={solidBg}
         pointerEvents="none"
         setBuiltInZoomControls={false}
         automaticallyAdjustContentInsets={false}
+        onLoadEnd={onLoadEnd}
       />
     </View>
   );

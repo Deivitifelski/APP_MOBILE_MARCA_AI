@@ -46,6 +46,8 @@ export interface EventInsightsResult {
   eventsWithUfParsed: number;
   /** Todas as UFs com pelo menos um evento no período (para mapa e totais). */
   stateUfsWithEvents: string[];
+  /** Todas as UFs com contagem de eventos (ordenado por quantidade, para compartilhar imagem). */
+  allStatesByEventCount: LocationBucket[];
   topCitiesByCount: LocationBucket[];
   topCitiesByValue: LocationBucket[];
   topStatesByCount: LocationBucket[];
@@ -163,6 +165,15 @@ export function buildEventInsights(
   const revenueFromEvents = events.reduce((s, e) => s + (e.value ?? 0), 0);
   const stateUfsWithEvents = [...stateMap.keys()].sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
+  const allStatesByEventCount: LocationBucket[] = [...stateMap.entries()]
+    .map(([key, x]) => ({
+      key,
+      label: x.label,
+      eventCount: x.eventCount,
+      totalValue: x.totalValue,
+    }))
+    .sort((a, b) => b.eventCount - a.eventCount || b.totalValue - a.totalValue);
+
   return {
     startDate: range.start,
     endDate: range.end,
@@ -170,6 +181,7 @@ export function buildEventInsights(
     eventsWithCity,
     eventsWithUfParsed,
     stateUfsWithEvents,
+    allStatesByEventCount,
     topCitiesByCount: toSorted(cityMap, 'count'),
     topCitiesByValue: toSorted(cityMap, 'value'),
     topStatesByCount: toSorted(stateMap, 'count'),

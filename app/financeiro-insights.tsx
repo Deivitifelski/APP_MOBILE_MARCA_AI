@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as Sharing from 'expo-sharing';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Platform,
   ScrollView,
@@ -14,7 +16,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { captureRef } from 'react-native-view-shot';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  BrazilStatesShareCapture,
+  BRAZIL_STATES_SHARE_WIDTH,
+} from '../components/BrazilStatesShareCapture';
 import { BrazilUfMap } from '../components/BrazilUfMap';
 import { useActiveArtistContext } from '../contexts/ActiveArtistContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -87,6 +94,9 @@ export default function FinanceiroInsightsScreen() {
   const [openCities, setOpenCities] = useState(false);
   const [openStates, setOpenStates] = useState(false);
   const [openDetails, setOpenDetails] = useState(false);
+  const [sharingUfMap, setSharingUfMap] = useState(false);
+  const ufShareCaptureRef = useRef<View>(null);
+  const ufMapReadyRef = useRef(false);
 
   useEffect(() => {
     const scope = params.scope;
@@ -174,6 +184,46 @@ export default function FinanceiroInsightsScreen() {
 
   const formatCurrency = (v: number) =>
     v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  useEffect(() => {
+    ufMapReadyRef.current = false;
+  }, [insights?.startDate, insights?.endDate, insights?.stateUfsWithEvents?.join(',')]);
+
+  const shareUfStatesImage = useCallback(async () => {
+    if (!insights || insights.eventsWithUfParsed === 0 || !activeArtist) return;
+    const node = ufShareCaptureRef.current;
+    if (!node) {
+      Alert.alert('Aguarde', 'Tente novamente em instantes.');
+      return;
+    }
+    try {
+      setSharingUfMap(true);
+      const deadline = Date.now() + 3000;
+      while (!ufMapReadyRef.current && Date.now() < deadline) {
+        await new Promise<void>((r) => setTimeout(r, 90));
+      }
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+      await new Promise<void>((r) => setTimeout(r, 220));
+      const uri = await captureRef(node, {
+        format: 'png',
+        quality: 0.92,
+        result: 'tmpfile',
+      });
+      const ok = await Sharing.isAvailableAsync();
+      if (!ok) {
+        Alert.alert('Indisponível', 'Compartilhamento não está disponível neste dispositivo.');
+        return;
+      }
+      await Sharing.shareAsync(uri, {
+        mimeType: 'image/png',
+        dialogTitle: 'Compartilhar mapa por estado',
+      });
+    } catch {
+      Alert.alert('Erro', 'Não foi possível gerar ou compartilhar a imagem.');
+    } finally {
+      setSharingUfMap(false);
+    }
+  }, [insights, activeArtist]);
 
   const periodTitle = useMemo(() => {
     if (agendaLink?.scope === 'month') {
@@ -472,6 +522,32 @@ export default function FinanceiroInsightsScreen() {
               ) : null}
             </View>
             {insights.eventsWithUfParsed > 0 ? (
+              <TouchableOpacity
+                style={[
+                  styles.shareUfRow,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    opacity: sharingUfMap ? 0.75 : 1,
+                  },
+                ]}
+                onPress={() => void shareUfStatesImage()}
+                disabled={sharingUfMap}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Compartilhar imagem do mapa e quantidade de eventos por estado"
+              >
+                {sharingUfMap ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Ionicons name="share-outline" size={22} color={colors.primary} />
+                )}
+                <Text style={[styles.shareUfText, { color: colors.primary }]}>
+                  Compartilhar imagem (mapa e eventos por UF)
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+            {insights.eventsWithUfParsed > 0 ? (
               <ExpandableBlock
                 title="Ranking por UF"
                 summary={
@@ -664,6 +740,28 @@ export default function FinanceiroInsightsScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {insights && insights.eventsWithUfParsed > 0 && activeArtist ? (
+        <View
+          style={styles.ufShareOffscreen}
+          pointerEvents="none"
+          collapsable={false}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          <BrazilStatesShareCapture
+            key={`${insights.startDate}-${insights.endDate}-${insights.stateUfsWithEvents.join(',')}`}
+            ref={ufShareCaptureRef}
+            periodLabel={periodTitle}
+            artistName={activeArtist.name}
+            states={insights.allStatesByEventCount}
+            activeUfs={insights.stateUfsWithEvents}
+            onMapLoadEnd={() => {
+              ufMapReadyRef.current = true;
+            }}
+          />
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -997,6 +1095,23 @@ const styles = StyleSheet.create({
   sectionTitleNested: { marginTop: 4 },
   sectionSubtitle: { fontSize: 12, fontWeight: '600', marginBottom: 6, marginTop: 4, textTransform: 'uppercase' },
   card: { borderRadius: 10, padding: 14 },
+  shareUfRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  shareUfText: { flex: 1, fontSize: 15, fontWeight: '600' },
+  ufShareOffscreen: {
+    position: 'absolute',
+    left: 0,
+    top: -8000,
+    width: BRAZIL_STATES_SHARE_WIDTH,
+  },
   listRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 12 },
   listName: { fontSize: 15, fontWeight: '600' },
   listSub: { fontSize: 12, marginTop: 2 },
