@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BrazilUfMap } from '../components/BrazilUfMap';
 import { useActiveArtistContext } from '../contexts/ActiveArtistContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { formatCalendarDate } from '../lib/dateUtils';
@@ -456,18 +457,23 @@ export default function FinanceiroInsightsScreen() {
               ) : null}
             </ExpandableBlock>
 
-            {insights.eventsWithUfParsed === 0 ? (
-              <>
-                <SectionTitle colors={colors.text}>Top estados (UF)</SectionTitle>
-                <View style={[styles.card, { backgroundColor: colors.surface }]}>
-                  <Text style={{ color: colors.textSecondary, lineHeight: 20 }}>
-                    Nenhum evento com UF reconhecida. Inclua a sigla no campo cidade (ex.: Porto Alegre, RS).
-                  </Text>
-                </View>
-              </>
-            ) : (
+            <SectionTitle colors={colors.text}>Top estados (UF)</SectionTitle>
+            <View style={[styles.card, { backgroundColor: colors.surface }]}>
+              <BrazilUfMap
+                activeUfs={insights.stateUfsWithEvents}
+                fillActive={receitaAzul}
+                fillInactive={isDarkMode ? '#3f3f46' : '#e2e8f0'}
+                strokeColor={isDarkMode ? '#52525b' : '#cbd5e1'}
+              />
+              {insights.eventsWithUfParsed === 0 ? (
+                <Text style={{ marginTop: 12, color: colors.textSecondary, lineHeight: 20 }}>
+                  Nenhum evento com UF reconhecida. Inclua a sigla no campo cidade (ex.: Porto Alegre, RS).
+                </Text>
+              ) : null}
+            </View>
+            {insights.eventsWithUfParsed > 0 ? (
               <ExpandableBlock
-                title="Top estados (UF)"
+                title="Ranking por UF"
                 summary={
                   insights.topStatesByCount[0]
                     ? `${insights.topStatesByCount.length} UF no ranking · 1º: ${insights.topStatesByCount[0].label}`
@@ -500,7 +506,7 @@ export default function FinanceiroInsightsScreen() {
                   </>
                 ) : null}
               </ExpandableBlock>
-            )}
+            ) : null}
 
             {hasAccess ? (
               <>
