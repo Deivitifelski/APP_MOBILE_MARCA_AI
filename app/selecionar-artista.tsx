@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   RefreshControl,
   Image,
-  Modal,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -34,9 +33,7 @@ export default function SelecionarArtistaScreen() {
   const [artists, setArtists] = useState<ArtistCollaborator[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [selectedArtist, setSelectedArtist] = useState<ArtistCollaborator | null>(null);
-  const [isChanging, setIsChanging] = useState(false);
+  const [switchingArtistId, setSwitchingArtistId] = useState<string | null>(null);
   const { activeArtist, setActiveArtist } = useActiveArtistContext();
   const { colors } = useTheme();
 
@@ -80,42 +77,23 @@ export default function SelecionarArtistaScreen() {
     setIsRefreshing(false);
   };
 
-  const handleSelectArtist = (artist: ArtistCollaborator) => {
-    setSelectedArtist(artist);
-    setShowConfirmModal(true);
-  };
-
-  const handleConfirmChange = async () => {
-    if (!selectedArtist) return;
-
+  const handleSelectArtist = async (artist: ArtistCollaborator) => {
     try {
-      setIsChanging(true);
-      
-      // Atualizar Context (propaga automaticamente para todas as telas)
+      setSwitchingArtistId(artist.id);
       await setActiveArtist({
-        id: selectedArtist.id,
-        name: selectedArtist.name,
-        role: selectedArtist.role,
-        profile_url: selectedArtist.profile_url,
-        musical_style: selectedArtist.musical_style,
-        created_at: selectedArtist.created_at
+        id: artist.id,
+        name: artist.name,
+        role: artist.role,
+        profile_url: artist.profile_url,
+        musical_style: artist.musical_style,
+        created_at: artist.created_at,
       });
-      
-      setShowConfirmModal(false);
-      setIsChanging(false);
-      
-      // Redirecionar imediatamente
-      router.replace('/(tabs)/agenda');
-    } catch (error) {
-      setIsChanging(false);
-      setShowConfirmModal(false);
+      router.replace({ pathname: '/(tabs)/agenda', params: { artistChangedToast: '1' } });
+    } catch {
       Alert.alert('Erro', 'Não foi possível alterar o artista. Tente novamente.');
+    } finally {
+      setSwitchingArtistId(null);
     }
-  };
-
-  const handleCancelChange = () => {
-    setShowConfirmModal(false);
-    setSelectedArtist(null);
   };
 
   const getRoleIcon = (role: string) => {
@@ -178,7 +156,7 @@ export default function SelecionarArtistaScreen() {
           isActive && styles.artistCardActive
         ]}
         onPress={() => handleSelectArtist(artist)}
-        disabled={isActive}
+        disabled={isActive || switchingArtistId !== null}
       >
         <View style={styles.artistInfo}>
           <View style={[styles.artistAvatar, isActive && { borderColor: colors.primary, borderWidth: 2 }]}>
@@ -225,7 +203,9 @@ export default function SelecionarArtistaScreen() {
             </View>
           </View>
         </View>
-        {isActive ? (
+        {switchingArtistId === artist.id ? (
+          <ActivityIndicator size="small" color={colors.primary} />
+        ) : isActive ? (
           <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
         ) : (
           <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
@@ -282,80 +262,6 @@ export default function SelecionarArtistaScreen() {
           </View>
         )}
       </ScrollView>
-
-      {/* Modal Personalizado de Confirmação */}
-      <Modal
-        visible={showConfirmModal}
-        transparent
-        animationType="fade"
-        onRequestClose={handleCancelChange}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={[styles.modalIcon, { backgroundColor: colors.primary + '20' }]}>
-              <Ionicons name="swap-horizontal" size={32} color={colors.primary} />
-            </View>
-
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              Alterar Artista
-            </Text>
-
-            {selectedArtist && (
-              <View style={styles.modalArtistInfo}>
-                <View style={styles.modalAvatarContainer}>
-                  {selectedArtist.profile_url && selectedArtist.profile_url.trim() !== '' ? (
-                    <Image
-                      source={{
-                        uri: `${selectedArtist.profile_url}${selectedArtist.profile_url.includes('?') ? '&' : '?'}t=${Date.now()}`,
-                        cache: 'reload'
-                      }}
-                      style={styles.modalAvatar}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View style={[styles.modalAvatarPlaceholder, { backgroundColor: colors.primary }]}>
-                      <Ionicons name="musical-notes" size={32} color="#fff" />
-                    </View>
-                  )}
-                </View>
-                <Text style={[styles.modalArtistName, { color: colors.text }]}>
-                  {selectedArtist.name}
-                </Text>
-              </View>
-            )}
-
-            <Text style={[styles.modalMessage, { color: colors.textSecondary }]}>
-              Deseja alternar para este artista?
-            </Text>
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonCancel, { borderColor: colors.border }]}
-                onPress={handleCancelChange}
-                disabled={isChanging}
-              >
-                <Text style={[styles.modalButtonText, { color: colors.textSecondary }]}>
-                  Cancelar
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonConfirm, { backgroundColor: colors.primary }]}
-                onPress={handleConfirmChange}
-                disabled={isChanging}
-              >
-                {isChanging ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.modalButtonTextConfirm}>
-                    Alterar
-                  </Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -537,96 +443,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
-  },
-  // Modal Personalizado
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    width: '100%',
-    maxWidth: 400,
-    borderRadius: 20,
-    padding: 24,
-    alignItems: 'center',
-  },
-  modalIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  modalArtistInfo: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalAvatarContainer: {
-    marginBottom: 12,
-  },
-  modalAvatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-  },
-  modalAvatarPlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalArtistName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  modalMessage: {
-    fontSize: 15,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 24,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    width: '100%',
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalButtonCancel: {
-    backgroundColor: 'transparent',
-    borderWidth: 1.5,
-  },
-  modalButtonConfirm: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: Platform.OS === 'android' ? 0 : 0.1,
-    shadowRadius: Platform.OS === 'android' ? 0 : 4,
-    elevation: Platform.OS === 'android' ? 0 : 3,
-  },
-  modalButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  modalButtonTextConfirm: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
   },
 });

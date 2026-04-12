@@ -22,7 +22,6 @@ import { getCurrentUser } from '../services/supabase/authService';
 import { addCollaborator, Collaborator, getCollaborators, removeCollaborator, searchUsersForCollaboratorInvite, updateCollaboratorRole } from '../services/supabase/collaboratorService';
 import { deletePendingInviteNotifications } from '../services/supabase/notificationService';
 import { useActiveArtist } from '../services/useActiveArtist';
-import { joinArtistStringArrayJson, parseArtistStringArrayFromJson } from '../constants/artistProfileLists';
 
 type CollaboratorInviteRole = 'owner' | 'admin' | 'editor' | 'viewer';
 
@@ -39,13 +38,11 @@ const COLLABORATOR_ROLES_CONFIG: {
   {
     value: 'admin',
     label: 'Administrador',
-    summary: 'Controle total sobre agenda, finanças, equipe e perfil do artista.',
+    summary: 'Acesso total ao artista: finanças, agenda, equipe e perfil.',
     powers: [
-      'Ver eventos e todos os valores financeiros',
-      'Criar, editar e excluir eventos e despesas',
-      'Convidar colaboradores, alterar permissões e remover membros',
-      'Editar perfil do artista e excluir o artista',
-      'Gerenciar convites pendentes',
+      'Ver, criar, editar e excluir eventos e despesas (com valores)',
+      'Convidar colaboradores e mudar permissões',
+      'Editar perfil do artista, excluir o artista e gerenciar convites',
     ],
     modalIcon: 'shield-checkmark',
     modalColor: '#FF6B35',
@@ -53,29 +50,26 @@ const COLLABORATOR_ROLES_CONFIG: {
   {
     value: 'owner',
     label: 'Gerente',
-    summary: 'Mesmo acesso operacional do administrador, com restrição ao gerir outros admins.',
+    summary: 'Igual ao admin na agenda e finanças; na equipe, não mexe em administradores.',
     powers: [
-      'Ver e editar agenda, finanças, perfil e eventos (como o administrador)',
-      'Convidar e gerenciar colaboradores com papel Editor ou Visualizador',
+      'Agenda, finanças e perfil como administrador',
+      'Convidar e gerenciar Editor e Visualizador',
     ],
-    limitations: [
-      'Não pode alterar nem remover um Administrador (apenas outro Admin pode)',
-    ],
+    limitations: ['Não altera nem remove um Administrador'],
     modalIcon: 'star',
     modalColor: '#FFD700',
   },
   {
     value: 'editor',
     label: 'Editor',
-    summary: 'Cuida do dia a dia da agenda e das finanças, sem apagar eventos nem gerir equipe.',
+    summary: 'Cuida da agenda e do dinheiro; não apaga eventos nem gerencia a equipe.',
     powers: [
-      'Ver eventos com valores financeiros e exportar dados financeiros',
-      'Criar e editar eventos e despesas',
-      'Ver a lista de colaboradores',
+      'Ver e editar eventos e despesas (com valores) e exportar finanças',
+      'Ver colaboradores (sem mudar permissões)',
     ],
     limitations: [
-      'Não exclui eventos nem altera permissões de ninguém',
-      'Não edita perfil do artista nem exclui o artista',
+      'Não exclui eventos',
+      'Não convida/remove colaboradores nem edita perfil do artista',
     ],
     modalIcon: 'create',
     modalColor: '#4ECDC4',
@@ -83,19 +77,29 @@ const COLLABORATOR_ROLES_CONFIG: {
   {
     value: 'viewer',
     label: 'Visualizador',
-    summary: 'Somente leitura: acompanha agenda e equipe, sem ver valores nem alterar nada.',
-    powers: [
-      'Ver agenda e informações do artista',
-      'Ver lista de colaboradores e receber notificações',
-    ],
-    limitations: [
-      'Não vê cachês, receitas ou outros valores financeiros',
-      'Não cria, edita ou exclui eventos ou despesas',
-    ],
+    summary: 'Só leitura: vê agenda e equipe, sem valores e sem editar.',
+    powers: ['Ver eventos e dados do artista (sem valores em dinheiro)', 'Ver colaboradores e notificações'],
+    limitations: ['Sem acesso a cachês/receitas/despesas', 'Não cria nem edita nada'],
     modalIcon: 'eye',
     modalColor: '#95A5A6',
   },
 ];
+
+/** Convite e troca de papel: não exibimos Gerente (owner); quem já é gerente continua no sistema. */
+const COLLABORATOR_ROLES_FOR_PICKER = COLLABORATOR_ROLES_CONFIG.filter((r) => r.value !== 'owner');
+
+function roleForNewInviteOrAdd(role: CollaboratorInviteRole): Exclude<CollaboratorInviteRole, 'owner'> {
+  return role === 'owner' ? 'admin' : role;
+}
+
+/** Cidade/UF vindos do cadastro do usuário (`users`), quando a RPC os retorna. */
+function formatBuscaColaboradorLocalizacao(u: { city?: string | null; state?: string | null }): string {
+  const city = u.city?.trim() || '';
+  const state = u.state?.trim() || '';
+  if (!city && !state) return 'Local não informado';
+  if (city && state) return `${city} — ${state}`;
+  return city || state;
+}
 
 export default function ColaboradoresArtistaScreen() {
   const { colors } = useTheme();
@@ -135,10 +139,6 @@ export default function ColaboradoresArtistaScreen() {
     role: string;
     createdAt: string;
   } | null>(null);
-
-  const selectedInviteRoleChips = selectedUser
-    ? parseArtistStringArrayFromJson(selectedUser.work_roles)
-    : [];
 
   useEffect(() => {
     loadActiveArtist();
@@ -210,6 +210,19 @@ export default function ColaboradoresArtistaScreen() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  /** Limpa busca e seleção ao abrir o modal ou ao cancelar/fechar sem convidar. */
+  const resetBuscarColaboradorModal = () => {
+    setSearchTerm('');
+    setSearchResults([]);
+    setSelectedUser(null);
+    setIsSearching(false);
+  };
+
+  const closeBuscarColaboradorModal = () => {
+    resetBuscarColaboradorModal();
+    setShowAddModal(false);
   };
 
   const handleSearchUsers = async (term: string) => {
@@ -303,7 +316,7 @@ export default function ColaboradoresArtistaScreen() {
         });
         setSelectedUser(user);
         setExistingInviteIdToDelete(existingInvite.id);
-        setNewCollaboratorRole(existingInvite.role || 'viewer');
+        setNewCollaboratorRole(roleForNewInviteOrAdd((existingInvite.role || 'viewer') as CollaboratorInviteRole));
         
         // Abrir modal de convite pendente
         console.log('🔔 Abrindo modal de convite pendente');
@@ -381,18 +394,20 @@ export default function ColaboradoresArtistaScreen() {
       }
 
       // Criar convite (primeira vez ou reenvio)
+      const inviteRole = roleForNewInviteOrAdd(newCollaboratorRole);
+
       console.log('📝 Criando novo convite:', {
         artistId: activeArtist.id,
         toUserId: selectedUser.id,
         fromUserId: currentUser.id,
-        role: newCollaboratorRole
+        role: inviteRole
       });
       
       const { success, error, invite } = await createArtistInvite({
         artistId: activeArtist.id,
         toUserId: selectedUser.id,
         fromUserId: currentUser.id,
-        role: newCollaboratorRole // ✅ Passar a role selecionada no dropdown
+        role: inviteRole
       });
 
       if (success) {
@@ -401,7 +416,7 @@ export default function ColaboradoresArtistaScreen() {
           userName: selectedUser.name,
           userEmail: selectedUser.email,
           userImage: selectedUser.profile_url || '',
-          role: newCollaboratorRole
+          role: inviteRole
         });
         
         setShowInviteModal(false);
@@ -435,7 +450,7 @@ export default function ColaboradoresArtistaScreen() {
 
       const { success, error } = await addCollaborator(activeArtist.id, {
         userId: selectedUser.id,
-        role: newCollaboratorRole
+        role: roleForNewInviteOrAdd(newCollaboratorRole)
       });
 
       if (success) {
@@ -770,6 +785,7 @@ export default function ColaboradoresArtistaScreen() {
                   Alert.alert('Erro', 'Usuário não encontrado. Faça login novamente.');
                   return;
                 }
+                resetBuscarColaboradorModal();
                 setShowAddModal(true);
               }}
             >
@@ -832,11 +848,12 @@ export default function ColaboradoresArtistaScreen() {
         visible={showAddModal}
         animationType="slide"
         presentationStyle="pageSheet"
+        onRequestClose={closeBuscarColaboradorModal}
       >
         <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background }]}>
           <View style={[styles.modalHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
             <TouchableOpacity 
-              onPress={() => setShowAddModal(false)}
+              onPress={closeBuscarColaboradorModal}
               style={styles.modalCloseButton}
             >
               <Text style={[styles.modalCloseText, { color: colors.textSecondary }]}>Cancelar</Text>
@@ -857,7 +874,7 @@ export default function ColaboradoresArtistaScreen() {
             <View style={styles.inputContainer}>
               <Text style={[styles.inputLabel, { color: colors.text }]}>Buscar usuário</Text>
               <Text style={[styles.collaboratorSearchHint, { color: colors.textSecondary }]}>
-                Só aparecem artistas que ativaram &quot;disponível para trabalhos&quot; no perfil.
+                Só aparecem contas que já têm perfil de artista no app e ainda não são colaboradoras deste artista. Busca pelo nome (início de cada palavra). Nome e localização (cidade/UF) quando existir.
               </Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
@@ -866,112 +883,47 @@ export default function ColaboradoresArtistaScreen() {
                   setSearchTerm(text);
                   handleSearchUsers(text);
                 }}
-                placeholder="Nome ou e-mail"
+                placeholder="Nome"
                 placeholderTextColor={colors.textSecondary}
                 autoCapitalize="none"
               />
               
-              {/* Resultados em cards (funções em destaque) */}
               {searchResults.length > 0 && (
                 <View style={styles.collaboratorSearchResultsList}>
-                  {searchResults.map((user) => {
-                    const roleChips = parseArtistStringArrayFromJson(user.work_roles);
-                    const formatLabel = joinArtistStringArrayJson(user.show_formats);
-                    return (
-                      <TouchableOpacity
-                        key={user.id}
-                        activeOpacity={0.75}
-                        style={[
-                          styles.collaboratorInviteCard,
-                          { backgroundColor: colors.surface, borderColor: colors.border },
-                        ]}
-                        onPress={() => handleSelectUser(user)}
-                      >
-                        <View style={styles.collaboratorInviteCardHeader}>
-                          <OptimizedImage
-                            imageUrl={user.profile_url || ''}
-                            style={styles.collaboratorInviteCardAvatar}
-                            cacheKey={`user_search_${user.id}`}
-                            fallbackText={user.name || 'Usuário'}
-                            fallbackIcon="person"
-                            fallbackIconSize={22}
-                            fallbackIconColor="#667eea"
-                          />
-                          <View style={styles.collaboratorInviteCardHeaderText}>
-                            <Text style={[styles.collaboratorInviteCardName, { color: colors.text }]} numberOfLines={1}>
-                              {user.name}
-                            </Text>
-                            <Text style={[styles.collaboratorInviteCardEmail, { color: colors.textSecondary }]} numberOfLines={1}>
-                              {user.email}
-                            </Text>
-                          </View>
-                        </View>
-
-                        {user.artist_display_name ? (
-                          <Text style={[styles.collaboratorInviteArtistTitle, { color: colors.primary }]} numberOfLines={2}>
-                            {user.artist_display_name}
+                  {searchResults.map((user) => (
+                    <TouchableOpacity
+                      key={user.id}
+                      activeOpacity={0.75}
+                      style={[
+                        styles.collaboratorInviteCard,
+                        { backgroundColor: colors.surface, borderColor: colors.border },
+                      ]}
+                      onPress={() => handleSelectUser(user)}
+                    >
+                      <View style={styles.collaboratorInviteCardHeader}>
+                        <OptimizedImage
+                          imageUrl={user.profile_url || ''}
+                          style={styles.collaboratorInviteCardAvatar}
+                          cacheKey={`user_search_${user.id}`}
+                          fallbackText={user.name || 'Usuário'}
+                          fallbackIcon="person"
+                          fallbackIconSize={22}
+                          fallbackIconColor="#667eea"
+                        />
+                        <View style={styles.collaboratorInviteCardHeaderText}>
+                          <Text style={[styles.collaboratorInviteCardName, { color: colors.text }]} numberOfLines={1}>
+                            {user.name}
                           </Text>
-                        ) : null}
-
-                        <View style={styles.collaboratorInviteRolesBlock}>
-                          <Text style={[styles.collaboratorInviteSectionLabel, { color: colors.textSecondary }]}>
-                            Funções do artista
-                          </Text>
-                          <View style={styles.collaboratorInviteChipsWrap}>
-                            {roleChips.length > 0 ? (
-                              roleChips.map((role) => (
-                                <View
-                                  key={role}
-                                  style={[
-                                    styles.collaboratorInviteChip,
-                                    {
-                                      backgroundColor: colors.primary + '18',
-                                      borderColor: colors.primary + '44',
-                                    },
-                                  ]}
-                                >
-                                  <Text style={[styles.collaboratorInviteChipText, { color: colors.primary }]} numberOfLines={1}>
-                                    {role}
-                                  </Text>
-                                </View>
-                              ))
-                            ) : (
-                              <Text style={[styles.collaboratorInviteMuted, { color: colors.textSecondary }]}>
-                                Não informado
-                              </Text>
-                            )}
-                          </View>
-                        </View>
-
-                        {user.musical_style ? (
-                          <View style={styles.collaboratorInviteMetaRow}>
-                            <Ionicons name="musical-note-outline" size={14} color={colors.textSecondary} />
-                            <Text style={[styles.collaboratorInviteMetaText, { color: colors.textSecondary }]} numberOfLines={1}>
-                              {user.musical_style}
-                            </Text>
-                          </View>
-                        ) : null}
-
-                        {formatLabel ? (
-                          <View style={styles.collaboratorInviteMetaRow}>
-                            <Ionicons name="albums-outline" size={14} color={colors.textSecondary} />
-                            <Text style={[styles.collaboratorInviteMetaText, { color: colors.textSecondary }]} numberOfLines={2}>
-                              {formatLabel}
-                            </Text>
-                          </View>
-                        ) : null}
-
-                        {(user.whatsapp || user.city || user.state) ? (
-                          <View style={styles.collaboratorInviteMetaRow}>
+                          <View style={styles.collaboratorInviteLocationRow}>
                             <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
-                            <Text style={[styles.collaboratorInviteMetaText, { color: colors.textSecondary }]} numberOfLines={2}>
-                              {[user.whatsapp ? `WhatsApp ${user.whatsapp}` : null, [user.city, user.state].filter(Boolean).join(' — ')].filter(Boolean).join(' · ')}
+                            <Text style={[styles.collaboratorInviteCardEmail, { color: colors.textSecondary, flex: 1 }]} numberOfLines={2}>
+                              {formatBuscaColaboradorLocalizacao(user)}
                             </Text>
                           </View>
-                        ) : null}
-                      </TouchableOpacity>
-                    );
-                  })}
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
                 </View>
               )}
               
@@ -1024,7 +976,7 @@ export default function ColaboradoresArtistaScreen() {
               <Text style={[styles.permissionTitle, { color: colors.text }]}>Enviar Convite de Colaboração</Text>
               
               <Text style={[styles.permissionDescription, { color: colors.textSecondary }] }>
-                Selecione a permissão para enviar o convite:
+                Escolha o nível de acesso. Abaixo, um resumo do que a pessoa pode e não pode fazer.
               </Text>
               
               {selectedUser && (
@@ -1040,42 +992,12 @@ export default function ColaboradoresArtistaScreen() {
                   />
                   <View style={styles.permissionUserInfo}>
                     <Text style={[styles.permissionUserName, { color: colors.text }]}>{selectedUser.name}</Text>
-                    <Text style={[styles.permissionUserEmail, { color: colors.textSecondary }]}>{selectedUser.email}</Text>
-                    {selectedUser.artist_display_name ? (
-                      <Text style={[styles.permissionUserEmail, { color: colors.primary }]} numberOfLines={1}>
-                        Perfil artista: {selectedUser.artist_display_name}
+                    <View style={styles.permissionUserLocationRow}>
+                      <Ionicons name="location-outline" size={16} color={colors.textSecondary} />
+                      <Text style={[styles.permissionUserEmail, { color: colors.textSecondary, flex: 1 }]}>
+                        {formatBuscaColaboradorLocalizacao(selectedUser)}
                       </Text>
-                    ) : null}
-                    {selectedUser.musical_style ? (
-                      <Text style={[styles.permissionUserEmail, { color: colors.textSecondary }]} numberOfLines={1}>
-                        Estilo: {selectedUser.musical_style}
-                      </Text>
-                    ) : null}
-                    {(selectedUser.city || selectedUser.state || selectedUser.whatsapp) ? (
-                      <Text style={[styles.permissionUserEmail, { color: colors.textSecondary }]} numberOfLines={2}>
-                        {[selectedUser.whatsapp ? `WhatsApp: ${selectedUser.whatsapp}` : null, [selectedUser.city, selectedUser.state].filter(Boolean).join(' — ')].filter(Boolean).join(' · ')}
-                      </Text>
-                    ) : null}
-                    {selectedInviteRoleChips.length > 0 ? (
-                      <View style={[styles.collaboratorInviteChipsWrap, { marginTop: 10 }]}>
-                        {selectedInviteRoleChips.map((role) => (
-                          <View
-                            key={role}
-                            style={[
-                              styles.collaboratorInviteChip,
-                              {
-                                backgroundColor: colors.primary + '18',
-                                borderColor: colors.primary + '44',
-                              },
-                            ]}
-                          >
-                            <Text style={[styles.collaboratorInviteChipText, { color: colors.primary }]} numberOfLines={1}>
-                              {role}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
-                    ) : null}
+                    </View>
                   </View>
                 </View>
               )}
@@ -1085,7 +1007,7 @@ export default function ColaboradoresArtistaScreen() {
               </Text>
               
               <View style={styles.permissionOptions}>
-                {COLLABORATOR_ROLES_CONFIG.map((role) => (
+                {COLLABORATOR_ROLES_FOR_PICKER.map((role) => (
                   <TouchableOpacity
                     key={role.value}
                     style={[
@@ -1112,18 +1034,18 @@ export default function ColaboradoresArtistaScreen() {
                         {role.summary}
                       </Text>
                       <Text style={[styles.permissionPowersHeading, { color: colors.textSecondary }]}>
-                        O que essa pessoa poderá fazer:
+                        Pode
                       </Text>
                       {role.powers.map((line) => (
                         <View key={line} style={styles.permissionPowerRow}>
-                          <Ionicons name="checkmark-circle" size={16} color={newCollaboratorRole === role.value ? colors.primary : colors.textSecondary} />
+                          <Ionicons name="checkmark-circle" size={16} color={colors.success} />
                           <Text style={[styles.permissionPowerText, { color: colors.text }]}>{line}</Text>
                         </View>
                       ))}
                       {role.limitations?.length ? (
                         <>
                           <Text style={[styles.permissionPowersHeading, { color: colors.textSecondary, marginTop: 8 }]}>
-                            Limitações:
+                            Não pode
                           </Text>
                           {role.limitations.map((line) => (
                             <View key={line} style={styles.permissionPowerRow}>
@@ -1150,7 +1072,7 @@ export default function ColaboradoresArtistaScreen() {
               <View style={[styles.permissionWarning, { backgroundColor: colors.secondary, borderColor: colors.border }] }>
                 <Ionicons name="information-circle" size={20} color="#ff9800" />
                 <Text style={[styles.permissionWarningText, { color: colors.textSecondary }] }>
-                  O usuário receberá uma notificação e poderá aceitar ou recusar o convite.
+                  A pessoa recebe uma notificação e pode aceitar ou recusar.
                 </Text>
               </View>
             </View>
@@ -1227,12 +1149,12 @@ export default function ColaboradoresArtistaScreen() {
             {/* Título de Seleção */}
             <View style={styles.roleSelectionHeader}>
               <Ionicons name="shield-checkmark" size={24} color="#667eea" />
-              <Text style={styles.roleSelectionTitle}>Selecione a nova permissão</Text>
+              <Text style={styles.roleSelectionTitle}>Nova permissão</Text>
             </View>
 
             {/* Opções de Role */}
             <View style={styles.roleOptionsContainer}>
-              {COLLABORATOR_ROLES_CONFIG.map((role) => (
+              {COLLABORATOR_ROLES_FOR_PICKER.map((role) => (
                 <TouchableOpacity
                   key={role.value}
                   style={[
@@ -1270,11 +1192,11 @@ export default function ColaboradoresArtistaScreen() {
                     </View>
                   </View>
 
-                  <Text style={styles.rolePowersSectionTitle}>O que essa pessoa poderá fazer</Text>
+                  <Text style={styles.rolePowersSectionTitle}>Pode</Text>
                   <View style={styles.roleFeaturesList}>
                     {role.powers.map((feature) => (
                       <View key={feature} style={styles.roleFeatureItem}>
-                        <Ionicons name="checkmark-circle" size={16} color={role.modalColor} />
+                        <Ionicons name="checkmark-circle" size={16} color={colors.success} />
                         <Text style={[
                           styles.roleFeatureText,
                           selectedRole === role.value && { color: role.modalColor }
@@ -1286,7 +1208,7 @@ export default function ColaboradoresArtistaScreen() {
                   </View>
                   {role.limitations?.length ? (
                     <>
-                      <Text style={[styles.rolePowersSectionTitle, { marginTop: 10 }]}>Limitações</Text>
+                      <Text style={[styles.rolePowersSectionTitle, { marginTop: 10 }]}>Não pode</Text>
                       <View style={styles.roleFeaturesList}>
                         {role.limitations.map((line) => (
                           <View key={line} style={styles.roleFeatureItem}>
@@ -1307,7 +1229,7 @@ export default function ColaboradoresArtistaScreen() {
             <View style={styles.roleWarning}>
               <Ionicons name="warning" size={20} color="#F59E0B" />
               <Text style={styles.roleWarningText}>
-                A alteração de permissão será aplicada imediatamente e o usuário será notificado.
+                A alteração vale na hora; a pessoa é avisada.
               </Text>
             </View>
           </ScrollView>
@@ -1756,7 +1678,13 @@ const styles = StyleSheet.create({
   collaboratorInviteCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 0,
+  },
+  collaboratorInviteLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginTop: 2,
   },
   collaboratorInviteCardAvatar: {
     width: 48,
@@ -1906,6 +1834,7 @@ const styles = StyleSheet.create({
   roleOptionDescription: {
     fontSize: 14,
     color: '#666',
+    lineHeight: 20,
   },
   roleOptionDescriptionSelected: {
     color: '#667eea',
@@ -2062,10 +1991,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   permissionDescription: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#666',
     marginBottom: 20,
-    textAlign: 'center',
+    textAlign: 'left',
+    lineHeight: 22,
+    paddingHorizontal: 4,
   },
   permissionUserCard: {
     backgroundColor: '#fff',
@@ -2108,6 +2039,12 @@ const styles = StyleSheet.create({
   permissionUserEmail: {
     fontSize: 14,
     color: '#666',
+  },
+  permissionUserLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginTop: 4,
   },
   permissionDetails: {
     fontSize: 14,
@@ -2154,17 +2091,17 @@ const styles = StyleSheet.create({
   permissionOptionDescription: {
     fontSize: 14,
     color: '#666',
+    lineHeight: 20,
+    marginBottom: 4,
   },
   permissionOptionDescriptionSelected: {
     color: '#667eea',
   },
   permissionPowersHeading: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginTop: 12,
-    marginBottom: 6,
+    marginTop: 10,
+    marginBottom: 4,
   },
   permissionPowerRow: {
     flexDirection: 'row',
@@ -2310,6 +2247,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     marginLeft: 12,
+    flex: 1,
   },
   roleOptionsContainer: {
     gap: 16,
@@ -2350,12 +2288,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rolePowersSectionTitle: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '600',
     color: '#64748b',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
+    marginBottom: 6,
     marginTop: 4,
   },
   roleFeaturesList: {

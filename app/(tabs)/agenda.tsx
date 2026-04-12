@@ -87,8 +87,12 @@ export default function AgendaScreen() {
   const [isLoadingArtistPicker, setIsLoadingArtistPicker] = useState(false);
   const [showNewUserModal, setShowNewUserModal] = useState(false);
   const [welcomeStep, setWelcomeStep] = useState(0);
-  const params = useLocalSearchParams<{ showNewUserModal?: string; eventCreatedToast?: string }>();
-  const [eventCreatedToastMessage, setEventCreatedToastMessage] = useState<string | null>(null);
+  const params = useLocalSearchParams<{
+    showNewUserModal?: string;
+    eventCreatedToast?: string;
+    artistChangedToast?: string;
+  }>();
+  const [agendaToastMessage, setAgendaToastMessage] = useState<string | null>(null);
   const [isLoadingMonthEvents, setIsLoadingMonthEvents] = useState(false);
   const [showInviteEventInfoModal, setShowInviteEventInfoModal] = useState(false);
   const [selectedInviteEventInfo, setSelectedInviteEventInfo] = useState<any | null>(null);
@@ -115,9 +119,15 @@ export default function AgendaScreen() {
 
   useEffect(() => {
     if (params.eventCreatedToast !== '1') return;
-    setEventCreatedToastMessage('Evento criado com sucesso!');
+    setAgendaToastMessage('Evento criado com sucesso!');
     router.setParams({ eventCreatedToast: undefined });
   }, [params.eventCreatedToast]);
+
+  useEffect(() => {
+    if (params.artistChangedToast !== '1') return;
+    setAgendaToastMessage('Artista alterado com sucesso!');
+    router.setParams({ artistChangedToast: undefined });
+  }, [params.artistChangedToast]);
 
   // Bloquear segundo toque: por tempo (debounce) e por ref até sair da tela
   const isNavigatingToEventRef = useRef(false);
@@ -2389,8 +2399,8 @@ export default function AgendaScreen() {
       </Modal>
 
       <TransientToast
-        message={eventCreatedToastMessage}
-        onDismiss={() => setEventCreatedToastMessage(null)}
+        message={agendaToastMessage}
+        onDismiss={() => setAgendaToastMessage(null)}
         colors={colors}
       />
     </View>
