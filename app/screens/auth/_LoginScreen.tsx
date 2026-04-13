@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AppleSignInButton, { AppleSignInResult } from '../../../components/AppleSignInButton';
+import GoogleGLogo from '../../../components/GoogleGLogo';
 import LogoMarcaAi from '../../../components/LogoMarcaAi';
 import { useActiveArtistContext } from '../../../contexts/ActiveArtistContext';
 import { useTheme } from '../../../contexts/ThemeContext';
@@ -621,32 +622,31 @@ export default function LoginScreen() {
                 <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
               </View>
 
-              <View style={styles.socialButtonsRow}>
-                <TouchableOpacity
-                  style={StyleSheet.flatten([
-                    styles.socialIconButton,
-                    styles.socialIconButtonGoogle,
-                    loading ? styles.socialIconButtonDisabled : undefined,
-                  ])}
-                  onPress={handleGoogleLogin}
-                  disabled={loading}
-                >
-                  <Ionicons name="logo-google" size={24} color="#fff" />
-                </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.googleButton,
+                  {
+                    backgroundColor: colors.background,
+                    borderColor: colors.border,
+                    shadowColor: colors.shadow,
+                  },
+                  loading && styles.socialButtonDisabled,
+                ]}
+                onPress={handleGoogleLogin}
+                disabled={loading}
+              >
+                <GoogleGLogo size={22} />
+                <Text style={[styles.googleButtonText, { color: colors.text }]}>Entrar com Google</Text>
+              </TouchableOpacity>
 
+              {Platform.OS === 'ios' && (
                 <AppleSignInButton
-                  iconOnly
-                  icon={<Ionicons name="logo-apple" size={24} color="#fff" />}
-                  style={StyleSheet.flatten([
-                    styles.socialIconButton,
-                    styles.socialIconButtonApple,
-                    loading ? styles.socialIconButtonDisabled : undefined,
-                  ])}
                   disabled={loading}
                   onSuccess={handleAppleSuccess}
                   onError={handleAppleError}
+                  style={[styles.appleButton, loading && styles.socialButtonDisabled]}
                 />
-              </View>
+              )}
 
               <View style={styles.signupContainer}>
                 <Text style={[styles.signupText, { color: colors.textSecondary }]}>Não tem uma conta? </Text>
@@ -951,30 +951,38 @@ const styles = StyleSheet.create({
     height: 1,
   },
   dividerText: {
-    marginHorizontal: 16,
+    marginHorizontal: 12,
     fontSize: 14,
+    flexShrink: 0,
   },
-  socialButtonsRow: {
+  googleButton: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: 24,
-  },
-  socialIconButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 6,
+    borderRadius: 12,
+    height: 56,
+    marginBottom: Platform.OS === 'ios' ? 12 : 24,
+    borderWidth: 1,
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: Platform.OS === 'android' ? 0 : 0.1,
+    shadowRadius: Platform.OS === 'android' ? 0 : 2,
+    elevation: Platform.OS === 'android' ? 0 : 2,
   },
-  socialIconButtonGoogle: {
-    backgroundColor: '#db4437',
+  googleButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 10,
   },
-  socialIconButtonApple: {
-    backgroundColor: '#000',
+  appleButton: {
+    width: '100%',
+    height: 54,
+    marginBottom: 24,
   },
-  socialIconButtonDisabled: {
-    opacity: 0.6,
+  socialButtonDisabled: {
+    opacity: 0.55,
   },
   signupContainer: {
     flexDirection: 'row',

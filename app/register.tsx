@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AppleSignInButton, { AppleSignInResult } from '../components/AppleSignInButton';
+import GoogleGLogo from '../components/GoogleGLogo';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { checkArtistsAndRedirect } from '../services/supabase/authService';
@@ -425,7 +426,7 @@ export default function RegisterScreen() {
                 onPress={handleGoogleLogin}
                 disabled={isLoading}
               >
-                <Ionicons name="logo-google" size={20} color="#4285F4" />
+                <GoogleGLogo size={20} />
                 <Text style={dynamicStyles.googleButtonText}>
                   Cadastrar com Google
                 </Text>
