@@ -1,4 +1,5 @@
 -- Restaura get_events_by_role e get_event_by_id_with_role (com state_uf ao lado de city no app: Cidade/UF).
+-- Só retorna eventos com ativo = true (soft delete: ativo false fica fora da agenda).
 -- Rode no SQL Editor do Supabase.
 --
 -- created_at/updated_at na tabela events podem ser "timestamp without time zone"; o retorno
@@ -63,6 +64,7 @@ BEGIN
     user_role_var AS user_role
   FROM events e
   WHERE e.artist_id = p_artist_id
+    AND e.ativo IS TRUE
   ORDER BY e.event_date DESC, e.start_time DESC;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -93,7 +95,8 @@ DECLARE
 BEGIN
   SELECT e.artist_id INTO event_artist_id
   FROM events e
-  WHERE e.id = p_event_id;
+  WHERE e.id = p_event_id
+    AND e.ativo IS TRUE;
 
   IF event_artist_id IS NULL THEN
     RAISE EXCEPTION 'Evento não encontrado';
@@ -131,8 +134,9 @@ BEGIN
     e.updated_at::timestamptz,
     user_role_var AS user_role
   FROM events e
-  WHERE e.id = p_event_id;
+  WHERE e.id = p_event_id
+    AND e.ativo IS TRUE;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-COMMENT ON FUNCTION public.get_events_by_role(UUID) IS 'Eventos do artista; value oculto para viewer; inclui state_uf.';
+COMMENT ON FUNCTION public.get_events_by_role(UUID) IS 'Eventos ativos do artista; value oculto para viewer; inclui state_uf.';

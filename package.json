@@ -7,6 +7,7 @@
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "ios:app-store-screenshots": "bash scripts/ios-app-store-simulator.sh",
     "web": "expo start --web",
     "lint": "expo lint"
   },

@@ -649,10 +649,11 @@ export const getEventsByMonthWithRole = async (
       return { success: false, error, errorCode };
     }
 
-    // Filtrar por mês no cliente (já vem com value filtrado do banco)
-    const filteredEvents = events?.filter(event => {
-      return event.event_date >= startDate && event.event_date <= endDate;
-    }) || [];
+    // Filtrar por mês no cliente (eventos ativos vêm da RPC get_events_by_role no banco)
+    const filteredEvents =
+      events?.filter(
+        (event) => event.event_date >= startDate && event.event_date <= endDate
+      ) ?? [];
 
     console.log('✅ Eventos filtrados por mês:', filteredEvents.length);
     return { success: true, error: null, events: filteredEvents };

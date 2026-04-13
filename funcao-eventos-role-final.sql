@@ -87,6 +87,7 @@ BEGIN
     user_role_var AS user_role
   FROM events e
   WHERE e.artist_id = p_artist_id
+    AND e.ativo IS TRUE
   ORDER BY e.event_date DESC, e.start_time DESC;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -121,7 +122,8 @@ BEGIN
   -- Buscar artist_id do evento
   SELECT e.artist_id INTO event_artist_id
   FROM events e
-  WHERE e.id = p_event_id;
+  WHERE e.id = p_event_id
+    AND e.ativo IS TRUE;
   
   IF event_artist_id IS NULL THEN
     RAISE EXCEPTION 'Evento não encontrado';
@@ -161,7 +163,8 @@ BEGIN
     e.updated_at,
     user_role_var AS user_role
   FROM events e
-  WHERE e.id = p_event_id;
+  WHERE e.id = p_event_id
+    AND e.ativo IS TRUE;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
