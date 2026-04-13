@@ -301,12 +301,12 @@ export default function FinanceiroInsightsScreen() {
             : 'Filtre por período. Estados contam quando você escolhe o estado ao criar o evento ou quando a cidade estiver como '}
           {!agendaLink ? (
             <>
-              <Text style={{ fontWeight: '700' }}>Cidade, UF</Text> no texto (ex.: Curitiba, PR).
+              <Text style={{ fontWeight: '700' }}>Cidade, sigla do estado</Text> no texto (ex.: Curitiba, PR).
             </>
           ) : null}
         </Text>
         <Text style={[styles.rankingScopeNote, { color: colors.textSecondary }]}>
-          Sem cidade e sem UF: não entram no top cidade nem no top estado.
+          Sem cidade e sem sigla de estado: não entram no top cidade nem no top estado.
         </Text>
 
         <ScrollView
@@ -507,7 +507,7 @@ export default function FinanceiroInsightsScreen() {
               ) : null}
             </ExpandableBlock>
 
-            <SectionTitle colors={colors.text}>Top estados (UF)</SectionTitle>
+            <SectionTitle colors={colors.text}>Top estados</SectionTitle>
             <View style={[styles.card, { backgroundColor: colors.surface }]}>
               <BrazilUfMap
                 activeUfs={insights.stateUfsWithEvents}
@@ -517,72 +517,74 @@ export default function FinanceiroInsightsScreen() {
               />
               {insights.eventsWithUfParsed === 0 ? (
                 <Text style={{ marginTop: 12, color: colors.textSecondary, lineHeight: 20 }}>
-                  Nenhum evento com UF reconhecida. Inclua a sigla no campo cidade (ex.: Porto Alegre, RS).
+                  Nenhum evento com estado reconhecido. Inclua a sigla no campo cidade (ex.: Porto Alegre, RS).
                 </Text>
               ) : null}
-            </View>
-            {insights.eventsWithUfParsed > 0 ? (
-              <TouchableOpacity
-                style={[
-                  styles.shareUfRow,
-                  {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
-                    opacity: sharingUfMap ? 0.75 : 1,
-                  },
-                ]}
-                onPress={() => void shareUfStatesImage()}
-                disabled={sharingUfMap}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel="Compartilhar imagem do mapa e quantidade de eventos por estado"
-              >
-                {sharingUfMap ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <Ionicons name="share-outline" size={22} color={colors.primary} />
-                )}
-                <Text style={[styles.shareUfText, { color: colors.primary }]}>
-                  Compartilhar imagem (mapa e eventos por UF)
-                </Text>
-              </TouchableOpacity>
-            ) : null}
-            {insights.eventsWithUfParsed > 0 ? (
-              <ExpandableBlock
-                title="Ranking por UF"
-                summary={
-                  insights.topStatesByCount[0]
-                    ? `${insights.topStatesByCount.length} UF no ranking · 1º: ${insights.topStatesByCount[0].label}`
-                    : 'Ver por quantidade e por cachê'
-                }
-                expanded={openStates}
-                onToggle={() => setOpenStates((v) => !v)}
-                colors={colors}
-              >
-                <SectionSubtitle colors={colors.textSecondary}>Por quantidade de eventos</SectionSubtitle>
-                <BucketCard
-                  rows={insights.topStatesByCount}
-                  colors={colors}
-                  formatCurrency={formatCurrency}
-                  mode="count"
-                  showMoney={hasAccess}
-                  emptyHint="—"
-                />
-                {hasAccess ? (
-                  <>
-                    <SectionSubtitle colors={colors.textSecondary}>Por cachê total</SectionSubtitle>
+              {insights.eventsWithUfParsed > 0 ? (
+                <>
+                  <ExpandableBlock
+                    embedded
+                    title="Ranking por estado"
+                    summary={
+                      insights.topStatesByCount[0]
+                        ? `${insights.topStatesByCount.length} ${
+                            insights.topStatesByCount.length === 1 ? 'estado' : 'estados'
+                          } no ranking · 1º: ${insights.topStatesByCount[0].label}`
+                        : 'Ver por quantidade e por cachê'
+                    }
+                    expanded={openStates}
+                    onToggle={() => setOpenStates((v) => !v)}
+                    colors={colors}
+                  >
+                    <SectionSubtitle colors={colors.textSecondary}>Por quantidade de eventos</SectionSubtitle>
                     <BucketCard
-                      rows={insights.topStatesByValue}
+                      rows={insights.topStatesByCount}
                       colors={colors}
                       formatCurrency={formatCurrency}
-                      mode="value"
-                      showMoney
+                      mode="count"
+                      showMoney={hasAccess}
                       emptyHint="—"
                     />
-                  </>
-                ) : null}
-              </ExpandableBlock>
-            ) : null}
+                    {hasAccess ? (
+                      <>
+                        <SectionSubtitle colors={colors.textSecondary}>Por cachê total</SectionSubtitle>
+                        <BucketCard
+                          rows={insights.topStatesByValue}
+                          colors={colors}
+                          formatCurrency={formatCurrency}
+                          mode="value"
+                          showMoney
+                          emptyHint="—"
+                        />
+                      </>
+                    ) : null}
+                  </ExpandableBlock>
+                  <TouchableOpacity
+                    style={[
+                      styles.shareUfRowInCard,
+                      {
+                        borderTopColor: colors.border,
+                        opacity: sharingUfMap ? 0.75 : 1,
+                      },
+                    ]}
+                    onPress={() => void shareUfStatesImage()}
+                    disabled={sharingUfMap}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Compartilhar imagem do mapa e quantidade de eventos por estado"
+                  >
+                    {sharingUfMap ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <Ionicons name="share-outline" size={22} color={colors.primary} />
+                    )}
+                    <Text style={[styles.shareUfText, { color: colors.primary }]}>
+                      Compartilhar imagem (mapa e eventos por estado)
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              ) : null}
+            </View>
 
             {hasAccess ? (
               <>
@@ -773,6 +775,7 @@ function ExpandableBlock({
   onToggle,
   colors,
   children,
+  embedded,
 }: {
   title: string;
   summary: string;
@@ -780,13 +783,16 @@ function ExpandableBlock({
   onToggle: () => void;
   colors: ReturnType<typeof useTheme>['colors'];
   children: React.ReactNode;
+  /** Dentro de um card pai: sem borda própria, separador só acima do cabeçalho */
+  embedded?: boolean;
 }) {
   return (
-    <View style={styles.expandableWrap}>
+    <View style={[styles.expandableWrap, embedded && styles.expandableWrapEmbedded]}>
       <TouchableOpacity
         onPress={onToggle}
         style={[
           styles.expandHeader,
+          embedded && styles.expandHeaderEmbedded,
           {
             backgroundColor: colors.surface,
             borderColor: colors.border,
@@ -811,7 +817,9 @@ function ExpandableBlock({
           color={colors.textSecondary}
         />
       </TouchableOpacity>
-      {expanded ? <View style={styles.expandBody}>{children}</View> : null}
+      {expanded ? (
+        <View style={[styles.expandBody, embedded && styles.expandBodyEmbedded]}>{children}</View>
+      ) : null}
     </View>
   );
 }
@@ -1078,6 +1086,7 @@ const styles = StyleSheet.create({
   errorText: { marginBottom: 12, fontSize: 14 },
   loaderPad: { paddingVertical: 32 },
   expandableWrap: { marginBottom: 10 },
+  expandableWrapEmbedded: { marginBottom: 0, marginTop: 12 },
   expandHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1087,23 +1096,30 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
   },
+  expandHeaderEmbedded: {
+    paddingHorizontal: 0,
+    borderWidth: 0,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderRadius: 0,
+    paddingTop: 14,
+  },
   expandHeaderText: { flex: 1, minWidth: 0 },
   expandTitle: { fontSize: 16, fontWeight: '700' },
   expandSummary: { fontSize: 13, lineHeight: 18, marginTop: 4 },
   expandBody: { marginTop: 8 },
+  expandBodyEmbedded: { marginTop: 8, paddingHorizontal: 0 },
   sectionTitle: { fontSize: 17, fontWeight: '700', marginBottom: 8, marginTop: 6 },
   sectionTitleNested: { marginTop: 4 },
   sectionSubtitle: { fontSize: 12, fontWeight: '600', marginBottom: 6, marginTop: 4, textTransform: 'uppercase' },
   card: { borderRadius: 10, padding: 14 },
-  shareUfRow: {
+  shareUfRowInCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginBottom: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: 4,
+    paddingTop: 14,
+    paddingBottom: 2,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   shareUfText: { flex: 1, fontSize: 15, fontWeight: '600' },
   ufShareOffscreen: {

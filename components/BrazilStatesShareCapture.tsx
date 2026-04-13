@@ -15,7 +15,7 @@ export type BrazilStatesShareCaptureProps = {
 };
 
 /**
- * Cartão off-screen para captura: mapa + lista de eventos por UF.
+ * Cartão off-screen para captura: mapa + lista de eventos por estado.
  * Estilo claro fixo para boa leitura na imagem compartilhada.
  */
 export const BrazilStatesShareCapture = React.forwardRef<View, BrazilStatesShareCaptureProps>(
@@ -41,7 +41,7 @@ export const BrazilStatesShareCapture = React.forwardRef<View, BrazilStatesShare
           {artistName}
         </Text>
         <Text style={styles.period}>{periodLabel}</Text>
-        <Text style={styles.sub}>Eventos por estado (UF)</Text>
+        <Text style={styles.sub}>Eventos por estado</Text>
         <View style={styles.mapWrap}>
           <BrazilUfMap
             activeUfs={activeUfs}
