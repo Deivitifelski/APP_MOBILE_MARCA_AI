@@ -37,6 +37,7 @@ import {
   UserProfile,
 } from '../../services/supabase/userService';
 import { dispatchResetToLogin } from '../../lib/resetToLoginStack';
+import { LEGAL_URLS } from '../../constants/legal';
 
 const getRoleLabel = (role?: string) => {
   switch (role) {
@@ -457,13 +458,11 @@ export default function ConfiguracoesScreen() {
     setShowTermsModal(true);
   };
 
-  const PRIVACY_POLICY_URL = 'https://www.freeprivacypolicy.com/live/179f60bd-8cb5-4987-96b7-1c6863cc8a83';
-
   const handlePrivacyPolicy = async () => {
     try {
-      const canOpen = await Linking.canOpenURL(PRIVACY_POLICY_URL);
+      const canOpen = await Linking.canOpenURL(LEGAL_URLS.PRIVACY_POLICY);
       if (canOpen) {
-        await Linking.openURL(PRIVACY_POLICY_URL);
+        await Linking.openURL(LEGAL_URLS.PRIVACY_POLICY);
       } else {
         Alert.alert('Erro', 'Não foi possível abrir o link.');
       }

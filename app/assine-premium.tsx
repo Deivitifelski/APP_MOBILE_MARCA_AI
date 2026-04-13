@@ -19,6 +19,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Platform,
   RefreshControl,
   ScrollView,
@@ -37,6 +38,7 @@ import {
   syncSubscriptionAfterPurchase,
   syncSubscriptionAfterRestore,
 } from '../services/subscriptionSyncService';
+import { LEGAL_URLS } from '../constants/legal';
 
 const PREMIUM_SKUS = ['marcaai_mensal_app', 'marcaai_anual_app'];
 const PLAN_LABELS: Record<string, string> = {
@@ -59,6 +61,19 @@ const ANNUAL_SKU = 'marcaai_anual_app';
 const IOS_SANDBOX_IAP_ACK_KEY = 'marcaai_ios_sandbox_iap_ack_v1';
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+async function openLegalUrl(url: string) {
+  try {
+    const ok = await Linking.canOpenURL(url);
+    if (ok) {
+      await Linking.openURL(url);
+    } else {
+      Alert.alert('Erro', 'Não foi possível abrir o link.');
+    }
+  } catch {
+    Alert.alert('Erro', 'Não foi possível abrir o link.');
+  }
+}
 
 /**
  * StoreKit 2 (`Product.products(for:)`), não o delegate `productsRequest(_:didReceive:)`.
@@ -874,6 +889,22 @@ export default function AssinePremiumScreen() {
         <Text style={[styles.restoreHint, { color: colors.textSecondary }]}>
           Use esta opcao se voce ja assinou antes e quer reativar seu acesso neste aparelho.
         </Text>
+
+        <View style={styles.legalBlock}>
+          <Text style={[styles.legalIntro, { color: colors.textSecondary }]}>
+            O nome do plano, o valor e o período (mensal ou anual) aparecem nos cartões acima. A assinatura é renovada
+            automaticamente até você cancelar nas configurações da loja.
+          </Text>
+          <View style={styles.legalLinksRow}>
+            <TouchableOpacity onPress={() => void openLegalUrl(LEGAL_URLS.PRIVACY_POLICY)} accessibilityRole="link">
+              <Text style={[styles.legalLink, { color: colors.primary }]}>Política de Privacidade</Text>
+            </TouchableOpacity>
+            <Text style={[styles.legalDot, { color: colors.textSecondary }]}> · </Text>
+            <TouchableOpacity onPress={() => void openLegalUrl(LEGAL_URLS.TERMS_OF_USE_EULA)} accessibilityRole="link">
+              <Text style={[styles.legalLink, { color: colors.primary }]}>Termos de Uso (EULA)</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -976,6 +1007,17 @@ const styles = StyleSheet.create({
   },
   restoreBtnText: { fontSize: 14, fontWeight: '600' },
   restoreHint: { fontSize: 12, lineHeight: 17, textAlign: 'center', marginTop: -2 },
+  legalBlock: { gap: 10, marginTop: 4, paddingHorizontal: 4 },
+  legalIntro: { fontSize: 12, lineHeight: 17, textAlign: 'center' },
+  legalLinksRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 2,
+  },
+  legalLink: { fontSize: 13, fontWeight: '700', textDecorationLine: 'underline' },
+  legalDot: { fontSize: 13 },
   centered: { alignItems: 'center', justifyContent: 'center', paddingVertical: 24, gap: 8 },
   loadingText: { fontSize: 13 },
   card: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 12 },
