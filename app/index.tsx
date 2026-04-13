@@ -15,6 +15,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import LogoMarcaAi from '../components/LogoMarcaAi';
+import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { setAppIconBadge } from '../services/appIconBadge';
 import { setupPushNotificationHandlers } from '../services/pushNotificationHandler';
@@ -25,6 +27,7 @@ import { isLikelyNetworkFailure } from '../utils/isLikelyNetworkFailure';
 const LOADING_TIMEOUT_MS = 8000;
 
 export default function Index() {
+  const { colors, isDarkMode } = useTheme();
   const navigation = useNavigation();
   const hasNavigated = useRef(false);
   /** Evita corrida: timer/modal "sem conexão" abriu mas checkAuth ainda chama goToLogin/navigateTo. */
@@ -183,15 +186,13 @@ export default function Index() {
   }, [clearSafetyTimer, scheduleSafetyTimer]);
 
   return (
-    <View style={styles.container}>
-      <StatusBar style="light" />
-      <View style={styles.logoContainer}>
-        <Text style={styles.logoText}>M</Text>
-      </View>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar style={isDarkMode ? 'light' : 'dark'} />
+      <LogoMarcaAi size="large" showTagline style={styles.logoBlock} />
 
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#fff" />
-        <Text style={styles.loadingText}>Carregando informações...</Text>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Carregando informações...</Text>
       </View>
 
       <Modal
@@ -231,44 +232,23 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#667eea',
+    width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 24,
   },
-  logoContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 60,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: Platform.OS === 'android' ? 0 : 0.3,
-    shadowRadius: Platform.OS === 'android' ? 0 : 16,
-    elevation: Platform.OS === 'android' ? 0 : 10,
-  },
-  logoText: {
-    fontSize: 72,
-    fontWeight: 'bold',
-    color: '#fff',
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+  logoBlock: {
+    marginBottom: 48,
+    alignSelf: 'center',
   },
   loadingContainer: {
     alignItems: 'center',
+    alignSelf: 'center',
     gap: 16,
   },
   loadingText: {
     fontSize: 18,
-    color: '#fff',
     fontWeight: '500',
-    opacity: 0.9,
   },
   offlineOverlay: {
     flex: 1,

@@ -135,7 +135,8 @@ const styles = StyleSheet.create({
     fontFamily: 'System',
   },
   textContainer: {
-    flex: 1,
+    justifyContent: 'center',
+    flexShrink: 1,
   },
   title: {
     color: '#333333',
