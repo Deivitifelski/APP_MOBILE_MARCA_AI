@@ -95,6 +95,13 @@ export default function ConfiguracoesScreen() {
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
   const [showArtistProfileModal, setShowArtistProfileModal] = useState(false);
   const appVersion = Constants.expoConfig?.version ?? Constants.manifest?.version ?? '1.0.6';
+  const nativeBuild =
+    Platform.OS === 'ios'
+      ? Constants.expoConfig?.ios?.buildNumber
+      : Constants.expoConfig?.android?.versionCode != null
+        ? String(Constants.expoConfig.android.versionCode)
+        : undefined;
+  const appVersionDisplay = nativeBuild ? `${appVersion} (${nativeBuild})` : appVersion;
 
   const formatDate = (value?: string) => {
     if (!value) return 'Não informado';
@@ -471,17 +478,15 @@ export default function ConfiguracoesScreen() {
     }
   };
 
-  // Avaliar aplicativo: abre na loja (substitua APP_STORE_ID pelo ID do app na App Store Connect para iOS)
-  const APP_STORE_ID = ''; // Ex: '1234567890'
+  /** App Store — MarcaAi: https://apps.apple.com/br/app/marcaai/id6755204156 */
+  const APP_STORE_ID = '6755204156';
   const PLAY_STORE_PACKAGE = 'com.organizei.marcaai';
 
   const handleRateApp = async () => {
     try {
       const url =
         Platform.OS === 'ios'
-          ? APP_STORE_ID
-            ? `https://apps.apple.com/app/id${APP_STORE_ID}?action=write-review`
-            : `https://apps.apple.com/search?term=Marca%20AI`
+          ? `https://apps.apple.com/br/app/marcaai/id${APP_STORE_ID}?action=write-review`
           : `https://play.google.com/store/apps/details?id=${PLAY_STORE_PACKAGE}`;
       await Linking.openURL(url);
     } catch {
@@ -1559,129 +1564,59 @@ export default function ConfiguracoesScreen() {
       <Modal
         visible={showAboutModal}
         animationType="fade"
-        transparent={true}
+        transparent
         onRequestClose={() => setShowAboutModal(false)}
       >
         <View style={dynamicStyles.aboutModalOverlay}>
-          <View style={[dynamicStyles.aboutModalContent, { backgroundColor: colors.surface }]}>
-            {/* Header com Logo */}
-            <View style={dynamicStyles.aboutModalHeader}>
-              <View style={dynamicStyles.aboutLogoSquare}>
-                <Text style={dynamicStyles.aboutLogoM}>M</Text>
-              </View>
-              <Text style={[dynamicStyles.aboutAppName, { color: colors.text }]}>
-                Marca AI
-              </Text>
-              <Text style={[dynamicStyles.aboutTagline, { color: colors.textSecondary }]}>
-                Gestão Musical Inteligente
-              </Text>
-            </View>
-
-            {/* Informações */}
-            <View style={dynamicStyles.aboutInfoSection}>
-              {/* Versão */}
-              <View style={[dynamicStyles.aboutInfoCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                <View style={[dynamicStyles.aboutInfoIcon, { backgroundColor: colors.primary + '15' }]}>
-                  <Ionicons name="code-slash" size={24} color={colors.primary} />
-                </View>
-                <View style={dynamicStyles.aboutInfoText}>
-                  <Text style={[dynamicStyles.aboutInfoLabel, { color: colors.textSecondary }]}>
-                    Versão
-                  </Text>
-                  <Text style={[dynamicStyles.aboutInfoValue, { color: colors.text }]}>{appVersion}</Text>
-                </View>
-              </View>
-
-              {/* Email */}
-              <View style={[dynamicStyles.aboutInfoCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                <View style={[dynamicStyles.aboutInfoIcon, { backgroundColor: colors.primary + '15' }]}>
-                  <Ionicons name="mail" size={24} color={colors.primary} />
-                </View>
-                <View style={dynamicStyles.aboutInfoText}>
-                  <Text style={[dynamicStyles.aboutInfoLabel, { color: colors.textSecondary }]}>
-                    Email de Contato
-                  </Text>
-                  <Text style={[dynamicStyles.aboutInfoValue, { color: colors.text }]}>
-                    marcaaiapp@gmail.com
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={[dynamicStyles.aboutCopyButton, { backgroundColor: colors.primary }]}
-                  onPress={async () => {
-                    try {
-                      await setStringAsync('marcaaiapp@gmail.com');
-                      Alert.alert('✅ Sucesso', 'Email copiado para a área de transferência!');
-                    } catch {
-                      Alert.alert('❌ Erro', 'Não foi possível copiar o email.');
-                    }
-                  }}
-                >
-                  <Ionicons name="copy" size={16} color="#fff" />
-                </TouchableOpacity>
-              </View>
-
-              {/* Descrição */}
-              <View style={[dynamicStyles.aboutDescriptionCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                <Text style={[dynamicStyles.aboutDescription, { color: colors.textSecondary }]}>
-                  Plataforma completa de gestão musical para artistas e bandas. 
-                  Gerencie eventos, agenda, finanças e colaboradores em um só lugar.
-                </Text>
-              </View>
-            </View>
-
-            {/* Features */}
-            <View style={dynamicStyles.aboutFeaturesSection}>
-              <View style={dynamicStyles.aboutFeatureRow}>
-                <View style={dynamicStyles.aboutFeatureItem}>
-                  <Ionicons name="calendar" size={20} color={colors.primary} />
-                  <Text style={[dynamicStyles.aboutFeatureText, { color: colors.textSecondary }]}>
-                    Agenda de Shows
-                  </Text>
-                </View>
-                <View style={dynamicStyles.aboutFeatureItem}>
-                  <Ionicons name="cash" size={20} color={colors.primary} />
-                  <Text style={[dynamicStyles.aboutFeatureText, { color: colors.textSecondary }]}>
-                    Gestão Financeira
-                  </Text>
-                </View>
-              </View>
-              <View style={dynamicStyles.aboutFeatureRow}>
-                <View style={dynamicStyles.aboutFeatureItem}>
-                  <Ionicons name="people" size={20} color={colors.primary} />
-                  <Text style={[dynamicStyles.aboutFeatureText, { color: colors.textSecondary }]}>
-                    Colaboradores
-                  </Text>
-                </View>
-                <View style={dynamicStyles.aboutFeatureItem}>
-                  <Ionicons name="bar-chart" size={20} color={colors.primary} />
-                  <Text style={[dynamicStyles.aboutFeatureText, { color: colors.textSecondary }]}>
-                    Relatórios
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Footer */}
-            <View style={dynamicStyles.aboutModalFooter}>
-              <Text style={[dynamicStyles.aboutCopyright, { color: colors.textSecondary }]}>
-                © 2025 Marca AI. Todos os direitos reservados.
-              </Text>
-            </View>
-
-            {/* Botão Fechar */}
+          <View
+            style={[
+              dynamicStyles.aboutModalContent,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
             <TouchableOpacity
-              style={[dynamicStyles.aboutCloseButton, { backgroundColor: colors.primary }]}
+              style={[dynamicStyles.aboutSimpleClose, { backgroundColor: colors.secondary }]}
               onPress={() => setShowAboutModal(false)}
+              accessibilityLabel="Fechar"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Text style={dynamicStyles.aboutCloseButtonText}>Fechar</Text>
+              <Ionicons name="close" size={20} color={colors.text} />
             </TouchableOpacity>
 
-            {/* Botão X no canto */}
+            <View style={dynamicStyles.aboutSimpleBody}>
+              <View style={dynamicStyles.aboutLogoSquareSmall}>
+                <Text style={dynamicStyles.aboutLogoMSmall}>M</Text>
+              </View>
+              <Text style={[dynamicStyles.aboutAppNameSmall, { color: colors.text }]}>MarcaAi</Text>
+              <Text style={[dynamicStyles.aboutTaglineSmall, { color: colors.textSecondary }]}>
+                Versão {appVersionDisplay}
+              </Text>
+              <TouchableOpacity
+                onPress={async () => {
+                  try {
+                    await setStringAsync('marcaaiapp@gmail.com');
+                    Alert.alert('Copiado', 'E-mail copiado.');
+                  } catch {
+                    Alert.alert('Erro', 'Não foi possível copiar.');
+                  }
+                }}
+                accessibilityLabel="Copiar e-mail"
+              >
+                <Text style={[dynamicStyles.aboutEmailLink, { color: colors.primary }]}>
+                  marcaaiapp@gmail.com
+                </Text>
+              </TouchableOpacity>
+              <Text style={[dynamicStyles.aboutCopyrightSmall, { color: colors.textSecondary }]}>
+                © 2026 MarcaAi
+              </Text>
+            </View>
+
             <TouchableOpacity
-              style={dynamicStyles.aboutCloseIconButton}
+              style={[dynamicStyles.aboutCloseButtonSmall, { backgroundColor: colors.primary }]}
               onPress={() => setShowAboutModal(false)}
+              activeOpacity={0.85}
             >
-              <Ionicons name="close" size={24} color={colors.textSecondary} />
+              <Text style={dynamicStyles.aboutCloseButtonTextSmall}>OK</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -2391,157 +2326,85 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
            fontSize: 12,
            lineHeight: 16,
          },
-         // Estilos do modal "Sobre"
+         // Estilos do modal "Sobre" (compacto)
          aboutModalOverlay: {
            flex: 1,
-           backgroundColor: 'rgba(0, 0, 0, 0.6)',
+           backgroundColor: 'rgba(0, 0, 0, 0.5)',
            justifyContent: 'center',
            alignItems: 'center',
-           padding: 20,
+           padding: 24,
          },
          aboutModalContent: {
            width: '100%',
-           maxWidth: 400,
-           borderRadius: 24,
-           padding: 24,
-           shadowColor: '#000',
-           shadowOffset: { width: 0, height: 8 },
-           shadowOpacity: Platform.OS === 'android' ? 0 : 0.3,
-           shadowRadius: Platform.OS === 'android' ? 0 : 16,
-           elevation: Platform.OS === 'android' ? 0 : 16,
-         },
-         aboutModalHeader: {
-           alignItems: 'center',
-           marginBottom: 24,
-         },
-         aboutLogoSquare: {
-           width: 80,
-           height: 80,
+           maxWidth: 300,
            borderRadius: 16,
-           backgroundColor: '#667eea',
-           justifyContent: 'center',
-           alignItems: 'center',
-           marginBottom: 16,
-           shadowColor: '#667eea',
+           paddingTop: 36,
+           paddingBottom: 14,
+           paddingHorizontal: 20,
+           borderWidth: StyleSheet.hairlineWidth,
+           shadowColor: '#000',
            shadowOffset: { width: 0, height: 4 },
-           shadowOpacity: Platform.OS === 'android' ? 0 : 0.3,
-           shadowRadius: Platform.OS === 'android' ? 0 : 8,
+           shadowOpacity: Platform.OS === 'android' ? 0 : 0.2,
+           shadowRadius: Platform.OS === 'android' ? 0 : 12,
            elevation: Platform.OS === 'android' ? 0 : 8,
          },
-         aboutLogoM: {
-           fontSize: 48,
-           fontWeight: 'bold',
-           color: '#ffffff',
-         },
-         aboutAppName: {
-           fontSize: 28,
-           fontWeight: 'bold',
-           marginBottom: 4,
-         },
-         aboutTagline: {
-           fontSize: 14,
-           fontStyle: 'italic',
-         },
-         aboutInfoSection: {
-           gap: 12,
-           marginBottom: 20,
-         },
-         aboutInfoCard: {
-           flexDirection: 'row',
-           alignItems: 'center',
-           padding: 16,
-           borderRadius: 12,
-           borderWidth: 1,
-         },
-         aboutInfoIcon: {
-           width: 48,
-           height: 48,
-           borderRadius: 24,
-           justifyContent: 'center',
-           alignItems: 'center',
-           marginRight: 12,
-         },
-         aboutInfoText: {
-           flex: 1,
-         },
-         aboutInfoLabel: {
-           fontSize: 12,
-           marginBottom: 4,
-         },
-         aboutInfoValue: {
-           fontSize: 16,
-           fontWeight: '600',
-         },
-         aboutCopyButton: {
+         aboutSimpleClose: {
+           position: 'absolute',
+           top: 10,
+           right: 10,
            width: 32,
            height: 32,
            borderRadius: 16,
            justifyContent: 'center',
            alignItems: 'center',
-           marginLeft: 8,
+           zIndex: 2,
          },
-         aboutDescriptionCard: {
-           padding: 16,
-           borderRadius: 12,
-           borderWidth: 1,
-         },
-         aboutDescription: {
-           fontSize: 14,
-           lineHeight: 20,
-           textAlign: 'center',
-         },
-         aboutFeaturesSection: {
-           gap: 8,
-           marginBottom: 20,
-         },
-         aboutFeatureRow: {
-           flexDirection: 'row',
-           gap: 8,
-         },
-         aboutFeatureItem: {
-           flex: 1,
-           flexDirection: 'row',
+         aboutSimpleBody: {
            alignItems: 'center',
-           gap: 8,
-           padding: 12,
-           backgroundColor: colors.background,
-           borderRadius: 8,
+           paddingBottom: 4,
          },
-         aboutFeatureText: {
-           fontSize: 12,
-           fontWeight: '500',
-         },
-         aboutModalFooter: {
-           marginBottom: 16,
-           paddingTop: 16,
-           borderTopWidth: 1,
-           borderTopColor: colors.border,
-         },
-         aboutCopyright: {
-           fontSize: 11,
-           textAlign: 'center',
-         },
-         aboutCloseButton: {
-           paddingVertical: 14,
-           paddingHorizontal: 24,
+         aboutLogoSquareSmall: {
+           width: 52,
+           height: 52,
            borderRadius: 12,
-           alignItems: 'center',
-         },
-         aboutCloseButtonText: {
-           color: '#fff',
-           fontSize: 16,
-           fontWeight: '600',
-         },
-         aboutCloseIconButton: {
-           position: 'absolute',
-           top: 12,
-           right: 12,
-           width: 36,
-           height: 36,
-           borderRadius: 18,
+           backgroundColor: '#667eea',
            justifyContent: 'center',
            alignItems: 'center',
-           backgroundColor: colors.background,
+           marginBottom: 10,
+         },
+         aboutLogoMSmall: {
+           fontSize: 28,
+           fontWeight: '800',
+           color: '#ffffff',
+         },
+         aboutAppNameSmall: {
+           fontSize: 18,
+           fontWeight: '800',
+           marginBottom: 4,
+         },
+         aboutTaglineSmall: {
+           fontSize: 13,
+           marginBottom: 12,
+         },
+         aboutEmailLink: {
+           fontSize: 13,
+           fontWeight: '600',
+           textDecorationLine: 'underline',
+         },
+         aboutCopyrightSmall: {
+           fontSize: 10,
+           marginTop: 12,
+         },
+         aboutCloseButtonSmall: {
+           marginTop: 14,
+           paddingVertical: 10,
+           borderRadius: 10,
+           alignItems: 'center',
+         },
+         aboutCloseButtonTextSmall: {
+           color: '#fff',
+           fontSize: 15,
+           fontWeight: '600',
          },
          // Estilos do modal de Logout
          logoutModalOverlay: {
