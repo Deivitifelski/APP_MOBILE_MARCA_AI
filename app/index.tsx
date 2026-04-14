@@ -188,11 +188,10 @@ export default function Index() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar style={isDarkMode ? 'light' : 'dark'} />
-      <LogoMarcaAi size="large" showTagline style={styles.logoBlock} />
+      <LogoMarcaAi size="large" iconOnly style={styles.logoBlock} />
 
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Carregando informações...</Text>
+        <ActivityIndicator size="small" color={colors.primary} />
       </View>
 
       <Modal
@@ -238,17 +237,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   logoBlock: {
-    marginBottom: 48,
+    marginBottom: 36,
     alignSelf: 'center',
   },
   loadingContainer: {
     alignItems: 'center',
     alignSelf: 'center',
-    gap: 16,
-  },
-  loadingText: {
-    fontSize: 18,
-    fontWeight: '500',
+    minHeight: 32,
+    justifyContent: 'center',
   },
   offlineOverlay: {
     flex: 1,

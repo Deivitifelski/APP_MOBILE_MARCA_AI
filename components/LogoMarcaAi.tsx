@@ -5,14 +5,17 @@ interface LogoMarcaAiProps {
   size?: 'small' | 'medium' | 'large';
   showTagline?: boolean;
   showIcon?: boolean;
+  /** Só o ícone azul com M (ex.: tela de loading estilo Instagram) */
+  iconOnly?: boolean;
   style?: any;
 }
 
-export default function LogoMarcaAi({ 
-  size = 'medium', 
+export default function LogoMarcaAi({
+  size = 'medium',
   showTagline = true,
   showIcon = true,
-  style 
+  iconOnly = false,
+  style,
 }: LogoMarcaAiProps) {
   const getSizeConfig = () => {
     switch (size) {
@@ -44,6 +47,26 @@ export default function LogoMarcaAi({
   };
 
   const config = getSizeConfig();
+
+  if (iconOnly) {
+    return (
+      <View style={[styles.container, style]}>
+        <View
+          style={[
+            styles.iconContainer,
+            {
+              width: config.containerSize,
+              height: config.containerSize,
+              borderRadius: config.containerSize * 0.2,
+              marginRight: 0,
+            },
+          ]}
+        >
+          <Text style={[styles.iconText, { fontSize: config.iconSize }]}>M</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, style]}>

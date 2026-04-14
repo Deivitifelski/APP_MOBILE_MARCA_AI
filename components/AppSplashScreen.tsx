@@ -1,13 +1,11 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useColorScheme } from '../hooks/use-color-scheme';
 
-/** Mesma identidade da splash nativa (app.json) — azul + M branco */
+/** Alinhado à splash nativa (app.json) */
 const LIGHT_BG = '#667eea';
 const DARK_BG = '#4c51bf';
-const LOGO_COLOR = '#ffffff';
-const SUBTEXT_LIGHT = 'rgba(255,255,255,0.88)';
-const SUBTEXT_DARK = 'rgba(255,255,255,0.82)';
+const ACCENT = '#ffffff';
 
 export default function AppSplashScreen() {
   const colorScheme = useColorScheme();
@@ -15,10 +13,12 @@ export default function AppSplashScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: isDark ? DARK_BG : LIGHT_BG }]}>
-      <Text style={[styles.logo, { color: LOGO_COLOR }]}>M</Text>
-      <Text style={[styles.message, { color: isDark ? SUBTEXT_DARK : SUBTEXT_LIGHT }]}>
-        Carregando suas informações
-      </Text>
+      <Text style={styles.logo}>M</Text>
+      <ActivityIndicator
+        style={styles.spinner}
+        color={ACCENT}
+        size="small"
+      />
     </View>
   );
 }
@@ -30,13 +30,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logo: {
+    color: ACCENT,
     fontSize: 88,
     fontWeight: '800',
     letterSpacing: -2,
   },
-  message: {
-    marginTop: 20,
-    fontSize: 15,
-    fontWeight: '500',
+  spinner: {
+    marginTop: 36,
+    transform: [{ scale: 1.15 }],
   },
 });
