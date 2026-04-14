@@ -6,7 +6,8 @@
  */
 export const LEGAL_URLS = {
   /** Link funcional para a Política de Privacidade (obrigatório no app e nos metadados) */
-  PRIVACY_POLICY: 'https://www.marcaai.com/privacidade',
+  PRIVACY_POLICY:
+    'https://www.freeprivacypolicy.com/live/179f60bd-8cb5-4987-96b7-1c6863cc8a83',
   /** Link funcional para os Termos de Uso / EULA (obrigatório no app e nos metadados) */
   TERMS_OF_USE_EULA: 'https://www.marcaai.com/termos',
 } as const;
