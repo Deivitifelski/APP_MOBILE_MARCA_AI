@@ -9,11 +9,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/icone_app_1024.png",
+      "image": "./assets/images/splash-transparent.png",
       "resizeMode": "contain",
-      "backgroundColor": "#f8f9fa",
+      "backgroundColor": "#667eea",
       "dark": {
-        "backgroundColor": "#1a1a1a"
+        "backgroundColor": "#4c51bf"
       }
     },
     "ios": {
@@ -93,12 +93,11 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/icone_app_1024.png",
-          "imageWidth": 1,
+          "image": "./assets/images/splash-transparent.png",
           "resizeMode": "contain",
-          "backgroundColor": "#f8f9fa",
+          "backgroundColor": "#667eea",
           "dark": {
-            "backgroundColor": "#1a1a1a"
+            "backgroundColor": "#4c51bf"
           }
         }
       ],

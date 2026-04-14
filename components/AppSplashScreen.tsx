@@ -2,11 +2,12 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useColorScheme } from '../hooks/use-color-scheme';
 
-const LIGHT_BG = '#f8f9fa';
-const DARK_BG = '#1a1a1a';
-const PRIMARY = '#667eea';
-const LIGHT_TEXT = '#666666';
-const DARK_TEXT = '#cccccc';
+/** Mesma identidade da splash nativa (app.json) — azul + M branco */
+const LIGHT_BG = '#667eea';
+const DARK_BG = '#4c51bf';
+const LOGO_COLOR = '#ffffff';
+const SUBTEXT_LIGHT = 'rgba(255,255,255,0.88)';
+const SUBTEXT_DARK = 'rgba(255,255,255,0.82)';
 
 export default function AppSplashScreen() {
   const colorScheme = useColorScheme();
@@ -14,8 +15,8 @@ export default function AppSplashScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: isDark ? DARK_BG : LIGHT_BG }]}>
-      <Text style={[styles.logo, { color: PRIMARY }]}>M</Text>
-      <Text style={[styles.message, { color: isDark ? DARK_TEXT : LIGHT_TEXT }]}>
+      <Text style={[styles.logo, { color: LOGO_COLOR }]}>M</Text>
+      <Text style={[styles.message, { color: isDark ? SUBTEXT_DARK : SUBTEXT_LIGHT }]}>
         Carregando suas informações
       </Text>
     </View>
@@ -29,12 +30,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logo: {
-    fontSize: 72,
-    fontWeight: '700',
-    letterSpacing: -1,
+    fontSize: 88,
+    fontWeight: '800',
+    letterSpacing: -2,
   },
   message: {
-    marginTop: 16,
+    marginTop: 20,
     fontSize: 15,
+    fontWeight: '500',
   },
 });
