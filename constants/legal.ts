@@ -1,13 +1,12 @@
 /**
  * URLs legais obrigatórias para assinaturas (Diretriz 3.1.2 - Apple).
- * Substitua pelos links reais da sua Política de Privacidade e Termos de Uso (EULA).
- * No App Store Connect: preencha também o campo "Política de Privacidade" e
- * inclua o link dos Termos de Uso na Descrição do app ou no campo "EULA".
+ * EULA: padrão Apple. No Connect, use EULA padrão da Apple e o mesmo link na descrição do app.
+ * Política de privacidade: campo dedicado no App Store Connect + mesmo link aqui.
  */
 export const LEGAL_URLS = {
   /** Link funcional para a Política de Privacidade (obrigatório no app e nos metadados) */
   PRIVACY_POLICY:
     'https://www.freeprivacypolicy.com/live/179f60bd-8cb5-4987-96b7-1c6863cc8a83',
-  /** Link funcional para os Termos de Uso / EULA (obrigatório no app e nos metadados) */
-  TERMS_OF_USE_EULA: 'https://www.marcaai.com/termos',
+  /** EULA padrão Apple (Licensed Application). Abre no Safari pelo Linking. */
+  TERMS_OF_USE_EULA: 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/',
 } as const;
