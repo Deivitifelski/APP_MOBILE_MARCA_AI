@@ -156,7 +156,7 @@ export interface UsuarioBuscaColaborador {
   show_formats?: unknown;
 }
 
-/** Apenas usuários com perfil de artista marcado como disponível para trabalhos (RPC). */
+/** Busca contas para convite (RPC): qualquer usuário, exceto já vinculado ao artista e exceto você. */
 export const searchUsersForCollaboratorInvite = async (
   searchTerm: string,
   artistId: string

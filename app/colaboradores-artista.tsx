@@ -874,7 +874,7 @@ export default function ColaboradoresArtistaScreen() {
             <View style={styles.inputContainer}>
               <Text style={[styles.inputLabel, { color: colors.text }]}>Buscar usuário</Text>
               <Text style={[styles.collaboratorSearchHint, { color: colors.textSecondary }]}>
-                Só aparecem contas que já têm perfil de artista no app e ainda não são colaboradoras deste artista. Busca pelo nome (início de cada palavra). Nome e localização (cidade/UF) quando existir.
+                Aparecem contas que ainda não são colaboradoras deste artista (com ou sem perfil de artista). Busca pelo nome (início de cada palavra). Cidade/UF quando existir.
               </Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
@@ -1336,101 +1336,55 @@ export default function ColaboradoresArtistaScreen() {
         onRequestClose={() => setShowInviteSentModal(false)}
       >
         <View style={styles.inviteSentOverlay}>
-          <View style={[styles.inviteSentContainer, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }] }>
-            {/* Header com ícone de sucesso */}
-            <View style={styles.inviteSentHeader}>
-              <View style={[styles.successIconCircle, { backgroundColor: colors.primary + '20' }] }>
-                <Ionicons name="checkmark-circle" size={64} color={colors.primary} />
-              </View>
-              <Text style={[styles.inviteSentTitle, { color: colors.primary }]}>Convite Enviado!</Text>
-              <Text style={[styles.inviteSentSubtitle, { color: colors.textSecondary }] }>
-                O colaborador receberá uma notificação
+          <View style={[styles.inviteSentContainer, styles.inviteSentSimpleContainer, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }] }>
+            <View style={styles.inviteSentSimpleHeader}>
+              <Ionicons name="checkmark-circle" size={54} color={colors.primary} />
+              <Text style={[styles.inviteSentSimpleTitle, { color: colors.primary }]}>Convite enviado</Text>
+              <Text style={[styles.inviteSentSimpleSubtitle, { color: colors.textSecondary }]}>
+                A pessoa receberá uma notificação para aceitar ou recusar.
               </Text>
             </View>
 
-            {/* Card do usuário convidado */}
             {inviteSentData && (
-              <View style={[styles.invitedUserCard, { backgroundColor: colors.surface, borderColor: colors.border }] }>
-                <View style={styles.invitedUserHeader}>
-                  <OptimizedImage
-                    imageUrl={inviteSentData.userImage}
-                    style={styles.invitedUserAvatar}
-                    cacheKey={`invited_${inviteSentData.userEmail}`}
-                    fallbackText={inviteSentData.userName || 'Usuário'}
-                    fallbackIcon="person"
-                    fallbackIconSize={32}
-                    fallbackIconColor={colors.primary}
-                  />
-                  <View style={styles.invitedUserInfo}>
-                    <Text style={[styles.invitedUserName, { color: colors.text }]}>
-                      {inviteSentData.userName}
-                    </Text>
-                    <Text style={[styles.invitedUserEmail, { color: colors.textSecondary }] }>
-                      {inviteSentData.userEmail}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Badge do cargo */}
-                <View style={styles.invitedRoleSection}>
-                  <Text style={[styles.invitedRoleLabel, { color: colors.textSecondary }]}>Cargo atribuído:</Text>
-                  <View style={[
-                    styles.invitedRoleBadge,
-                    { backgroundColor: getRoleColor(inviteSentData.role) + '15' }
-                  ]}>
-                    <Ionicons 
-                      name={getRoleIcon(inviteSentData.role) as any}
-                      size={20}
-                      color={getRoleColor(inviteSentData.role)}
-                    />
-                    <Text style={[
-                      styles.invitedRoleText,
-                      { color: getRoleColor(inviteSentData.role) }
-                    ]}>
-                      {getRoleLabel(inviteSentData.role)}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Status pendente */}
-                <View style={[styles.pendingStatusSection, { backgroundColor: colors.secondary || colors.surface, borderColor: colors.border }] }>
-                  <View style={[styles.pendingIcon, { backgroundColor: colors.surface }]}>
-                    <Ionicons name="time-outline" size={20} color={colors.primary} />
-                  </View>
-                  <View style={styles.pendingTextContainer}>
-                    <Text style={[styles.pendingStatusTitle, { color: colors.text }] }>
-                      Aguardando aceitação
-                    </Text>
-                    <Text style={[styles.pendingStatusDescription, { color: colors.textSecondary }] }>
-                      {inviteSentData.userName} receberá uma notificação e poderá aceitar ou recusar o convite.
-                    </Text>
-                  </View>
+              <View style={[styles.inviteSentSimpleUserCard, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+                <OptimizedImage
+                  imageUrl={inviteSentData.userImage}
+                  style={styles.inviteSentSimpleAvatar}
+                  cacheKey={`invited_${inviteSentData.userEmail}`}
+                  fallbackText={inviteSentData.userName || 'Usuário'}
+                  fallbackIcon="person"
+                  fallbackIconSize={24}
+                  fallbackIconColor={colors.primary}
+                />
+                <View style={styles.inviteSentSimpleUserInfo}>
+                  <Text style={[styles.inviteSentSimpleUserName, { color: colors.text }]} numberOfLines={1}>
+                    {inviteSentData.userName}
+                  </Text>
+                  <Text style={[styles.inviteSentSimpleUserEmail, { color: colors.textSecondary }]} numberOfLines={1}>
+                    {inviteSentData.userEmail}
+                  </Text>
                 </View>
               </View>
             )}
 
-            {/* Informações adicionais */}
-            <View style={[styles.inviteSentInfo, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }] }>
-              <View style={styles.infoItem}>
-                <Ionicons name="mail-outline" size={20} color={colors.primary} />
-                <Text style={[styles.infoText, { color: colors.text }] }>
-                  Notificação enviada
+            {inviteSentData && (
+              <View style={[styles.inviteSentSimpleRoleRow, { backgroundColor: getRoleColor(inviteSentData.role) + '14' }]}>
+                <Ionicons
+                  name={getRoleIcon(inviteSentData.role) as any}
+                  size={16}
+                  color={getRoleColor(inviteSentData.role)}
+                />
+                <Text style={[styles.inviteSentSimpleRoleText, { color: getRoleColor(inviteSentData.role) }]}>
+                  {getRoleLabel(inviteSentData.role)}
                 </Text>
               </View>
-              <View style={styles.infoItem}>
-                <Ionicons name="shield-checkmark-outline" size={20} color={colors.primary} />
-                <Text style={[styles.infoText, { color: colors.text }] }>
-                  Convite válido
-                </Text>
-              </View>
-            </View>
+            )}
 
-            {/* Botão de fechar */}
             <TouchableOpacity
               style={[styles.inviteSentButton, { backgroundColor: colors.primary }]}
               onPress={() => setShowInviteSentModal(false)}
             >
-              <Text style={styles.inviteSentButtonText}>Entendi</Text>
+              <Text style={styles.inviteSentButtonText}>OK</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -2596,6 +2550,66 @@ const styles = StyleSheet.create({
   inviteSentButtonText: {
     color: '#fff',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  inviteSentSimpleContainer: {
+    maxWidth: 340,
+    padding: 18,
+    borderRadius: 18,
+  },
+  inviteSentSimpleHeader: {
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  inviteSentSimpleTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    marginTop: 6,
+  },
+  inviteSentSimpleSubtitle: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginTop: 6,
+  },
+  inviteSentSimpleUserCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  inviteSentSimpleAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 10,
+  },
+  inviteSentSimpleUserInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  inviteSentSimpleUserName: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  inviteSentSimpleUserEmail: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  inviteSentSimpleRoleRow: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  inviteSentSimpleRoleText: {
+    fontSize: 13,
     fontWeight: '600',
   },
   planLimitBanner: {

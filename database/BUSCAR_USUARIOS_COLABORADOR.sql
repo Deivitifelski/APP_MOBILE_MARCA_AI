@@ -1,8 +1,8 @@
 -- Busca usuários para convite de colaborador:
--- - Só quem já é "artista" no app: tem pelo menos uma linha em `artist_members` (algum perfil).
--- - Não pode já ser membro do artista alvo (`p_artista_id`).
+-- - Qualquer conta em `users` (com ou sem perfil de artista).
+-- - Exclui quem já é membro do artista alvo (`p_artista_id`).
 -- - Não lista o próprio usuário logado.
--- Busca pelo nome da conta (`users.name`), prefixo no início de cada palavra (normalizado).
+-- Busca pelo nome (`users.name`), prefixo no início de cada palavra (normalizado).
 -- Colunas extras no retorno seguem o contrato do app (muitas vêm NULL / []); cidade/UF de `users`.
 
 CREATE OR REPLACE FUNCTION public.normalize_pt_search(input text)
@@ -70,11 +70,6 @@ AS $$
         AND word LIKE public.normalize_pt_search(p_termo) || '%'
     )
     AND u.id IS DISTINCT FROM auth.uid()
-    AND EXISTS (
-      SELECT 1
-      FROM public.artist_members am_any
-      WHERE am_any.user_id = u.id
-    )
     AND NOT EXISTS (
       SELECT 1
       FROM public.artist_members mx
