@@ -342,9 +342,9 @@ export default function SairArtistaScreen() {
               <View style={[styles.modalIcon, { backgroundColor: colors.warning + '30' }]}>
                 <Ionicons name="shield-checkmark" size={32} color={colors.warning} />
               </View>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Você é o Único Administrador</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Você é o único administrador</Text>
               <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
-                Escolha uma das opções abaixo para continuar
+                Para sair, alguém precisa assumir o admin — ou você apaga o artista por completo (sem volta).
               </Text>
             </View>
 
@@ -361,20 +361,11 @@ export default function SairArtistaScreen() {
                   <Ionicons name="swap-horizontal" size={24} color={colors.primary} />
                 </View>
                 <View style={styles.optionContent}>
-                  <Text style={[styles.optionTitle, { color: colors.text }]}>Indicar Novo Administrador</Text>
+                  <Text style={[styles.optionLabel, { color: colors.primary }]}>Recomendado</Text>
+                  <Text style={[styles.optionTitle, { color: colors.text }]}>Passar o admin e sair</Text>
                   <Text style={[styles.optionDescription, { color: colors.textSecondary }]}>
-                    Escolha outro colaborador para ser administrador e depois você sai do artista.
+                    Você escolhe um colaborador para virar administrador; depois pode sair e o artista continua existindo.
                   </Text>
-                  <View style={styles.optionSteps}>
-                    <View style={styles.stepItem}>
-                      <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
-                      <Text style={[styles.stepText, { color: colors.textSecondary }]}>Você mantém seus dados seguros</Text>
-                    </View>
-                    <View style={styles.stepItem}>
-                      <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
-                      <Text style={[styles.stepText, { color: colors.textSecondary }]}>Outro colaborador assume como admin</Text>
-                    </View>
-                  </View>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
@@ -391,20 +382,13 @@ export default function SairArtistaScreen() {
                   <Ionicons name="trash" size={24} color={colors.error} />
                 </View>
                 <View style={styles.optionContent}>
-                  <Text style={[styles.optionTitle, { color: colors.error }]}>Deletar Artista</Text>
-                  <Text style={[styles.optionDescription, { color: colors.textSecondary }]}>
-                    Deleta permanentemente o artista e TODOS os dados associados.
+                  <Text style={[styles.optionLabel, { color: colors.error }]}>Irreversível</Text>
+                  <Text style={[styles.optionTitle, { color: colors.error }]}>
+                    Apagar &quot;{activeArtist?.name ?? 'este artista'}&quot;
                   </Text>
-                  <View style={styles.optionSteps}>
-                    <View style={styles.stepItem}>
-                      <Ionicons name="warning" size={16} color={colors.error} />
-                      <Text style={[styles.stepText, { color: colors.error }]}>Remove todos os {totalCollaborators} colaboradores</Text>
-                    </View>
-                    <View style={styles.stepItem}>
-                      <Ionicons name="warning" size={16} color={colors.error} />
-                      <Text style={[styles.stepText, { color: colors.error }]}>Deleta eventos e dados financeiros</Text>
-                    </View>
-                  </View>
+                  <Text style={[styles.optionDescription, { color: colors.textSecondary }]}>
+                    Remove para sempre este artista, os {totalCollaborators} colaboradores, eventos e dados financeiros.
+                  </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color={colors.error} />
               </TouchableOpacity>
@@ -700,10 +684,10 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalContainer: {
-    borderRadius: 20,
-    padding: 24,
+    borderRadius: 16,
+    padding: 18,
     width: '100%',
-    maxWidth: 400,
+    maxWidth: 360,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: Platform.OS === 'android' ? 0 : 0.3,
@@ -712,48 +696,55 @@ const styles = StyleSheet.create({
   },
   modalHeader: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 14,
   },
   modalIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
   },
   modalTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   modalSubtitle: {
-    fontSize: 15,
+    fontSize: 14,
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 20,
   },
   optionsContainer: {
-    gap: 12,
-    marginBottom: 20,
+    gap: 10,
+    marginBottom: 14,
   },
   optionCard: {
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 14,
+    padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 1,
   },
   optionIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 10,
   },
   optionContent: {
     flex: 1,
+  },
+  optionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    marginBottom: 4,
   },
   optionTitle: {
     fontSize: 17,
@@ -761,20 +752,8 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   optionDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 8,
-  },
-  optionSteps: {
-    gap: 6,
-  },
-  stepItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  stepText: {
     fontSize: 13,
+    lineHeight: 19,
   },
   warningBox: {
     borderRadius: 12,
