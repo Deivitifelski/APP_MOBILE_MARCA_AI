@@ -480,7 +480,7 @@ export default function ConfiguracoesScreen() {
 
   /** App Store — MarcaAi: https://apps.apple.com/br/app/marcaai/id6755204156 */
   const APP_STORE_ID = '6755204156';
-  const PLAY_STORE_PACKAGE = 'com.organizei.marcaai';
+  const PLAY_STORE_PACKAGE = 'com.marcaaipro.app';
 
   const handleRateApp = async () => {
     try {

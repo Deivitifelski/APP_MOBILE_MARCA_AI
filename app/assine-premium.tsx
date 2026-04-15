@@ -524,7 +524,7 @@ export default function AssinePremiumScreen() {
     if (activeSku === product.id) {
       try {
         await deepLinkToSubscriptions({
-          packageNameAndroid: 'com.organizei.marcaai',
+          packageNameAndroid: 'com.marcaaipro.app',
           skuAndroid: product.id,
         });
       } catch {
@@ -554,9 +554,26 @@ export default function AssinePremiumScreen() {
           request: { apple: { sku: product.id, appAccountToken: user.id } },
         });
       } else {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user?.id) {
+          userStartedPurchaseFlowRef.current = false;
+          setProcessingSku(null);
+          Alert.alert(
+            'Entre na sua conta',
+            'Para assinar o Premium, faça login no app. Assim vinculamos sua assinatura ao seu perfil.',
+          );
+          return;
+        }
         await requestPurchase({
           type: 'subs',
-          request: { google: { skus: [product.id] } },
+          request: {
+            google: {
+              skus: [product.id],
+              obfuscatedAccountId: user.id,
+            },
+          },
         });
       }
     } catch (purchaseStartError) {
@@ -604,7 +621,7 @@ export default function AssinePremiumScreen() {
   const handleManageSubscription = useCallback(async () => {
     try {
       await deepLinkToSubscriptions({
-        packageNameAndroid: 'com.organizei.marcaai',
+        packageNameAndroid: 'com.marcaaipro.app',
         skuAndroid: activeSku ?? MONTHLY_SKU,
       });
     } catch {
