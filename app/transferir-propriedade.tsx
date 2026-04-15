@@ -77,17 +77,21 @@ export default function TransferirPropriedadeScreen() {
   const handleTransferOwnership = async (newOwner: Collaborator) => {
     if (!activeArtist) return;
 
+    const isAlreadyOwner = newOwner.role === 'owner';
+    const actionHint = isAlreadyOwner
+      ? `${newOwner.user.name} já é gerente deste artista. Você só será removido como colaborador.`
+      : `${newOwner.user.name} passará a ser administrador e você sairá do artista.`;
+
     Alert.alert(
-      'Transferir Propriedade',
-      `Tem certeza que deseja transferir a propriedade do artista "${activeArtist.name}" para ${newOwner.user.name}?\n\nEsta ação não pode ser desfeita.`,
+      'Indicar administrador',
+      `Confirmar para "${activeArtist.name}"?\n\n${actionHint}\n\nEsta ação não pode ser desfeita.`,
       [
         {
           text: 'Cancelar',
           style: 'cancel',
         },
         {
-          text: 'Transferir',
-          style: 'destructive',
+          text: 'Confirmar',
           onPress: async () => {
             await performTransfer(newOwner);
           },
@@ -100,16 +104,18 @@ export default function TransferirPropriedadeScreen() {
     try {
       setIsTransferring(true);
 
-      // Atualizar o novo owner
-      const { success: updateSuccess, error: updateError } = await updateCollaboratorRole(
-        newOwner.user_id,
-        activeArtist!.id,
-        'owner'
-      );
+      // Quem já é owner (gerente) não deve ser rebaixado; basta o admin atual sair.
+      if (newOwner.role !== 'owner') {
+        const { success: updateSuccess, error: updateError } = await updateCollaboratorRole(
+          newOwner.user_id,
+          activeArtist!.id,
+          'admin'
+        );
 
-      if (!updateSuccess || updateError) {
-        Alert.alert('Erro', 'Erro ao transferir propriedade');
-        return;
+        if (!updateSuccess || updateError) {
+          Alert.alert('Erro', updateError || 'Erro ao definir novo administrador');
+          return;
+        }
       }
 
       // Remover o usuário atual do artista usando leaveArtist
@@ -122,9 +128,14 @@ export default function TransferirPropriedadeScreen() {
         return;
       }
 
+      const successMessage =
+        newOwner.role === 'owner'
+          ? 'Você foi removido do artista.'
+          : 'O colaborador agora é administrador. Você foi removido do artista.';
+
       Alert.alert(
         'Sucesso',
-        'Propriedade transferida com sucesso! Você foi removido do artista.',
+        successMessage,
         [
           {
             text: 'OK',
@@ -152,6 +163,8 @@ export default function TransferirPropriedadeScreen() {
         return 'create';
       case 'viewer':
         return 'eye';
+      case 'owner':
+        return 'briefcase';
       default:
         return 'person';
     }
@@ -159,6 +172,8 @@ export default function TransferirPropriedadeScreen() {
 
   const getRoleColor = (role: string) => {
     switch (role) {
+      case 'owner':
+        return '#8B5CF6';
       case 'admin':
         return '#10B981';
       case 'editor':
@@ -172,14 +187,14 @@ export default function TransferirPropriedadeScreen() {
 
   const getRoleLabel = (role: string) => {
     switch (role) {
+      case 'owner':
+        return 'Gerente';
       case 'admin':
         return 'Administrador';
       case 'editor':
         return 'Editor';
       case 'viewer':
         return 'Visualizador';
-        case 'owner':
-          return 'Gerente';
       default:
         return 'Colaborador';
     }
@@ -195,7 +210,7 @@ export default function TransferirPropriedadeScreen() {
           >
             <Ionicons name="arrow-back" size={24} color="#1F2937" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Transferir Propriedade</Text>
+          <Text style={styles.headerTitle}>Indicar administrador</Text>
           <View style={styles.placeholder} />
         </View>
         
@@ -216,7 +231,7 @@ export default function TransferirPropriedadeScreen() {
         >
           <Ionicons name="arrow-back" size={24} color="#1F2937" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Transferir Propriedade</Text>
+        <Text style={styles.headerTitle}>Indicar administrador</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -229,8 +244,8 @@ export default function TransferirPropriedadeScreen() {
         <View style={styles.infoCard}>
           <Ionicons name="information-circle" size={24} color="#3B82F6" />
           <Text style={styles.infoText}>
-            Selecione um colaborador para se tornar o novo gerente do artista &quot;{activeArtist?.name}&quot;.
-        </Text>
+            Selecione um colaborador para virar administrador do artista &quot;{activeArtist?.name}&quot;. Quem já é gerente não precisa mudar de função — você só sai.
+          </Text>
         </View>
 
         {collaborators.length === 0 ? (
