@@ -2,7 +2,7 @@
   "expo": {
     "name": "Marca AI",
     "slug": "APP_MOBILE_MARCA_AI",
-    "version": "1.0.42",
+    "version": "1.0.43",
     "orientation": "portrait",
     "icon": "./assets/images/icone_app_1024.png",
     "scheme": "marcaai",
@@ -41,7 +41,7 @@
     },
     "android": {
       "package": "com.marcaaipro.app",
-      "versionCode": 33,
+      "versionCode": 34,
       "googleServicesFile": "./android/app/google-services.json",
       "icon": "./assets/images/icone_512x512.png",
       "adaptiveIcon": {
