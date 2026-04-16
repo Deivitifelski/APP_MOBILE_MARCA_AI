@@ -1,6 +1,12 @@
 import { supabase } from '../../lib/supabase';
 
-export type UserRole = 'viewer' | 'editor' | 'admin' | 'owner';
+/** Papéis em `artist_members`: admin, editor e viewer. */
+export type UserRole = 'viewer' | 'editor' | 'admin';
+
+export function normalizeArtistMemberRole(role: string): UserRole {
+  if (role === 'viewer' || role === 'editor' || role === 'admin') return role;
+  return 'viewer';
+}
 
 export interface UserPermission {
   userId: string;
@@ -52,7 +58,7 @@ export const getUserPermissions = async (userId: string, artistId: string): Prom
       return null;
     }
 
-    const role = data.role as UserRole;
+    const role = normalizeArtistMemberRole(String(data.role));
     console.log('✅ permissionsService: Role encontrado:', role);
     
     const permissions = getUserPermissionsByRole(role);
@@ -113,18 +119,6 @@ export const getUserPermissionsByRole = (role: UserRole) => {
         canDeleteArtist: true, // Admin pode deletar artista
       };
     
-    case 'owner':
-      return {
-        canViewEvents: true,
-        canViewFinancials: true,
-        canCreateEvents: true,
-        canEditEvents: true,
-        canDeleteEvents: true,
-        canManageMembers: true,
-        canManageArtist: true,
-        canDeleteArtist: true,
-      };
-    
     default:
       return {
         canViewEvents: false,
@@ -174,7 +168,7 @@ export const getUserArtists = async (userId: string): Promise<{artistId: string,
 
     return data.map(item => ({
       artistId: item.artist_id,
-      role: item.role as UserRole
+      role: normalizeArtistMemberRole(String(item.role)),
     }));
   } catch (error) {
     console.error('Erro ao buscar artistas do usuário:', error);
@@ -182,24 +176,27 @@ export const getUserArtists = async (userId: string): Promise<{artistId: string,
   }
 };
 
-// Função para verificar se o usuário é owner de pelo menos um artista
-export const isUserOwner = async (userId: string): Promise<boolean> => {
+/** Administrador em pelo menos um artista. */
+export const isUserAdmin = async (userId: string): Promise<boolean> => {
   try {
     const { data, error } = await supabase
       .from('artist_members')
       .select('role')
       .eq('user_id', userId)
-      .eq('role', 'owner')
+      .eq('role', 'admin')
       .limit(1);
 
     if (error) {
-      console.error('Erro ao verificar se usuário é owner:', error);
+      console.error('Erro ao verificar se usuário é admin:', error);
       return false;
     }
 
     return data && data.length > 0;
   } catch (error) {
-    console.error('Erro ao verificar se usuário é owner:', error);
+    console.error('Erro ao verificar se usuário é admin:', error);
     return false;
   }
 };
+
+/** @deprecated Use `isUserAdmin`. */
+export const isUserOwner = isUserAdmin;

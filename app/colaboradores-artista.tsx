@@ -21,9 +21,10 @@ import { checkPendingInvite, createArtistInvite } from '../services/supabase/art
 import { getCurrentUser } from '../services/supabase/authService';
 import { addCollaborator, Collaborator, getCollaborators, removeCollaborator, searchUsersForCollaboratorInvite, updateCollaboratorRole } from '../services/supabase/collaboratorService';
 import { deletePendingInviteNotifications } from '../services/supabase/notificationService';
+import { normalizeArtistMemberRole } from '../services/supabase/permissionsService';
 import { useActiveArtist } from '../services/useActiveArtist';
 
-type CollaboratorInviteRole = 'owner' | 'admin' | 'editor' | 'viewer';
+type CollaboratorInviteRole = 'admin' | 'editor' | 'viewer';
 
 /** Textos alinhados às regras reais (agenda, finanças, colaboradores, perfil). */
 const COLLABORATOR_ROLES_CONFIG: {
@@ -46,18 +47,6 @@ const COLLABORATOR_ROLES_CONFIG: {
     ],
     modalIcon: 'shield-checkmark',
     modalColor: '#FF6B35',
-  },
-  {
-    value: 'owner',
-    label: 'Gerente',
-    summary: 'Igual ao admin na agenda e finanças; na equipe, não mexe em administradores.',
-    powers: [
-      'Agenda, finanças e perfil como administrador',
-      'Convidar e gerenciar Editor e Visualizador',
-    ],
-    limitations: ['Não altera nem remove um Administrador'],
-    modalIcon: 'star',
-    modalColor: '#FFD700',
   },
   {
     value: 'editor',
@@ -85,12 +74,7 @@ const COLLABORATOR_ROLES_CONFIG: {
   },
 ];
 
-/** Convite e troca de papel: não exibimos Gerente (owner); quem já é gerente continua no sistema. */
-const COLLABORATOR_ROLES_FOR_PICKER = COLLABORATOR_ROLES_CONFIG.filter((r) => r.value !== 'owner');
-
-function roleForNewInviteOrAdd(role: CollaboratorInviteRole): Exclude<CollaboratorInviteRole, 'owner'> {
-  return role === 'owner' ? 'admin' : role;
-}
+const COLLABORATOR_ROLES_FOR_PICKER = COLLABORATOR_ROLES_CONFIG;
 
 /** Cidade/UF vindos do cadastro do usuário (`users`), quando a RPC os retorna. */
 function formatBuscaColaboradorLocalizacao(u: { city?: string | null; state?: string | null }): string {
@@ -105,7 +89,6 @@ export default function ColaboradoresArtistaScreen() {
   const { colors } = useTheme();
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isOwner, setIsOwner] = useState(false);
   const [canManage, setCanManage] = useState(false);
   const [canAddCollaborators, setCanAddCollaborators] = useState(false);
   const [collaboratorPlanBlockedMessage, setCollaboratorPlanBlockedMessage] = useState<string | null>(null);
@@ -115,7 +98,7 @@ export default function ColaboradoresArtistaScreen() {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [newCollaboratorRole, setNewCollaboratorRole] = useState<'owner' | 'admin' | 'editor' | 'viewer'>('viewer');
+  const [newCollaboratorRole, setNewCollaboratorRole] = useState<CollaboratorInviteRole>('viewer');
   const [isAdding, setIsAdding] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -123,14 +106,14 @@ export default function ColaboradoresArtistaScreen() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [selectedCollaborator, setSelectedCollaborator] = useState<Collaborator | null>(null);
-  const [selectedRole, setSelectedRole] = useState<'owner' | 'admin' | 'editor' | 'viewer'>('viewer');
+  const [selectedRole, setSelectedRole] = useState<CollaboratorInviteRole>('viewer');
   const [isUpdatingRole, setIsUpdatingRole] = useState(false);
   const [showInviteSentModal, setShowInviteSentModal] = useState(false);
   const [inviteSentData, setInviteSentData] = useState<{
     userName: string;
     userEmail: string;
     userImage: string;
-    role: 'owner' | 'admin' | 'editor' | 'viewer';
+    role: CollaboratorInviteRole;
   } | null>(null);
   const [existingInviteIdToDelete, setExistingInviteIdToDelete] = useState<string | null>(null); // ID da notificação antiga para deletar ao reenviar
   const [showPendingInviteModal, setShowPendingInviteModal] = useState(false);
@@ -173,10 +156,6 @@ export default function ColaboradoresArtistaScreen() {
         }
       }
       
-      // Verificar se é owner
-      const isUserOwner = activeArtist.role === 'owner';
-      setIsOwner(isUserOwner);
-
       // Buscar colaboradores
       const {
         collaborators,
@@ -294,13 +273,13 @@ export default function ColaboradoresArtistaScreen() {
 
         // Formatar role para exibição
         const formatRole = (role: string) => {
-          const roles: Record<string, string> = {
-            'viewer': 'Visualizador',
-            'editor': 'Editor',
-            'admin': 'Administrador',
-            'owner': 'Proprietário'
+          const n = normalizeArtistMemberRole(role);
+          const roles: Record<CollaboratorInviteRole, string> = {
+            viewer: 'Visualizador',
+            editor: 'Editor',
+            admin: 'Administrador',
           };
-          return roles[role] || role;
+          return roles[n];
         };
 
         // Fechar modal de busca primeiro
@@ -316,7 +295,7 @@ export default function ColaboradoresArtistaScreen() {
         });
         setSelectedUser(user);
         setExistingInviteIdToDelete(existingInvite.id);
-        setNewCollaboratorRole(roleForNewInviteOrAdd((existingInvite.role || 'viewer') as CollaboratorInviteRole));
+        setNewCollaboratorRole(normalizeArtistMemberRole(existingInvite.role || 'viewer'));
         
         // Abrir modal de convite pendente
         console.log('🔔 Abrindo modal de convite pendente');
@@ -394,7 +373,7 @@ export default function ColaboradoresArtistaScreen() {
       }
 
       // Criar convite (primeira vez ou reenvio)
-      const inviteRole = roleForNewInviteOrAdd(newCollaboratorRole);
+      const inviteRole = newCollaboratorRole;
 
       console.log('📝 Criando novo convite:', {
         artistId: activeArtist.id,
@@ -450,7 +429,7 @@ export default function ColaboradoresArtistaScreen() {
 
       const { success, error } = await addCollaborator(activeArtist.id, {
         userId: selectedUser.id,
-        role: roleForNewInviteOrAdd(newCollaboratorRole)
+        role: newCollaboratorRole
       });
 
       if (success) {
@@ -480,17 +459,6 @@ export default function ColaboradoresArtistaScreen() {
       Alert.alert(
         'Ação Não Permitida',
         'Você não pode se remover desta forma. Use a opção "Sair do Artista" nas configurações.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-
-    // ✅ Se você é OWNER, não pode remover ADMIN
-    const collaborator = collaborators.find(c => c.user_id === userId);
-    if (userRole === 'owner' && collaborator?.role === 'admin') {
-      Alert.alert(
-        'Ação Não Permitida',
-        'Gerentes não podem remover administradores.',
         [{ text: 'OK' }]
       );
       return;
@@ -536,16 +504,6 @@ export default function ColaboradoresArtistaScreen() {
       return;
     }
 
-    // ✅ Se você é OWNER, não pode alterar permissões de ADMIN
-    if (userRole === 'owner' && currentRole === 'admin') {
-      Alert.alert(
-        'Ação Não Permitida',
-        'Gerentes não podem alterar permissões de administradores.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-    
     const collaborator = collaborators.find(c => c.user_id === userId);
     if (!collaborator) return;
     
@@ -583,8 +541,6 @@ export default function ColaboradoresArtistaScreen() {
 
   const getRoleIcon = (role: string) => {
     switch (role) {
-      case 'owner':
-        return 'star';
       case 'admin':
         return 'shield-checkmark';
       case 'editor':
@@ -598,8 +554,6 @@ export default function ColaboradoresArtistaScreen() {
 
   const getRoleColor = (role: string) => {
     switch (role) {
-      case 'owner':
-        return '#FFD700'; // Dourado - mantém fixo
       case 'admin':
         return '#FF6B35'; // Laranja - mantém fixo
       case 'editor':
@@ -613,8 +567,6 @@ export default function ColaboradoresArtistaScreen() {
 
   const getRoleLabel = (role: string) => {
     switch (role) {
-      case 'owner':
-        return 'Gerente';
       case 'admin':
         return 'Administrador';
       case 'editor':
@@ -629,9 +581,7 @@ export default function ColaboradoresArtistaScreen() {
   const renderCollaborator = ({ item }: { item: Collaborator }) => {
     const isCurrentUser = item.user_id === currentUserId;
     
-    // ✅ Determinar se pode alterar/remover baseado nas regras:
-    // - ADMIN: pode alterar TODOS (incluindo owner) - hierarquia mais alta
-    // - OWNER: pode alterar todos EXCETO admin (e exceto ele mesmo)
+    // Apenas administradores alteram/removem outros colaboradores
     let canChangeThisRole = false;
     let canRemoveThis = false;
     
@@ -646,21 +596,11 @@ export default function ColaboradoresArtistaScreen() {
     
     if (!isCurrentUser) {
       if (userRole === 'admin') {
-        // ✅ ADMIN pode alterar/remover TODOS (owner, admin, editor, viewer) - menos ele mesmo
         canChangeThisRole = true;
         canRemoveThis = true;
         console.log('✅ EU SOU ADMIN - posso alterar:', item.user.name, 'que é', item.role);
-      } else if (userRole === 'owner') {
-        // ✅ OWNER pode alterar/remover todos EXCETO admin (e exceto ele mesmo)
-        canChangeThisRole = item.role !== 'admin';
-        canRemoveThis = item.role !== 'admin';
-        console.log('✅ EU SOU OWNER - posso alterar?', { 
-          nome: item.user.name, 
-          roleColaborador: item.role,
-          pode: item.role !== 'admin' 
-        });
       } else {
-        console.log('⚠️ Meu role não é admin nem owner:', userRole);
+        console.log('⚠️ Meu role não é admin:', userRole);
       }
     } else {
       console.log('❌ Não pode alterar:', { 
@@ -1328,7 +1268,7 @@ export default function ColaboradoresArtistaScreen() {
         </View>
       </Modal>
 
-      {/* Modal de Convite Enviado */}
+      {/* Modal de Convite Enviado (layout simples) */}
       <Modal
         visible={showInviteSentModal}
         transparent
@@ -1336,96 +1276,62 @@ export default function ColaboradoresArtistaScreen() {
         onRequestClose={() => setShowInviteSentModal(false)}
       >
         <View style={styles.inviteSentOverlay}>
-          <View style={[styles.inviteSentContainer, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }] }>
-            {/* Header com ícone de sucesso */}
-            <View style={styles.inviteSentHeader}>
-              <View style={[styles.successIconCircle, { backgroundColor: colors.primary + '20' }] }>
-                <Ionicons name="checkmark-circle" size={64} color={colors.primary} />
-              </View>
-              <Text style={[styles.inviteSentTitle, { color: colors.primary }]}>Convite Enviado!</Text>
-              <Text style={[styles.inviteSentSubtitle, { color: colors.textSecondary }] }>
-                O colaborador receberá uma notificação
-              </Text>
+          <View
+            style={[
+              styles.inviteSentContainer,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <View style={[styles.inviteSentIconWrap, { backgroundColor: colors.primary + '22' }]}>
+              <Ionicons name="checkmark" size={28} color={colors.primary} />
             </View>
+            <Text style={[styles.inviteSentTitle, { color: colors.text }]}>Convite enviado</Text>
+            <Text style={[styles.inviteSentSubtitle, { color: colors.textSecondary }]}>
+              A pessoa recebe um aviso no app e pode aceitar ou recusar.
+            </Text>
 
-            {/* Card do usuário convidado */}
             {inviteSentData && (
-              <View style={[styles.invitedUserCard, { backgroundColor: colors.surface, borderColor: colors.border }] }>
-                <View style={styles.invitedUserHeader}>
-                  <OptimizedImage
-                    imageUrl={inviteSentData.userImage}
-                    style={styles.invitedUserAvatar}
-                    cacheKey={`invited_${inviteSentData.userEmail}`}
-                    fallbackText={inviteSentData.userName || 'Usuário'}
-                    fallbackIcon="person"
-                    fallbackIconSize={32}
-                    fallbackIconColor={colors.primary}
-                  />
-                  <View style={styles.invitedUserInfo}>
-                    <Text style={[styles.invitedUserName, { color: colors.text }]}>
-                      {inviteSentData.userName}
-                    </Text>
-                    <Text style={[styles.invitedUserEmail, { color: colors.textSecondary }] }>
-                      {inviteSentData.userEmail}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Badge do cargo */}
-                <View style={styles.invitedRoleSection}>
-                  <Text style={[styles.invitedRoleLabel, { color: colors.textSecondary }]}>Cargo atribuído:</Text>
-                  <View style={[
-                    styles.invitedRoleBadge,
-                    { backgroundColor: getRoleColor(inviteSentData.role) + '15' }
-                  ]}>
-                    <Ionicons 
+              <View
+                style={[
+                  styles.inviteSentUserRow,
+                  { backgroundColor: colors.background, borderColor: colors.border },
+                ]}
+              >
+                <OptimizedImage
+                  imageUrl={inviteSentData.userImage}
+                  style={[styles.inviteSentAvatar, { borderColor: colors.border }]}
+                  cacheKey={`invited_${inviteSentData.userEmail}`}
+                  fallbackText={inviteSentData.userName || 'Usuário'}
+                  fallbackIcon="person"
+                  fallbackIconSize={26}
+                  fallbackIconColor={colors.primary}
+                />
+                <View style={styles.inviteSentUserMeta}>
+                  <Text style={[styles.inviteSentUserName, { color: colors.text }]} numberOfLines={1}>
+                    {inviteSentData.userName}
+                  </Text>
+                  <Text style={[styles.inviteSentUserEmail, { color: colors.textSecondary }]} numberOfLines={1}>
+                    {inviteSentData.userEmail}
+                  </Text>
+                  <View
+                    style={[
+                      styles.inviteSentRolePill,
+                      { backgroundColor: getRoleColor(inviteSentData.role) + '18' },
+                    ]}
+                  >
+                    <Ionicons
                       name={getRoleIcon(inviteSentData.role) as any}
-                      size={20}
+                      size={14}
                       color={getRoleColor(inviteSentData.role)}
                     />
-                    <Text style={[
-                      styles.invitedRoleText,
-                      { color: getRoleColor(inviteSentData.role) }
-                    ]}>
+                    <Text style={[styles.inviteSentRoleText, { color: getRoleColor(inviteSentData.role) }]}>
                       {getRoleLabel(inviteSentData.role)}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Status pendente */}
-                <View style={[styles.pendingStatusSection, { backgroundColor: colors.secondary || colors.surface, borderColor: colors.border }] }>
-                  <View style={[styles.pendingIcon, { backgroundColor: colors.surface }]}>
-                    <Ionicons name="time-outline" size={20} color={colors.primary} />
-                  </View>
-                  <View style={styles.pendingTextContainer}>
-                    <Text style={[styles.pendingStatusTitle, { color: colors.text }] }>
-                      Aguardando aceitação
-                    </Text>
-                    <Text style={[styles.pendingStatusDescription, { color: colors.textSecondary }] }>
-                      {inviteSentData.userName} receberá uma notificação e poderá aceitar ou recusar o convite.
                     </Text>
                   </View>
                 </View>
               </View>
             )}
 
-            {/* Informações adicionais */}
-            <View style={[styles.inviteSentInfo, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }] }>
-              <View style={styles.infoItem}>
-                <Ionicons name="mail-outline" size={20} color={colors.primary} />
-                <Text style={[styles.infoText, { color: colors.text }] }>
-                  Notificação enviada
-                </Text>
-              </View>
-              <View style={styles.infoItem}>
-                <Ionicons name="shield-checkmark-outline" size={20} color={colors.primary} />
-                <Text style={[styles.infoText, { color: colors.text }] }>
-                  Convite válido
-                </Text>
-              </View>
-            </View>
-
-            {/* Botão de fechar */}
             <TouchableOpacity
               style={[styles.inviteSentButton, { backgroundColor: colors.primary }]}
               onPress={() => setShowInviteSentModal(false)}
@@ -2378,157 +2284,93 @@ const styles = StyleSheet.create({
     flex: 1,
     lineHeight: 20,
   },
-  // Estilos do Modal de Convite Enviado
+  // Modal de Convite Enviado (simplificado)
   inviteSentOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 24,
   },
   inviteSentContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 24,
-    padding: 24,
+    borderRadius: 18,
+    paddingVertical: 22,
+    paddingHorizontal: 20,
     width: '100%',
-    maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: Platform.OS === 'android' ? 0 : 0.3,
-    shadowRadius: Platform.OS === 'android' ? 0 : 20,
-    elevation: Platform.OS === 'android' ? 0 : 10,
+    maxWidth: 360,
+    borderWidth: 1,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.12,
+        shadowRadius: 16,
+      },
+      android: { elevation: 6 },
+    }),
   },
-  inviteSentHeader: {
+  inviteSentIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignSelf: 'center',
     alignItems: 'center',
-    marginBottom: 24,
-  },
-  successIconCircle: {
-    marginBottom: 16,
+    justifyContent: 'center',
+    marginBottom: 14,
   },
   inviteSentTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#10B981',
+    fontSize: 20,
+    fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   inviteSentSubtitle: {
-    fontSize: 15,
-    color: '#6B7280',
+    fontSize: 14,
     textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 18,
+    paddingHorizontal: 4,
   },
-  invitedUserCard: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  invitedUserHeader: {
+  inviteSentUserRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 18,
+    gap: 12,
   },
-  invitedUserAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    marginRight: 12,
-    borderWidth: 2,
-    borderColor: '#667eea',
+  inviteSentAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 1,
   },
-  invitedUserInfo: {
+  inviteSentUserMeta: {
     flex: 1,
+    minWidth: 0,
   },
-  invitedUserName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 4,
+  inviteSentUserName: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 2,
   },
-  invitedUserEmail: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  invitedRoleSection: {
-    marginBottom: 16,
-  },
-  invitedRoleLabel: {
+  inviteSentUserEmail: {
     fontSize: 13,
-    color: '#6B7280',
     marginBottom: 8,
-    fontWeight: '500',
   },
-  invitedRoleBadge: {
+  inviteSentRolePill: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
     gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
   },
-  invitedRoleText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  pendingStatusSection: {
-    flexDirection: 'row',
-    backgroundColor: '#FEF3C7',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#F59E0B',
-    gap: 12,
-  },
-  pendingIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  pendingTextContainer: {
-    flex: 1,
-  },
-  pendingStatusTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#92400E',
-    marginBottom: 4,
-  },
-  pendingStatusDescription: {
+  inviteSentRoleText: {
     fontSize: 13,
-    color: '#92400E',
-    lineHeight: 18,
-  },
-  inviteSentInfo: {
-    backgroundColor: '#EFF6FF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    gap: 12,
-  },
-  infoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  infoText: {
-    fontSize: 14,
-    color: '#1E40AF',
-    flex: 1,
-  },
-  invitedUserAvatarText: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  infoLabel: {
-    fontSize: 12,
-    marginBottom: 4,
+    fontWeight: '600',
   },
   pendingInviteActions: {
     flexDirection: 'row',

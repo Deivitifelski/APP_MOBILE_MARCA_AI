@@ -30,7 +30,7 @@ export interface ArtistaBuscaConvite {
   id: string;
   name: string;
   profile_url: string | null;
-  /** URL para exibir na busca: foto do artista ou, se vazia, foto de um membro (ex.: owner). */
+  /** URL para exibir na busca: foto do artista ou, se vazia, foto de um membro (ex.: admin). */
   image_url?: string | null;
   musical_style?: string | null;
   work_roles?: unknown;
@@ -200,7 +200,7 @@ export async function enviarConviteParticipacao(
 
 /**
  * Notifica apenas o destinatário principal do artista convidado (não toda a equipe).
- * Prioridade de seleção: owner -> admin -> editor -> viewer.
+ * Prioridade de seleção: admin -> editor -> viewer.
  */
 async function notificarConvidadoPrincipal(input: EnviarConviteParticipacaoInput): Promise<void> {
   const { data: lastInviteRows } = await supabase

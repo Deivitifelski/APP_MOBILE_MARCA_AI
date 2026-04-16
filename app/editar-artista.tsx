@@ -238,14 +238,13 @@ export default function EditarArtistaScreen() {
 
       setUserPermissions(permissions);
 
-      // Verificar se o usuário tem permissão para editar (apenas owner ou admin)
       const userRole = permissions.role;
-      const canEdit = userRole === 'owner' || userRole === 'admin';
+      const canEdit = userRole === 'admin';
       
       if (!canEdit || !permissions.permissions.canManageArtist) {
         Alert.alert(
           'Acesso Negado', 
-          'Apenas gerentes e administradores podem editar as informações do artista.',
+          'Apenas administradores podem editar as informações do artista.',
           [
             {
               text: 'Entendi',
@@ -327,14 +326,13 @@ export default function EditarArtistaScreen() {
   const handleSave = async () => {
     if (!artist) return;
 
-    // Verificar permissões - apenas owner ou admin
     const userRole = userPermissions?.role;
-    const canEdit = userRole === 'owner' || userRole === 'admin';
+    const canEdit = userRole === 'admin';
     
     if (!canEdit || !userPermissions?.permissions.canManageArtist) {
       Alert.alert(
         'Acesso Negado',
-        'Apenas gerentes e administradores podem editar as informações do artista.'
+        'Apenas administradores podem editar as informações do artista.'
       );
       return;
     }
@@ -427,7 +425,7 @@ export default function EditarArtistaScreen() {
         const updatedData = {
           id: artist.id,
           name: name.trim(),
-          role: userPermissions?.role || 'owner',
+          role: userPermissions?.role || 'admin',
           profile_url: finalProfileUrl || undefined,
           musical_style: musicalStyle.trim() || undefined
         };
@@ -562,7 +560,13 @@ export default function EditarArtistaScreen() {
             <View style={styles.artistInfo}>
               <Text style={[styles.artistName, { color: colors.text }]}>{artist.name}</Text>
               <Text style={[styles.artistRole, { color: colors.primary }]}>
-                {userPermissions?.role === 'owner' ? 'Gerente' : 'Colaborador'}
+                {userPermissions?.role === 'admin'
+                  ? 'Administrador'
+                  : userPermissions?.role === 'editor'
+                    ? 'Editor'
+                    : userPermissions?.role === 'viewer'
+                      ? 'Visualizador'
+                      : 'Colaborador'}
               </Text>
               <Text style={[styles.editImageText, { color: colors.textSecondary }]}>Toque na imagem para alterar</Text>
             </View>

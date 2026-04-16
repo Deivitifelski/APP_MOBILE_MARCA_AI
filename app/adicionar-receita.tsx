@@ -42,7 +42,7 @@ export default function AdicionarReceitaScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [canAdd, setCanAdd] = useState<boolean | null>(null);
 
-  // Bloquear visualizador: apenas editor, admin e owner podem adicionar receita
+  // Bloquear visualizador: apenas editor e admin podem adicionar receita
   useEffect(() => {
     const checkRole = async () => {
       const { data: { user } } = await supabase.auth.getUser();

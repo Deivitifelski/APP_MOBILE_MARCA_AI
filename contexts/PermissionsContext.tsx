@@ -16,7 +16,6 @@ interface PermissionsContextData {
   isViewer: boolean;
   isEditor: boolean;
   isAdmin: boolean;
-  isOwner: boolean;
   reloadPermissions: () => Promise<void>;
 }
 
@@ -138,7 +137,6 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const isViewer = userPermissions?.role === 'viewer';
   const isEditor = userPermissions?.role === 'editor';
   const isAdmin = userPermissions?.role === 'admin';
-  const isOwner = userPermissions?.role === 'owner';
 
   return (
     <PermissionsContext.Provider
@@ -155,7 +153,6 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         isViewer,
         isEditor,
         isAdmin,
-        isOwner,
         reloadPermissions: loadPermissions,
       }}
     >

@@ -293,7 +293,7 @@ export default function DetalhesEventoScreen() {
       // ✅ Ocultar valores APENAS para viewers
       const isViewer = userRole === 'viewer';
       const hasPermission = !isViewer; // Todos menos viewer têm acesso
-      const canCreate = ['owner', 'admin', 'editor'].includes(userRole);
+      const canCreate = ['admin', 'editor'].includes(userRole);
       
       setHasAccess(hasPermission);
       setCanCreateEventsPermission(canCreate);

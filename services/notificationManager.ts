@@ -7,7 +7,7 @@ export const createArtistInviteNotification = async (
   toUserId: string,
   fromUserId: string,
   artistId: string,
-  role?: 'viewer' | 'editor' | 'admin' | 'owner' // Role que será atribuída
+  role?: 'viewer' | 'editor' | 'admin' // Role que será atribuída
 ): Promise<{ success: boolean; error: string | null; notification?: any }> => {
   try {
     // Buscar informações do artista e usuário remetente

@@ -228,7 +228,7 @@ export const updateUserProfile = async (userId: string, userData: Partial<Create
   }
 };
 
-/** Máximo de perfis de artista que o usuário pode possuir como admin/owner no plano gratuito (sem assinatura ativa em `user_subscriptions`). */
+/** Máximo de perfis de artista que o usuário pode possuir como admin no plano gratuito (sem assinatura ativa em `user_subscriptions`). */
 export const FREE_PLAN_MAX_OWNED_ARTIST_PROFILES = 1;
 
 /** Máximo de colaboradores no time de cada artista no gratuito (além do dono/admin principal). Total de pessoas no `artist_members` = 1 + isso. */
@@ -435,7 +435,7 @@ export const consumeFinancialTrialAction = async (
   }
 };
 
-/** Algum admin/owner do artista com assinatura ativa em `user_subscriptions` libera time ilimitado. */
+/** Algum admin do artista com assinatura ativa em `user_subscriptions` libera time ilimitado. */
 export const artistTeamHasPremiumQuota = async (
   artistId: string,
 ): Promise<{ premium: boolean; error: string | null }> => {
@@ -444,7 +444,7 @@ export const artistTeamHasPremiumQuota = async (
       .from('artist_members')
       .select('user_id')
       .eq('artist_id', artistId)
-      .in('role', ['admin', 'owner']);
+      .eq('role', 'admin');
 
     if (error) {
       return { premium: false, error: error.message };
@@ -567,7 +567,7 @@ export const canCreateArtist = async (userId: string): Promise<CanCreateArtistRe
       .from('artist_members')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
-      .in('role', ['admin', 'owner']);
+      .eq('role', 'admin');
 
     if (countError) {
       console.error('❌ [canCreateArtist] Erro ao contar artistas:', countError);

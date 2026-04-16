@@ -360,7 +360,7 @@ export default function NotificacoesScreen() {
       }
 
       // Verificar se o usuário tem permissão para ver detalhes do evento
-      // Apenas editor, admin e owner podem ver detalhes dos eventos
+      // Apenas editor e admin podem ver detalhes dos eventos
       const canEditEvents = await hasPermission(currentUserId, eventResult.event.artist_id, 'canEditEvents');
       
       if (!canEditEvents) {

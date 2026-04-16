@@ -6,7 +6,7 @@ export interface Notification {
   from_user_id?: string;
   artist_id?: string;
   event_id?: string;
-  role?: 'viewer' | 'editor' | 'admin' | 'owner'; // Role para convites de artista
+  role?: 'viewer' | 'editor' | 'admin'; // Role para convites de artista
   title: string;
   message: string;
   type: string;
@@ -30,7 +30,7 @@ export interface CreateNotificationData {
   from_user_id?: string;
   artist_id?: string;
   event_id?: string;
-  role?: 'viewer' | 'editor' | 'admin' | 'owner'; // Role para convites
+  role?: 'viewer' | 'editor' | 'admin'; // Role para convites
   title: string;
   message: string;
   type: string;

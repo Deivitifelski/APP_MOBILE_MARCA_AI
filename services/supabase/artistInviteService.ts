@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase';
 import { createArtistInviteNotification } from '../notificationManager';
+import { normalizeArtistMemberRole } from './permissionsService';
 import { assertArtistTeamSlot } from './userService';
 
 export interface ArtistInvite {
@@ -7,7 +8,7 @@ export interface ArtistInvite {
   artist_id: string;
   from_user_id: string;
   to_user_id: string;
-  role: 'viewer' | 'editor' | 'admin' | 'owner'; // Role que será atribuída ao aceitar
+  role: 'viewer' | 'editor' | 'admin'; // Role que será atribuída ao aceitar
   status: 'pending' | 'accepted' | 'declined';
   read: boolean;
   created_at: string;
@@ -32,7 +33,7 @@ export interface CreateInviteData {
   artistId: string;
   toUserId: string;
   fromUserId: string;
-  role?: 'viewer' | 'editor' | 'admin' | 'owner'; // Role a ser atribuída (padrão: viewer)
+  role?: 'viewer' | 'editor' | 'admin'; // Role a ser atribuída (padrão: viewer)
 }
 
 export interface InviteResponse {
@@ -211,8 +212,7 @@ export const acceptArtistInvite = async (notificationId: string, userId: string)
       return { success: false, error: slot.userMessage || 'Este artista já atingiu o limite de colaboradores no plano gratuito.' };
     }
 
-    // INSERIR DIRETAMENTE em artist_members com a role do convite
-    const roleToUse = notification.role || 'viewer';
+    const roleToUse = normalizeArtistMemberRole(String(notification.role || 'viewer'));
     console.log('🔐 Inserindo em artist_members com role:', roleToUse);
 
     const { error: insertError } = await supabase

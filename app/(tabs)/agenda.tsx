@@ -351,7 +351,7 @@ export default function AgendaScreen() {
           return;
         }
 
-        const allowedRoles = ['admin', 'editor', 'owner'];
+        const allowedRoles = ['admin', 'editor'];
         const canCreate = allowedRoles.includes(memberData.role);
 
         if (!canCreate) {
@@ -809,7 +809,7 @@ export default function AgendaScreen() {
       }
 
       const userRole = memberData.role;
-      const allowedRoles = ['editor', 'admin', 'owner'];
+      const allowedRoles = ['editor', 'admin'];
       const canViewDetails = allowedRoles.includes(userRole);
 
       if (!canViewDetails) {
@@ -1080,7 +1080,6 @@ export default function AgendaScreen() {
 
   const getRoleLabel = (role: string) => {
     switch (role) {
-      case 'owner': return 'Gerente';
       case 'admin': return 'Administrador';
       case 'editor': return 'Editor';
       case 'viewer': return 'Visualizador';
@@ -2237,8 +2236,7 @@ export default function AgendaScreen() {
                           {artist.name}
                         </Text>
                         <Text style={[styles.removedModalArtistRole, { color: colors.textSecondary }]}>
-                          {artist.role === 'owner' ? 'Gerente' : 
-                           artist.role === 'admin' ? 'Administrador' :
+                          {artist.role === 'admin' ? 'Administrador' :
                            artist.role === 'editor' ? 'Editor' : 'Visualizador'}
                         </Text>
                       </View>

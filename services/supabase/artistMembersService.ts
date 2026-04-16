@@ -5,7 +5,7 @@ export interface ArtistMember {
   id: string;
   artist_id: string;
   user_id: string;
-  role: 'viewer' | 'editor' | 'admin' | 'owner';
+  role: 'viewer' | 'editor' | 'admin';
   created_at: string;
   updated_at: string;
   user?: {
@@ -18,11 +18,11 @@ export interface ArtistMember {
 export interface CreateMemberData {
   artist_id: string;
   user_id: string;
-  role: 'viewer' | 'editor' | 'admin' | 'owner';
+  role: 'viewer' | 'editor' | 'admin';
 }
 
 export interface UpdateMemberData {
-  role: 'viewer' | 'editor' | 'admin' | 'owner';
+  role: 'viewer' | 'editor' | 'admin';
 }
 
 // Buscar membros de um artista com verificação de permissões
@@ -62,14 +62,6 @@ export const addArtistMember = async (memberData: CreateMemberData, userId: stri
     const canManage = await hasPermission(userId, memberData.artist_id, 'canManageMembers');
     if (!canManage) {
       return { success: false, error: 'Sem permissão para adicionar membros' };
-    }
-
-    // Verificar se o usuário não está tentando adicionar um owner (apenas owners podem adicionar owners)
-    if (memberData.role === 'owner') {
-      const canManageArtist = await hasPermission(userId, memberData.artist_id, 'canManageArtist');
-      if (!canManageArtist) {
-        return { success: false, error: 'Apenas owners podem adicionar outros owners' };
-      }
     }
 
     const { error } = await supabase
@@ -115,14 +107,6 @@ export const updateMemberRole = async (memberId: string, memberData: UpdateMembe
     const canManage = await hasPermission(userId, member.artist_id, 'canManageMembers');
     if (!canManage) {
       return { success: false, error: 'Sem permissão para editar membros' };
-    }
-
-    // Verificar se o usuário não está tentando promover alguém para owner (apenas owners podem)
-    if (memberData.role === 'owner') {
-      const canManageArtist = await hasPermission(userId, member.artist_id, 'canManageArtist');
-      if (!canManageArtist) {
-        return { success: false, error: 'Apenas owners podem promover outros para owner' };
-      }
     }
 
     // Verificar se o usuário não está tentando alterar o próprio role para algo menor
@@ -173,20 +157,19 @@ export const removeArtistMember = async (memberId: string, userId: string): Prom
       return { success: false, error: 'Sem permissão para remover membros' };
     }
 
-    // Verificar se o usuário não está tentando remover o último owner
-    if (member.role === 'owner') {
-      const { data: owners, error: ownersError } = await supabase
+    if (member.role === 'admin') {
+      const { data: admins, error: adminsError } = await supabase
         .from('artist_members')
         .select('id')
         .eq('artist_id', member.artist_id)
-        .eq('role', 'owner');
+        .eq('role', 'admin');
 
-      if (ownersError) {
-        return { success: false, error: 'Erro ao verificar owners' };
+      if (adminsError) {
+        return { success: false, error: 'Erro ao verificar administradores' };
       }
 
-      if (owners && owners.length <= 1) {
-        return { success: false, error: 'Não é possível remover o último owner do artista' };
+      if (admins && admins.length <= 1) {
+        return { success: false, error: 'Não é possível remover o último administrador do artista' };
       }
     }
 

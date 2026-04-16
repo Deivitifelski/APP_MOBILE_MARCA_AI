@@ -1,10 +1,11 @@
 import { supabase } from '../../lib/supabase';
+import { normalizeArtistMemberRole, type UserRole } from './permissionsService';
 import { assertArtistTeamSlot } from './userService';
 
 export interface Collaborator {
   user_id: string;
   artist_id: string;
-  role: 'owner' | 'admin' | 'editor' | 'viewer';
+  role: UserRole;
   created_at: string;
   updated_at: string;
   user: {
@@ -17,7 +18,7 @@ export interface Collaborator {
 
 export interface AddCollaboratorData {
   userId: string;
-  role: 'owner' | 'admin' | 'editor' | 'viewer';
+  role: UserRole;
 }
 
 // Buscar colaboradores de um artista
@@ -61,11 +62,11 @@ export const getCollaborators = async (artistId: string): Promise<{
       };
     }
 
-    // Verificar se o usuário pode gerenciar colaboradores (apenas owner e admin)
-    const canManage = ['owner', 'admin'].includes(userMembership.role);
-    
-    // Verificar se o usuário pode adicionar colaboradores (apenas owner e admin)
-    const canAddCollaborators = ['owner', 'admin'].includes(userMembership.role);
+    const membershipRole = normalizeArtistMemberRole(String(userMembership.role));
+
+    // Apenas administradores gerenciam colaboradores
+    const canManage = membershipRole === 'admin';
+    const canAddCollaborators = membershipRole === 'admin';
 
     // Buscar todos os colaboradores do artista
     const { data, error } = await supabase
@@ -101,7 +102,7 @@ export const getCollaborators = async (artistId: string): Promise<{
     const collaborators = data?.map(item => ({
       user_id: item.user_id,
       artist_id: item.artist_id,
-      role: item.role,
+      role: normalizeArtistMemberRole(String(item.role)),
       created_at: item.created_at,
       updated_at: item.updated_at,
       user: {
@@ -124,7 +125,7 @@ export const getCollaborators = async (artistId: string): Promise<{
 
     return { 
       collaborators, 
-      userRole: userMembership.role,
+      userRole: membershipRole,
       canManage,
       canAddCollaborators: canAddCollaboratorsFinal,
       collaboratorPlanBlockedMessage,
@@ -259,9 +260,8 @@ export const addCollaborator = async (artistId: string, collaboratorData: AddCol
       return { success: false, error: 'Usuário não tem acesso a este artista' };
     }
 
-    // Verificar se o usuário é owner ou admin (editors não podem adicionar)
-    if (!['owner', 'admin'].includes(userMembership.role)) {
-      return { success: false, error: 'Apenas proprietários e administradores podem adicionar colaboradores' };
+    if (normalizeArtistMemberRole(String(userMembership.role)) !== 'admin') {
+      return { success: false, error: 'Apenas administradores podem adicionar colaboradores' };
     }
 
     // Verificar se o usuário já é colaborador deste artista
@@ -356,7 +356,7 @@ export const leaveArtist = async (artistId: string): Promise<{ success: boolean;
   }
 };
 
-// Remover colaborador (por um admin/owner)
+// Remover colaborador (por um admin)
 export const removeCollaborator = async (userId: string, artistId: string): Promise<{ success: boolean; error: string | null }> => {
   try {
     // Verificar se o usuário atual tem permissão para remover colaboradores
@@ -381,9 +381,8 @@ export const removeCollaborator = async (userId: string, artistId: string): Prom
       return { success: false, error: 'Usuário não tem acesso a este artista' };
     }
 
-    // Verificar se o usuário pode remover colaboradores (apenas owner e admin)
-    if (!['owner', 'admin'].includes(userMembership.role)) {
-      return { success: false, error: 'Apenas proprietários e administradores podem remover colaboradores' };
+    if (normalizeArtistMemberRole(String(userMembership.role)) !== 'admin') {
+      return { success: false, error: 'Apenas administradores podem remover colaboradores' };
     }
 
     // ✅ Buscar role do alvo para validar hierarquia
@@ -397,14 +396,6 @@ export const removeCollaborator = async (userId: string, artistId: string): Prom
     if (targetError || !targetMember) {
       return { success: false, error: 'Colaborador não encontrado' };
     }
-
-    // ✅ Se você é OWNER, não pode remover ADMIN
-    if (userMembership.role === 'owner' && targetMember.role === 'admin') {
-      return { success: false, error: 'Proprietários não podem remover administradores' };
-    }
-    
-    // ✅ ADMIN pode remover TODOS (inclusive owner)
-    // ✅ OWNER pode remover todos EXCETO admin
 
     const { error } = await supabase
       .from('artist_members')
@@ -423,7 +414,7 @@ export const removeCollaborator = async (userId: string, artistId: string): Prom
 };
 
 // Atualizar role do colaborador
-export const updateCollaboratorRole = async (userId: string, artistId: string, newRole: 'owner' | 'admin' | 'editor' | 'viewer'): Promise<{ success: boolean; error: string | null }> => {
+export const updateCollaboratorRole = async (userId: string, artistId: string, newRole: UserRole): Promise<{ success: boolean; error: string | null }> => {
   try {
     console.log('🔵 Iniciando updateCollaboratorRole:', { userId, artistId, newRole });
     
@@ -457,9 +448,8 @@ export const updateCollaboratorRole = async (userId: string, artistId: string, n
       return { success: false, error: 'Usuário não tem acesso a este artista' };
     }
 
-    // Verificar se o usuário pode atualizar roles (apenas owner e admin)
-    if (!['owner', 'admin'].includes(userMembership.role)) {
-      return { success: false, error: 'Apenas proprietários e administradores podem atualizar roles' };
+    if (normalizeArtistMemberRole(String(userMembership.role)) !== 'admin') {
+      return { success: false, error: 'Apenas administradores podem atualizar permissões' };
     }
 
     // ✅ Buscar role do alvo para validar hierarquia
@@ -473,14 +463,6 @@ export const updateCollaboratorRole = async (userId: string, artistId: string, n
     if (targetError || !targetMember) {
       return { success: false, error: 'Colaborador não encontrado' };
     }
-
-    // ✅ Se você é OWNER, não pode alterar permissões de ADMIN
-    if (userMembership.role === 'owner' && targetMember.role === 'admin') {
-      return { success: false, error: 'Proprietários não podem alterar permissões de administradores' };
-    }
-    
-    // ✅ ADMIN pode alterar permissões de TODOS (inclusive owner)
-    // ✅ OWNER pode alterar permissões de todos EXCETO admin
 
     console.log('🔄 Atualizando role:', {
       userId,
@@ -563,23 +545,35 @@ export const addCollaboratorViaInvite = async (artistId: string, collaboratorDat
   }
 };
 
-// Verificar se usuário é owner do artista
-export const isUserOwner = async (userId: string, artistId: string): Promise<{ isOwner: boolean; error: string | null }> => {
+/** Administrador do artista. */
+export const isUserAdminOfArtist = async (
+  userId: string,
+  artistId: string,
+): Promise<{ isAdmin: boolean; error: string | null }> => {
   try {
     const { data, error } = await supabase
       .from('artist_members')
       .select('role')
       .eq('user_id', userId)
       .eq('artist_id', artistId)
-      .eq('role', 'owner')
-      .single();
+      .eq('role', 'admin')
+      .maybeSingle();
 
     if (error) {
-      return { isOwner: false, error: error.message };
+      return { isAdmin: false, error: error.message };
     }
 
-    return { isOwner: !!data, error: null };
-  } catch (error) {
-    return { isOwner: false, error: 'Erro de conexão' };
+    return { isAdmin: !!data, error: null };
+  } catch {
+    return { isAdmin: false, error: 'Erro de conexão' };
   }
+};
+
+/** @deprecated Use `isUserAdminOfArtist`. */
+export const isUserOwner = async (
+  userId: string,
+  artistId: string,
+): Promise<{ isOwner: boolean; error: string | null }> => {
+  const r = await isUserAdminOfArtist(userId, artistId);
+  return { isOwner: r.isAdmin, error: r.error };
 };

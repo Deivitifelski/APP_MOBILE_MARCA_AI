@@ -283,7 +283,6 @@ export const getCollaboratorsStats = async (
 ): Promise<{
   stats: {
     total: number;
-    owners: number;
     admins: number;
     editors: number;
     viewers: number;
@@ -303,8 +302,7 @@ export const getCollaboratorsStats = async (
 
     const stats = {
       total: data?.length || 0,
-      owners: data?.filter(c => c.role === 'owner').length || 0,
-      admins: data?.filter(c => c.role === 'admin').length || 0,
+      admins: data?.filter((c) => c.role === 'admin').length || 0,
       editors: data?.filter(c => c.role === 'editor').length || 0,
       viewers: data?.filter(c => c.role === 'viewer').length || 0,
     };

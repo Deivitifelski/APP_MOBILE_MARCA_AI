@@ -54,7 +54,7 @@ export default function AdicionarDespesaScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [canAdd, setCanAdd] = useState<boolean | null>(null);
 
-  // Bloquear visualizador: apenas editor, admin e owner podem adicionar despesa
+  // Bloquear visualizador: apenas editor e admin podem adicionar despesa
   useEffect(() => {
     const checkRole = async () => {
       const { data: { user } } = await supabase.auth.getUser();

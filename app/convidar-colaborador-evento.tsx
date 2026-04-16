@@ -104,7 +104,7 @@ export default function ConvidarColaboradorEventoScreen() {
         .eq('user_id', userId)
         .eq('artist_id', activeArtist.id)
         .maybeSingle();
-      const canCreate = ['owner', 'admin', 'editor'].includes(member?.role || '');
+      const canCreate = ['admin', 'editor'].includes(member?.role || '');
       const allowed = canCreate && event.artist_id === activeArtist.id;
       if (!cancelled) {
         setCurrentUserId(userId);
@@ -233,7 +233,7 @@ export default function ConvidarColaboradorEventoScreen() {
           .in('artist_id', ids);
         if (error) return { ok: false as const, rows: [] as Array<{ id: string; value: string }> };
 
-        const rolePriority: Record<string, number> = { owner: 1, admin: 2, editor: 3, viewer: 4 };
+        const rolePriority: Record<string, number> = { admin: 1, editor: 2, viewer: 3 };
         const byArtist = new Map<string, { priority: number; value: string }>();
 
         (

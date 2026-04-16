@@ -41,8 +41,6 @@ import { LEGAL_URLS } from '../../constants/legal';
 
 const getRoleLabel = (role?: string) => {
   switch (role) {
-    case 'owner':
-      return 'Gerente';
     case 'admin':
       return 'Administrador';
     case 'editor':
@@ -750,7 +748,7 @@ export default function ConfiguracoesScreen() {
                   {getRoleLabel(currentArtist.role)}
                 </Text>
               </View>
-              {(currentArtist.role === 'owner' || currentArtist.role === 'admin') && (
+              {currentArtist.role === 'admin' && (
                 <TouchableOpacity 
                   style={dynamicStyles.editButton} 
                   onPress={handleArtistSettings}

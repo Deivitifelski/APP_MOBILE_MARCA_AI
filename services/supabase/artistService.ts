@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase';
+import { normalizeArtistMemberRole } from './permissionsService';
 import { canCreateArtist, FREE_PLAN_MAX_OWNED_ARTIST_PROFILES } from './userService';
 
 export interface Artist {
@@ -143,7 +144,7 @@ export const getArtists = async (userId: string): Promise<{ artists: Artist[] | 
         name: artist.name,
         profile_url: artist.profile_url,
         musical_style: artist.musical_style,
-        role: member?.role || 'viewer',
+        role: member ? normalizeArtistMemberRole(String(member.role)) : 'viewer',
         created_at: artist.created_at,
         updated_at: artist.updated_at
       };
@@ -174,7 +175,7 @@ export const fetchArtistsForDeleteAccountModal = async (): Promise<{
       name: String(row.name ?? ''),
       profile_url: (row.profile_url as string) || undefined,
       musical_style: (row.musical_style as string) || undefined,
-      role: (row.role as Artist['role']) || 'viewer',
+      role: normalizeArtistMemberRole(String(row.role || 'viewer')),
       created_at: String(row.created_at ?? ''),
       updated_at: String(row.updated_at ?? ''),
     }));

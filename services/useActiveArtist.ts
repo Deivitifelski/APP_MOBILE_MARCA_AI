@@ -49,7 +49,7 @@ export const useActiveArtist = () => {
             const validActiveArtist = {
               id: currentArtistData.id,
               name: currentArtistData.name,
-              role: currentArtistData.role || 'owner',
+              role: currentArtistData.role || 'admin',
               profile_url: currentArtistData.profile_url
             };
             
