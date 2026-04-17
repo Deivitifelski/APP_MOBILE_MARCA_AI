@@ -8,6 +8,7 @@ import {
   Alert,
   Dimensions,
   FlatList,
+  Linking,
   Platform,
   RefreshControl,
   StyleSheet,
@@ -20,8 +21,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import OptimizedImage from '../components/OptimizedImage';
 import { useTheme } from '../contexts/ThemeContext';
 import { formatCalendarDate } from '../lib/dateUtils';
+import { buildWhatsAppUrl } from '../utils/brazilPhone';
 import {
+  listarHistoricoParticipacaoParceiro,
   listarParceirosFrequentesParticipacao,
+  type HistoricoParticipacaoParceiroItem,
   type ParceiroFrequenteParticipacao,
 } from '../services/supabase/conviteParticipacaoEventoService';
 import { useActiveArtist } from '../services/useActiveArtist';
@@ -256,6 +260,9 @@ export default function ParceirosFrequentesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sharingImage, setSharingImage] = useState(false);
+  const [expandedPartnerId, setExpandedPartnerId] = useState<string | null>(null);
+  const [historyByPartner, setHistoryByPartner] = useState<Record<string, HistoricoParticipacaoParceiroItem[]>>({});
+  const [historyLoadingByPartner, setHistoryLoadingByPartner] = useState<Record<string, boolean>>({});
   const shareCaptureRef = useRef<View>(null);
 
   const load = useCallback(async () => {
@@ -269,6 +276,9 @@ export default function ParceirosFrequentesScreen() {
     const { partners: list, error: err } = await listarParceirosFrequentesParticipacao(activeArtist.id, 40);
     setError(err);
     setPartners(list);
+    setExpandedPartnerId(null);
+    setHistoryByPartner({});
+    setHistoryLoadingByPartner({});
     setLoading(false);
     setRefreshing(false);
   }, [activeArtist?.id]);
@@ -322,6 +332,49 @@ export default function ParceirosFrequentesScreen() {
 
   const partnersForShare = partners.slice(0, MAX_ROWS_SHARE);
 
+  const openWhatsappConversation = useCallback(async (phone: string | null | undefined) => {
+    const url = buildWhatsAppUrl(phone);
+    if (!url) {
+      Alert.alert('WhatsApp indisponível', 'Número de WhatsApp inválido para este parceiro.');
+      return;
+    }
+    const digits = String(phone || '').replace(/\D/g, '');
+    const phoneIntl = digits.startsWith('55') ? digits : `55${digits}`;
+    const appUrl = `whatsapp://send?phone=${phoneIntl}`;
+    const webUrl = `https://api.whatsapp.com/send?phone=${phoneIntl}`;
+    try {
+      // Prioriza abrir o app do WhatsApp direto na conversa.
+      await Linking.openURL(appUrl);
+    } catch {
+      try {
+        // Fallback 1: wa.me
+        await Linking.openURL(url);
+      } catch {
+        try {
+          // Fallback 2: api.whatsapp.com
+          await Linking.openURL(webUrl);
+        } catch {
+          Alert.alert('Erro', 'Não foi possível abrir a conversa no WhatsApp.');
+        }
+      }
+    }
+  }, []);
+
+  const toggleExpandPartner = useCallback(
+    async (partner: ParceiroFrequenteParticipacao) => {
+      if (!activeArtist?.id) return;
+      const nextExpanded = expandedPartnerId === partner.id ? null : partner.id;
+      setExpandedPartnerId(nextExpanded);
+      if (!nextExpanded) return;
+      if (historyByPartner[partner.id] || historyLoadingByPartner[partner.id]) return;
+      setHistoryLoadingByPartner((prev) => ({ ...prev, [partner.id]: true }));
+      const { eventos } = await listarHistoricoParticipacaoParceiro(activeArtist.id, partner.id, 25);
+      setHistoryByPartner((prev) => ({ ...prev, [partner.id]: eventos }));
+      setHistoryLoadingByPartner((prev) => ({ ...prev, [partner.id]: false }));
+    },
+    [activeArtist?.id, expandedPartnerId, historyByPartner, historyLoadingByPartner]
+  );
+
   const renderItem = ({ item, index }: { item: ParceiroFrequenteParticipacao; index: number }) => {
     const img = item.image_url || item.profile_url || '';
     const funcoes =
@@ -342,9 +395,16 @@ export default function ParceirosFrequentesScreen() {
       subLinhas.push(`Último show: ${formatCalendarDate(item.participacao_data_evento)}`);
     }
     const sub = subLinhas.length > 0 ? subLinhas.join('\n') : null;
+    const isExpanded = expandedPartnerId === item.id;
+    const history = historyByPartner[item.id] || [];
+    const historyLoading = historyLoadingByPartner[item.id] === true;
+    const showWhatsappIcon = item.show_whatsapp === true && String(item.whatsapp || '').trim().length > 0;
+    const whatsappUrl = showWhatsappIcon ? buildWhatsAppUrl(item.whatsapp) : null;
 
     return (
-      <View
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={() => void toggleExpandPartner(item)}
         style={[
           styles.card,
           {
@@ -353,38 +413,94 @@ export default function ParceirosFrequentesScreen() {
           },
         ]}
       >
-        <View style={styles.rankPodium}>
-          <PodiumRankVisual index={index} />
-        </View>
-        <View style={styles.cardLeft}>
-          <OptimizedImage
-            imageUrl={img}
-            style={styles.avatar}
-            cacheKey={`freq_partner_${item.id}`}
-            fallbackText={item.name}
-            fallbackIcon="person"
-            fallbackIconSize={22}
-            fallbackIconColor={colors.primary}
-            showLoadingIndicator={false}
-          />
-          <View style={styles.cardText}>
-            <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
-              {item.name}
-            </Text>
-            {sub ? (
-              <Text style={[styles.sub, { color: colors.textSecondary }]} numberOfLines={4}>
-                {sub}
-              </Text>
-            ) : null}
+        <View style={styles.cardTopRow}>
+          <View style={styles.rankPodium}>
+            <PodiumRankVisual index={index} />
           </View>
+          <View style={styles.cardLeft}>
+            <OptimizedImage
+              imageUrl={img}
+              style={styles.avatar}
+              cacheKey={`freq_partner_${item.id}`}
+              fallbackText={item.name}
+              fallbackIcon="person"
+              fallbackIconSize={22}
+              fallbackIconColor={colors.primary}
+              showLoadingIndicator={false}
+            />
+            <View style={styles.cardText}>
+              <View style={styles.nameRow}>
+                <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
+                  {item.name}
+                </Text>
+                {showWhatsappIcon ? (
+                  <TouchableOpacity
+                    style={styles.whatsIconButton}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      void openWhatsappConversation(item.whatsapp);
+                    }}
+                    onPressIn={(e) => e.stopPropagation()}
+                    disabled={!whatsappUrl}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityLabel={`Abrir WhatsApp de ${item.name}`}
+                  >
+                    <Ionicons
+                      name="logo-whatsapp"
+                      size={16}
+                      color={whatsappUrl ? '#16A34A' : colors.textSecondary}
+                      style={styles.whatsIcon}
+                    />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+              {sub ? (
+                <Text style={[styles.sub, { color: colors.textSecondary }]} numberOfLines={4}>
+                  {sub}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+          <View style={[styles.badge, { backgroundColor: isDarkMode ? '#2D2D3A' : '#EDE9FE' }]}>
+            <Text style={[styles.badgeNum, { color: '#7C3AED' }]}>{item.totalParticipacoesAceitas}</Text>
+            <Text style={[styles.badgeLbl, { color: colors.textSecondary }]}>
+              {item.totalParticipacoesAceitas === 1 ? 'show' : 'shows'}
+            </Text>
+          </View>
+          <Ionicons
+            name={isExpanded ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={colors.textSecondary}
+            style={styles.expandChevron}
+          />
         </View>
-        <View style={[styles.badge, { backgroundColor: isDarkMode ? '#2D2D3A' : '#EDE9FE' }]}>
-          <Text style={[styles.badgeNum, { color: '#7C3AED' }]}>{item.totalParticipacoesAceitas}</Text>
-          <Text style={[styles.badgeLbl, { color: colors.textSecondary }]}>
-            {item.totalParticipacoesAceitas === 1 ? 'show' : 'shows'}
-          </Text>
-        </View>
-      </View>
+        {isExpanded ? (
+          <View style={[styles.expandedContainer, { borderTopColor: colors.border }]}>
+            <Text style={[styles.expandedTitle, { color: colors.text }]}>Eventos que participou</Text>
+            {historyLoading ? (
+              <View style={styles.expandedLoading}>
+                <ActivityIndicator color={colors.primary} size="small" />
+              </View>
+            ) : history.length === 0 ? (
+              <Text style={[styles.expandedEmpty, { color: colors.textSecondary }]}>
+                Sem histórico detalhado para este parceiro.
+              </Text>
+            ) : (
+              history.map((ev) => (
+                <View key={ev.conviteId} style={styles.eventHistoryRow}>
+                  <Text style={[styles.eventHistoryName, { color: colors.text }]} numberOfLines={2}>
+                    {ev.nomeEvento}
+                  </Text>
+                  <Text style={[styles.eventHistoryDate, { color: colors.textSecondary }]}>
+                    {formatCalendarDate(ev.dataEvento)}
+                    {ev.funcaoParticipacao ? ` · ${ev.funcaoParticipacao}` : ''}
+                  </Text>
+                </View>
+              ))
+            )}
+          </View>
+        ) : null}
+      </TouchableOpacity>
     );
   };
 
@@ -514,13 +630,14 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 17, fontWeight: '600', marginTop: 12 },
   emptySub: { fontSize: 14, textAlign: 'center', marginTop: 8, maxWidth: 320 },
   card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     padding: 12,
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
     marginBottom: 10,
+  },
+  cardTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   rankPodium: {
     width: 40,
@@ -531,7 +648,16 @@ const styles = StyleSheet.create({
   cardLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', marginRight: 8 },
   avatar: { width: 48, height: 48, borderRadius: 24 },
   cardText: { flex: 1, marginLeft: 12 },
+  nameRow: { flexDirection: 'row', alignItems: 'center' },
   name: { fontSize: 16, fontWeight: '600' },
+  whatsIconButton: {
+    marginLeft: 6,
+    minWidth: 24,
+    minHeight: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  whatsIcon: { marginLeft: 0 },
   sub: { fontSize: 13, marginTop: 2 },
   badge: {
     alignItems: 'center',
@@ -543,4 +669,20 @@ const styles = StyleSheet.create({
   },
   badgeNum: { fontSize: 18, fontWeight: '700' },
   badgeLbl: { fontSize: 11, marginTop: 2 },
+  expandChevron: { marginLeft: 6 },
+  expandedContainer: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  expandedTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  expandedLoading: { paddingVertical: 6, alignItems: 'flex-start' },
+  expandedEmpty: { fontSize: 12, lineHeight: 16 },
+  eventHistoryRow: { marginBottom: 8 },
+  eventHistoryName: { fontSize: 13, fontWeight: '600', lineHeight: 18 },
+  eventHistoryDate: { fontSize: 12, marginTop: 2 },
 });

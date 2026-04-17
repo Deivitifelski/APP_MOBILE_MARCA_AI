@@ -209,7 +209,7 @@ export default function ConvidarColaboradorEventoScreen() {
       setRecentPartnersError(null);
       const { partners, error } = await listarParceirosRecentesParticipacao(activeArtist.id, 15);
       if (cancelled) return;
-      setRecentPartners(partners);
+      setRecentPartners((partners || []).filter((p) => p.is_available_for_gigs === true));
       setRecentPartnersError(error);
       setRecentPartnersLoading(false);
     })();
@@ -234,7 +234,7 @@ export default function ConvidarColaboradorEventoScreen() {
         estado: filterState,
         funcao: filterRole,
       });
-      const filtered = artists.filter((a) => !blockedArtists.has(a.id));
+      const filtered = artists.filter((a) => !blockedArtists.has(a.id) && a.is_available_for_gigs === true);
       setSearchResults(filtered);
       setSearchError(error);
       setSearchLoading(false);

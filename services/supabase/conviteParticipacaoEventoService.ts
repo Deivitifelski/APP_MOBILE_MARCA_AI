@@ -102,6 +102,13 @@ export type ParceiroFrequenteParticipacao = ParceiroRecenteParticipacao & {
   funcoesParticipacao: string[];
 };
 
+export type HistoricoParticipacaoParceiroItem = {
+  conviteId: string;
+  nomeEvento: string;
+  dataEvento: string;
+  funcaoParticipacao: string | null;
+};
+
 export async function listarParceirosRecentesParticipacao(
   artistaQueConvidaId: string,
   limite: number = 15
@@ -204,6 +211,41 @@ export async function listarParceirosFrequentesParticipacao(
     return { partners, error: null };
   } catch {
     return { partners: [], error: 'Erro de conexão' };
+  }
+}
+
+/** Histórico de eventos aceitos entre organizador e parceiro convidado. */
+export async function listarHistoricoParticipacaoParceiro(
+  artistaQueConvidaId: string,
+  artistaConvidadoId: string,
+  limite: number = 20
+): Promise<{ eventos: HistoricoParticipacaoParceiroItem[]; error: string | null }> {
+  try {
+    const capped = Math.min(50, Math.max(1, Math.floor(limite)));
+    const { data, error } = await supabase
+      .from('convite_participacao_evento')
+      .select('id, nome_evento, data_evento, funcao_participacao, respondido_em, atualizado_em, criado_em')
+      .eq('artista_que_convidou_id', artistaQueConvidaId)
+      .eq('artista_convidado_id', artistaConvidadoId)
+      .eq('status', 'aceito')
+      .order('data_evento', { ascending: false })
+      .order('respondido_em', { ascending: false })
+      .order('atualizado_em', { ascending: false })
+      .order('criado_em', { ascending: false })
+      .limit(capped);
+    if (error) return { eventos: [], error: error.message };
+    const eventos: HistoricoParticipacaoParceiroItem[] = ((data as Record<string, unknown>[]) || []).map((row) => ({
+      conviteId: String(row.id),
+      nomeEvento: String(row.nome_evento ?? 'Evento'),
+      dataEvento: String(row.data_evento ?? '').slice(0, 10),
+      funcaoParticipacao:
+        row.funcao_participacao != null && String(row.funcao_participacao).trim() !== ''
+          ? String(row.funcao_participacao).trim()
+          : null,
+    }));
+    return { eventos, error: null };
+  } catch {
+    return { eventos: [], error: 'Erro de conexão' };
   }
 }
 
