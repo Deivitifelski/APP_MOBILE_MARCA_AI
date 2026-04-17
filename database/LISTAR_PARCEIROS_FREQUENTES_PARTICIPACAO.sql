@@ -45,7 +45,8 @@ AS $$
     SELECT
       c.artista_convidado_id AS aid,
       COUNT(*)::BIGINT AS total_participacoes_aceitas,
-      MAX(COALESCE(c.respondido_em, c.atualizado_em, c.criado_em)) AS ultima_colaboracao_em
+      MAX(COALESCE(c.respondido_em, c.atualizado_em, c.criado_em)) AS ultima_colaboracao_em,
+      MAX(c.data_evento) AS ultima_data_evento_show
     FROM convite_participacao_evento c
     CROSS JOIN allowed
     WHERE c.artista_que_convidou_id = p_artista_que_convida_id
@@ -78,7 +79,10 @@ AS $$
     CROSS JOIN allowed
     WHERE c.artista_que_convidou_id = p_artista_que_convida_id
       AND c.status = 'aceito'
-    ORDER BY c.artista_convidado_id, COALESCE(c.respondido_em, c.atualizado_em, c.criado_em) DESC
+    ORDER BY
+      c.artista_convidado_id,
+      c.data_evento DESC NULLS LAST,
+      COALESCE(c.respondido_em, c.atualizado_em, c.criado_em) DESC
   )
   SELECT
     a.id,
@@ -127,7 +131,10 @@ AS $$
     LIMIT 1
   ) lu ON true
   CROSS JOIN allowed
-  ORDER BY p.total_participacoes_aceitas DESC, p.ultima_colaboracao_em DESC
+  ORDER BY
+    p.total_participacoes_aceitas DESC,
+    p.ultima_data_evento_show DESC NULLS LAST,
+    p.ultima_colaboracao_em DESC
   LIMIT GREATEST(1, LEAST(COALESCE(p_limite, 30), 50));
 $$;
 
@@ -135,4 +142,4 @@ REVOKE ALL ON FUNCTION public.listar_parceiros_frequentes_participacao(UUID, INT
 GRANT EXECUTE ON FUNCTION public.listar_parceiros_frequentes_participacao(UUID, INT) TO authenticated;
 
 COMMENT ON FUNCTION public.listar_parceiros_frequentes_participacao(UUID, INT) IS
-  'Lista artistas que mais aceitaram participação em eventos deste organizador (por quantidade de convites aceitos), com funções distintas agregadas.';
+  'Lista artistas que mais aceitaram participação neste organizador (contagem de aceitos). Empate: data do show mais recente (data_evento), depois data/hora da última resposta.';
