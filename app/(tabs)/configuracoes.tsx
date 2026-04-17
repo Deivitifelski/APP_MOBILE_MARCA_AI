@@ -798,6 +798,14 @@ export default function ConfiguracoesScreen() {
                 'Quem mais aceitou participar nos seus eventos',
                 () => router.push('/parceiros-frequentes')
               )}
+
+              {['admin', 'editor'].includes(currentArtist.role || '') &&
+                renderSettingItem(
+                  'document-text-outline',
+                  'Comentários recebidos',
+                  'Ver comentários públicos sobre este artista',
+                  () => router.push('/minhas-observacoes-privadas')
+                )}
             </View>
           </View>
         )}

@@ -318,6 +318,9 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.rpc_app_resumo_avaliacoes_artistas_para_convite(UUID[]) TO authenticated;
 
+-- Se o shape do RETURNS TABLE mudar, o Postgres exige DROP antes de recriar.
+DROP FUNCTION IF EXISTS public.rpc_app_listar_avaliacoes_publicas_artista(UUID, INT);
+
 CREATE OR REPLACE FUNCTION public.rpc_app_listar_avaliacoes_publicas_artista(
   p_artista_avaliado_id UUID,
   p_limite INT DEFAULT 30
@@ -356,3 +359,48 @@ AS $$
 $$;
 
 GRANT EXECUTE ON FUNCTION public.rpc_app_listar_avaliacoes_publicas_artista(UUID, INT) TO authenticated;
+
+-- Observações privadas que VOCÊ escreveu ao avaliar parceiros (só o perfil avaliador + membros editor/admin/owner).
+CREATE OR REPLACE FUNCTION public.rpc_app_listar_observacoes_privadas_minhas_avaliacoes(
+  p_artista_avaliador_id UUID,
+  p_limite INT DEFAULT 50
+)
+RETURNS TABLE (
+  convite_participacao_evento_id UUID,
+  evento_origem_id UUID,
+  observacao_privada TEXT,
+  nota_geral SMALLINT,
+  nome_evento TEXT,
+  data_evento DATE,
+  artista_convidado_id UUID,
+  artista_convidado_nome TEXT,
+  criado_em TIMESTAMPTZ
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT
+    a.convite_participacao_evento_id,
+    c.evento_origem_id,
+    a.observacao_privada,
+    a.nota_geral,
+    c.nome_evento,
+    c.data_evento,
+    a.artista_avaliado_id AS artista_convidado_id,
+    COALESCE(ac.name, 'Artista') AS artista_convidado_nome,
+    a.criado_em
+  FROM public.participacao_evento_avaliacoes a
+  INNER JOIN public.convite_participacao_evento c
+    ON c.id = a.convite_participacao_evento_id
+  LEFT JOIN public.artists ac
+    ON ac.id = a.artista_avaliado_id
+  WHERE a.artista_avaliador_id = p_artista_avaliador_id
+    AND public._is_member_of_artist(auth.uid(), p_artista_avaliador_id, ARRAY['editor', 'admin', 'owner'])
+    AND NULLIF(TRIM(COALESCE(a.observacao_privada, '')), '') IS NOT NULL
+  ORDER BY a.criado_em DESC
+  LIMIT GREATEST(1, LEAST(COALESCE(p_limite, 50), 100));
+$$;
+
+GRANT EXECUTE ON FUNCTION public.rpc_app_listar_observacoes_privadas_minhas_avaliacoes(UUID, INT) TO authenticated;

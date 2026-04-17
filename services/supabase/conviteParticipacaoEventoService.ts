@@ -782,6 +782,49 @@ export async function listarResumoAvaliacoesArtistasParaConvite(
   }
 }
 
+export interface ObservacaoPrivadaMinhaAvaliacao {
+  convite_participacao_evento_id: string;
+  evento_origem_id: string;
+  observacao_privada: string;
+  nota_geral: number;
+  nome_evento: string | null;
+  data_evento: string | null;
+  artista_convidado_id: string;
+  artista_convidado_nome: string;
+  criado_em: string;
+}
+
+export async function listarObservacoesPrivadasMinhasAvaliacoes(
+  artistaAvaliadorId: string,
+  limite: number = 50
+): Promise<{ itens: ObservacaoPrivadaMinhaAvaliacao[]; error: string | null }> {
+  try {
+    const capped = Math.min(100, Math.max(1, Math.floor(limite)));
+    const { data, error } = await supabase.rpc('rpc_app_listar_observacoes_privadas_minhas_avaliacoes', {
+      p_artista_avaliador_id: artistaAvaliadorId,
+      p_limite: capped,
+    });
+    if (error) return { itens: [], error: error.message };
+    const itens: ObservacaoPrivadaMinhaAvaliacao[] = ((data as Record<string, unknown>[]) || []).map((row) => ({
+      convite_participacao_evento_id: String(row.convite_participacao_evento_id),
+      evento_origem_id: String(row.evento_origem_id),
+      observacao_privada: String(row.observacao_privada ?? ''),
+      nota_geral: Number(row.nota_geral),
+      nome_evento: row.nome_evento != null ? String(row.nome_evento) : null,
+      data_evento:
+        row.data_evento != null && String(row.data_evento).trim() !== ''
+          ? String(row.data_evento).slice(0, 10)
+          : null,
+      artista_convidado_id: String(row.artista_convidado_id),
+      artista_convidado_nome: String(row.artista_convidado_nome ?? 'Artista'),
+      criado_em: String(row.criado_em ?? ''),
+    }));
+    return { itens, error: null };
+  } catch {
+    return { itens: [], error: 'Erro de conexão' };
+  }
+}
+
 export async function listarAvaliacoesPublicasArtistaParaConvite(
   artistaAvaliadoId: string,
   limite: number = 30
