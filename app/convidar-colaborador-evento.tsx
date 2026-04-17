@@ -34,6 +34,7 @@ import {
   type ArtistaBuscaConvite,
   type ParceiroRecenteParticipacao,
 } from '../services/supabase/conviteParticipacaoEventoService';
+import { getUserProfile } from '../services/supabase/userService';
 import { useActiveArtist } from '../services/useActiveArtist';
 import { brazilMobileDigits, maskBrazilMobile } from '../utils/brazilPhone';
 import {
@@ -124,11 +125,16 @@ export default function ConvidarColaboradorEventoScreen() {
         .maybeSingle();
       const canCreate = ['admin', 'editor'].includes(member?.role || '');
       const allowed = canCreate && event.artist_id === activeArtist.id;
+      const { profile: inviterProfile } = await getUserProfile(userId);
+      const inviterWhats =
+        inviterProfile?.phone?.trim() != null && inviterProfile.phone.trim() !== ''
+          ? maskBrazilMobile(inviterProfile.phone)
+          : '';
       if (!cancelled) {
         setCurrentUserId(userId);
         setCanInvite(allowed);
         setEventData(event);
-        setWhatsDraft(maskBrazilMobile(event?.contractor_phone ?? ''));
+        setWhatsDraft(inviterWhats);
         setLoading(false);
       }
       if (!allowed) {
@@ -1121,15 +1127,59 @@ export default function ConvidarColaboradorEventoScreen() {
               />
               <TextInput
                 style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
-                placeholder="WhatsApp do contratante (opcional)"
+                placeholder="Seu WhatsApp para contato (opcional)"
                 placeholderTextColor={colors.textSecondary}
                 keyboardType="phone-pad"
                 value={whatsDraft}
                 onChangeText={(t) => setWhatsDraft(maskBrazilMobile(t))}
               />
+              <Text style={[styles.inviteFuncLabel, { color: colors.text }]}>Função no evento</Text>
+              <Text style={[styles.filterFieldHint, { color: colors.textSecondary }]}>
+                Sugestões rápidas — toque em um chip ou digite outra função no campo abaixo.
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.inviteFuncPresetRow}
+                keyboardShouldPersistTaps="handled"
+              >
+                {ARTIST_WORK_ROLE_PRESETS.map((role) => {
+                  const selected = functionDraft.trim() === role;
+                  return (
+                    <TouchableOpacity
+                      key={`invite-func-${role}`}
+                      onPress={() => {
+                        Keyboard.dismiss();
+                        setFunctionDraft(role);
+                      }}
+                      activeOpacity={0.75}
+                      style={[
+                        styles.funcPresetChip,
+                        {
+                          borderColor: selected ? colors.primary : colors.border,
+                          backgroundColor: selected ? `${colors.primary}18` : colors.surface,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.funcPresetChipText,
+                          {
+                            color: selected ? colors.primary : colors.text,
+                            fontWeight: selected ? '800' : '600',
+                          },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {role}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
               <TextInput
                 style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
-                placeholder="Função no evento (ex.: violão, voz)"
+                placeholder="Ou digite a função (ex.: violão, voz)"
                 placeholderTextColor={colors.textSecondary}
                 value={functionDraft}
                 onChangeText={setFunctionDraft}
@@ -1238,6 +1288,14 @@ const styles = StyleSheet.create({
   inviteBannerText: { flex: 1, minWidth: 0 },
   inviteBannerName: { fontSize: 17, fontWeight: '700', marginTop: 2 },
   formPanelTitle: { fontSize: 16, fontWeight: '800', marginBottom: 6 },
+  inviteFuncLabel: { fontSize: 14, fontWeight: '700', marginTop: 4, marginBottom: 2 },
+  inviteFuncPresetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingBottom: 10,
+    paddingRight: 2,
+  },
   selectedLine: { fontWeight: '500', marginBottom: 8 },
   formChangeArtistBtn: {
     flexDirection: 'row',

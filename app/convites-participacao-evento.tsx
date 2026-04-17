@@ -228,7 +228,7 @@ export default function ConvitesParticipacaoEventoScreen() {
                 {item.telefone_contratante ? (
                   <View style={styles.whatsRow}>
                     <Text style={[styles.cardMeta, { color: colors.textSecondary, flex: 1 }]}>
-                      WhatsApp: {item.telefone_contratante}
+                      Contato (quem convida): {item.telefone_contratante}
                     </Text>
                     {buildWhatsAppUrl(item.telefone_contratante) ? (
                       <TouchableOpacity
@@ -402,7 +402,7 @@ export default function ConvitesParticipacaoEventoScreen() {
                     ) : null}
                     {selectedAcceptInvite.telefone_contratante?.trim() ? (
                       <View style={[styles.acceptInfoBox, { borderColor: colors.border, backgroundColor: colors.background }]}>
-                        <Text style={[styles.acceptLabel, { color: colors.textSecondary }]}>WhatsApp</Text>
+                        <Text style={[styles.acceptLabel, { color: colors.textSecondary }]}>WhatsApp (organizador)</Text>
                         <View style={styles.acceptWhatsRow}>
                           <Text style={[styles.acceptValue, { flex: 1 }]}>
                             {selectedAcceptInvite.telefone_contratante.trim()}
