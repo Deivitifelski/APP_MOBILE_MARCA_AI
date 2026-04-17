@@ -82,6 +82,49 @@ export async function buscarArtistasParaConvite(
   }
 }
 
+/** Artistas que já aceitaram convite de participação deste organizador (última colaboração primeiro). */
+export type ParceiroRecenteParticipacao = ArtistaBuscaConvite & {
+  ultima_funcao: string | null;
+  ultima_colaboracao_em: string;
+  /** Cadastro do artista convidado; false indica que o perfil não está aberto para busca de shows. */
+  is_available_for_gigs: boolean;
+};
+
+export async function listarParceirosRecentesParticipacao(
+  artistaQueConvidaId: string,
+  limite: number = 15
+): Promise<{ partners: ParceiroRecenteParticipacao[]; error: string | null }> {
+  try {
+    const capped = Math.min(50, Math.max(1, Math.floor(limite)));
+    const { data, error } = await supabase.rpc('listar_parceiros_recentes_participacao', {
+      p_artista_que_convida_id: artistaQueConvidaId,
+      p_limite: capped,
+    });
+    if (error) return { partners: [], error: error.message };
+    const raw = (data || []) as Record<string, unknown>[];
+    const partners: ParceiroRecenteParticipacao[] = raw.map((row) => ({
+      id: String(row.id),
+      name: String(row.name ?? ''),
+      profile_url: row.profile_url != null ? String(row.profile_url) : null,
+      image_url: row.image_url != null ? String(row.image_url) : undefined,
+      musical_style: row.musical_style != null ? String(row.musical_style) : undefined,
+      work_roles: row.work_roles,
+      show_formats: row.show_formats,
+      whatsapp: row.whatsapp != null ? String(row.whatsapp) : null,
+      city: row.city != null ? String(row.city) : null,
+      state: row.state != null ? String(row.state) : null,
+      show_whatsapp: row.show_whatsapp === true,
+      is_available_for_gigs: row.is_available_for_gigs === true,
+      ultima_funcao: row.ultima_funcao != null && String(row.ultima_funcao).trim() !== '' ? String(row.ultima_funcao) : null,
+      ultima_colaboracao_em:
+        row.ultima_colaboracao_em != null ? String(row.ultima_colaboracao_em) : new Date(0).toISOString(),
+    }));
+    return { partners, error: null };
+  } catch {
+    return { partners: [], error: 'Erro de conexão' };
+  }
+}
+
 export async function listarConvitesDoEvento(
   eventoOrigemId: string
 ): Promise<{ convites: ConviteParticipacaoEventoRow[]; error: string | null }> {

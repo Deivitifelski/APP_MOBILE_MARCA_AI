@@ -394,7 +394,7 @@ export default function DetalhesEventoScreen() {
   };
 
   const handleConvidarColaborador = () => {
-    if (!handleRestrictedAction('convidar colaborador')) return;
+    if (!handleRestrictedAction('participação de outro artista')) return;
     if (!canCreateEventsPermission || !event || event.artist_id !== activeArtist?.id) {
       setShowPermissionModal(true);
       return;
@@ -1459,6 +1459,17 @@ export default function DetalhesEventoScreen() {
             <Ionicons name="chevron-forward" size={20} color={colors.text} />
           </TouchableOpacity>
 
+          {canCreateEventsPermission && event?.artist_id === activeArtist?.id ? (
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={handleConvidarColaborador}
+            >
+              <Ionicons name="people-outline" size={24} color={colors.primary} />
+              <Text style={[styles.actionButtonText, { color: colors.text }]}>Participação de outro artista</Text>
+              <Ionicons name="chevron-forward" size={20} color={colors.text} />
+            </TouchableOpacity>
+          ) : null}
+
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={handleEditEvent}
@@ -1489,17 +1500,6 @@ export default function DetalhesEventoScreen() {
             {!hasAccess && <Ionicons name="lock-closed" size={16} color={colors.textSecondary} style={{ marginLeft: 8 }} />}
             <Ionicons name="chevron-forward" size={20} color={colors.text} />
           </TouchableOpacity>
-
-          {canCreateEventsPermission && event?.artist_id === activeArtist?.id ? (
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              onPress={handleConvidarColaborador}
-            >
-              <Ionicons name="people-outline" size={24} color={colors.primary} />
-              <Text style={[styles.actionButtonText, { color: colors.text }]}>Convidar colaborador</Text>
-              <Ionicons name="chevron-forward" size={20} color={colors.text} />
-            </TouchableOpacity>
-          ) : null}
 
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
@@ -1651,7 +1651,7 @@ export default function DetalhesEventoScreen() {
         visible={showPermissionModal}
         onClose={() => setShowPermissionModal(false)}
         title="Acesso Restrito"
-        message="Apenas gerentes e editores podem editar eventos, gerenciar despesas, convidar colaboradores e visualizar valores financeiros. Entre em contato com um gerente para solicitar mais permissões."
+        message="Apenas gerentes e editores podem editar eventos, gerenciar despesas, incluir participação de outros artistas em eventos e visualizar valores financeiros. Entre em contato com um gerente para solicitar mais permissões."
         icon="lock-closed"
       />
 

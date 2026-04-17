@@ -27,7 +27,9 @@ import {
   buscarArtistasParaConvite,
   enviarConviteParticipacao,
   listarConvitesDoEvento,
+  listarParceirosRecentesParticipacao,
   type ArtistaBuscaConvite,
+  type ParceiroRecenteParticipacao,
 } from '../services/supabase/conviteParticipacaoEventoService';
 import { useActiveArtist } from '../services/useActiveArtist';
 import { brazilMobileDigits, maskBrazilMobile } from '../utils/brazilPhone';
@@ -65,6 +67,10 @@ export default function ConvidarColaboradorEventoScreen() {
   const [artistStyles, setArtistStyles] = useState<Record<string, string>>({});
   const [artistWorkRoles, setArtistWorkRoles] = useState<Record<string, string[]>>({});
   const [artistShowFormats, setArtistShowFormats] = useState<Record<string, string[]>>({});
+
+  const [recentPartners, setRecentPartners] = useState<ParceiroRecenteParticipacao[]>([]);
+  const [recentPartnersLoading, setRecentPartnersLoading] = useState(true);
+  const [recentPartnersError, setRecentPartnersError] = useState<string | null>(null);
 
   const [cacheDraft, setCacheDraft] = useState('R$ 0,00');
   const [whatsDraft, setWhatsDraft] = useState('');
@@ -114,7 +120,10 @@ export default function ConvidarColaboradorEventoScreen() {
         setLoading(false);
       }
       if (!allowed) {
-        Alert.alert('Acesso restrito', 'Somente o organizador com permissão pode convidar colaborador.');
+        Alert.alert(
+          'Acesso restrito',
+          'Somente o organizador com permissão pode incluir participação de outro artista neste evento.'
+        );
         router.back();
       }
     })();
@@ -139,6 +148,23 @@ export default function ConvidarColaboradorEventoScreen() {
       cancelled = true;
     };
   }, [eventData?.id]);
+
+  useEffect(() => {
+    if (!canInvite || !activeArtist?.id) return;
+    let cancelled = false;
+    (async () => {
+      setRecentPartnersLoading(true);
+      setRecentPartnersError(null);
+      const { partners, error } = await listarParceirosRecentesParticipacao(activeArtist.id, 15);
+      if (cancelled) return;
+      setRecentPartners(partners);
+      setRecentPartnersError(error);
+      setRecentPartnersLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [canInvite, activeArtist?.id]);
 
   useEffect(() => {
     if (!canInvite || !eventData?.artist_id) return;
@@ -277,10 +303,13 @@ export default function ConvidarColaboradorEventoScreen() {
   }, [searchResults]);
 
   const selectedLabel = useMemo(() => selectedArtist?.name || 'Nenhum', [selectedArtist]);
-  const selectedSearchRow = useMemo(
-    () => (selectedArtist ? searchResults.find((a) => a.id === selectedArtist.id) : undefined),
-    [searchResults, selectedArtist]
-  );
+  const selectedSearchRow = useMemo(() => {
+    if (!selectedArtist) return undefined;
+    return (
+      searchResults.find((a) => a.id === selectedArtist.id) ??
+      recentPartners.find((a) => a.id === selectedArtist.id)
+    );
+  }, [searchResults, selectedArtist, recentPartners]);
   const activeFiltersCount = useMemo(
     () =>
       [filterCity, filterState, filterRole].filter((s) => String(s || '').trim().length >= 2).length,
@@ -294,6 +323,16 @@ export default function ConvidarColaboradorEventoScreen() {
     if (c) return c;
     if (s) return s.toUpperCase();
     return fallback;
+  };
+
+  const formatUltimaColaboracao = (iso: string) => {
+    try {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return '';
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch {
+      return '';
+    }
   };
 
   const whatsAppDisplay = (raw: string | null | undefined) => {
@@ -447,6 +486,80 @@ export default function ConvidarColaboradorEventoScreen() {
     );
   };
 
+  const renderRecentPartnerCard = (p: ParceiroRecenteParticipacao) => {
+    const isBlocked = blockedArtists.has(p.id);
+    const locDisplay = locationLine(p, 'Local não informado');
+    const artistStyle = (p.musical_style || '').trim();
+    const colabLabel = formatUltimaColaboracao(p.ultima_colaboracao_em);
+    return (
+      <TouchableOpacity
+        style={[
+          styles.recentCard,
+          {
+            borderColor: isBlocked ? colors.border : `${colors.primary}44`,
+            backgroundColor: isBlocked ? `${colors.textSecondary}0c` : colors.surface,
+            opacity: isBlocked ? 0.72 : 1,
+          },
+        ]}
+        onPress={() => {
+          if (isBlocked) {
+            Alert.alert(
+              'Já neste evento',
+              'Já existe convite pendente ou aceito para este artista neste evento.'
+            );
+            return;
+          }
+          Keyboard.dismiss();
+          setSelectedArtist({
+            id: p.id,
+            name: p.name,
+            location: locDisplay,
+            musicalStyle: artistStyle || null,
+          });
+          setFunctionDraft(p.ultima_funcao?.trim() || '');
+          setMessageDraft('');
+          setInviteModalVisible(true);
+        }}
+        activeOpacity={0.75}
+      >
+        <OptimizedImage
+          imageUrl={p.image_url ?? p.profile_url ?? ''}
+          style={styles.recentAvatar}
+          fallbackText={p.name || 'Artista'}
+          fallbackIcon="person"
+          fallbackIconSize={16}
+          fallbackIconColor={colors.primary}
+          showLoadingIndicator={false}
+        />
+        <Text style={[styles.recentName, { color: colors.text }]} numberOfLines={2}>
+          {p.name}
+        </Text>
+        {colabLabel ? (
+          <Text style={[styles.recentMeta, { color: colors.textSecondary }]} numberOfLines={1}>
+            Última colab.: {colabLabel}
+          </Text>
+        ) : null}
+        {p.ultima_funcao ? (
+          <Text style={[styles.recentFuncao, { color: colors.primary }]} numberOfLines={1}>
+            {p.ultima_funcao}
+          </Text>
+        ) : null}
+        <View style={styles.recentBadges}>
+          {isBlocked ? (
+            <View style={[styles.recentBadge, { backgroundColor: `${colors.textSecondary}22` }]}>
+              <Text style={[styles.recentBadgeText, { color: colors.textSecondary }]}>Neste evento</Text>
+            </View>
+          ) : null}
+          {!p.is_available_for_gigs ? (
+            <View style={[styles.recentBadge, { backgroundColor: `${colors.warning}22` }]}>
+              <Text style={[styles.recentBadgeText, { color: colors.warning }]}>Sem busca pública</Text>
+            </View>
+          ) : null}
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   const handleSubmit = async () => {
     if (!eventData || !activeArtist || !currentUserId || !selectedArtist) return;
     const cacheDigits = extractNumericValueString(cacheDraft);
@@ -514,7 +627,7 @@ export default function ConvidarColaboradorEventoScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Convidar colaborador</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Participação de outro artista</Text>
           <View style={styles.backBtn} />
         </View>
 
@@ -523,13 +636,51 @@ export default function ConvidarColaboradorEventoScreen() {
             style={styles.resultsList}
             data={search.trim().length < 2 ? [] : searchResults}
             keyExtractor={(item) => item.id}
-            extraData={selectedArtist?.id}
+            extraData={{
+              sid: selectedArtist?.id,
+              blk: [...blockedArtists].sort().join(','),
+              rec: recentPartners.length,
+              rLoad: recentPartnersLoading,
+            }}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
             contentContainerStyle={styles.resultsListContent}
             ItemSeparatorComponent={() => <View style={styles.cardSeparator} />}
             ListHeaderComponent={
               <View>
+                {canInvite ? (
+                  <View style={[styles.recentSection, { borderBottomColor: colors.border }]}>
+                    <View style={styles.recentSectionInner}>
+                      <Text style={[styles.sectionTitle, { color: colors.text }]}>Parceiros recentes</Text>
+                      <Text style={[styles.sectionHint, { color: colors.textSecondary }]}>
+                        Quem já aceitou participar em algum show seu — toque para enviar um novo convite.
+                      </Text>
+                      {recentPartnersLoading ? (
+                        <View style={styles.recentLoadingRow}>
+                          <ActivityIndicator color={colors.primary} />
+                        </View>
+                      ) : recentPartnersError ? (
+                        <Text style={[styles.recentErrorText, { color: colors.error }]}>{recentPartnersError}</Text>
+                      ) : recentPartners.length === 0 ? (
+                        <Text style={[styles.sectionHint, { color: colors.textSecondary, marginBottom: 0 }]}>
+                          Nenhum ainda. Quando alguém aceitar um convite de participação, aparece aqui.
+                        </Text>
+                      ) : (
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={styles.recentScrollContent}
+                          keyboardShouldPersistTaps="handled"
+                        >
+                          {recentPartners.map((p) => (
+                            <React.Fragment key={p.id}>{renderRecentPartnerCard(p)}</React.Fragment>
+                          ))}
+                        </ScrollView>
+                      )}
+                    </View>
+                  </View>
+                ) : null}
+
                 <View style={styles.searchSection}>
                   <Text style={[styles.sectionTitle, { color: colors.text }]}>Quem convidar</Text>
                   <Text style={[styles.sectionHint, { color: colors.textSecondary }]}>
@@ -872,6 +1023,40 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   formChangeArtistText: { fontSize: 14, fontWeight: '600' },
+  recentSection: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    marginBottom: 4,
+  },
+  recentSectionInner: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+  },
+  recentLoadingRow: { paddingVertical: 8, alignItems: 'flex-start' },
+  recentErrorText: { fontSize: 13, lineHeight: 18 },
+  recentScrollContent: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingRight: 8,
+    paddingBottom: 2,
+  },
+  recentCard: {
+    width: 158,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 10,
+  },
+  recentAvatar: { width: 44, height: 44, borderRadius: 22, marginBottom: 8 },
+  recentName: { fontSize: 15, fontWeight: '700', lineHeight: 19, marginBottom: 4 },
+  recentMeta: { fontSize: 11, lineHeight: 15, marginBottom: 2 },
+  recentFuncao: { fontSize: 12, fontWeight: '600', marginBottom: 6 },
+  recentBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  recentBadge: {
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  recentBadgeText: { fontSize: 10, fontWeight: '700' },
   sectionTitle: { fontSize: 17, fontWeight: '800', marginBottom: 2 },
   sectionHint: { fontSize: 12, lineHeight: 17, marginBottom: 8 },
   subLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
