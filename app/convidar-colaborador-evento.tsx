@@ -29,6 +29,7 @@ import {
 import {
   buscarArtistasParaConvite,
   enviarConviteParticipacao,
+  enviarConvitesParticipacaoLeilaoLote,
   listarConvitesDoEvento,
   listarParceirosRecentesParticipacao,
   type ArtistaBuscaConvite,
@@ -43,9 +44,21 @@ import {
   formatCurrencyBRLInput,
 } from '../utils/currencyBRLInput';
 
+function newInviteDisputeGroupId(): string {
+  const c = globalThis.crypto;
+  if (c && typeof c.randomUUID === 'function') return c.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (ch) => {
+    const r = (Math.random() * 16) | 0;
+    const v = ch === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 /** Filtro de parceiros recentes por função (valores derivados só da lista carregada). */
 const RECENT_PARTNER_FILTER_ALL = '__all__';
 const RECENT_PARTNER_FILTER_NO_ROLE = '__no_role__';
+
+type LeilaoArtistMeta = { name: string; imageUrl: string };
 
 export default function ConvidarColaboradorEventoScreen() {
   const { colors } = useTheme();
@@ -89,6 +102,20 @@ export default function ConvidarColaboradorEventoScreen() {
   const [whatsDraft, setWhatsDraft] = useState('');
   const [functionDraft, setFunctionDraft] = useState('');
   const [messageDraft, setMessageDraft] = useState('');
+  const [inviteDisputeGroupId, setInviteDisputeGroupId] = useState(newInviteDisputeGroupId);
+  const [leilaoMode, setLeilaoMode] = useState(false);
+  const [leilaoSelectedIds, setLeilaoSelectedIds] = useState<string[]>([]);
+  const [leilaoArtistMeta, setLeilaoArtistMeta] = useState<Record<string, LeilaoArtistMeta>>({});
+  const [leilaoModalVisible, setLeilaoModalVisible] = useState(false);
+
+  const removeLeilaoArtist = (artistId: string) => {
+    setLeilaoSelectedIds((prev) => prev.filter((x) => x !== artistId));
+    setLeilaoArtistMeta((prev) => {
+      const next = { ...prev };
+      delete next[artistId];
+      return next;
+    });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -403,7 +430,8 @@ export default function ConvidarColaboradorEventoScreen() {
   };
 
   const renderArtistCard = ({ item }: { item: ArtistaBuscaConvite }) => {
-    const isSelected = selectedArtist?.id === item.id;
+    const inLeilaoSel = leilaoSelectedIds.includes(item.id);
+    const isSelected = leilaoMode ? inLeilaoSel : selectedArtist?.id === item.id;
     const artistLocation = locationLine(item, artistLocations[item.id] || 'Não informado');
     const artistStyle = (item.musical_style || artistStyles[item.id] || '').trim();
     const rolesFromRpc = parseArtistStringArrayFromJson(item.work_roles);
@@ -423,6 +451,34 @@ export default function ConvidarColaboradorEventoScreen() {
         ]}
         onPress={() => {
           Keyboard.dismiss();
+          if (leilaoMode) {
+            if (blockedArtists.has(item.id)) {
+              Alert.alert(
+                'Já neste evento',
+                'Já existe convite pendente ou aceito para este artista neste evento.'
+              );
+              return;
+            }
+            setLeilaoSelectedIds((prev) => {
+              if (prev.includes(item.id)) {
+                setLeilaoArtistMeta((m) => {
+                  const n = { ...m };
+                  delete n[item.id];
+                  return n;
+                });
+                return prev.filter((x) => x !== item.id);
+              }
+              setLeilaoArtistMeta((m) => ({
+                ...m,
+                [item.id]: {
+                  name: (item.name || 'Artista').trim(),
+                  imageUrl: item.image_url ?? item.profile_url ?? '',
+                },
+              }));
+              return [...prev, item.id];
+            });
+            return;
+          }
           setSelectedArtist({
             id: item.id,
             name: item.name,
@@ -549,6 +605,7 @@ export default function ConvidarColaboradorEventoScreen() {
 
   const renderRecentPartnerCard = (p: ParceiroRecenteParticipacao) => {
     const isBlocked = blockedArtists.has(p.id);
+    const inLeilaoSel = leilaoSelectedIds.includes(p.id);
     const locDisplay = locationLine(p, 'Local não informado');
     const artistStyle = (p.musical_style || '').trim();
     const dataShowLabel = formatDataShowCompact(p.participacao_data_evento);
@@ -557,7 +614,12 @@ export default function ConvidarColaboradorEventoScreen() {
         style={[
           styles.recentCard,
           {
-            borderColor: isBlocked ? colors.border : `${colors.primary}44`,
+            borderColor:
+              leilaoMode && inLeilaoSel
+                ? colors.primary
+                : isBlocked
+                  ? colors.border
+                  : `${colors.primary}44`,
             backgroundColor: isBlocked ? `${colors.textSecondary}0c` : colors.surface,
             opacity: isBlocked ? 0.72 : 1,
           },
@@ -571,6 +633,27 @@ export default function ConvidarColaboradorEventoScreen() {
             return;
           }
           Keyboard.dismiss();
+          if (leilaoMode) {
+            setLeilaoSelectedIds((prev) => {
+              if (prev.includes(p.id)) {
+                setLeilaoArtistMeta((m) => {
+                  const n = { ...m };
+                  delete n[p.id];
+                  return n;
+                });
+                return prev.filter((x) => x !== p.id);
+              }
+              setLeilaoArtistMeta((m) => ({
+                ...m,
+                [p.id]: {
+                  name: (p.name || 'Artista').trim(),
+                  imageUrl: p.image_url ?? p.profile_url ?? '',
+                },
+              }));
+              return [...prev, p.id];
+            });
+            return;
+          }
           setSelectedArtist({
             id: p.id,
             name: p.name,
@@ -663,6 +746,7 @@ export default function ConvidarColaboradorEventoScreen() {
       cidade: eventData.city ?? null,
       telefoneContratante: whatsDigits.length === 11 ? maskBrazilMobile(whatsDraft) : null,
       descricao: eventData.description ?? null,
+      grupoDisputaId: inviteDisputeGroupId,
     });
     setSending(false);
     if (!success) {
@@ -670,9 +754,104 @@ export default function ConvidarColaboradorEventoScreen() {
       return;
     }
     setInviteModalVisible(false);
-    Alert.alert('Convite enviado', 'O colaborador foi convidado com sucesso.', [
-      { text: 'OK', onPress: () => router.back() },
-    ]);
+    Alert.alert(
+      'Convite enviado',
+      'Quer convidar mais alguém para a mesma rodada? Quem aceitar primeiro cancela os demais convites pendentes da mesma rodada.',
+      [
+        {
+          text: 'Sim, convidar outro',
+          onPress: () => {
+            void (async () => {
+              const { convites } = await listarConvitesDoEvento(eventData.id);
+              const blocked = new Set(
+                (convites || [])
+                  .filter((c) => c.status === 'pendente' || c.status === 'aceito')
+                  .map((c) => c.artista_convidado_id)
+              );
+              setBlockedArtists(blocked);
+            })();
+            setSelectedArtist(null);
+          },
+        },
+        {
+          text: 'Nova rodada (outra vaga)',
+          onPress: () => {
+            setInviteDisputeGroupId(newInviteDisputeGroupId());
+            void (async () => {
+              const { convites } = await listarConvitesDoEvento(eventData.id);
+              const blocked = new Set(
+                (convites || [])
+                  .filter((c) => c.status === 'pendente' || c.status === 'aceito')
+                  .map((c) => c.artista_convidado_id)
+              );
+              setBlockedArtists(blocked);
+            })();
+            setSelectedArtist(null);
+          },
+        },
+        { text: 'Concluir', style: 'cancel', onPress: () => router.back() },
+      ]
+    );
+  };
+
+  const handleLeilaoSubmit = async () => {
+    if (!eventData || !activeArtist || !currentUserId || leilaoSelectedIds.length === 0) return;
+    const cacheDigits = extractNumericValueString(cacheDraft);
+    const cacheNumerico = cacheDigits ? Number(cacheDigits) : NaN;
+    if (!cacheDraft.trim() || Number.isNaN(cacheNumerico) || cacheNumerico <= 0) {
+      Alert.alert('Cachê obrigatório', 'Informe um valor de cachê válido.');
+      return;
+    }
+    if (!functionDraft.trim()) {
+      Alert.alert('Função obrigatória', 'Informe a função do participante.');
+      return;
+    }
+    const whatsDigits = brazilMobileDigits(whatsDraft);
+    if (whatsDigits.length > 0 && whatsDigits.length !== 11) {
+      Alert.alert('WhatsApp incompleto', 'Informe (XX) XXXXX-XXXX ou deixe vazio.');
+      return;
+    }
+    setSending(true);
+    const { ok, error, resultados } = await enviarConvitesParticipacaoLeilaoLote({
+      eventoOrigemId: eventData.id,
+      artistaQueConvidaId: activeArtist.id,
+      usuarioQueEnviaId: currentUserId,
+      artistaConvidadoIds: leilaoSelectedIds,
+      funcaoParticipacao: functionDraft.trim(),
+      mensagem: messageDraft.trim() || null,
+      nomeEvento: eventData.name,
+      dataEvento: eventData.event_date,
+      horaInicio: eventData.start_time,
+      horaFim: eventData.end_time,
+      cacheValor: cacheNumerico,
+      cidade: eventData.city ?? null,
+      telefoneContratante: whatsDigits.length === 11 ? maskBrazilMobile(whatsDraft) : null,
+      descricao: eventData.description ?? null,
+    });
+    setSending(false);
+    if (!ok) {
+      Alert.alert('Leilão', error || 'Não foi possível enviar os convites.');
+      return;
+    }
+    const okN = resultados.filter((r) => r.success).length;
+    const failN = resultados.length - okN;
+    const { convites } = await listarConvitesDoEvento(eventData.id);
+    const blocked = new Set(
+      (convites || [])
+        .filter((c) => c.status === 'pendente' || c.status === 'aceito')
+        .map((c) => c.artista_convidado_id)
+    );
+    setBlockedArtists(blocked);
+    setLeilaoModalVisible(false);
+    setLeilaoSelectedIds([]);
+    setLeilaoArtistMeta({});
+    setLeilaoMode(false);
+    Alert.alert(
+      'Leilão enviado',
+      failN > 0
+        ? `${okN} convite(s) enviado(s) com sucesso. ${failN} não puderam ser enviados (veja mensagens do servidor).`
+        : `${okN} convite(s) enviado(s) na mesma rodada. O primeiro que aceitar mantém a vaga; os demais da rodada serão cancelados automaticamente.`
+    );
   };
 
   if (loading) {
@@ -698,7 +877,43 @@ export default function ConvidarColaboradorEventoScreen() {
             <Ionicons name="chevron-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.text }]}>Participação de outro artista</Text>
-          <View style={styles.backBtn} />
+          {canInvite ? (
+            <TouchableOpacity
+              onPress={() => {
+                setLeilaoMode((m) => {
+                  const next = !m;
+                  if (!next) {
+                    setLeilaoSelectedIds([]);
+                    setLeilaoArtistMeta({});
+                    setLeilaoModalVisible(false);
+                  }
+                  setSelectedArtist(null);
+                  setInviteModalVisible(false);
+                  return next;
+                });
+              }}
+              style={styles.headerLeilaoBtn}
+              hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+            >
+              <Ionicons
+                name="flash-outline"
+                size={18}
+                color={leilaoMode ? colors.primary : colors.textSecondary}
+              />
+              <Text
+                style={{
+                  marginLeft: 4,
+                  color: leilaoMode ? colors.primary : colors.textSecondary,
+                  fontWeight: '800',
+                  fontSize: 13,
+                }}
+              >
+                Leilão
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.backBtn} />
+          )}
         </View>
 
         <View style={styles.flex1}>
@@ -713,19 +928,40 @@ export default function ConvidarColaboradorEventoScreen() {
               rLoad: recentPartnersLoading,
               rFil: recentPartnerRoleFilter,
               rFilt: recentPartnersFiltrados.length,
+              leilao: leilaoMode,
+              lsel: leilaoSelectedIds.join(','),
             }}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
-            contentContainerStyle={styles.resultsListContent}
+            contentContainerStyle={[
+              styles.resultsListContent,
+              canInvite && leilaoMode && leilaoSelectedIds.length > 0 ? { paddingBottom: 100 } : null,
+            ]}
             ItemSeparatorComponent={() => <View style={styles.cardSeparator} />}
             ListHeaderComponent={
               <View>
+                {canInvite && leilaoMode ? (
+                  <View
+                    style={[
+                      styles.leilaoHintBanner,
+                      { backgroundColor: `${colors.primary}14`, borderBottomColor: colors.border },
+                    ]}
+                  >
+                    <Ionicons name="information-circle-outline" size={22} color={colors.primary} />
+                    <Text style={[styles.leilaoHintText, { color: colors.text }]}>
+                      Toque nos artistas para marcar ou desmarcar. Depois use «Preparar leilão» na barra inferior: um envio
+                      em lote; o primeiro que aceitar mantém a vaga e os demais da rodada são cancelados.
+                    </Text>
+                  </View>
+                ) : null}
                 {canInvite ? (
                   <View style={[styles.recentSection, { borderBottomColor: colors.border }]}>
                     <View style={styles.recentSectionInner}>
                       <Text style={[styles.sectionTitle, { color: colors.text }]}>Parceiros recentes</Text>
                       <Text style={[styles.sectionHint, { color: colors.textSecondary }]}>
-                        Quem já aceitou participar em algum show seu — toque para enviar um novo convite.
+                        {leilaoMode
+                          ? 'No modo leilão, toque para marcar quem entra na mesma rodada de convites.'
+                          : 'Quem já aceitou participar em algum show seu — toque para enviar um novo convite.'}
                       </Text>
                       {recentPartnersLoading ? (
                         <View style={styles.recentLoadingRow}>
@@ -1047,6 +1283,23 @@ export default function ConvidarColaboradorEventoScreen() {
             renderItem={renderArtistCard}
           />
         </View>
+        {canInvite && leilaoMode && leilaoSelectedIds.length > 0 ? (
+          <View style={[styles.leilaoBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+            <Text style={[styles.leilaoBarText, { color: colors.text }]}>
+              {leilaoSelectedIds.length} selecionado(s)
+            </Text>
+            <TouchableOpacity
+              style={[styles.leilaoBarBtn, { backgroundColor: colors.primary }]}
+              onPress={() => {
+                Keyboard.dismiss();
+                setLeilaoModalVisible(true);
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.leilaoBarBtnText}>Preparar leilão</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
       </KeyboardAvoidingView>
 
       <Modal
@@ -1135,7 +1388,8 @@ export default function ConvidarColaboradorEventoScreen() {
               />
               <Text style={[styles.inviteFuncLabel, { color: colors.text }]}>Função no evento</Text>
               <Text style={[styles.filterFieldHint, { color: colors.textSecondary }]}>
-                Sugestões rápidas — toque em um chip ou digite outra função no campo abaixo.
+                Sugestões rápidas — toque em um chip ou digite outra função. Vários convites na mesma rodada disputam uma
+                vaga; use «Outra vaga» se precisar de outro músico para o mesmo papel.
               </Text>
               <ScrollView
                 horizontal
@@ -1184,6 +1438,23 @@ export default function ConvidarColaboradorEventoScreen() {
                 value={functionDraft}
                 onChangeText={setFunctionDraft}
               />
+              <TouchableOpacity
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setInviteDisputeGroupId(newInviteDisputeGroupId());
+                  Alert.alert(
+                    'Nova rodada',
+                    'Os próximos convites desta tela passam a valer para outra vaga (ex.: segundo músico da mesma função).'
+                  );
+                }}
+                style={styles.inviteNovaRodadaBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="git-branch-outline" size={18} color={colors.primary} />
+                <Text style={[styles.inviteNovaRodadaText, { color: colors.primary }]}>
+                  Outra vaga (nova rodada)
+                </Text>
+              </TouchableOpacity>
               <TextInput
                 style={[
                   styles.input,
@@ -1219,6 +1490,187 @@ export default function ConvidarColaboradorEventoScreen() {
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
+
+      <Modal
+        visible={leilaoModalVisible}
+        animationType="slide"
+        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setLeilaoModalVisible(false);
+        }}
+      >
+        <SafeAreaView style={[styles.inviteModalRoot, { backgroundColor: colors.background }]} edges={['top', 'left', 'right', 'bottom']}>
+          <KeyboardAvoidingView
+            style={styles.flex1}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+          >
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+              <TouchableOpacity
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setLeilaoModalVisible(false);
+                }}
+                style={styles.modalCloseBtn}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="close" size={26} color={colors.text} />
+              </TouchableOpacity>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Leilão</Text>
+              <View style={styles.modalCloseBtn} />
+            </View>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator
+              contentContainerStyle={styles.inviteFormScroll}
+            >
+              <Text style={[styles.formPanelTitle, { color: colors.text }]}>
+                Participantes ({leilaoSelectedIds.length})
+              </Text>
+              <Text style={[styles.filterFieldHint, { color: colors.textSecondary, marginBottom: 10 }]}>
+                Todos recebem o mesmo convite (cachê, função e mensagem). O primeiro que aceitar mantém a vaga. Toque no
+                × para retirar alguém da lista.
+              </Text>
+              <View style={styles.leilaoArtistsScroll}>
+                {leilaoSelectedIds.map((id) => {
+                  const meta = leilaoArtistMeta[id];
+                  const label = meta?.name?.trim() || id;
+                  const imageUrl = meta?.imageUrl ?? '';
+                  return (
+                    <View
+                      key={`leilao-card-${id}`}
+                      style={[styles.leilaoArtistCard, { borderColor: colors.border, backgroundColor: colors.surface }]}
+                    >
+                      <TouchableOpacity
+                        onPress={() => removeLeilaoArtist(id)}
+                        style={styles.leilaoArtistRemove}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        accessibilityLabel={`Remover ${label} do leilão`}
+                      >
+                        <Ionicons name="close-circle" size={22} color={colors.textSecondary} />
+                      </TouchableOpacity>
+                      <OptimizedImage
+                        imageUrl={imageUrl}
+                        style={[styles.leilaoArtistAvatar, { borderColor: `${colors.primary}33` }]}
+                        fallbackText={label}
+                        fallbackIcon="person"
+                        fallbackIconSize={22}
+                        fallbackIconColor={colors.primary}
+                        showLoadingIndicator={false}
+                      />
+                      <View style={styles.leilaoArtistNameRow}>
+                        <Ionicons name="mic-outline" size={12} color={colors.primary} style={{ marginTop: 2 }} />
+                        <Text style={[styles.leilaoArtistName, { color: colors.text }]} numberOfLines={2}>
+                          {label}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+              <TextInput
+                style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
+                placeholder="Cachê oferecido (R$)"
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="numeric"
+                value={cacheDraft}
+                onChangeText={(t) => setCacheDraft(formatCurrencyBRLInput(t))}
+              />
+              <TextInput
+                style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
+                placeholder="Seu WhatsApp para contato (opcional)"
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="phone-pad"
+                value={whatsDraft}
+                onChangeText={(t) => setWhatsDraft(maskBrazilMobile(t))}
+              />
+              <Text style={[styles.inviteFuncLabel, { color: colors.text }]}>Função no evento</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.inviteFuncPresetRow}
+                keyboardShouldPersistTaps="handled"
+              >
+                {ARTIST_WORK_ROLE_PRESETS.map((role) => {
+                  const selected = functionDraft.trim() === role;
+                  return (
+                    <TouchableOpacity
+                      key={`leilao-func-${role}`}
+                      onPress={() => {
+                        Keyboard.dismiss();
+                        setFunctionDraft(role);
+                      }}
+                      activeOpacity={0.75}
+                      style={[
+                        styles.funcPresetChip,
+                        {
+                          borderColor: selected ? colors.primary : colors.border,
+                          backgroundColor: selected ? `${colors.primary}18` : colors.surface,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.funcPresetChipText,
+                          {
+                            color: selected ? colors.primary : colors.text,
+                            fontWeight: selected ? '800' : '600',
+                          },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {role}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+              <TextInput
+                style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
+                placeholder="Ou digite a função (ex.: violão, voz)"
+                placeholderTextColor={colors.textSecondary}
+                value={functionDraft}
+                onChangeText={setFunctionDraft}
+              />
+              <TextInput
+                style={[
+                  styles.input,
+                  styles.messageInput,
+                  { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface },
+                ]}
+                placeholder="Mensagem (opcional)"
+                placeholderTextColor={colors.textSecondary}
+                value={messageDraft}
+                onChangeText={setMessageDraft}
+                multiline
+              />
+              <View style={styles.actions}>
+                <TouchableOpacity
+                  style={[styles.btnSecondary, { borderColor: colors.border, backgroundColor: colors.background }]}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setLeilaoModalVisible(false);
+                  }}
+                >
+                  <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Voltar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btnPrimary, { backgroundColor: colors.primary }]}
+                  onPress={() => void handleLeilaoSubmit()}
+                  disabled={sending}
+                >
+                  {sending ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.btnPrimaryText}>Enviar {leilaoSelectedIds.length} convite(s)</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1237,6 +1689,82 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '700' },
+  headerLeilaoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    minWidth: 44,
+    justifyContent: 'center',
+  },
+  leilaoHintBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  leilaoHintText: { flex: 1, fontSize: 13, lineHeight: 19 },
+  leilaoBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  leilaoBarText: { fontSize: 15, fontWeight: '700' },
+  leilaoBarBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
+  leilaoBarBtnText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  leilaoArtistsScroll: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    paddingVertical: 4,
+    paddingBottom: 12,
+    justifyContent: 'flex-start',
+  },
+  leilaoArtistCard: {
+    width: '31%',
+    minWidth: 100,
+    maxWidth: 120,
+    flexGrow: 1,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingTop: 28,
+    paddingBottom: 10,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  leilaoArtistRemove: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    zIndex: 2,
+    borderRadius: 14,
+  },
+  leilaoArtistAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  leilaoArtistNameRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 4,
+    marginTop: 8,
+    width: '100%',
+    justifyContent: 'center',
+  },
+  leilaoArtistName: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 17,
+  },
   resultsList: { flex: 1 },
   resultsListContent: { paddingHorizontal: 16, paddingBottom: 24, flexGrow: 1 },
   cardSeparator: { height: 10 },
@@ -1289,6 +1817,16 @@ const styles = StyleSheet.create({
   inviteBannerName: { fontSize: 17, fontWeight: '700', marginTop: 2 },
   formPanelTitle: { fontSize: 16, fontWeight: '800', marginBottom: 6 },
   inviteFuncLabel: { fontSize: 14, fontWeight: '700', marginTop: 4, marginBottom: 2 },
+  inviteNovaRodadaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'flex-start',
+    marginTop: 10,
+    marginBottom: 4,
+    paddingVertical: 6,
+  },
+  inviteNovaRodadaText: { fontSize: 14, fontWeight: '600', flexShrink: 1 },
   inviteFuncPresetRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -10,7 +10,7 @@
 --
 -- Pré-requisitos:
 -- - Tabela convite_participacao_evento já criada (CONVITE_PARTICIPACAO_EVENTO.sql)
--- - Coluna funcao_participacao já criada
+-- - Colunas funcao_participacao e grupo_disputa_id (NOT NULL; ver seção 0)
 -- - Tabela notifications com colunas: to_user_id, from_user_id, artist_id, title, message, type, read, created_at
 -- - Tabela events com colunas: created_by, updated_by, ativo, update_ativo, convite_participacao_id
 
@@ -23,6 +23,26 @@ ALTER TABLE convite_participacao_evento
 
 ALTER TABLE convite_participacao_evento
   ADD COLUMN IF NOT EXISTS motivo_cancelamento TEXT;
+
+ALTER TABLE convite_participacao_evento
+  ADD COLUMN IF NOT EXISTS grupo_disputa_id UUID;
+
+UPDATE convite_participacao_evento
+SET grupo_disputa_id = gen_random_uuid()
+WHERE grupo_disputa_id IS NULL;
+
+ALTER TABLE convite_participacao_evento
+  ALTER COLUMN grupo_disputa_id SET NOT NULL;
+
+ALTER TABLE convite_participacao_evento
+  ALTER COLUMN grupo_disputa_id SET DEFAULT gen_random_uuid();
+
+CREATE INDEX IF NOT EXISTS idx_convite_part_grupo_pendente
+  ON convite_participacao_evento (grupo_disputa_id)
+  WHERE status = 'pendente';
+
+COMMENT ON COLUMN convite_participacao_evento.grupo_disputa_id IS
+  'Convites com o mesmo UUID disputam uma vaga (leilão). Ao aceitar um, pendentes do grupo são cancelados.';
 
 -- Garante suporte ao tipo de notificação de participação no enum da tabela notifications.
 DO $$
@@ -113,13 +133,19 @@ $$;
 -- 1) Enviar convite
 -- =====================================================
 
+DROP FUNCTION IF EXISTS public.rpc_app_enviar_convite_participacao_evento(UUID, UUID, NUMERIC, TEXT, TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.rpc_app_enviar_convites_participacao_evento_lote(UUID, uuid[], NUMERIC, TEXT, TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.rpc_enviar_convites_participacao_evento_lote(UUID, uuid[], NUMERIC, TEXT, TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.rpc_enviar_convite_participacao_evento(UUID, UUID, NUMERIC, TEXT, TEXT, TEXT);
+
 CREATE OR REPLACE FUNCTION public.rpc_enviar_convite_participacao_evento(
   p_evento_origem_id UUID,
   p_artista_convidado_id UUID,
   p_cache_valor NUMERIC,
   p_telefone_contratante TEXT DEFAULT NULL,
   p_funcao_participacao TEXT DEFAULT NULL,
-  p_mensagem TEXT DEFAULT NULL
+  p_mensagem TEXT DEFAULT NULL,
+  p_grupo_disputa_id UUID DEFAULT NULL
 )
 RETURNS TABLE (
   success BOOLEAN,
@@ -187,7 +213,8 @@ BEGIN
       telefone_contratante,
       descricao,
       funcao_participacao,
-      usuario_que_enviou_id
+      usuario_que_enviou_id,
+      grupo_disputa_id
     )
     VALUES (
       v_event.id,
@@ -204,7 +231,8 @@ BEGIN
       NULLIF(TRIM(p_telefone_contratante), ''),
       v_event.description,
       TRIM(p_funcao_participacao),
-      v_uid
+      v_uid,
+      COALESCE(p_grupo_disputa_id, gen_random_uuid())
     )
     RETURNING id INTO convite_id;
 
@@ -218,10 +246,137 @@ BEGIN
 END;
 $$;
 
+-- 1b) Leilão: vários convites numa transação, mesmo grupo_disputa_id (primeiro que aceitar cancela os demais do grupo).
+CREATE OR REPLACE FUNCTION public.rpc_enviar_convites_participacao_evento_lote(
+  p_evento_origem_id UUID,
+  p_artista_convidado_ids UUID[],
+  p_cache_valor NUMERIC,
+  p_telefone_contratante TEXT DEFAULT NULL,
+  p_funcao_participacao TEXT DEFAULT NULL,
+  p_mensagem TEXT DEFAULT NULL
+)
+RETURNS TABLE (
+  artista_convidado_id UUID,
+  success BOOLEAN,
+  error TEXT,
+  convite_id UUID
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_uid UUID := auth.uid();
+  v_event events%ROWTYPE;
+  v_grupo UUID := gen_random_uuid();
+  v_aid UUID;
+  v_new_id UUID;
+  v_n INT;
+BEGIN
+  IF v_uid IS NULL THEN
+    RETURN QUERY SELECT NULL::UUID, false, 'Usuário não autenticado.', NULL::UUID;
+    RETURN;
+  END IF;
+
+  IF p_artista_convidado_ids IS NULL OR cardinality(p_artista_convidado_ids) = 0 THEN
+    RETURN QUERY SELECT NULL::UUID, false, 'Selecione pelo menos um artista.', NULL::UUID;
+    RETURN;
+  END IF;
+
+  SELECT COUNT(DISTINCT x) INTO v_n FROM unnest(p_artista_convidado_ids) AS x;
+  IF v_n > 40 THEN
+    RETURN QUERY SELECT NULL::UUID, false, 'No máximo 40 artistas por leilão.', NULL::UUID;
+    RETURN;
+  END IF;
+
+  IF p_cache_valor IS NULL OR p_cache_valor <= 0 THEN
+    RETURN QUERY SELECT NULL::UUID, false, 'Cachê é obrigatório e deve ser maior que zero.', NULL::UUID;
+    RETURN;
+  END IF;
+
+  IF NULLIF(TRIM(p_funcao_participacao), '') IS NULL THEN
+    RETURN QUERY SELECT NULL::UUID, false, 'Função do participante é obrigatória.', NULL::UUID;
+    RETURN;
+  END IF;
+
+  SELECT * INTO v_event
+  FROM events e
+  WHERE e.id = p_evento_origem_id
+    AND COALESCE(e.ativo, true) = true
+  LIMIT 1;
+
+  IF v_event.id IS NULL THEN
+    RETURN QUERY SELECT NULL::UUID, false, 'Evento de origem não encontrado.', NULL::UUID;
+    RETURN;
+  END IF;
+
+  IF NOT public._is_member_of_artist(v_uid, v_event.artist_id, ARRAY['editor', 'admin', 'owner']) THEN
+    RETURN QUERY SELECT NULL::UUID, false, 'Sem permissão para convidar neste evento.', NULL::UUID;
+    RETURN;
+  END IF;
+
+  FOR v_aid IN SELECT DISTINCT unnest(p_artista_convidado_ids)
+  LOOP
+    IF v_aid = v_event.artist_id THEN
+      RETURN QUERY SELECT v_aid, false, 'Não é possível convidar o próprio artista do evento.', NULL::UUID;
+      CONTINUE;
+    END IF;
+
+    BEGIN
+      INSERT INTO convite_participacao_evento (
+        evento_origem_id,
+        artista_que_convidou_id,
+        artista_convidado_id,
+        status,
+        mensagem,
+        nome_evento,
+        data_evento,
+        hora_inicio,
+        hora_fim,
+        cache_valor,
+        cidade,
+        telefone_contratante,
+        descricao,
+        funcao_participacao,
+        usuario_que_enviou_id,
+        grupo_disputa_id
+      )
+      VALUES (
+        v_event.id,
+        v_event.artist_id,
+        v_aid,
+        'pendente',
+        NULLIF(TRIM(p_mensagem), ''),
+        v_event.name,
+        v_event.event_date,
+        v_event.start_time,
+        v_event.end_time,
+        p_cache_valor,
+        v_event.city,
+        NULLIF(TRIM(p_telefone_contratante), ''),
+        v_event.description,
+        TRIM(p_funcao_participacao),
+        v_uid,
+        v_grupo
+      )
+      RETURNING id INTO v_new_id;
+
+      RETURN QUERY SELECT v_aid, true, NULL::TEXT, v_new_id;
+    EXCEPTION
+      WHEN unique_violation THEN
+        RETURN QUERY SELECT v_aid, false, 'Já existe convite pendente para este artista neste evento.', NULL::UUID;
+      WHEN OTHERS THEN
+        RETURN QUERY SELECT v_aid, false, SQLERRM, NULL::UUID;
+    END;
+  END LOOP;
+END;
+$$;
+
 -- =====================================================
 -- 2) Aceitar convite
 --    - Cria evento na agenda do convidado
 --    - Cria despesa no evento origem (Nome do convidado - Função)
+--    - Cancela outros pendentes do mesmo grupo_disputa_id (leilão)
 -- =====================================================
 
 CREATE OR REPLACE FUNCTION public.rpc_aceitar_convite_participacao_evento(
@@ -283,6 +438,24 @@ BEGIN
                     COALESCE(NULLIF(TRIM(v_convite.funcao_participacao), ''), 'Participação');
 
   BEGIN
+    -- Trava convites pendentes do mesmo grupo (ORDER BY id evita deadlock).
+    PERFORM 1
+    FROM convite_participacao_evento c
+    WHERE c.grupo_disputa_id = v_convite.grupo_disputa_id
+      AND c.status = 'pendente'
+    ORDER BY c.id
+    FOR UPDATE;
+
+    SELECT * INTO v_convite
+    FROM convite_participacao_evento c
+    WHERE c.id = p_convite_id
+    FOR UPDATE;
+
+    IF v_convite.status <> 'pendente' THEN
+      RETURN QUERY SELECT false, 'Este convite não está mais pendente.', NULL::UUID, NULL::UUID;
+      RETURN;
+    END IF;
+
     -- 1) Criar evento no artista convidado
     INSERT INTO events (
       artist_id,
@@ -351,6 +524,17 @@ BEGIN
       atualizado_em = NOW()
     WHERE id = v_convite.id
       AND status = 'pendente';
+
+    -- 3b) Leilão: cancela demais pendentes do mesmo grupo_disputa_id.
+    UPDATE convite_participacao_evento c
+    SET
+      status = 'cancelado',
+      respondido_em = NOW(),
+      atualizado_em = NOW(),
+      motivo_cancelamento = 'Outro artista aceitou primeiro nesta mesma rodada de convites (leilão).'
+    WHERE c.grupo_disputa_id = v_convite.grupo_disputa_id
+      AND c.status = 'pendente'
+      AND c.id <> v_convite.id;
 
     RETURN QUERY SELECT true, NULL::TEXT, evento_id, despesa_id;
   EXCEPTION
@@ -731,7 +915,8 @@ $$;
 -- Permissões de execução
 -- =====================================================
 
-GRANT EXECUTE ON FUNCTION public.rpc_enviar_convite_participacao_evento(UUID, UUID, NUMERIC, TEXT, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_enviar_convite_participacao_evento(UUID, UUID, NUMERIC, TEXT, TEXT, TEXT, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_enviar_convites_participacao_evento_lote(UUID, uuid[], NUMERIC, TEXT, TEXT, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_aceitar_convite_participacao_evento(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_recusar_convite_participacao_evento(UUID, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_cancelar_convite_pendente_participacao_evento(UUID) TO authenticated;
@@ -751,7 +936,8 @@ CREATE OR REPLACE FUNCTION public.rpc_app_enviar_convite_participacao_evento(
   p_cache_valor NUMERIC,
   p_telefone_contratante TEXT DEFAULT NULL,
   p_funcao_participacao TEXT DEFAULT NULL,
-  p_mensagem TEXT DEFAULT NULL
+  p_mensagem TEXT DEFAULT NULL,
+  p_grupo_disputa_id UUID DEFAULT NULL
 )
 RETURNS TABLE (
   success BOOLEAN,
@@ -766,6 +952,36 @@ AS $$
   FROM public.rpc_enviar_convite_participacao_evento(
     p_evento_origem_id => p_evento_origem_id,
     p_artista_convidado_id => p_artista_convidado_id,
+    p_cache_valor => p_cache_valor,
+    p_telefone_contratante => p_telefone_contratante,
+    p_funcao_participacao => p_funcao_participacao,
+    p_mensagem => p_mensagem,
+    p_grupo_disputa_id => p_grupo_disputa_id
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.rpc_app_enviar_convites_participacao_evento_lote(
+  p_evento_origem_id UUID,
+  p_artista_convidado_ids UUID[],
+  p_cache_valor NUMERIC,
+  p_telefone_contratante TEXT DEFAULT NULL,
+  p_funcao_participacao TEXT DEFAULT NULL,
+  p_mensagem TEXT DEFAULT NULL
+)
+RETURNS TABLE (
+  artista_convidado_id UUID,
+  success BOOLEAN,
+  error TEXT,
+  convite_id UUID
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT *
+  FROM public.rpc_enviar_convites_participacao_evento_lote(
+    p_evento_origem_id => p_evento_origem_id,
+    p_artista_convidado_ids => p_artista_convidado_ids,
     p_cache_valor => p_cache_valor,
     p_telefone_contratante => p_telefone_contratante,
     p_funcao_participacao => p_funcao_participacao,
@@ -953,7 +1169,8 @@ AS $$
   );
 $$;
 
-GRANT EXECUTE ON FUNCTION public.rpc_app_enviar_convite_participacao_evento(UUID, UUID, NUMERIC, TEXT, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_app_enviar_convite_participacao_evento(UUID, UUID, NUMERIC, TEXT, TEXT, TEXT, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_app_enviar_convites_participacao_evento_lote(UUID, uuid[], NUMERIC, TEXT, TEXT, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_app_notificar_convite_participacao_evento(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_app_aceitar_convite_participacao_evento(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_app_recusar_convite_participacao_evento(UUID, TEXT) TO authenticated;

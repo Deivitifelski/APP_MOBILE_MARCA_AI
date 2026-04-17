@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS convite_participacao_evento (
   telefone_contratante TEXT,
   descricao TEXT,
   funcao_participacao TEXT,
+  grupo_disputa_id UUID NOT NULL DEFAULT gen_random_uuid(),
   evento_criado_convidado_id UUID REFERENCES events(id) ON DELETE SET NULL,
   usuario_que_enviou_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE SET NULL,
   respondido_em TIMESTAMPTZ,
@@ -45,6 +46,23 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_convite_part_um_pendente
 
 ALTER TABLE convite_participacao_evento
   ADD COLUMN IF NOT EXISTS funcao_participacao TEXT;
+
+ALTER TABLE convite_participacao_evento
+  ADD COLUMN IF NOT EXISTS grupo_disputa_id UUID;
+
+UPDATE convite_participacao_evento
+SET grupo_disputa_id = gen_random_uuid()
+WHERE grupo_disputa_id IS NULL;
+
+ALTER TABLE convite_participacao_evento
+  ALTER COLUMN grupo_disputa_id SET NOT NULL;
+
+ALTER TABLE convite_participacao_evento
+  ALTER COLUMN grupo_disputa_id SET DEFAULT gen_random_uuid();
+
+CREATE INDEX IF NOT EXISTS idx_convite_part_grupo_pendente
+  ON convite_participacao_evento (grupo_disputa_id)
+  WHERE status = 'pendente';
 
 COMMENT ON TABLE convite_participacao_evento IS 'Convite para outro artista participar; ao aceitar, evento_criado_convidado_id aponta para events do convidado.';
 

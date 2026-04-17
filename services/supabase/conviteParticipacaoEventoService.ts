@@ -19,6 +19,7 @@ export interface ConviteParticipacaoEventoRow {
   telefone_contratante: string | null;
   descricao: string | null;
   funcao_participacao: string | null;
+  grupo_disputa_id?: string | null;
   evento_criado_convidado_id: string | null;
   usuario_que_enviou_id: string;
   respondido_em: string | null;
@@ -203,7 +204,33 @@ export interface EnviarConviteParticipacaoInput {
   cidade?: string | null;
   telefoneContratante?: string | null;
   descricao?: string | null;
+  /** Mesmo UUID em vários envios = mesma rodada de leilão. */
+  grupoDisputaId?: string | null;
 }
+
+export interface EnviarConvitesLeilaoInput {
+  eventoOrigemId: string;
+  artistaQueConvidaId: string;
+  usuarioQueEnviaId: string;
+  artistaConvidadoIds: string[];
+  funcaoParticipacao: string;
+  mensagem?: string | null;
+  nomeEvento: string;
+  dataEvento: string;
+  horaInicio: string;
+  horaFim: string;
+  cacheValor: number;
+  cidade?: string | null;
+  telefoneContratante?: string | null;
+  descricao?: string | null;
+}
+
+export type ResultadoLinhaLeilao = {
+  artistaConvidadoId: string;
+  success: boolean;
+  error: string | null;
+  conviteId?: string;
+};
 
 type RpcSimpleResult = {
   success: boolean;
@@ -236,6 +263,7 @@ export async function enviarConviteParticipacao(
       p_telefone_contratante: input.telefoneContratante?.trim() || null,
       p_funcao_participacao: input.funcaoParticipacao.trim(),
       p_mensagem: input.mensagem?.trim() || null,
+      p_grupo_disputa_id: input.grupoDisputaId?.trim() || null,
     });
 
     if (error) return { success: false, error: error.message };
@@ -244,33 +272,21 @@ export async function enviarConviteParticipacao(
     if (!row) return { success: false, error: 'Resposta inválida ao enviar convite.' };
     if (!row.success) return { success: false, error: row.error || 'Não foi possível enviar o convite.' };
 
-    // Mantém notificação + push no app para atualizar badge em tempo real.
-    void notificarConvidadoPrincipal(input).catch((err) =>
-      console.warn('[convite participação] Erro ao notificar convidado principal (convite já salvo):', err)
-    );
+    const conviteId = row.convite_id ?? undefined;
+    if (conviteId) {
+      void dispararNotificacaoPushConviteParticipacao(conviteId).catch((err) =>
+        console.warn('[convite participação] Erro ao notificar convidado principal (convite já salvo):', err)
+      );
+    }
 
-    return { success: true, error: null, conviteId: row.convite_id ?? undefined };
+    return { success: true, error: null, conviteId };
   } catch {
     return { success: false, error: 'Erro de conexão' };
   }
 }
 
-/**
- * Notifica apenas o destinatário principal do artista convidado (não toda a equipe).
- * Prioridade de seleção: admin -> editor -> viewer.
- */
-async function notificarConvidadoPrincipal(input: EnviarConviteParticipacaoInput): Promise<void> {
-  const { data: lastInviteRows } = await supabase
-    .from('convite_participacao_evento')
-    .select('id')
-    .eq('evento_origem_id', input.eventoOrigemId)
-    .eq('artista_convidado_id', input.artistaConvidadoId)
-    .order('criado_em', { ascending: false })
-    .limit(1);
-
-  const conviteId = lastInviteRows?.[0]?.id;
-  if (!conviteId) return;
-
+/** Notificação in-app + push FCM para um convite já persistido. */
+async function dispararNotificacaoPushConviteParticipacao(conviteId: string): Promise<void> {
   const { data: notifyData, error: notifyErr } = await supabase.rpc('rpc_app_notificar_convite_participacao_evento', {
     p_convite_id: conviteId,
   });
@@ -346,6 +362,83 @@ async function notificarConvidadoPrincipal(input: EnviarConviteParticipacaoInput
     if (legacyPushErr) {
       console.warn('[convite participação] Falha no push do convidado principal:', legacyPushErr.message);
     }
+  }
+}
+
+/**
+ * Leilão: um RPC cria vários convites com o mesmo grupo_disputa_id (quem aceitar primeiro cancela os demais).
+ */
+export async function enviarConvitesParticipacaoLeilaoLote(
+  input: EnviarConvitesLeilaoInput
+): Promise<{ ok: boolean; error: string | null; resultados: ResultadoLinhaLeilao[] }> {
+  try {
+    const ids = [...new Set(input.artistaConvidadoIds.map((x) => x?.trim()).filter(Boolean))] as string[];
+    if (ids.length === 0) {
+      return { ok: false, error: 'Selecione pelo menos um artista.', resultados: [] };
+    }
+    if (input.cacheValor == null || Number(input.cacheValor) <= 0) {
+      return { ok: false, error: 'Informe o cachê do convite (obrigatório).', resultados: [] };
+    }
+    if (!input.funcaoParticipacao?.trim()) {
+      return { ok: false, error: 'Informe a função do participante (obrigatório).', resultados: [] };
+    }
+    const filtered = ids.filter((id) => id !== input.artistaQueConvidaId);
+    if (filtered.length === 0) {
+      return { ok: false, error: 'Nenhum artista válido para convidar.', resultados: [] };
+    }
+
+    const { data, error } = await supabase.rpc('rpc_app_enviar_convites_participacao_evento_lote', {
+      p_evento_origem_id: input.eventoOrigemId,
+      p_artista_convidado_ids: filtered,
+      p_cache_valor: Number(input.cacheValor),
+      p_telefone_contratante: input.telefoneContratante?.trim() || null,
+      p_funcao_participacao: input.funcaoParticipacao.trim(),
+      p_mensagem: input.mensagem?.trim() || null,
+    });
+
+    if (error) return { ok: false, error: error.message, resultados: [] };
+
+    const rows = (Array.isArray(data) ? data : data ? [data] : []) as {
+      artista_convidado_id: string | null;
+      success: boolean;
+      error: string | null;
+      convite_id: string | null;
+    }[];
+
+    if (rows.length === 0) {
+      return { ok: false, error: 'Resposta vazia do servidor.', resultados: [] };
+    }
+
+    const batchRow = rows.find((r) => r.artista_convidado_id == null);
+    if (batchRow && batchRow.success === false && batchRow.error) {
+      return { ok: false, error: batchRow.error, resultados: [] };
+    }
+
+    const resultados: ResultadoLinhaLeilao[] = rows
+      .filter((r) => r.artista_convidado_id != null)
+      .map((r) => ({
+        artistaConvidadoId: String(r.artista_convidado_id),
+        success: r.success === true,
+        error: r.error ?? null,
+        conviteId: r.convite_id != null ? String(r.convite_id) : undefined,
+      }));
+
+    const okCount = resultados.filter((r) => r.success).length;
+    for (const r of resultados) {
+      if (r.success && r.conviteId) {
+        void dispararNotificacaoPushConviteParticipacao(r.conviteId).catch((err) =>
+          console.warn('[convite participação leilão] Falha push para', r.artistaConvidadoId, err)
+        );
+      }
+    }
+
+    return {
+      ok: okCount > 0,
+      error: okCount === 0 ? 'Nenhum convite foi enviado.' : null,
+      resultados,
+    };
+  } catch {
+    return { ok: false, error: 'Erro de conexão', resultados: [] };
   }
 }
 
