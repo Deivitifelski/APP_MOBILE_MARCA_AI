@@ -98,6 +98,42 @@ function emptyYearSummaries(): YearMonthSummary[] {
   }));
 }
 
+const WEEKDAY_SHORT_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] as const;
+
+/** Uma linha por evento: 08/05 (Sex) – Nome • Cidade; anexa cachê só se `includeValueWhenPresent` for true. */
+function formatAgendaExportTextLine(
+  event: { name: string; event_date: string; city?: string | null; value?: number | null },
+  formatCurrency: (value: number) => string,
+  includeValueWhenPresent: boolean,
+): string {
+  const dateStr = event.event_date;
+  if (!dateStr || typeof dateStr !== 'string') {
+    return event.name;
+  }
+  const parts = dateStr.split('-').map(Number);
+  if (parts.length < 3 || parts.some((n) => !Number.isFinite(n))) {
+    return event.name;
+  }
+  const [y, month, day] = parts;
+  const date = new Date(y, month - 1, day);
+  const dd = String(day).padStart(2, '0');
+  const mm = String(month).padStart(2, '0');
+  const dow = WEEKDAY_SHORT_PT[date.getDay()];
+  const cityTrim = event.city?.trim();
+  const title = cityTrim ? `${event.name} • ${cityTrim}` : event.name;
+  let line = `${dd}/${mm} (${dow}) – ${title}`;
+  const v = event.value;
+  if (
+    includeValueWhenPresent &&
+    typeof v === 'number' &&
+    Number.isFinite(v) &&
+    v > 0
+  ) {
+    line += ` — ${formatCurrency(v)}`;
+  }
+  return line;
+}
+
 export default function FinanceiroScreen() {
   const { colors, isDarkMode } = useTheme();
   const receitaAzul = isDarkMode ? '#60a5fa' : '#2563eb';
@@ -729,14 +765,6 @@ export default function FinanceiroScreen() {
 
     setShowExportModal(false);
 
-    // Obter dia da semana
-    const getDayOfWeek = (dateString: string) => {
-      const [year, month, day] = dateString.split('-').map(Number);
-      const date = new Date(year, month - 1, day);
-      const daysOfWeek = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
-      return daysOfWeek[date.getDay()];
-    };
-
     const formatCurrency = (value: number) => {
       return value.toLocaleString('pt-BR', {
         style: 'currency',
@@ -756,158 +784,31 @@ export default function FinanceiroScreen() {
         return;
       }
 
-      let yearText = `📊 RELATÓRIO FINANCEIRO — ANO ${annualSummaryYear}\n`;
-      yearText += `${activeArtist.name.toUpperCase()}\n`;
-      yearText += `Gerado: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}\n`;
-      yearText += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-
-      let yRev = 0;
-      let yExp = 0;
-      for (const block of blocks) {
-        for (const ev of block.events) {
-          yRev += ev.value || 0;
-          yExp += ev.totalExpenses;
-        }
-        yRev += block.standaloneIncome.reduce((s, i) => s + Math.abs(i.value), 0);
-        yExp += block.standaloneExpenses.reduce((s, e) => s + e.value, 0);
-      }
+      let yearText = '';
 
       for (const block of blocks) {
-        const mName = months[block.monthIndex];
-        yearText += `▶ ${mName} ${annualSummaryYear}\n`;
         const has =
           block.events.length > 0 ||
           block.standaloneIncome.length > 0 ||
           block.standaloneExpenses.length > 0;
-        if (!has) {
-          yearText += `   (sem movimentação)\n\n`;
-          continue;
-        }
+        if (!has) continue;
 
-        if (includeFinancials) {
-          block.events.forEach((event, index) => {
-            yearText += `   ${index + 1}. ${event.name} — ${formatDate(event.event_date)}\n`;
-            if (event.city) yearText += `      Local: ${event.city}\n`;
-            yearText += `      Receita: ${formatCurrency(event.value || 0)}\n`;
-            yearText += `      Despesas: ${formatCurrency(event.totalExpenses)}\n`;
-            yearText += `      Líquido: ${formatCurrency((event.value || 0) - event.totalExpenses)}\n`;
-          });
-          if (block.standaloneIncome.length > 0) {
-            yearText += `   💵 Receitas avulsas:\n`;
-            block.standaloneIncome.forEach((inc) => {
-              yearText += `      • ${inc.description} — ${formatCurrency(Math.abs(inc.value))} (${formatDate(inc.date)})\n`;
-            });
-          }
-          if (block.standaloneExpenses.length > 0) {
-            yearText += `   💸 Despesas avulsas:\n`;
-            block.standaloneExpenses.forEach((ex) => {
-              yearText += `      • ${ex.description} — ${formatCurrency(ex.value)} (${formatDate(ex.date)})\n`;
-            });
-          }
-        } else {
-          block.events.forEach((event, index) => {
-            yearText += `   ${index + 1}. ${event.name}\n`;
-            yearText += `      ${getDayOfWeek(event.event_date)}, ${formatDate(event.event_date)}\n`;
-            if (event.city) yearText += `      📍 ${event.city}\n`;
-          });
-        }
-        yearText += `\n`;
+        const sorted = [...block.events].sort((a, b) => a.event_date.localeCompare(b.event_date));
+        sorted.forEach((event) => {
+          yearText += `${formatAgendaExportTextLine(event, formatCurrency, includeFinancials)}\n`;
+        });
       }
-
-      if (includeFinancials) {
-        yearText += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-        yearText += `💰 RESUMO DO ANO ${annualSummaryYear}\n`;
-        yearText += `Receitas totais: ${formatCurrency(yRev)}\n`;
-        yearText += `Despesas totais: ${formatCurrency(yExp)}\n`;
-        yearText += `Lucro líquido: ${formatCurrency(yRev - yExp)}\n`;
-      }
-
-      yearText += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-      yearText += `Marca AI - Gestão de Shows\n`;
-      yearText += includeFinancials ? `Relatório anual completo` : `Relatório anual sem valores`;
 
       Clipboard.setString(yearText);
       Alert.alert('✅ Copiado!', 'Relatório anual copiado para a área de transferência. Cole em qualquer aplicativo de mensagem.');
       return;
     }
 
-    let text = `📊 RELATÓRIO FINANCEIRO\n`;
-    text += `${activeArtist.name.toUpperCase()}\n`;
-    text += `${months[currentMonth]}/${currentYear}\n`;
-    text += `Gerado: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}\n`;
-    text += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-
-    if (includeFinancials) {
-      text += `💰 RESUMO FINANCEIRO\n`;
-      text += `Receita Total: ${formatCurrency(totalRevenueWithIncome)}\n`;
-      text += `  • Eventos: ${formatCurrency(totalRevenue)}\n`;
-      text += `  • Receitas Avulsas: ${formatCurrency(standaloneIncomeTotal)}\n`;
-      text += `Despesas Totais: ${formatCurrency(totalExpenses)}\n`;
-      text += `  • Eventos: ${formatCurrency(eventsExpenses)}\n`;
-      text += `  • Despesas Avulsas: ${formatCurrency(standaloneExpensesTotal)}\n`;
-      text += `Lucro Líquido: ${formatCurrency(netProfit)}\n`;
-      text += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-
-      text += `📋 DETALHAMENTO DOS EVENTOS\n\n`;
-      events.forEach((event, index) => {
-        text += `${index + 1}. ${event.name}\n`;
-        text += `   Data: ${formatDate(event.event_date)}\n`;
-        if (event.city) text += `   Local: ${event.city}\n`;
-        text += `   Receita: ${formatCurrency(event.value || 0)}\n`;
-        text += `   Despesas: ${formatCurrency(event.totalExpenses)}\n`;
-        text += `   Lucro: ${formatCurrency((event.value || 0) - event.totalExpenses)}\n`;
-        if (index < events.length - 1) text += `   ───────────────────────\n`;
-      });
-
-      // Adicionar receitas avulsas
-      if (standaloneIncome.length > 0) {
-        text += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-        text += `💵 RECEITAS AVULSAS (${standaloneIncome.length})\n\n`;
-        standaloneIncome.forEach((income, index) => {
-          text += `${index + 1}. ${income.description}\n`;
-          text += `   Data: ${formatDate(income.date)}\n`;
-          text += `   Categoria: ${income.category === 'show' ? 'Show/Apresentação' :
-                     income.category === 'cache_extra' ? 'Cachê Extra' :
-                     income.category === 'streaming' ? 'Streaming' :
-                     income.category === 'direitos' ? 'Direitos Autorais' :
-                     income.category === 'patrocinio' ? 'Patrocínio' : 'Outros'}\n`;
-          text += `   Valor: ${formatCurrency(Math.abs(income.value))}\n`;
-          if (income.notes) text += `   Obs: ${income.notes}\n`;
-          if (index < standaloneIncome.length - 1) text += `   ───────────────────────\n`;
-        });
-      }
-
-      // Adicionar despesas avulsas
-      if (standaloneExpensesOnly.length > 0) {
-        text += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-        text += `💸 DESPESAS AVULSAS (${standaloneExpensesOnly.length})\n\n`;
-        standaloneExpensesOnly.forEach((expense, index) => {
-          text += `${index + 1}. ${expense.description}\n`;
-          text += `   Data: ${formatDate(expense.date)}\n`;
-          text += `   Categoria: ${expense.category === 'equipamento' ? 'Equipamento' :
-                     expense.category === 'manutencao' ? 'Manutenção' :
-                     expense.category === 'transporte' ? 'Transporte' :
-                     expense.category === 'software' ? 'Software/Assinaturas' :
-                     expense.category === 'marketing' ? 'Marketing' : 'Outros'}\n`;
-          text += `   Valor: ${formatCurrency(expense.value)}\n`;
-          if (expense.notes) text += `   Obs: ${expense.notes}\n`;
-          if (index < standaloneExpensesOnly.length - 1) text += `   ───────────────────────\n`;
-        });
-      }
-    } else {
-      // Sem valores financeiros - apenas lista de eventos
-      text += `📅 EVENTOS DO MÊS (${events.length})\n\n`;
-      events.forEach((event, index) => {
-        text += `${index + 1}. ${event.name}\n`;
-        text += `   ${getDayOfWeek(event.event_date)}, ${formatDate(event.event_date)}\n`;
-        if (event.city) text += `   📍 ${event.city}\n`;
-        if (index < events.length - 1) text += `   ───────────────────────\n`;
-      });
-    }
-
-    text += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-    text += `Marca AI - Gestão de Shows\n`;
-    text += includeFinancials ? `Relatório Completo` : `Relatório Sem Valores`;
+    let text = '';
+    const sorted = [...events].sort((a, b) => a.event_date.localeCompare(b.event_date));
+    sorted.forEach((event) => {
+      text += `${formatAgendaExportTextLine(event, formatCurrency, includeFinancials)}\n`;
+    });
 
     Clipboard.setString(text);
     Alert.alert('✅ Copiado!', 'Relatório copiado para a área de transferência. Cole em qualquer aplicativo de mensagem.');
