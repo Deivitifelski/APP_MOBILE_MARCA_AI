@@ -60,6 +60,13 @@ const RECENT_PARTNER_FILTER_NO_ROLE = '__no_role__';
 
 type LeilaoArtistMeta = { name: string; imageUrl: string };
 
+const normalizeRole = (v: string | null | undefined) =>
+  String(v || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+
 export default function ConvidarColaboradorEventoScreen() {
   const { colors } = useTheme();
   const { activeArtist } = useActiveArtist();
@@ -214,6 +221,12 @@ export default function ConvidarColaboradorEventoScreen() {
   useEffect(() => {
     if (!canInvite || !eventData?.artist_id) return;
     const t = setTimeout(async () => {
+      if (leilaoMode && !functionDraft.trim()) {
+        setSearchResults([]);
+        setSearchError(null);
+        setSearchLoading(false);
+        return;
+      }
       setSearchLoading(true);
       setSearchError(null);
       const { artists, error } = await buscarArtistasParaConvite(search, eventData.artist_id, {
@@ -227,7 +240,14 @@ export default function ConvidarColaboradorEventoScreen() {
       setSearchLoading(false);
     }, 350);
     return () => clearTimeout(t);
-  }, [search, filterCity, filterState, filterRole, canInvite, eventData?.artist_id, blockedArtists]);
+  }, [search, filterCity, filterState, filterRole, canInvite, eventData?.artist_id, blockedArtists, leilaoMode, functionDraft]);
+
+  useEffect(() => {
+    if (!leilaoMode) return;
+    const fn = functionDraft.trim();
+    if (!fn) return;
+    if (filterRole !== fn) setFilterRole(fn);
+  }, [leilaoMode, functionDraft, filterRole]);
 
   useEffect(() => {
     let cancelled = false;
@@ -437,6 +457,12 @@ export default function ConvidarColaboradorEventoScreen() {
     const rolesFromRpc = parseArtistStringArrayFromJson(item.work_roles);
     const formatsFromRpc = parseArtistStringArrayFromJson(item.show_formats);
     const roles = rolesFromRpc.length > 0 ? rolesFromRpc : artistWorkRoles[item.id] || [];
+    const selectedFunctionNormalized = normalizeRole(functionDraft);
+    const artistMatchesLeilaoFunction =
+      selectedFunctionNormalized.length > 0 &&
+      roles.some((r) => normalizeRole(r) === selectedFunctionNormalized);
+    const requiresFunctionForLeilao = leilaoMode && selectedFunctionNormalized.length === 0;
+    const blockedByFunction = leilaoMode && selectedFunctionNormalized.length > 0 && !artistMatchesLeilaoFunction;
     const formats = formatsFromRpc.length > 0 ? formatsFromRpc : artistShowFormats[item.id] || [];
     const whatsShown = item.show_whatsapp === true ? whatsAppDisplay(item.whatsapp) : null;
     const locDisplay = artistLocation.trim() || 'Local não informado';
@@ -452,6 +478,14 @@ export default function ConvidarColaboradorEventoScreen() {
         onPress={() => {
           Keyboard.dismiss();
           if (leilaoMode) {
+            if (requiresFunctionForLeilao) {
+              Alert.alert('Função obrigatória', 'No leilão, selecione a função antes de escolher os artistas.');
+              return;
+            }
+            if (blockedByFunction) {
+              Alert.alert('Função incompatível', `Este artista não está marcado com a função "${functionDraft.trim()}".`);
+              return;
+            }
             if (blockedArtists.has(item.id)) {
               Alert.alert(
                 'Já neste evento',
@@ -592,6 +626,13 @@ export default function ConvidarColaboradorEventoScreen() {
             )}
 
             <View style={[styles.cardBlockFooter, { borderTopColor: colors.border }]}>
+              {blockedByFunction ? (
+                <View style={[styles.recentBadge, { backgroundColor: `${colors.warning}22`, marginBottom: 6 }]}>
+                  <Text style={[styles.recentBadgeText, { color: colors.warning }]}>
+                    Não corresponde à função do leilão
+                  </Text>
+                </View>
+              ) : null}
               <View style={styles.locationRow}>
                 <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
                 <Text style={[styles.locationText, { color: colors.textSecondary }]}>{locDisplay}</Text>
@@ -609,6 +650,11 @@ export default function ConvidarColaboradorEventoScreen() {
     const locDisplay = locationLine(p, 'Local não informado');
     const artistStyle = (p.musical_style || '').trim();
     const dataShowLabel = formatDataShowCompact(p.participacao_data_evento);
+    const selectedFunctionNormalized = normalizeRole(functionDraft);
+    const recentRoleNormalized = normalizeRole(p.ultima_funcao);
+    const requiresFunctionForLeilao = leilaoMode && selectedFunctionNormalized.length === 0;
+    const blockedByFunction =
+      leilaoMode && selectedFunctionNormalized.length > 0 && recentRoleNormalized !== selectedFunctionNormalized;
     return (
       <TouchableOpacity
         style={[
@@ -634,6 +680,17 @@ export default function ConvidarColaboradorEventoScreen() {
           }
           Keyboard.dismiss();
           if (leilaoMode) {
+            if (requiresFunctionForLeilao) {
+              Alert.alert('Função obrigatória', 'No leilão, selecione a função antes de escolher os artistas.');
+              return;
+            }
+            if (blockedByFunction) {
+              Alert.alert(
+                'Função incompatível',
+                `Este parceiro recente não está com a função "${functionDraft.trim()}" no último convite.`
+              );
+              return;
+            }
             setLeilaoSelectedIds((prev) => {
               if (prev.includes(p.id)) {
                 setLeilaoArtistMeta((m) => {
@@ -698,6 +755,11 @@ export default function ConvidarColaboradorEventoScreen() {
         </Text>
 
         <View style={styles.recentBadges}>
+          {blockedByFunction ? (
+            <View style={[styles.recentBadge, { backgroundColor: `${colors.warning}22` }]}>
+              <Text style={[styles.recentBadgeText, { color: colors.warning }]}>Função diferente</Text>
+            </View>
+          ) : null}
           {isBlocked ? (
             <View style={[styles.recentBadge, { backgroundColor: `${colors.textSecondary}22` }]}>
               <Text style={[styles.recentBadgeText, { color: colors.textSecondary }]}>Neste evento</Text>
@@ -949,9 +1011,65 @@ export default function ConvidarColaboradorEventoScreen() {
                   >
                     <Ionicons name="information-circle-outline" size={22} color={colors.primary} />
                     <Text style={[styles.leilaoHintText, { color: colors.text }]}>
-                      Toque nos artistas para marcar ou desmarcar. Depois use «Preparar leilão» na barra inferior: um envio
-                      em lote; o primeiro que aceitar mantém a vaga e os demais da rodada são cancelados.
+                      Primeiro selecione a função do leilão. Depois toque nos artistas para marcar ou desmarcar. O primeiro
+                      que aceitar mantém a vaga e os demais da rodada são cancelados.
                     </Text>
+                  </View>
+                ) : null}
+                {canInvite && leilaoMode ? (
+                  <View style={[styles.leilaoFunctionSection, { borderBottomColor: colors.border }]}>
+                    <Text style={[styles.filterFieldLabel, { color: colors.text }]}>Função do leilão (obrigatória)</Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.funcPresetRow}
+                      keyboardShouldPersistTaps="handled"
+                    >
+                      {ARTIST_WORK_ROLE_PRESETS.map((role) => {
+                        const selected = functionDraft.trim() === role;
+                        return (
+                          <TouchableOpacity
+                            key={`leilao-search-func-${role}`}
+                            onPress={() => {
+                              setFunctionDraft(role);
+                              setFilterRole(role);
+                              setLeilaoSelectedIds([]);
+                              setLeilaoArtistMeta({});
+                            }}
+                            activeOpacity={0.75}
+                            style={[
+                              styles.funcPresetChip,
+                              {
+                                borderColor: selected ? colors.primary : colors.border,
+                                backgroundColor: selected ? `${colors.primary}16` : colors.background,
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.funcPresetChipText,
+                                { color: selected ? colors.primary : colors.text, fontWeight: selected ? '800' : '600' },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {role}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                    <TextInput
+                      style={[styles.filterInput, styles.filterInputLast, { color: colors.text, borderColor: colors.border }]}
+                      placeholder="Ou digite a função (ex.: sanfoneiro)"
+                      placeholderTextColor={colors.textSecondary}
+                      value={functionDraft}
+                      onChangeText={(text) => {
+                        setFunctionDraft(text);
+                        setFilterRole(text);
+                        setLeilaoSelectedIds([]);
+                        setLeilaoArtistMeta({});
+                      }}
+                    />
                   </View>
                 ) : null}
                 {canInvite ? (
@@ -1292,6 +1410,10 @@ export default function ConvidarColaboradorEventoScreen() {
               style={[styles.leilaoBarBtn, { backgroundColor: colors.primary }]}
               onPress={() => {
                 Keyboard.dismiss();
+                if (!functionDraft.trim()) {
+                  Alert.alert('Função obrigatória', 'Selecione a função do leilão antes de preparar o envio.');
+                  return;
+                }
                 setLeilaoModalVisible(true);
               }}
               activeOpacity={0.85}
@@ -1705,6 +1827,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   leilaoHintText: { flex: 1, fontSize: 13, lineHeight: 19 },
+  leilaoFunctionSection: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
   leilaoBar: {
     flexDirection: 'row',
     alignItems: 'center',
