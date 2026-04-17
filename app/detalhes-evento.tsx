@@ -43,11 +43,14 @@ import {
 } from '../services/supabase/eventService';
 import { removeEventContractByUrl, uploadEventContractFile } from '../services/supabase/eventContractUploadService';
 import {
+    AvaliacaoParticipacaoEventoRow,
     cancelarConviteParticipacao,
+    listarAvaliacoesParticipacaoEvento,
     listarConvitesDoEvento,
     obterConvitePorId,
     obterNomeArtista,
     removerParticipacaoAceitaPeloOrganizador,
+    salvarAvaliacaoParticipacaoEvento,
     type ConviteParticipacaoEventoRow,
 } from '../services/supabase/conviteParticipacaoEventoService';
 import { getExpensesByEvent, getTotalExpensesByEvent } from '../services/supabase/expenseService';
@@ -65,6 +68,22 @@ function formatLocalDateToISO(d: Date): string {
     const mo = String(d.getMonth() + 1).padStart(2, '0');
     const da = String(d.getDate()).padStart(2, '0');
     return `${y}-${mo}-${da}`;
+}
+
+function isDateConcludedD1(eventDateIso: string): boolean {
+  if (!eventDateIso) return false;
+  const eventDate = parseEventDateToLocalDate(eventDateIso);
+  const today = new Date();
+  const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  return todayOnly > eventDate;
+}
+
+function isEventDateTodayOrFuture(eventDateIso: string): boolean {
+  if (!eventDateIso) return false;
+  const eventDate = parseEventDateToLocalDate(eventDateIso);
+  const today = new Date();
+  const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  return eventDate >= todayOnly;
 }
 
 function formatEventLocationLine(ev: Event): string {
@@ -251,6 +270,15 @@ export default function DetalhesEventoScreen() {
   const [removeParticipationMotivo, setRemoveParticipationMotivo] = useState('');
   const [removingParticipation, setRemovingParticipation] = useState(false);
   const [eventUpdatedToastMessage, setEventUpdatedToastMessage] = useState<string | null>(null);
+  const [participationRatingsByInviteId, setParticipationRatingsByInviteId] = useState<
+    Record<string, AvaliacaoParticipacaoEventoRow>
+  >({});
+  const [showRateParticipantModal, setShowRateParticipantModal] = useState(false);
+  const [rateParticipantTargetInvite, setRateParticipantTargetInvite] = useState<ConviteParticipacaoEventoRow | null>(null);
+  const [rateGeral, setRateGeral] = useState(5);
+  const [rateComentarioPublico, setRateComentarioPublico] = useState('');
+  const [rateObservacaoPrivada, setRateObservacaoPrivada] = useState('');
+  const [savingParticipantRate, setSavingParticipantRate] = useState(false);
 
   // Obter usuário atual
   useEffect(() => {
@@ -361,6 +389,13 @@ export default function DetalhesEventoScreen() {
     }
     setParticipationInviteeNames(map);
     setParticipationInviteeProfiles(profiles);
+
+    const { avaliacoes } = await listarAvaliacoesParticipacaoEvento(origemEventId);
+    const ratingsMap: Record<string, AvaliacaoParticipacaoEventoRow> = {};
+    for (const avaliacao of avaliacoes) {
+      ratingsMap[avaliacao.convite_participacao_evento_id] = avaliacao;
+    }
+    setParticipationRatingsByInviteId(ratingsMap);
   }, []);
 
   useEffect(() => {
@@ -413,6 +448,13 @@ export default function DetalhesEventoScreen() {
     if (!handleRestrictedAction('participação de outro artista')) return;
     if (!canCreateEventsPermission || !event || event.artist_id !== activeArtist?.id) {
       setShowPermissionModal(true);
+      return;
+    }
+    if (!isEventDateTodayOrFuture(event.event_date)) {
+      Alert.alert(
+        'Convite indisponível',
+        'Só é possível convidar participação para eventos com data igual ou maior que hoje.'
+      );
       return;
     }
     router.push({
@@ -705,6 +747,35 @@ export default function DetalhesEventoScreen() {
     setRemoveParticipationConvite(c);
     setRemoveParticipationMotivo('');
     setShowRemoveParticipationModal(true);
+  };
+
+  const openRateParticipantModal = (c: ConviteParticipacaoEventoRow) => {
+    const existing = participationRatingsByInviteId[c.id];
+    setRateParticipantTargetInvite(c);
+    setRateGeral(existing?.nota_geral ?? 5);
+    setRateComentarioPublico(existing?.comentario_publico ?? '');
+    setRateObservacaoPrivada(existing?.observacao_privada ?? '');
+    setShowRateParticipantModal(true);
+  };
+
+  const submitRateParticipant = async () => {
+    if (!rateParticipantTargetInvite || !event) return;
+    setSavingParticipantRate(true);
+    const { success, error } = await salvarAvaliacaoParticipacaoEvento({
+      conviteId: rateParticipantTargetInvite.id,
+      notaGeral: rateGeral,
+      comentarioPublico: rateComentarioPublico,
+      observacaoPrivada: rateObservacaoPrivada,
+    });
+    setSavingParticipantRate(false);
+    if (!success) {
+      Alert.alert('Erro', error || 'Não foi possível salvar a avaliação.');
+      return;
+    }
+    setShowRateParticipantModal(false);
+    setRateParticipantTargetInvite(null);
+    await loadParticipationInvites(event.id);
+    Alert.alert('Avaliação salva', 'A avaliação deste artista foi registrada com sucesso.');
   };
 
   const confirmRemoveParticipationAceita = async () => {
@@ -1480,9 +1551,27 @@ export default function DetalhesEventoScreen() {
                             </TouchableOpacity>
                           ) : null}
                           {c.status === 'aceito' && canCreateEventsPermission && event?.artist_id === activeArtist?.id ? (
-                            <TouchableOpacity onPress={() => openRemoveParticipationModal(c)} style={{ marginTop: 6 }}>
-                              <Text style={{ color: colors.error, fontSize: 13, fontWeight: '600' }}>Remover participação</Text>
-                            </TouchableOpacity>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+                              <TouchableOpacity onPress={() => openRemoveParticipationModal(c)} style={{ marginRight: 16 }}>
+                                <Text style={{ color: colors.error, fontSize: 13, fontWeight: '600' }}>Remover participação</Text>
+                              </TouchableOpacity>
+                              {isDateConcludedD1(c.data_evento) ? (
+                                <TouchableOpacity onPress={() => openRateParticipantModal(c)}>
+                                  <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '700' }}>
+                                    {participationRatingsByInviteId[c.id] ? 'Editar avaliação' : 'Avaliar artista'}
+                                  </Text>
+                                </TouchableOpacity>
+                              ) : (
+                                <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                                  Avaliação disponível após conclusão
+                                </Text>
+                              )}
+                            </View>
+                          ) : null}
+                          {participationRatingsByInviteId[c.id] ? (
+                            <Text style={[styles.participantReason, { color: colors.primary }]}>
+                              Avaliação registrada: {participationRatingsByInviteId[c.id].nota_geral}/5
+                            </Text>
                           ) : null}
                         </View>
                       </View>
@@ -1504,7 +1593,9 @@ export default function DetalhesEventoScreen() {
             <Ionicons name="chevron-forward" size={20} color={colors.text} />
           </TouchableOpacity>
 
-          {canCreateEventsPermission && event?.artist_id === activeArtist?.id ? (
+          {canCreateEventsPermission &&
+          event?.artist_id === activeArtist?.id &&
+          isEventDateTodayOrFuture(event.event_date) ? (
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
               onPress={handleConvidarColaborador}
@@ -1629,6 +1720,95 @@ export default function DetalhesEventoScreen() {
             </View>
           </View>
         </View>
+      </Modal>
+
+      <Modal
+        visible={showRateParticipantModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !savingParticipantRate && setShowRateParticipantModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.participationInviteModalOverlay}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <View style={[styles.participationInviteModalCard, { backgroundColor: colors.surface }]}>
+                <Text style={[styles.participationInviteModalTitle, { color: colors.text }]}>Avaliar artista</Text>
+
+                <View style={[styles.ratingHeroCard, { backgroundColor: `${colors.primary}10`, borderColor: `${colors.primary}33` }]}>
+                  <Text style={[styles.rateLabel, { color: colors.text }]}>Nota geral</Text>
+                  <View style={styles.starRow}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <TouchableOpacity
+                        key={star}
+                        style={styles.starButton}
+                        onPress={() => !savingParticipantRate && setRateGeral(star)}
+                        disabled={savingParticipantRate}
+                      >
+                        <Ionicons
+                          name={star <= rateGeral ? 'star' : 'star-outline'}
+                        size={30}
+                          color={star <= rateGeral ? '#F59E0B' : colors.textSecondary}
+                        />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <Text style={[styles.rateHint, { color: colors.textSecondary }]}>
+                    {rateGeral} de 5 estrelas
+                  </Text>
+                </View>
+
+                <View style={[styles.ratingFieldCard, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                  <Text style={[styles.rateFieldTitle, { color: colors.text }]}>Comentário público</Text>
+                  <TextInput
+                    style={[
+                      styles.rateTextArea,
+                      { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface },
+                    ]}
+                    placeholder="Ex.: Chegou no horário e mandou muito bem no palco."
+                    placeholderTextColor={colors.textSecondary}
+                    value={rateComentarioPublico}
+                    onChangeText={setRateComentarioPublico}
+                    multiline
+                    editable={!savingParticipantRate}
+                  />
+                </View>
+
+                <View style={[styles.ratingFieldCard, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                  <Text style={[styles.rateFieldTitle, { color: colors.text }]}>Observação privada</Text>
+                  <TextInput
+                    style={[
+                      styles.rateTextArea,
+                      { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface },
+                    ]}
+                    placeholder="Ex.: Confirmar repertório antes do próximo convite."
+                    placeholderTextColor={colors.textSecondary}
+                    value={rateObservacaoPrivada}
+                    onChangeText={setRateObservacaoPrivada}
+                    multiline
+                    editable={!savingParticipantRate}
+                  />
+                </View>
+
+                <View style={[styles.participationInviteModalActions, { marginTop: 10 }]}>
+                  <TouchableOpacity
+                    style={[styles.participationInviteModalBtnSec, { borderColor: colors.border }]}
+                    onPress={() => !savingParticipantRate && setShowRateParticipantModal(false)}
+                    disabled={savingParticipantRate}
+                  >
+                    <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Voltar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.participationInviteModalBtnPri, { backgroundColor: colors.primary }]}
+                    onPress={() => void submitRateParticipant()}
+                    disabled={savingParticipantRate}
+                  >
+                    {savingParticipantRate ? <ActivityIndicator color="#fff" /> : <Text style={styles.participationInviteModalBtnPriText}>Salvar avaliação</Text>}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
       </Modal>
 
       <Modal
@@ -2227,13 +2407,13 @@ const styles = StyleSheet.create({
   },
   participationInviteModalCard: {
     borderRadius: 16,
-    padding: 20,
-    maxHeight: '90%',
+    padding: 16,
+    maxHeight: '82%',
   },
   participationInviteModalTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   participationInviteModalSub: {
     fontSize: 14,
@@ -2313,5 +2493,55 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '700',
     fontSize: 16,
+  },
+  rateLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  rateHint: {
+    fontSize: 12,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  ratingHeroCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginTop: 2,
+    marginBottom: 8,
+  },
+  ratingFieldCard: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 8,
+    marginTop: 6,
+  },
+  rateFieldTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  rateTextArea: {
+    borderWidth: 1,
+    borderRadius: 8,
+    minHeight: 64,
+    maxHeight: 86,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 14,
+    textAlignVertical: 'top',
+  },
+  starRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 2,
+    marginBottom: 0,
+    paddingHorizontal: 4,
+  },
+  starButton: {
+    padding: 2,
   },
 });

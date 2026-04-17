@@ -28,6 +28,20 @@ export interface ConviteParticipacaoEventoRow {
   atualizado_em: string;
 }
 
+export interface AvaliacaoParticipacaoEventoRow {
+  convite_participacao_evento_id: string;
+  artista_avaliado_id: string;
+  nota_geral: number;
+  nota_pontualidade: number | null;
+  nota_profissionalismo: number | null;
+  nota_qualidade_tecnica: number | null;
+  nota_comunicacao: number | null;
+  comentario_publico: string | null;
+  observacao_privada: string | null;
+  criado_em: string;
+  atualizado_em: string;
+}
+
 export interface ArtistaBuscaConvite {
   id: string;
   name: string;
@@ -664,4 +678,57 @@ export async function aceitarConviteParticipacao(
 export async function obterNomeArtista(artistId: string): Promise<string | null> {
   const { data } = await supabase.from('artists').select('name').eq('id', artistId).maybeSingle();
   return data?.name ?? null;
+}
+
+export interface SalvarAvaliacaoParticipacaoInput {
+  conviteId: string;
+  notaGeral: number;
+  notaPontualidade?: number | null;
+  notaProfissionalismo?: number | null;
+  notaQualidadeTecnica?: number | null;
+  notaComunicacao?: number | null;
+  comentarioPublico?: string | null;
+  observacaoPrivada?: string | null;
+}
+
+export async function salvarAvaliacaoParticipacaoEvento(
+  input: SalvarAvaliacaoParticipacaoInput
+): Promise<{ success: boolean; error: string | null; avaliacaoId?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('rpc_app_salvar_avaliacao_participacao_evento', {
+      p_convite_id: input.conviteId,
+      p_nota_geral: Number(input.notaGeral),
+      p_nota_pontualidade: input.notaPontualidade != null ? Number(input.notaPontualidade) : null,
+      p_nota_profissionalismo: input.notaProfissionalismo != null ? Number(input.notaProfissionalismo) : null,
+      p_nota_qualidade_tecnica: input.notaQualidadeTecnica != null ? Number(input.notaQualidadeTecnica) : null,
+      p_nota_comunicacao: input.notaComunicacao != null ? Number(input.notaComunicacao) : null,
+      p_comentario_publico: input.comentarioPublico?.trim() || null,
+      p_observacao_privada: input.observacaoPrivada?.trim() || null,
+    });
+
+    if (error) return { success: false, error: error.message };
+    const row = pickRpcRow<{ success: boolean; error: string | null; avaliacao_id: string | null }>(data);
+    if (!row) return { success: false, error: 'Resposta inválida ao salvar avaliação.' };
+    return {
+      success: row.success,
+      error: row.error,
+      avaliacaoId: row.avaliacao_id ?? undefined,
+    };
+  } catch {
+    return { success: false, error: 'Erro de conexão' };
+  }
+}
+
+export async function listarAvaliacoesParticipacaoEvento(
+  eventoOrigemId: string
+): Promise<{ avaliacoes: AvaliacaoParticipacaoEventoRow[]; error: string | null }> {
+  try {
+    const { data, error } = await supabase.rpc('rpc_app_listar_avaliacoes_participacao_evento', {
+      p_evento_origem_id: eventoOrigemId,
+    });
+    if (error) return { avaliacoes: [], error: error.message };
+    return { avaliacoes: ((data as AvaliacaoParticipacaoEventoRow[]) || []), error: null };
+  } catch {
+    return { avaliacoes: [], error: 'Erro de conexão' };
+  }
 }
