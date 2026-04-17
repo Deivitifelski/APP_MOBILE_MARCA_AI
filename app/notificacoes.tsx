@@ -89,6 +89,30 @@ function isParticipationRemovedByHostNotification(n: Notification): boolean {
   return title.includes('removida pelo organizador');
 }
 
+/** Nome do perfil (artista) em `artist_id`; compatível com retorno do PostgREST. */
+function getNotificationArtistProfileName(notification: Notification): string | null {
+  const a = notification.artist as
+    | { id?: string; name?: string }
+    | { id?: string; name?: string }[]
+    | undefined;
+  if (!a) return null;
+  if (Array.isArray(a)) {
+    const first = a[0];
+    const n = first?.name?.trim();
+    return n || null;
+  }
+  const n = typeof a.name === 'string' ? a.name.trim() : '';
+  return n || null;
+}
+
+/** Convites antigos sem texto "Perfil convidado:" na mensagem — mostra linha extra no app. */
+function shouldShowParticipationProfileHint(notification: Notification): boolean {
+  if (notification.type !== 'participacao_evento') return false;
+  if (!getNotificationArtistProfileName(notification)) return false;
+  if ((notification.message || '').includes('Perfil convidado:')) return false;
+  return true;
+}
+
 export default function NotificacoesScreen() {
   const { colors, isDarkMode } = useTheme();
   const { loadUnreadCount } = useNotifications(); // ✅ Hook para atualizar badge
@@ -240,10 +264,11 @@ export default function NotificacoesScreen() {
             artist_id: activeArtist.id,
             event_id: undefined,
             title: 'Convite de participação em evento',
-            message: 'Você recebeu novo convite de participação. Toque para revisar e responder.',
+            message: `Convite pendente para o perfil "${activeArtist.name}". Toque para revisar e responder.`,
             type: 'participacao_evento',
             read: false,
             created_at: newest?.criado_em || new Date().toISOString(),
+            artist: { id: activeArtist.id, name: activeArtist.name },
           } as NotificationWithInvite;
         }
       } else {
@@ -752,6 +777,29 @@ export default function NotificacoesScreen() {
                         </View>
                       </View>
                     ) : null}
+                    {/* Convite sintético de participação (sem from_user): avatar de sistema */}
+                    {notification.type === 'participacao_evento' && !notification.from_user ? (
+                      <View style={styles.userAvatarContainer}>
+                        <View style={styles.userAvatarWithIcon}>
+                          <View
+                            style={[
+                              styles.marcaAiSystemAvatar,
+                              { backgroundColor: '#8B5CF6', shadowColor: '#8B5CF6' },
+                            ]}
+                          >
+                            <Ionicons name="people" size={20} color="#FFFFFF" />
+                          </View>
+                          <View
+                            style={[
+                              styles.notificationIconBadge,
+                              { backgroundColor: getNotificationColor(notification.type) },
+                            ]}
+                          >
+                            <Ionicons name={getNotificationIcon(notification.type)} size={12} color="#FFFFFF" />
+                          </View>
+                        </View>
+                      </View>
+                    ) : null}
                     {/* Imagem do usuário com ícone de notificação */}
                     {notification.type !== 'basic' && notification.from_user && (
                       <View style={styles.userAvatarContainer}>
@@ -810,7 +858,21 @@ export default function NotificacoesScreen() {
                       <Text style={dynamicStyles.notificationMessage}>
                         {notification.message}
                       </Text>
-                      
+                      {shouldShowParticipationProfileHint(notification) ? (
+                        <Text
+                          style={[
+                            dynamicStyles.notificationMessage,
+                            {
+                              marginTop: 6,
+                              fontSize: 13,
+                              color: colors.textSecondary,
+                            },
+                          ]}
+                        >
+                          Perfil convidado: {getNotificationArtistProfileName(notification)}
+                        </Text>
+                      ) : null}
+
                       <View style={styles.notificationFooter}>
                         <View style={styles.footerLeft}>
                           <Text style={dynamicStyles.notificationTime}>

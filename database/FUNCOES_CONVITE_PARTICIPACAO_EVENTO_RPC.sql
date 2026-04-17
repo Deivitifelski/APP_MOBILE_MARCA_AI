@@ -1009,6 +1009,7 @@ DECLARE
   v_uid UUID := auth.uid();
   v_convite convite_participacao_evento%ROWTYPE;
   v_inviter_name TEXT;
+  v_invitee_name TEXT;
   v_to_user_id UUID;
   v_token_fcm TEXT;
   v_title TEXT := 'Convite de participação em evento';
@@ -1061,9 +1062,15 @@ BEGIN
   WHERE a.id = v_convite.artista_que_convidou_id
   LIMIT 1;
 
+  SELECT a2.name INTO v_invitee_name
+  FROM artists a2
+  WHERE a2.id = v_convite.artista_convidado_id
+  LIMIT 1;
+
   v_message :=
     COALESCE(v_inviter_name, 'Um artista') ||
-    ' convidou você para participar de "' || v_convite.nome_evento || '".';
+    ' convidou você para participar de "' || v_convite.nome_evento || '".' ||
+    ' Perfil convidado: ' || COALESCE(v_invitee_name, '—') || '.';
 
   PERFORM public._notify_participacao_evento(
     v_to_user_id,
