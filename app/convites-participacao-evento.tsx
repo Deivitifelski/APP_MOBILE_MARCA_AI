@@ -139,7 +139,27 @@ export default function ConvitesParticipacaoEventoScreen() {
         { text: 'Ver agenda', onPress: () => router.push('/(tabs)/agenda') },
       ]);
     } else {
-      Alert.alert('Erro', error || 'Não foi possível aceitar.');
+      const msg = (error || '').trim();
+      const msgLower = msg.toLowerCase();
+      const conviteIndisponivel =
+        msgLower.includes('cancelado') ||
+        msgLower.includes('não está mais') ||
+        msgLower.includes('nao esta mais') ||
+        msgLower.includes('já foi aceito') ||
+        msgLower.includes('ja foi aceito') ||
+        msgLower.includes('já foi recusado') ||
+        msgLower.includes('ja foi recusado') ||
+        msgLower.includes('não está mais disponível') ||
+        msgLower.includes('nao esta mais disponivel');
+      if (conviteIndisponivel) {
+        Alert.alert(
+          'Convite indisponível',
+          msg ||
+            'Este convite não está mais ativo (por exemplo, cancelado pelo organizador). Sua agenda não foi alterada.'
+        );
+      } else {
+        Alert.alert('Erro', msg || 'Não foi possível aceitar.');
+      }
     }
   };
 

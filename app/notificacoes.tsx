@@ -89,6 +89,17 @@ function isParticipationRemovedByHostNotification(n: Notification): boolean {
   return title.includes('removida pelo organizador');
 }
 
+/** Convite pendente que virou histórico (cancelado, leilão, aceito): não abrir fluxo de aceite. */
+function isParticipationInviteFinalizedNotification(n: Notification): boolean {
+  if (n.type !== 'participacao_evento') return false;
+  const title = (n.title || '').toLowerCase();
+  return (
+    title.includes('convite de participação cancelado') ||
+    title.includes('convite de participação encerrado') ||
+    title.includes('convite de participação aceito')
+  );
+}
+
 /** Nome do perfil (artista) em `artist_id`; compatível com retorno do PostgREST. */
 function getNotificationArtistProfileName(notification: Notification): string | null {
   const a = notification.artist as
@@ -329,7 +340,8 @@ export default function NotificacoesScreen() {
       if (
         !isParticipationRejectedNotification(notification) &&
         !isParticipationCanceledByGuestNotification(notification) &&
-        !isParticipationRemovedByHostNotification(notification)
+        !isParticipationRemovedByHostNotification(notification) &&
+        !isParticipationInviteFinalizedNotification(notification)
       ) {
         router.push('/convites-participacao-evento');
       }

@@ -11,7 +11,8 @@
 -- Pré-requisitos:
 -- - Tabela convite_participacao_evento já criada (CONVITE_PARTICIPACAO_EVENTO.sql)
 -- - Colunas funcao_participacao e grupo_disputa_id (NOT NULL; ver seção 0)
--- - Tabela notifications com colunas: to_user_id, from_user_id, artist_id, title, message, type, read, created_at
+-- - Tabela notifications com colunas: to_user_id, from_user_id, artist_id, title, message, type, read, created_at,
+--   convite_participacao_evento_id (opcional; ver seção 0)
 -- - Tabela events com colunas: created_by, updated_by, ativo, update_ativo, convite_participacao_id
 
 -- =====================================================
@@ -70,6 +71,15 @@ $$;
 CREATE INDEX IF NOT EXISTS idx_convite_part_despesa_origem
   ON convite_participacao_evento(despesa_origem_id);
 
+-- Liga notificação de convite ao registro do convite (invalidar ao cancelar / leilão).
+ALTER TABLE public.notifications
+  ADD COLUMN IF NOT EXISTS convite_participacao_evento_id UUID
+    REFERENCES public.convite_participacao_evento(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_notifications_convite_participacao
+  ON public.notifications (convite_participacao_evento_id)
+  WHERE convite_participacao_evento_id IS NOT NULL;
+
 -- =====================================================
 -- Helpers de permissão e notificação
 -- =====================================================
@@ -99,7 +109,8 @@ CREATE OR REPLACE FUNCTION public._notify_participacao_evento(
   p_from_user_id UUID,
   p_artist_id UUID,
   p_title TEXT,
-  p_message TEXT
+  p_message TEXT,
+  p_convite_id UUID DEFAULT NULL
 )
 RETURNS VOID
 LANGUAGE plpgsql
@@ -115,7 +126,8 @@ BEGIN
     message,
     type,
     read,
-    created_at
+    created_at,
+    convite_participacao_evento_id
   ) VALUES (
     p_to_user_id,
     p_from_user_id,
@@ -124,7 +136,8 @@ BEGIN
     p_message,
     'participacao_evento',
     false,
-    NOW()
+    NOW(),
+    p_convite_id
   );
 END;
 $$;
@@ -414,7 +427,14 @@ BEGIN
   END IF;
 
   IF v_convite.status <> 'pendente' THEN
-    RETURN QUERY SELECT false, 'Este convite não está mais pendente.', NULL::UUID, NULL::UUID;
+    RETURN QUERY SELECT false,
+      CASE v_convite.status
+        WHEN 'cancelado' THEN 'Este convite foi cancelado e não pode mais ser aceito.'
+        WHEN 'aceito' THEN 'Este convite já foi aceito anteriormente.'
+        WHEN 'recusado' THEN 'Este convite já foi recusado.'
+        ELSE 'Este convite não está mais disponível.'
+      END,
+      NULL::UUID, NULL::UUID;
     RETURN;
   END IF;
 
@@ -452,7 +472,14 @@ BEGIN
     FOR UPDATE;
 
     IF v_convite.status <> 'pendente' THEN
-      RETURN QUERY SELECT false, 'Este convite não está mais pendente.', NULL::UUID, NULL::UUID;
+      RETURN QUERY SELECT false,
+        CASE v_convite.status
+          WHEN 'cancelado' THEN 'Este convite foi cancelado e não pode mais ser aceito.'
+          WHEN 'aceito' THEN 'Este convite já foi aceito anteriormente.'
+          WHEN 'recusado' THEN 'Este convite já foi recusado.'
+          ELSE 'Este convite não está mais disponível.'
+        END,
+        NULL::UUID, NULL::UUID;
       RETURN;
     END IF;
 
@@ -537,6 +564,29 @@ BEGIN
       AND c.status = 'pendente'
       AND c.id <> v_convite.id;
 
+    -- Notificações de convite pendente dos perdedores do leilão: encerrar para não parecer aceitável.
+    UPDATE public.notifications n
+    SET
+      read = true,
+      title = 'Convite de participação encerrado',
+      message = 'Este convite não está mais disponível: outro artista aceitou primeiro nesta mesma rodada de convites (leilão).'
+    WHERE n.convite_participacao_evento_id IN (
+      SELECT c.id
+      FROM convite_participacao_evento c
+      WHERE c.grupo_disputa_id = v_convite.grupo_disputa_id
+        AND c.id <> v_convite.id
+        AND c.status = 'cancelado'
+        AND c.motivo_cancelamento = 'Outro artista aceitou primeiro nesta mesma rodada de convites (leilão).'
+    );
+
+    UPDATE public.notifications n
+    SET
+      read = true,
+      title = 'Convite de participação aceito',
+      message = 'O evento foi adicionado à sua agenda.'
+    WHERE n.convite_participacao_evento_id = v_convite.id
+      AND n.title = 'Convite de participação em evento';
+
     RETURN QUERY SELECT true, NULL::TEXT, evento_id, despesa_id;
   EXCEPTION
     WHEN OTHERS THEN
@@ -599,6 +649,14 @@ BEGIN
   WHERE id = v_convite.id
     AND status = 'pendente';
 
+  UPDATE public.notifications n
+  SET
+    read = true,
+    title = 'Convite de participação recusado',
+    message = 'Este convite foi recusado e não será adicionado à sua agenda.'
+  WHERE n.convite_participacao_evento_id = v_convite.id
+    AND n.title = 'Convite de participação em evento';
+
   SELECT name INTO v_nome_convidado
   FROM artists
   WHERE id = v_convite.artista_convidado_id
@@ -611,7 +669,8 @@ BEGIN
     'Convite de participação recusado',
     COALESCE(v_nome_convidado, 'O artista convidado') ||
       ' recusou a participação no evento "' || v_convite.nome_evento || '"' ||
-      CASE WHEN NULLIF(TRIM(p_motivo), '') IS NOT NULL THEN '. Motivo: ' || TRIM(p_motivo) ELSE '' END
+      CASE WHEN NULLIF(TRIM(p_motivo), '') IS NOT NULL THEN '. Motivo: ' || TRIM(p_motivo) ELSE '' END,
+    v_convite.id
   );
 
   RETURN QUERY SELECT true, NULL::TEXT;
@@ -669,6 +728,15 @@ BEGIN
     atualizado_em = NOW()
   WHERE id = v_convite.id
     AND status = 'pendente';
+
+  -- Evita que o convidado ainda veja o convite como “pendente” na central de notificações.
+  UPDATE public.notifications n
+  SET
+    read = true,
+    title = 'Convite de participação cancelado',
+    message = 'O organizador cancelou o convite para participar do evento "' || v_convite.nome_evento ||
+      '". Não é mais possível aceitar.'
+  WHERE n.convite_participacao_evento_id = v_convite.id;
 
   RETURN QUERY SELECT true, NULL::TEXT;
 END;
@@ -780,7 +848,8 @@ BEGIN
     v_convite.artista_que_convidou_id,
     'Participação cancelada pelo convidado',
     COALESCE(v_nome_convidado, 'O artista convidado') ||
-      ' cancelou a participação no evento "' || v_convite.nome_evento || '". Motivo: ' || TRIM(p_motivo)
+      ' cancelou a participação no evento "' || v_convite.nome_evento || '". Motivo: ' || TRIM(p_motivo),
+    v_convite.id
   );
 
   RETURN QUERY SELECT true, NULL::TEXT;
@@ -904,7 +973,8 @@ BEGIN
       'Participação removida pelo organizador',
       COALESCE(v_nome_organizador, 'O organizador') ||
         ' removeu sua participação no evento "' || v_convite.nome_evento ||
-        '". Motivo: ' || TRIM(p_motivo)
+        '". Motivo: ' || TRIM(p_motivo),
+      v_convite.id
     );
   END IF;
 
@@ -1077,7 +1147,8 @@ BEGIN
     v_uid,
     v_convite.artista_convidado_id,
     v_title,
-    v_message
+    v_message,
+    v_convite.id
   );
 
   RETURN QUERY SELECT true, NULL::TEXT, v_to_user_id, v_token_fcm, v_title, v_message;

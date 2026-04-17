@@ -5,6 +5,8 @@ export interface Notification {
   to_user_id: string; // Campo renomeado para to_user_id (destinatário da notificação)
   from_user_id?: string;
   artist_id?: string;
+  /** Convite de participação em evento (quando existir no banco). */
+  convite_participacao_evento_id?: string | null;
   event_id?: string;
   role?: 'viewer' | 'editor' | 'admin'; // Role para convites de artista
   title: string;
