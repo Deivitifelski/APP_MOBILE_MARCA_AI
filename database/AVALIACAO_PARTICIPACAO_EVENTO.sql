@@ -263,3 +263,96 @@ AS $$
 $$;
 
 GRANT EXECUTE ON FUNCTION public.rpc_app_listar_avaliacoes_participacao_evento(UUID) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.rpc_app_resumo_avaliacoes_artistas_para_convite(
+  p_artista_ids UUID[]
+)
+RETURNS TABLE (
+  artista_avaliado_id UUID,
+  media_nota_geral NUMERIC(4,2),
+  total_avaliacoes INT,
+  comentario_publico_recente TEXT
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  WITH ids AS (
+    SELECT DISTINCT unnest(p_artista_ids) AS artist_id
+  ),
+  base AS (
+    SELECT
+      a.artista_avaliado_id,
+      a.nota_geral,
+      NULLIF(TRIM(COALESCE(a.comentario_publico, '')), '') AS comentario_publico,
+      a.criado_em
+    FROM public.participacao_evento_avaliacoes a
+    INNER JOIN ids i ON i.artist_id = a.artista_avaliado_id
+  ),
+  stats AS (
+    SELECT
+      b.artista_avaliado_id,
+      ROUND(AVG(b.nota_geral)::numeric, 2) AS media_nota_geral,
+      COUNT(*)::int AS total_avaliacoes
+    FROM base b
+    GROUP BY b.artista_avaliado_id
+  ),
+  latest_comment AS (
+    SELECT DISTINCT ON (b.artista_avaliado_id)
+      b.artista_avaliado_id,
+      b.comentario_publico AS comentario_publico_recente
+    FROM base b
+    WHERE b.comentario_publico IS NOT NULL
+    ORDER BY b.artista_avaliado_id, b.criado_em DESC
+  )
+  SELECT
+    i.artist_id AS artista_avaliado_id,
+    s.media_nota_geral,
+    COALESCE(s.total_avaliacoes, 0) AS total_avaliacoes,
+    lc.comentario_publico_recente
+  FROM ids i
+  LEFT JOIN stats s ON s.artista_avaliado_id = i.artist_id
+  LEFT JOIN latest_comment lc ON lc.artista_avaliado_id = i.artist_id;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.rpc_app_resumo_avaliacoes_artistas_para_convite(UUID[]) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.rpc_app_listar_avaliacoes_publicas_artista(
+  p_artista_avaliado_id UUID,
+  p_limite INT DEFAULT 30
+)
+RETURNS TABLE (
+  nota_geral SMALLINT,
+  comentario_publico TEXT,
+  criado_em TIMESTAMPTZ,
+  artista_avaliador_id UUID,
+  artista_avaliador_nome TEXT,
+  artista_avaliador_imagem TEXT,
+  nome_evento TEXT
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT
+    a.nota_geral,
+    a.comentario_publico,
+    a.criado_em,
+    a.artista_avaliador_id,
+    COALESCE(av.name, 'Artista') AS artista_avaliador_nome,
+    NULLIF(TRIM(COALESCE(av.profile_url, '')), '') AS artista_avaliador_imagem,
+    c.nome_evento
+  FROM public.participacao_evento_avaliacoes a
+  INNER JOIN public.convite_participacao_evento c
+    ON c.id = a.convite_participacao_evento_id
+  LEFT JOIN public.artists av
+    ON av.id = a.artista_avaliador_id
+  WHERE a.artista_avaliado_id = p_artista_avaliado_id
+    AND NULLIF(TRIM(COALESCE(a.comentario_publico, '')), '') IS NOT NULL
+  ORDER BY a.criado_em DESC
+  LIMIT GREATEST(1, LEAST(COALESCE(p_limite, 30), 100));
+$$;
+
+GRANT EXECUTE ON FUNCTION public.rpc_app_listar_avaliacoes_publicas_artista(UUID, INT) TO authenticated;

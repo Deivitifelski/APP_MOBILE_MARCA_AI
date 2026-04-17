@@ -58,6 +58,23 @@ export interface ArtistaBuscaConvite {
   show_whatsapp?: boolean;
 }
 
+export interface ResumoAvaliacaoArtistaConvite {
+  artista_avaliado_id: string;
+  media_nota_geral: number | null;
+  total_avaliacoes: number;
+  comentario_publico_recente: string | null;
+}
+
+export interface AvaliacaoPublicaArtistaConvite {
+  nota_geral: number;
+  comentario_publico: string;
+  criado_em: string;
+  artista_avaliador_id: string;
+  artista_avaliador_nome: string;
+  artista_avaliador_imagem: string | null;
+  nome_evento: string | null;
+}
+
 export interface BuscarArtistasParaConviteFiltros {
   cidade?: string;
   estado?: string;
@@ -728,6 +745,67 @@ export async function listarAvaliacoesParticipacaoEvento(
     });
     if (error) return { avaliacoes: [], error: error.message };
     return { avaliacoes: ((data as AvaliacaoParticipacaoEventoRow[]) || []), error: null };
+  } catch {
+    return { avaliacoes: [], error: 'Erro de conexão' };
+  }
+}
+
+export async function listarResumoAvaliacoesArtistasParaConvite(
+  artistaIds: string[]
+): Promise<{ resumo: ResumoAvaliacaoArtistaConvite[]; error: string | null }> {
+  try {
+    const ids = [...new Set((artistaIds || []).map((x) => x?.trim()).filter(Boolean))];
+    if (ids.length === 0) return { resumo: [], error: null };
+    const { data, error } = await supabase.rpc('rpc_app_resumo_avaliacoes_artistas_para_convite', {
+      p_artista_ids: ids,
+    });
+    if (error) return { resumo: [], error: error.message };
+    const rows = ((data as Record<string, unknown>[]) || []).map((row) => {
+      const mediaRaw = row.media_nota_geral;
+      const media =
+        mediaRaw == null || mediaRaw === '' ? null : Number.isFinite(Number(mediaRaw)) ? Number(mediaRaw) : null;
+      const totalRaw = row.total_avaliacoes;
+      const total = totalRaw == null || totalRaw === '' ? 0 : Number(totalRaw);
+      return {
+        artista_avaliado_id: String(row.artista_avaliado_id),
+        media_nota_geral: media,
+        total_avaliacoes: Number.isFinite(total) ? Math.max(0, Math.floor(total)) : 0,
+        comentario_publico_recente:
+          row.comentario_publico_recente != null && String(row.comentario_publico_recente).trim() !== ''
+            ? String(row.comentario_publico_recente).trim()
+            : null,
+      } as ResumoAvaliacaoArtistaConvite;
+    });
+    return { resumo: rows, error: null };
+  } catch {
+    return { resumo: [], error: 'Erro de conexão' };
+  }
+}
+
+export async function listarAvaliacoesPublicasArtistaParaConvite(
+  artistaAvaliadoId: string,
+  limite: number = 30
+): Promise<{ avaliacoes: AvaliacaoPublicaArtistaConvite[]; error: string | null }> {
+  try {
+    const capped = Math.min(100, Math.max(1, Math.floor(limite)));
+    const { data, error } = await supabase.rpc('rpc_app_listar_avaliacoes_publicas_artista', {
+      p_artista_avaliado_id: artistaAvaliadoId,
+      p_limite: capped,
+    });
+    if (error) return { avaliacoes: [], error: error.message };
+    const rows = ((data as Record<string, unknown>[]) || []).map((row) => ({
+      nota_geral: Number(row.nota_geral),
+      comentario_publico: String(row.comentario_publico ?? ''),
+      criado_em: String(row.criado_em ?? ''),
+      artista_avaliador_id: String(row.artista_avaliador_id ?? ''),
+      artista_avaliador_nome: String(row.artista_avaliador_nome ?? 'Artista'),
+      artista_avaliador_imagem:
+        row.artista_avaliador_imagem != null && String(row.artista_avaliador_imagem).trim() !== ''
+          ? String(row.artista_avaliador_imagem)
+          : null,
+      nome_evento: row.nome_evento != null ? String(row.nome_evento) : null,
+    }));
+    return { avaliacoes: rows, error: null };
   } catch {
     return { avaliacoes: [], error: 'Erro de conexão' };
   }

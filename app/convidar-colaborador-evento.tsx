@@ -27,13 +27,17 @@ import {
   parseArtistStringArrayFromJson,
 } from '../constants/artistProfileLists';
 import {
+  listarAvaliacoesPublicasArtistaParaConvite,
   buscarArtistasParaConvite,
   enviarConviteParticipacao,
   enviarConvitesParticipacaoLeilaoLote,
+  listarResumoAvaliacoesArtistasParaConvite,
   listarConvitesDoEvento,
   listarParceirosRecentesParticipacao,
+  type AvaliacaoPublicaArtistaConvite,
   type ArtistaBuscaConvite,
   type ParceiroRecenteParticipacao,
+  type ResumoAvaliacaoArtistaConvite,
 } from '../services/supabase/conviteParticipacaoEventoService';
 import { getUserProfile } from '../services/supabase/userService';
 import { useActiveArtist } from '../services/useActiveArtist';
@@ -99,6 +103,12 @@ export default function ConvidarColaboradorEventoScreen() {
   const [artistStyles, setArtistStyles] = useState<Record<string, string>>({});
   const [artistWorkRoles, setArtistWorkRoles] = useState<Record<string, string[]>>({});
   const [artistShowFormats, setArtistShowFormats] = useState<Record<string, string[]>>({});
+  const [artistRatingSummary, setArtistRatingSummary] = useState<Record<string, ResumoAvaliacaoArtistaConvite>>({});
+  const [showReviewsModal, setShowReviewsModal] = useState(false);
+  const [reviewsModalArtist, setReviewsModalArtist] = useState<{ id: string; name: string; imageUrl: string } | null>(null);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewsError, setReviewsError] = useState<string | null>(null);
+  const [reviewsList, setReviewsList] = useState<AvaliacaoPublicaArtistaConvite[]>([]);
 
   const [recentPartners, setRecentPartners] = useState<ParceiroRecenteParticipacao[]>([]);
   const [recentPartnersLoading, setRecentPartnersLoading] = useState(true);
@@ -369,6 +379,27 @@ export default function ConvidarColaboradorEventoScreen() {
     };
   }, [searchResults]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const ids = [...new Set([...searchResults.map((a) => a.id), ...recentPartners.map((a) => a.id)])];
+      if (ids.length === 0) {
+        if (!cancelled) setArtistRatingSummary({});
+        return;
+      }
+      const { resumo } = await listarResumoAvaliacoesArtistasParaConvite(ids);
+      if (cancelled) return;
+      const map: Record<string, ResumoAvaliacaoArtistaConvite> = {};
+      for (const row of resumo) {
+        map[row.artista_avaliado_id] = row;
+      }
+      setArtistRatingSummary(map);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [searchResults, recentPartners]);
+
   const selectedLabel = useMemo(() => selectedArtist?.name || 'Nenhum', [selectedArtist]);
   const selectedSearchRow = useMemo(() => {
     if (!selectedArtist) return undefined;
@@ -451,6 +482,27 @@ export default function ConvidarColaboradorEventoScreen() {
     return maskBrazilMobile(digits);
   };
 
+  const formatReviewDate = (iso: string) => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('pt-BR');
+  };
+
+  const openReviewsModal = async (artist: { id: string; name: string; imageUrl: string }) => {
+    setReviewsModalArtist(artist);
+    setShowReviewsModal(true);
+    setReviewsLoading(true);
+    setReviewsError(null);
+    const { avaliacoes, error } = await listarAvaliacoesPublicasArtistaParaConvite(artist.id, 40);
+    setReviewsLoading(false);
+    if (error) {
+      setReviewsError(error);
+      setReviewsList([]);
+      return;
+    }
+    setReviewsList(avaliacoes);
+  };
+
   const renderArtistCard = ({ item }: { item: ArtistaBuscaConvite }) => {
     const inLeilaoSel = leilaoSelectedIds.includes(item.id);
     const isSelected = leilaoMode ? inLeilaoSel : selectedArtist?.id === item.id;
@@ -468,6 +520,10 @@ export default function ConvidarColaboradorEventoScreen() {
     const formats = formatsFromRpc.length > 0 ? formatsFromRpc : artistShowFormats[item.id] || [];
     const whatsShown = item.show_whatsapp === true ? whatsAppDisplay(item.whatsapp) : null;
     const locDisplay = artistLocation.trim() || 'Local não informado';
+    const rating = artistRatingSummary[item.id];
+    const ratingAvg = rating?.media_nota_geral ?? null;
+    const ratingTotal = rating?.total_avaliacoes ?? 0;
+    const ratingComment = rating?.comentario_publico_recente ?? null;
     return (
       <TouchableOpacity
         style={[
@@ -547,6 +603,44 @@ export default function ConvidarColaboradorEventoScreen() {
               </Text>
               {isSelected ? <Ionicons name="checkmark-circle" size={22} color={colors.primary} /> : null}
             </View>
+
+            {ratingAvg != null && ratingTotal > 0 ? (
+              <TouchableOpacity
+                activeOpacity={0.75}
+                onPress={() =>
+                  void openReviewsModal({
+                    id: item.id,
+                    name: item.name,
+                    imageUrl: item.image_url ?? item.profile_url ?? '',
+                  })
+                }
+                style={[styles.ratingCardInline, { backgroundColor: `${colors.warning}14`, borderColor: `${colors.warning}55` }]}
+              >
+                <View style={styles.ratingInlineTop}>
+                  <View style={styles.ratingInlineStars}>
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <Ionicons
+                        key={`${item.id}-star-${n}`}
+                        name={n <= Math.round(ratingAvg) ? 'star' : 'star-outline'}
+                        size={12}
+                        color="#F59E0B"
+                      />
+                    ))}
+                  </View>
+                  <Text style={[styles.ratingInlineValue, { color: colors.text }]}>
+                    {ratingAvg.toFixed(1)} ({ratingTotal})
+                  </Text>
+                </View>
+                {ratingComment ? (
+                  <Text style={[styles.ratingInlineComment, { color: colors.textSecondary }]} numberOfLines={2}>
+                    "{ratingComment}"
+                  </Text>
+                ) : null}
+                <Text style={[styles.ratingInlineAction, { color: colors.primary }]}>Ver avaliações</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={[styles.ratingInlineEmpty, { color: colors.textSecondary }]}>Sem avaliações ainda</Text>
+            )}
 
             {(!!artistStyle || whatsShown != null) && (
               <View style={styles.cardBlockTop}>
@@ -657,6 +751,9 @@ export default function ConvidarColaboradorEventoScreen() {
     const requiresFunctionForLeilao = leilaoMode && selectedFunctionNormalized.length === 0;
     const blockedByFunction =
       leilaoMode && selectedFunctionNormalized.length > 0 && recentRoleNormalized !== selectedFunctionNormalized;
+    const rating = artistRatingSummary[p.id];
+    const ratingAvg = rating?.media_nota_geral ?? null;
+    const ratingTotal = rating?.total_avaliacoes ?? 0;
     return (
       <TouchableOpacity
         style={[
@@ -746,15 +843,37 @@ export default function ConvidarColaboradorEventoScreen() {
           </Text>
         </View>
 
-        <Text style={[styles.recentSummary, { color: colors.textSecondary }]} numberOfLines={2}>
-          <Text style={[styles.recentSummaryEm, { color: colors.text }]}>{dataShowLabel || '—'}</Text>
-          <Text style={styles.recentSummaryDot}> · </Text>
-          <Text style={{ color: colors.text }} numberOfLines={1}>
-            {p.ultima_funcao?.trim() ? p.ultima_funcao : '—'}
-          </Text>
-          <Text style={styles.recentSummaryDot}> · </Text>
-          <Text style={[styles.recentSummaryEm, { color: colors.primary }]}>{formatCacheUmaLinha(p.ultimo_cache_valor)}</Text>
+        <Text style={[styles.recentMetaLine, { color: colors.textSecondary }]} numberOfLines={1}>
+          {dataShowLabel || '—'} · {p.ultima_funcao?.trim() || '—'}
         </Text>
+
+        <Text style={styles.recentCacheLine}>
+          <Text style={[styles.recentCacheLineMuted, { color: colors.textSecondary }]}>Cachê </Text>
+          <Text style={[styles.recentCacheLineValue, { color: colors.primary }]}>{formatCacheUmaLinha(p.ultimo_cache_valor)}</Text>
+        </Text>
+
+        {ratingAvg != null && ratingTotal > 0 ? (
+          <TouchableOpacity
+            onPress={() =>
+              void openReviewsModal({
+                id: p.id,
+                name: p.name,
+                imageUrl: p.image_url ?? p.profile_url ?? '',
+              })
+            }
+            activeOpacity={0.7}
+            hitSlop={{ top: 4, bottom: 4, left: 0, right: 0 }}
+          >
+            <Text style={[styles.recentRatingCompact, { color: colors.textSecondary }]}>
+              {'⭐'.repeat(Math.max(1, Math.min(5, Math.round(ratingAvg))))}{' '}
+              <Text style={{ color: colors.text, fontWeight: '700' }}>{ratingAvg.toFixed(1)}</Text>
+              {' · '}
+              {ratingTotal} {ratingTotal === 1 ? 'avaliação' : 'avaliações'}
+              {' · '}
+              <Text style={{ color: colors.primary, fontWeight: '700' }}>Ver avaliações</Text>
+            </Text>
+          </TouchableOpacity>
+        ) : null}
 
         <View style={styles.recentBadges}>
           {blockedByFunction ? (
@@ -1427,6 +1546,92 @@ export default function ConvidarColaboradorEventoScreen() {
       </KeyboardAvoidingView>
 
       <Modal
+        visible={showReviewsModal}
+        animationType="slide"
+        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+        onRequestClose={() => setShowReviewsModal(false)}
+      >
+        <SafeAreaView style={[styles.inviteModalRoot, { backgroundColor: colors.background }]} edges={['top', 'left', 'right', 'bottom']}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+            <TouchableOpacity onPress={() => setShowReviewsModal(false)} style={styles.modalCloseBtn}>
+              <Ionicons name="close" size={26} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Avaliações</Text>
+            <View style={styles.modalCloseBtn} />
+          </View>
+          <View style={styles.reviewsHeader}>
+            <OptimizedImage
+              imageUrl={reviewsModalArtist?.imageUrl || ''}
+              style={styles.reviewsHeaderAvatar}
+              fallbackText={reviewsModalArtist?.name || 'Artista'}
+              fallbackIcon="person"
+              fallbackIconSize={14}
+              fallbackIconColor={colors.primary}
+              showLoadingIndicator={false}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.reviewsHeaderTitle, { color: colors.text }]}>
+                {reviewsModalArtist?.name || 'Artista'}
+              </Text>
+              <Text style={[styles.reviewsHeaderSub, { color: colors.textSecondary }]}>
+                Comentários públicos de quem já convidou
+              </Text>
+            </View>
+          </View>
+
+          {reviewsLoading ? (
+            <View style={styles.centered}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : reviewsError ? (
+            <View style={styles.centered}>
+              <Text style={{ color: colors.error }}>{reviewsError}</Text>
+            </View>
+          ) : reviewsList.length === 0 ? (
+            <View style={styles.centered}>
+              <Text style={{ color: colors.textSecondary }}>Sem comentários públicos ainda.</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={reviewsList}
+              keyExtractor={(item, idx) => `${item.artista_avaliador_id}-${item.criado_em}-${idx}`}
+              contentContainerStyle={styles.reviewsListContent}
+              renderItem={({ item }) => (
+                <View style={[styles.reviewItemCard, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+                  <View style={styles.reviewItemTop}>
+                    <View style={styles.reviewItemAuthorRow}>
+                      <OptimizedImage
+                        imageUrl={item.artista_avaliador_imagem || ''}
+                        style={styles.reviewItemAvatar}
+                        fallbackText={item.artista_avaliador_nome || 'Artista'}
+                        fallbackIcon="person"
+                        fallbackIconSize={12}
+                        fallbackIconColor={colors.primary}
+                        showLoadingIndicator={false}
+                      />
+                      <Text style={[styles.reviewItemAuthor, { color: colors.text }]} numberOfLines={1}>
+                        {item.artista_avaliador_nome}
+                      </Text>
+                    </View>
+                    <Text style={[styles.reviewItemStars, { color: colors.warning }]}>
+                      {'★'.repeat(Math.max(1, Math.min(5, item.nota_geral)))}
+                    </Text>
+                  </View>
+                  <Text style={[styles.reviewItemComment, { color: colors.textSecondary }]}>
+                    {item.comentario_publico}
+                  </Text>
+                  <Text style={[styles.reviewItemMeta, { color: colors.textSecondary }]}>
+                    {item.nome_evento ? `${item.nome_evento} · ` : ''}
+                    {formatReviewDate(item.criado_em)}
+                  </Text>
+                </View>
+              )}
+            />
+          )}
+        </SafeAreaView>
+      </Modal>
+
+      <Modal
         visible={inviteModalVisible && selectedArtist != null}
         animationType="slide"
         presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
@@ -2013,24 +2218,43 @@ const styles = StyleSheet.create({
     paddingBottom: 2,
   },
   recentCard: {
-    width: 192,
+    width: 200,
     borderRadius: 12,
     borderWidth: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 11,
   },
   recentCardTop: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   recentAvatar: { width: 36, height: 36, borderRadius: 18 },
   recentName: { flex: 1, minWidth: 0, fontSize: 14, fontWeight: '700', lineHeight: 18 },
-  recentSummary: { fontSize: 12, lineHeight: 16, fontWeight: '500' },
-  recentSummaryEm: { fontWeight: '700' },
-  recentSummaryDot: { fontWeight: '400', opacity: 0.65 },
-  recentBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 6 },
+  recentMetaLine: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '500',
+    marginBottom: 3,
+  },
+  recentCacheLine: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 4,
+  },
+  recentCacheLineMuted: {
+    fontWeight: '600',
+  },
+  recentCacheLineValue: {
+    fontWeight: '800',
+  },
+  recentRatingCompact: {
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  recentBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 },
   recentBadge: {
     borderRadius: 4,
     paddingHorizontal: 5,
@@ -2139,6 +2363,111 @@ const styles = StyleSheet.create({
   rowCardInfo: { flex: 1, minWidth: 0 },
   rowCardHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
   artistNameCard: { fontSize: 17, lineHeight: 22, flex: 1, minWidth: 0 },
+  ratingCardInline: {
+    marginTop: 6,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    gap: 4,
+  },
+  ratingInlineTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  ratingInlineStars: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 1,
+  },
+  ratingInlineValue: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  ratingInlineComment: {
+    fontSize: 11,
+    lineHeight: 15,
+    fontStyle: 'italic',
+  },
+  ratingInlineAction: {
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  ratingInlineEmpty: {
+    marginTop: 6,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  reviewsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  reviewsHeaderAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+  },
+  reviewsHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  reviewsHeaderSub: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  reviewsListContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+    gap: 10,
+  },
+  reviewItemCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+  },
+  reviewItemTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+    gap: 8,
+  },
+  reviewItemAuthorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+    minWidth: 0,
+  },
+  reviewItemAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
+  reviewItemAuthor: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  reviewItemStars: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  reviewItemComment: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  reviewItemMeta: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
   cardBlockTop: { marginTop: 8, gap: 6 },
   cardBlockSection: { marginTop: 10 },
   cardBlockFooter: {
