@@ -791,6 +791,13 @@ export default function ConfiguracoesScreen() {
                 'Ver e gerenciar convites',
                 () => router.push('/convites-enviados')
               )}
+
+              {renderSettingItem(
+                'trophy',
+                'Parceiros frequentes',
+                'Quem mais aceitou participar nos seus eventos',
+                () => router.push('/parceiros-frequentes')
+              )}
             </View>
           </View>
         )}

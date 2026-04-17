@@ -95,6 +95,13 @@ export type ParceiroRecenteParticipacao = ArtistaBuscaConvite & {
   ultimo_cache_valor: number | null;
 };
 
+/** Mesmo perfil de parceiro recente, com contagem de participações aceitas (organizador → convidado). */
+export type ParceiroFrequenteParticipacao = ParceiroRecenteParticipacao & {
+  totalParticipacoesAceitas: number;
+  /** Funções distintas já registradas em convites aceitos (ordenadas). */
+  funcoesParticipacao: string[];
+};
+
 export async function listarParceirosRecentesParticipacao(
   artistaQueConvidaId: string,
   limite: number = 15
@@ -132,6 +139,66 @@ export async function listarParceirosRecentesParticipacao(
         if (v == null || v === '') return null;
         const n = typeof v === 'number' ? v : Number(v);
         return Number.isFinite(n) ? n : null;
+      })(),
+    }));
+    return { partners, error: null };
+  } catch {
+    return { partners: [], error: 'Erro de conexão' };
+  }
+}
+
+/** Artistas com quem este perfil mais fechou participação aceita (ordenado por quantidade). */
+export async function listarParceirosFrequentesParticipacao(
+  artistaQueConvidaId: string,
+  limite: number = 30
+): Promise<{ partners: ParceiroFrequenteParticipacao[]; error: string | null }> {
+  try {
+    const capped = Math.min(50, Math.max(1, Math.floor(limite)));
+    const { data, error } = await supabase.rpc('listar_parceiros_frequentes_participacao', {
+      p_artista_que_convida_id: artistaQueConvidaId,
+      p_limite: capped,
+    });
+    if (error) return { partners: [], error: error.message };
+    const raw = (data || []) as Record<string, unknown>[];
+    const partners: ParceiroFrequenteParticipacao[] = raw.map((row) => ({
+      id: String(row.id),
+      name: String(row.name ?? ''),
+      profile_url: row.profile_url != null ? String(row.profile_url) : null,
+      image_url: row.image_url != null ? String(row.image_url) : undefined,
+      musical_style: row.musical_style != null ? String(row.musical_style) : undefined,
+      work_roles: row.work_roles,
+      show_formats: row.show_formats,
+      whatsapp: row.whatsapp != null ? String(row.whatsapp) : null,
+      city: row.city != null ? String(row.city) : null,
+      state: row.state != null ? String(row.state) : null,
+      show_whatsapp: row.show_whatsapp === true,
+      is_available_for_gigs: row.is_available_for_gigs === true,
+      ultima_funcao: row.ultima_funcao != null && String(row.ultima_funcao).trim() !== '' ? String(row.ultima_funcao) : null,
+      ultima_colaboracao_em:
+        row.ultima_colaboracao_em != null ? String(row.ultima_colaboracao_em) : new Date(0).toISOString(),
+      participacao_data_evento:
+        row.participacao_data_evento != null && String(row.participacao_data_evento).trim() !== ''
+          ? String(row.participacao_data_evento).slice(0, 10)
+          : null,
+      ultimo_cache_valor: (() => {
+        const v = row.ultimo_cache_valor;
+        if (v == null || v === '') return null;
+        const n = typeof v === 'number' ? v : Number(v);
+        return Number.isFinite(n) ? n : null;
+      })(),
+      totalParticipacoesAceitas: (() => {
+        const v = row.total_participacoes_aceitas;
+        if (v == null || v === '') return 0;
+        const n = typeof v === 'number' ? v : Number(v);
+        return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+      })(),
+      funcoesParticipacao: (() => {
+        const v = row.funcoes_participacao;
+        if (v == null) return [];
+        if (Array.isArray(v)) {
+          return v.map((x) => String(x).trim()).filter((s) => s.length > 0);
+        }
+        return [];
       })(),
     }));
     return { partners, error: null };
