@@ -480,7 +480,8 @@ BEGIN
       v_uid,
       v_uid,
       v_convite.nome_evento,
-      COALESCE(v_convite.descricao, v_convite.mensagem),
+      -- Só mensagem do convite; nunca copiar descricao (observações do evento do organizador).
+      NULLIF(TRIM(v_convite.mensagem), ''),
       v_convite.data_evento,
       v_convite.hora_inicio,
       v_convite.hora_fim,

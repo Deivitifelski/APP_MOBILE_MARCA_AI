@@ -236,6 +236,8 @@ export default function DetalhesEventoScreen() {
   const [canCreateEventsPermission, setCanCreateEventsPermission] = useState(false);
 
   const [participationFromInviteBanner, setParticipationFromInviteBanner] = useState<string | null>(null);
+  /** Texto livre do convite (mensagem); não expõe observações internas do evento do organizador. */
+  const [participationInviteMessage, setParticipationInviteMessage] = useState<string | null>(null);
 
   const [participationInvites, setParticipationInvites] = useState<ConviteParticipacaoEventoRow[]>([]);
   const [participationInviteeNames, setParticipationInviteeNames] = useState<Record<string, string>>({});
@@ -310,12 +312,17 @@ export default function DetalhesEventoScreen() {
     (async () => {
       if (!event?.convite_participacao_id) {
         setParticipationFromInviteBanner(null);
+        setParticipationInviteMessage(null);
         return;
       }
       const { convite } = await obterConvitePorId(event.convite_participacao_id);
       if (cancelled || !convite) return;
       const n = await obterNomeArtista(convite.artista_que_convidou_id);
-      if (!cancelled) setParticipationFromInviteBanner(n || 'outro artista');
+      if (!cancelled) {
+        setParticipationFromInviteBanner(n || 'outro artista');
+        const msg = convite.mensagem?.trim();
+        setParticipationInviteMessage(msg ? msg : null);
+      }
     })();
     return () => {
       cancelled = true;
@@ -1219,7 +1226,7 @@ export default function DetalhesEventoScreen() {
               </View>
             )}
 
-            {event.description && (
+            {event.description && !event.convite_participacao_id ? (
               <View style={styles.descriptionContainer}>
                 <View style={styles.detailRow}>
                   <Ionicons name="document-text" size={20} color={colors.primary} />
@@ -1227,7 +1234,7 @@ export default function DetalhesEventoScreen() {
                 </View>
                 <Text style={[styles.descriptionText, { color: colors.textSecondary }]}>{event.description}</Text>
               </View>
-            )}
+            ) : null}
           </View>
         </View>
 
@@ -1250,6 +1257,23 @@ export default function DetalhesEventoScreen() {
                 </Text>
               </View>
             </View>
+          </View>
+        ) : null}
+
+        {event?.convite_participacao_id && participationInviteMessage ? (
+          <View
+            style={[
+              styles.financialCard,
+              { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+            ]}
+          >
+            <View style={styles.detailRow}>
+              <Ionicons name="chatbubble-outline" size={20} color={colors.primary} />
+              <Text style={[styles.detailLabel, { color: colors.text }]}>Mensagem do convite</Text>
+            </View>
+            <Text style={[styles.descriptionText, { color: colors.textSecondary, marginTop: 6, marginLeft: 28 }]}>
+              {participationInviteMessage}
+            </Text>
           </View>
         ) : null}
 

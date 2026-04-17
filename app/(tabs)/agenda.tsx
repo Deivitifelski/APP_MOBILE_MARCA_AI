@@ -1875,11 +1875,6 @@ export default function AgendaScreen() {
                         Função sugerida: {selectedInviteFunction}
                       </Text>
                     ) : null}
-                    {selectedInviteEventInfo.description ? (
-                      <Text style={[styles.inviteInfoLine, { color: colors.textSecondary }]}>
-                        Observações: {selectedInviteEventInfo.description}
-                      </Text>
-                    ) : null}
                     <TextInput
                       value={inviteCancelReason}
                       onChangeText={setInviteCancelReason}
