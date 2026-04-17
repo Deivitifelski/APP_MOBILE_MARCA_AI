@@ -22,7 +22,10 @@ import OptimizedImage from '../components/OptimizedImage';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { getEventById } from '../services/supabase/eventService';
-import { parseArtistStringArrayFromJson } from '../constants/artistProfileLists';
+import {
+  ARTIST_WORK_ROLE_PRESETS,
+  parseArtistStringArrayFromJson,
+} from '../constants/artistProfileLists';
 import {
   buscarArtistasParaConvite,
   enviarConviteParticipacao,
@@ -33,15 +36,15 @@ import {
 } from '../services/supabase/conviteParticipacaoEventoService';
 import { useActiveArtist } from '../services/useActiveArtist';
 import { brazilMobileDigits, maskBrazilMobile } from '../utils/brazilPhone';
-
-/** Filtro de parceiros recentes por função (valores derivados só da lista carregada). */
-const RECENT_PARTNER_FILTER_ALL = '__all__';
-const RECENT_PARTNER_FILTER_NO_ROLE = '__no_role__';
 import {
   extractNumericValueString,
   formatCurrencyBRLFromAmount,
   formatCurrencyBRLInput,
 } from '../utils/currencyBRLInput';
+
+/** Filtro de parceiros recentes por função (valores derivados só da lista carregada). */
+const RECENT_PARTNER_FILTER_ALL = '__all__';
+const RECENT_PARTNER_FILTER_NO_ROLE = '__no_role__';
 
 export default function ConvidarColaboradorEventoScreen() {
   const { colors } = useTheme();
@@ -964,13 +967,52 @@ export default function ConvidarColaboradorEventoScreen() {
                           </ScrollView>
                         </View>
                       )}
+                      <Text style={[styles.filterFieldLabel, { color: colors.text, marginTop: 10 }]}>Função (opcional)</Text>
+                      <Text style={[styles.filterFieldHint, { color: colors.textSecondary }]}>
+                        Sugestões rápidas — você ainda pode editar ou digitar outra função no campo abaixo.
+                      </Text>
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.funcPresetRow}
+                        nestedScrollEnabled
+                        keyboardShouldPersistTaps="handled"
+                      >
+                        {ARTIST_WORK_ROLE_PRESETS.map((role) => {
+                          const selected = filterRole.trim() === role;
+                          return (
+                            <TouchableOpacity
+                              key={role}
+                              onPress={() => setFilterRole(role)}
+                              activeOpacity={0.75}
+                              style={[
+                                styles.funcPresetChip,
+                                {
+                                  borderColor: selected ? colors.primary : colors.border,
+                                  backgroundColor: selected ? `${colors.primary}16` : colors.background,
+                                },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.funcPresetChipText,
+                                  { color: selected ? colors.primary : colors.text, fontWeight: selected ? '800' : '600' },
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {role}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
                       <TextInput
                         style={[
                           styles.filterInput,
                           styles.filterInputLast,
                           { color: colors.text, borderColor: colors.border },
                         ]}
-                        placeholder="Função — ex.: violão, vocal (opcional)"
+                        placeholder="Ou digite a função (ex.: violão, vocal)"
                         placeholderTextColor={colors.textSecondary}
                         value={filterRole}
                         onChangeText={setFilterRole}
@@ -1310,6 +1352,21 @@ const styles = StyleSheet.create({
   },
   filterInputLast: { marginBottom: 0 },
   filterFieldLabel: { fontSize: 13, fontWeight: '600', marginTop: 2, marginBottom: 6 },
+  filterFieldHint: { fontSize: 11, lineHeight: 15, marginBottom: 8, marginTop: -2 },
+  funcPresetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingBottom: 10,
+    paddingRight: 2,
+  },
+  funcPresetChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+  },
+  funcPresetChipText: { fontSize: 12, maxWidth: 180 },
   estadoSelector: {
     borderWidth: 1,
     borderRadius: 10,
