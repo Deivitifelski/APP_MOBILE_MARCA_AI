@@ -231,14 +231,14 @@ export const updateUserProfile = async (userId: string, userData: Partial<Create
 /** Máximo de perfis de artista que o usuário pode possuir como admin no plano gratuito (sem assinatura ativa em `user_subscriptions`). */
 export const FREE_PLAN_MAX_OWNED_ARTIST_PROFILES = 1;
 
-/** Máximo de colaboradores no time de cada artista no gratuito (além do dono/admin principal). Total de pessoas no `artist_members` = 1 + isso. */
-export const FREE_PLAN_MAX_COLLABORATORS_PER_ARTIST = 4;
+/** No gratuito: no máximo 2 colaboradores além do criador/admin (3 pessoas no `artist_members` no total). */
+export const FREE_PLAN_MAX_COLLABORATORS_PER_ARTIST = 2;
 
-/** Total de membros permitidos no artista no plano gratuito (você + colaboradores). */
+/** Total de membros permitidos no artista no plano gratuito (criador + colaboradores). */
 export const FREE_PLAN_MAX_TEAM_MEMBERS_PER_ARTIST = 1 + FREE_PLAN_MAX_COLLABORATORS_PER_ARTIST;
 
 const FREE_PLAN_TEAM_LIMIT_MESSAGE =
-  'No plano gratuito, cada artista pode ter no máximo 4 colaboradores (5 pessoas no time no total). Se algum administrador ou proprietário tiver Premium, o limite some.';
+  'No plano gratuito, cada artista pode ter no máximo 2 colaboradores (3 pessoas no time no total, incluindo o criador). Se algum administrador ou proprietário tiver Premium, o limite some.';
 
 /** Indica se o usuário tem assinatura vigente em `user_subscriptions` (status + expires_at). */
 export const userSubscriptionIsActive = async (
