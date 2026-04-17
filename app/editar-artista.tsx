@@ -770,6 +770,7 @@ export default function EditarArtistaScreen() {
                 onAddCustom={addCustomWorkRole}
                 addSectionLabel="Incluir outra função"
                 addPlaceholder="Digite e toque em Adicionar"
+                presetStrip={ARTIST_WORK_ROLE_PRESETS}
               />
 
               <ChipMultiSelectField

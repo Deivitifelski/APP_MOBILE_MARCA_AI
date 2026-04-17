@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import {
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -20,6 +21,8 @@ export interface ChipMultiSelectFieldProps {
   onAddCustom: () => void;
   addSectionLabel: string;
   addPlaceholder: string;
+  /** Mesma lista de sugestões do convite (ex.: `ARTIST_WORK_ROLE_PRESETS`): carrossel no topo; a grade mostra só o que for extra. */
+  presetStrip?: readonly string[];
 }
 
 export function ChipMultiSelectField({
@@ -32,12 +35,18 @@ export function ChipMultiSelectField({
   onAddCustom,
   addSectionLabel,
   addPlaceholder,
+  presetStrip,
 }: ChipMultiSelectFieldProps) {
   const { colors } = useTheme();
 
+  const presetSet = presetStrip?.length ? new Set(presetStrip) : null;
+  const gridOptions = presetSet ? options.filter((o) => !presetSet.has(o)) : options;
+
   const subtitle =
     selected.length === 0
-      ? 'Toque nos chips para selecionar — pode marcar várias opções'
+      ? presetStrip?.length
+        ? 'Deslize as sugestões no carrossel; funções extras ficam na grade abaixo.'
+        : 'Toque nos chips para selecionar — pode marcar várias opções'
       : `${selected.length} selecionado${selected.length !== 1 ? 's' : ''}`;
 
   return (
@@ -54,32 +63,78 @@ export function ChipMultiSelectField({
           },
         ]}
       >
-        <View style={styles.chipWrap}>
-          {options.map((opt) => {
-            const on = selected.includes(opt);
-            return (
-              <TouchableOpacity
-                key={opt}
-                style={[
-                  styles.chip,
-                  {
-                    borderColor: on ? colors.primary : colors.border,
-                    backgroundColor: on ? colors.primary : colors.surface,
-                  },
-                ]}
-                onPress={() => onToggle(opt)}
-                activeOpacity={0.85}
-              >
-                <Text style={[styles.chipText, { color: on ? '#fff' : colors.text }]} numberOfLines={2}>
-                  {opt}
-                </Text>
-                {on ? (
-                  <Ionicons name="checkmark-circle" size={18} color="#fff" style={styles.chipCheck} />
-                ) : null}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        {presetStrip && presetStrip.length > 0 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.presetStripRow}
+            keyboardShouldPersistTaps="handled"
+          >
+            {presetStrip.map((opt) => {
+              const on = selected.includes(opt);
+              return (
+                <TouchableOpacity
+                  key={`strip-${opt}`}
+                  style={[
+                    styles.presetChip,
+                    {
+                      borderColor: on ? colors.primary : colors.border,
+                      backgroundColor: on ? `${colors.primary}18` : colors.surface,
+                    },
+                  ]}
+                  onPress={() => onToggle(opt)}
+                  activeOpacity={0.75}
+                >
+                  <Text
+                    style={[
+                      styles.presetChipText,
+                      { color: on ? colors.primary : colors.text, fontWeight: on ? '800' : '600' },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {opt}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        ) : null}
+
+        {gridOptions.length > 0 ? (
+          <View
+            style={[
+              styles.chipWrap,
+              presetStrip?.length
+                ? [styles.chipWrapBelowStrip, { borderTopColor: colors.border }]
+                : null,
+            ]}
+          >
+            {gridOptions.map((opt) => {
+              const on = selected.includes(opt);
+              return (
+                <TouchableOpacity
+                  key={opt}
+                  style={[
+                    styles.chip,
+                    {
+                      borderColor: on ? colors.primary : colors.border,
+                      backgroundColor: on ? colors.primary : colors.surface,
+                    },
+                  ]}
+                  onPress={() => onToggle(opt)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={[styles.chipText, { color: on ? '#fff' : colors.text }]} numberOfLines={2}>
+                    {opt}
+                  </Text>
+                  {on ? (
+                    <Ionicons name="checkmark-circle" size={18} color="#fff" style={styles.chipCheck} />
+                  ) : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : null}
 
         <View style={[styles.addBlock, { borderTopColor: colors.border }]}>
           <Text style={[styles.addLabel, { color: colors.text }]}>{addSectionLabel}</Text>
@@ -128,6 +183,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 12,
     overflow: 'hidden',
+  },
+  presetStripRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingBottom: 10,
+    paddingRight: 2,
+  },
+  presetChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+  },
+  presetChipText: { fontSize: 12, maxWidth: 200 },
+  chipWrapBelowStrip: {
+    marginTop: 4,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   chipWrap: {
     flexDirection: 'row',
