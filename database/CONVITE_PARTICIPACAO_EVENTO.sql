@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS convite_participacao_evento (
   hora_fim TIME NOT NULL,
   cache_valor NUMERIC(12,2),
   cidade TEXT,
+  estado_uf TEXT,
   telefone_contratante TEXT,
   descricao TEXT,
   funcao_participacao TEXT,

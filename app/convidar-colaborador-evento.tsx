@@ -234,7 +234,9 @@ export default function ConvidarColaboradorEventoScreen() {
         estado: filterState,
         funcao: filterRole,
       });
-      const filtered = artists.filter((a) => !blockedArtists.has(a.id) && a.is_available_for_gigs === true);
+      // A RPC já devolve somente artistas com is_available_for_gigs = true.
+      // Não filtrar aqui por esse campo, pois algumas versões da RPC não retornam a coluna.
+      const filtered = artists.filter((a) => !blockedArtists.has(a.id));
       setSearchResults(filtered);
       setSearchError(error);
       setSearchLoading(false);

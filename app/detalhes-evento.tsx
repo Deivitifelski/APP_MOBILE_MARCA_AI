@@ -238,6 +238,10 @@ export default function DetalhesEventoScreen() {
   const [participationFromInviteBanner, setParticipationFromInviteBanner] = useState<string | null>(null);
   /** Texto livre do convite (mensagem); não expõe observações internas do evento do organizador. */
   const [participationInviteMessage, setParticipationInviteMessage] = useState<string | null>(null);
+  const [participationInviteLocationFallback, setParticipationInviteLocationFallback] = useState<{
+    city: string | null;
+    state_uf: string | null;
+  } | null>(null);
 
   const [participationInvites, setParticipationInvites] = useState<ConviteParticipacaoEventoRow[]>([]);
   const [participationInviteeNames, setParticipationInviteeNames] = useState<Record<string, string>>({});
@@ -313,6 +317,7 @@ export default function DetalhesEventoScreen() {
       if (!event?.convite_participacao_id) {
         setParticipationFromInviteBanner(null);
         setParticipationInviteMessage(null);
+        setParticipationInviteLocationFallback(null);
         return;
       }
       const { convite } = await obterConvitePorId(event.convite_participacao_id);
@@ -322,6 +327,10 @@ export default function DetalhesEventoScreen() {
         setParticipationFromInviteBanner(n || 'outro artista');
         const msg = convite.mensagem?.trim();
         setParticipationInviteMessage(msg ? msg : null);
+        setParticipationInviteLocationFallback({
+          city: convite.cidade ?? null,
+          state_uf: convite.estado_uf ?? null,
+        });
       }
     })();
     return () => {
@@ -983,6 +992,18 @@ export default function DetalhesEventoScreen() {
 
   const cloneDateLabel = formatDate(formatLocalDateToISO(cloneTargetDate));
 
+  const effectiveEventLocationLine = React.useMemo(() => {
+    if (!event) return 'Não informado';
+    const fallbackCity = participationInviteLocationFallback?.city ?? null;
+    const fallbackUf = participationInviteLocationFallback?.state_uf ?? null;
+    const mergedEvent: Event = {
+      ...event,
+      city: event.city ?? fallbackCity ?? undefined,
+      state_uf: event.state_uf ?? fallbackUf ?? null,
+    };
+    return formatEventLocationLine(mergedEvent);
+  }, [event, participationInviteLocationFallback]);
+
   const handleCompartilharEvento = () => {
     if (!event) return;
     promptAndShareEvent(event, {
@@ -1115,7 +1136,7 @@ export default function DetalhesEventoScreen() {
 
             <View style={styles.detailRow}>
               <Ionicons name="location" size={20} color={colors.primary} />
-              <Text style={[styles.detailText, { color: colors.text }]}>{formatEventLocationLine(event)}</Text>
+              <Text style={[styles.detailText, { color: colors.text }]}>{effectiveEventLocationLine}</Text>
             </View>
 
             <View style={styles.detailRow}>

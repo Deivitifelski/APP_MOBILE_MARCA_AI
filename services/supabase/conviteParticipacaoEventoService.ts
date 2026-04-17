@@ -16,6 +16,7 @@ export interface ConviteParticipacaoEventoRow {
   hora_fim: string;
   cache_valor: number | null;
   cidade: string | null;
+  estado_uf?: string | null;
   telefone_contratante: string | null;
   descricao: string | null;
   funcao_participacao: string | null;

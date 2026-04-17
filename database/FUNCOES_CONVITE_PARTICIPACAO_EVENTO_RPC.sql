@@ -28,6 +28,9 @@ ALTER TABLE convite_participacao_evento
 ALTER TABLE convite_participacao_evento
   ADD COLUMN IF NOT EXISTS grupo_disputa_id UUID;
 
+ALTER TABLE convite_participacao_evento
+  ADD COLUMN IF NOT EXISTS estado_uf TEXT;
+
 UPDATE convite_participacao_evento
 SET grupo_disputa_id = gen_random_uuid()
 WHERE grupo_disputa_id IS NULL;
@@ -223,6 +226,7 @@ BEGIN
       hora_fim,
       cache_valor,
       cidade,
+      estado_uf,
       telefone_contratante,
       descricao,
       funcao_participacao,
@@ -241,6 +245,10 @@ BEGIN
       v_event.end_time,
       p_cache_valor,
       v_event.city,
+      CASE
+        WHEN v_event.state_uf IS NULL OR trim(v_event.state_uf) = '' THEN NULL
+        ELSE upper(trim(v_event.state_uf))
+      END,
       NULLIF(TRIM(p_telefone_contratante), ''),
       v_event.description,
       TRIM(p_funcao_participacao),
@@ -348,6 +356,7 @@ BEGIN
         hora_fim,
         cache_valor,
         cidade,
+        estado_uf,
         telefone_contratante,
         descricao,
         funcao_participacao,
@@ -366,6 +375,10 @@ BEGIN
         v_event.end_time,
         p_cache_valor,
         v_event.city,
+        CASE
+          WHEN v_event.state_uf IS NULL OR trim(v_event.state_uf) = '' THEN NULL
+          ELSE upper(trim(v_event.state_uf))
+        END,
         NULLIF(TRIM(p_telefone_contratante), ''),
         v_event.description,
         TRIM(p_funcao_participacao),
@@ -495,6 +508,7 @@ BEGIN
       end_time,
       value,
       city,
+      state_uf,
       contractor_phone,
       confirmed,
       tag,
@@ -514,6 +528,10 @@ BEGIN
       v_convite.hora_fim,
       v_convite.cache_valor,
       v_convite.cidade,
+      CASE
+        WHEN v_convite.estado_uf IS NULL OR trim(v_convite.estado_uf) = '' THEN NULL
+        ELSE upper(trim(v_convite.estado_uf))
+      END,
       v_convite.telefone_contratante,
       true,
       'evento',
