@@ -88,6 +88,10 @@ export type ParceiroRecenteParticipacao = ArtistaBuscaConvite & {
   ultima_colaboracao_em: string;
   /** Cadastro do artista convidado; false indica que o perfil não está aberto para busca de shows. */
   is_available_for_gigs: boolean;
+  /** Data do show do convite aceito (coluna data_evento do convite). */
+  participacao_data_evento: string | null;
+  /** Cachê combinado no convite aceito. */
+  ultimo_cache_valor: number | null;
 };
 
 export async function listarParceirosRecentesParticipacao(
@@ -118,6 +122,16 @@ export async function listarParceirosRecentesParticipacao(
       ultima_funcao: row.ultima_funcao != null && String(row.ultima_funcao).trim() !== '' ? String(row.ultima_funcao) : null,
       ultima_colaboracao_em:
         row.ultima_colaboracao_em != null ? String(row.ultima_colaboracao_em) : new Date(0).toISOString(),
+      participacao_data_evento:
+        row.participacao_data_evento != null && String(row.participacao_data_evento).trim() !== ''
+          ? String(row.participacao_data_evento).slice(0, 10)
+          : null,
+      ultimo_cache_valor: (() => {
+        const v = row.ultimo_cache_valor;
+        if (v == null || v === '') return null;
+        const n = typeof v === 'number' ? v : Number(v);
+        return Number.isFinite(n) ? n : null;
+      })(),
     }));
     return { partners, error: null };
   } catch {

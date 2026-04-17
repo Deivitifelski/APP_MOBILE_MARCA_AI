@@ -24,7 +24,9 @@ RETURNS TABLE (
   show_whatsapp BOOLEAN,
   is_available_for_gigs BOOLEAN,
   ultima_funcao TEXT,
-  ultima_colaboracao_em TIMESTAMPTZ
+  ultima_colaboracao_em TIMESTAMPTZ,
+  participacao_data_evento DATE,
+  ultimo_cache_valor NUMERIC(12, 2)
 )
 LANGUAGE sql
 STABLE
@@ -44,7 +46,9 @@ AS $$
     SELECT DISTINCT ON (c.artista_convidado_id)
       c.artista_convidado_id AS aid,
       NULLIF(trim(COALESCE(c.funcao_participacao, '')), '') AS ultima_funcao,
-      COALESCE(c.respondido_em, c.atualizado_em, c.criado_em) AS ultima_colaboracao_em
+      COALESCE(c.respondido_em, c.atualizado_em, c.criado_em) AS ultima_colaboracao_em,
+      c.data_evento AS participacao_data_evento,
+      c.cache_valor AS ultimo_cache_valor
     FROM convite_participacao_evento c
     CROSS JOIN allowed
     WHERE c.artista_que_convidou_id = p_artista_que_convida_id
@@ -71,7 +75,9 @@ AS $$
     COALESCE(a.show_whatsapp, false),
     COALESCE(a.is_available_for_gigs, false),
     l.ultima_funcao,
-    l.ultima_colaboracao_em
+    l.ultima_colaboracao_em,
+    l.participacao_data_evento,
+    l.ultimo_cache_valor
   FROM latest l
   INNER JOIN artists a ON a.id = l.aid
   LEFT JOIN LATERAL (

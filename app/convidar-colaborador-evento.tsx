@@ -33,7 +33,15 @@ import {
 } from '../services/supabase/conviteParticipacaoEventoService';
 import { useActiveArtist } from '../services/useActiveArtist';
 import { brazilMobileDigits, maskBrazilMobile } from '../utils/brazilPhone';
-import { extractNumericValueString, formatCurrencyBRLInput } from '../utils/currencyBRLInput';
+
+/** Filtro de parceiros recentes por função (valores derivados só da lista carregada). */
+const RECENT_PARTNER_FILTER_ALL = '__all__';
+const RECENT_PARTNER_FILTER_NO_ROLE = '__no_role__';
+import {
+  extractNumericValueString,
+  formatCurrencyBRLFromAmount,
+  formatCurrencyBRLInput,
+} from '../utils/currencyBRLInput';
 
 export default function ConvidarColaboradorEventoScreen() {
   const { colors } = useTheme();
@@ -71,6 +79,7 @@ export default function ConvidarColaboradorEventoScreen() {
   const [recentPartners, setRecentPartners] = useState<ParceiroRecenteParticipacao[]>([]);
   const [recentPartnersLoading, setRecentPartnersLoading] = useState(true);
   const [recentPartnersError, setRecentPartnersError] = useState<string | null>(null);
+  const [recentPartnerRoleFilter, setRecentPartnerRoleFilter] = useState<string>(RECENT_PARTNER_FILTER_ALL);
 
   const [cacheDraft, setCacheDraft] = useState('R$ 0,00');
   const [whatsDraft, setWhatsDraft] = useState('');
@@ -316,6 +325,43 @@ export default function ConvidarColaboradorEventoScreen() {
     [filterCity, filterState, filterRole]
   );
 
+  const recentPartnerRoleBuckets = useMemo(() => {
+    const roles = new Set<string>();
+    let semFuncao = false;
+    for (const p of recentPartners) {
+      const f = (p.ultima_funcao || '').trim();
+      if (!f) semFuncao = true;
+      else roles.add(f);
+    }
+    const lista = [...roles].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    const categorias = lista.length + (semFuncao ? 1 : 0);
+    return { lista, semFuncao, categorias, mostrarFiltro: recentPartners.length > 0 && categorias > 1 };
+  }, [recentPartners]);
+
+  const recentPartnersFiltrados = useMemo(() => {
+    if (recentPartnerRoleFilter === RECENT_PARTNER_FILTER_ALL) return recentPartners;
+    if (recentPartnerRoleFilter === RECENT_PARTNER_FILTER_NO_ROLE) {
+      return recentPartners.filter((p) => !(p.ultima_funcao || '').trim());
+    }
+    return recentPartners.filter((p) => (p.ultima_funcao || '').trim() === recentPartnerRoleFilter);
+  }, [recentPartners, recentPartnerRoleFilter]);
+
+  useEffect(() => {
+    const roles = new Set<string>();
+    let semFuncao = false;
+    for (const p of recentPartners) {
+      const f = (p.ultima_funcao || '').trim();
+      if (!f) semFuncao = true;
+      else roles.add(f);
+    }
+    if (recentPartnerRoleFilter === RECENT_PARTNER_FILTER_ALL) return;
+    if (recentPartnerRoleFilter === RECENT_PARTNER_FILTER_NO_ROLE) {
+      if (!semFuncao) setRecentPartnerRoleFilter(RECENT_PARTNER_FILTER_ALL);
+      return;
+    }
+    if (!roles.has(recentPartnerRoleFilter)) setRecentPartnerRoleFilter(RECENT_PARTNER_FILTER_ALL);
+  }, [recentPartnerRoleFilter, recentPartners]);
+
   const locationLine = (item: ArtistaBuscaConvite, fallback: string) => {
     const c = (item.city ?? '').trim();
     const s = (item.state ?? '').trim();
@@ -325,14 +371,20 @@ export default function ConvidarColaboradorEventoScreen() {
     return fallback;
   };
 
-  const formatUltimaColaboracao = (iso: string) => {
-    try {
-      const d = new Date(iso);
-      if (Number.isNaN(d.getTime())) return '';
-      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
-    } catch {
-      return '';
-    }
+  /** Uma linha curta para o card (evita quebra no meio do mês). */
+  const formatDataShowCompact = (yyyyMmDd: string | null | undefined) => {
+    if (!yyyyMmDd) return '';
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(yyyyMmDd).trim());
+    if (!m) return String(yyyyMmDd).slice(0, 10);
+    const [, y, mo, d] = m;
+    return `${d}/${mo}/${y}`;
+  };
+
+  /** Valor em uma linha; NBSP entre R$ e número para não partir "R$" / valor. */
+  const formatCacheUmaLinha = (valor: number | null | undefined) => {
+    if (valor == null || !Number.isFinite(valor) || valor <= 0) return '—';
+    const part = valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return `R$\u00A0${part}`;
   };
 
   const whatsAppDisplay = (raw: string | null | undefined) => {
@@ -490,7 +542,7 @@ export default function ConvidarColaboradorEventoScreen() {
     const isBlocked = blockedArtists.has(p.id);
     const locDisplay = locationLine(p, 'Local não informado');
     const artistStyle = (p.musical_style || '').trim();
-    const colabLabel = formatUltimaColaboracao(p.ultima_colaboracao_em);
+    const dataShowLabel = formatDataShowCompact(p.participacao_data_evento);
     return (
       <TouchableOpacity
         style={[
@@ -517,33 +569,42 @@ export default function ConvidarColaboradorEventoScreen() {
             musicalStyle: artistStyle || null,
           });
           setFunctionDraft(p.ultima_funcao?.trim() || '');
+          const cacheNum = p.ultimo_cache_valor;
+          if (cacheNum != null && Number.isFinite(cacheNum) && cacheNum > 0) {
+            setCacheDraft(formatCurrencyBRLFromAmount(cacheNum));
+          } else {
+            setCacheDraft('R$ 0,00');
+          }
           setMessageDraft('');
           setInviteModalVisible(true);
         }}
         activeOpacity={0.75}
       >
-        <OptimizedImage
-          imageUrl={p.image_url ?? p.profile_url ?? ''}
-          style={styles.recentAvatar}
-          fallbackText={p.name || 'Artista'}
-          fallbackIcon="person"
-          fallbackIconSize={16}
-          fallbackIconColor={colors.primary}
-          showLoadingIndicator={false}
-        />
-        <Text style={[styles.recentName, { color: colors.text }]} numberOfLines={2}>
-          {p.name}
+        <View style={styles.recentCardTop}>
+          <OptimizedImage
+            imageUrl={p.image_url ?? p.profile_url ?? ''}
+            style={styles.recentAvatar}
+            fallbackText={p.name || 'Artista'}
+            fallbackIcon="person"
+            fallbackIconSize={14}
+            fallbackIconColor={colors.primary}
+            showLoadingIndicator={false}
+          />
+          <Text style={[styles.recentName, { color: colors.text }]} numberOfLines={1} ellipsizeMode="tail">
+            {p.name}
+          </Text>
+        </View>
+
+        <Text style={[styles.recentSummary, { color: colors.textSecondary }]} numberOfLines={2}>
+          <Text style={[styles.recentSummaryEm, { color: colors.text }]}>{dataShowLabel || '—'}</Text>
+          <Text style={styles.recentSummaryDot}> · </Text>
+          <Text style={{ color: colors.text }} numberOfLines={1}>
+            {p.ultima_funcao?.trim() ? p.ultima_funcao : '—'}
+          </Text>
+          <Text style={styles.recentSummaryDot}> · </Text>
+          <Text style={[styles.recentSummaryEm, { color: colors.primary }]}>{formatCacheUmaLinha(p.ultimo_cache_valor)}</Text>
         </Text>
-        {colabLabel ? (
-          <Text style={[styles.recentMeta, { color: colors.textSecondary }]} numberOfLines={1}>
-            Última colab.: {colabLabel}
-          </Text>
-        ) : null}
-        {p.ultima_funcao ? (
-          <Text style={[styles.recentFuncao, { color: colors.primary }]} numberOfLines={1}>
-            {p.ultima_funcao}
-          </Text>
-        ) : null}
+
         <View style={styles.recentBadges}>
           {isBlocked ? (
             <View style={[styles.recentBadge, { backgroundColor: `${colors.textSecondary}22` }]}>
@@ -641,6 +702,8 @@ export default function ConvidarColaboradorEventoScreen() {
               blk: [...blockedArtists].sort().join(','),
               rec: recentPartners.length,
               rLoad: recentPartnersLoading,
+              rFil: recentPartnerRoleFilter,
+              rFilt: recentPartnersFiltrados.length,
             }}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
@@ -666,16 +729,135 @@ export default function ConvidarColaboradorEventoScreen() {
                           Nenhum ainda. Quando alguém aceitar um convite de participação, aparece aqui.
                         </Text>
                       ) : (
-                        <ScrollView
-                          horizontal
-                          showsHorizontalScrollIndicator={false}
-                          contentContainerStyle={styles.recentScrollContent}
-                          keyboardShouldPersistTaps="handled"
-                        >
-                          {recentPartners.map((p) => (
-                            <React.Fragment key={p.id}>{renderRecentPartnerCard(p)}</React.Fragment>
-                          ))}
-                        </ScrollView>
+                        <>
+                          {recentPartnerRoleBuckets.mostrarFiltro ? (
+                            <View style={styles.recentFilterBlock}>
+                              <Text style={[styles.recentFilterTitle, { color: colors.textSecondary }]}>
+                                Filtrar por função
+                              </Text>
+                              <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={styles.recentFilterChipsRow}
+                                keyboardShouldPersistTaps="handled"
+                              >
+                                <TouchableOpacity
+                                  onPress={() => setRecentPartnerRoleFilter(RECENT_PARTNER_FILTER_ALL)}
+                                  style={[
+                                    styles.recentFilterChip,
+                                    {
+                                      borderColor:
+                                        recentPartnerRoleFilter === RECENT_PARTNER_FILTER_ALL
+                                          ? colors.primary
+                                          : colors.border,
+                                      backgroundColor:
+                                        recentPartnerRoleFilter === RECENT_PARTNER_FILTER_ALL
+                                          ? `${colors.primary}18`
+                                          : colors.background,
+                                    },
+                                  ]}
+                                  activeOpacity={0.75}
+                                >
+                                  <Text
+                                    style={[
+                                      styles.recentFilterChipText,
+                                      {
+                                        color:
+                                          recentPartnerRoleFilter === RECENT_PARTNER_FILTER_ALL
+                                            ? colors.primary
+                                            : colors.text,
+                                        fontWeight: recentPartnerRoleFilter === RECENT_PARTNER_FILTER_ALL ? '800' : '600',
+                                      },
+                                    ]}
+                                  >
+                                    Todos
+                                  </Text>
+                                </TouchableOpacity>
+                                {recentPartnerRoleBuckets.semFuncao ? (
+                                  <TouchableOpacity
+                                    onPress={() => setRecentPartnerRoleFilter(RECENT_PARTNER_FILTER_NO_ROLE)}
+                                    style={[
+                                      styles.recentFilterChip,
+                                      {
+                                        borderColor:
+                                          recentPartnerRoleFilter === RECENT_PARTNER_FILTER_NO_ROLE
+                                            ? colors.primary
+                                            : colors.border,
+                                        backgroundColor:
+                                          recentPartnerRoleFilter === RECENT_PARTNER_FILTER_NO_ROLE
+                                            ? `${colors.primary}18`
+                                            : colors.background,
+                                      },
+                                    ]}
+                                    activeOpacity={0.75}
+                                  >
+                                    <Text
+                                      style={[
+                                        styles.recentFilterChipText,
+                                        {
+                                          color:
+                                            recentPartnerRoleFilter === RECENT_PARTNER_FILTER_NO_ROLE
+                                              ? colors.primary
+                                              : colors.text,
+                                          fontWeight:
+                                            recentPartnerRoleFilter === RECENT_PARTNER_FILTER_NO_ROLE ? '800' : '600',
+                                        },
+                                      ]}
+                                      numberOfLines={1}
+                                    >
+                                      Sem função
+                                    </Text>
+                                  </TouchableOpacity>
+                                ) : null}
+                                {recentPartnerRoleBuckets.lista.map((role) => (
+                                  <TouchableOpacity
+                                    key={`recent-filter-${role}`}
+                                    onPress={() => setRecentPartnerRoleFilter(role)}
+                                    style={[
+                                      styles.recentFilterChip,
+                                      {
+                                        maxWidth: 200,
+                                        borderColor:
+                                          recentPartnerRoleFilter === role ? colors.primary : colors.border,
+                                        backgroundColor:
+                                          recentPartnerRoleFilter === role ? `${colors.primary}18` : colors.background,
+                                      },
+                                    ]}
+                                    activeOpacity={0.75}
+                                  >
+                                    <Text
+                                      style={[
+                                        styles.recentFilterChipText,
+                                        {
+                                          color: recentPartnerRoleFilter === role ? colors.primary : colors.text,
+                                          fontWeight: recentPartnerRoleFilter === role ? '800' : '600',
+                                        },
+                                      ]}
+                                      numberOfLines={1}
+                                    >
+                                      {role}
+                                    </Text>
+                                  </TouchableOpacity>
+                                ))}
+                              </ScrollView>
+                            </View>
+                          ) : null}
+                          {recentPartnersFiltrados.length === 0 ? (
+                            <Text style={[styles.sectionHint, { color: colors.textSecondary, marginBottom: 4 }]}>
+                              Nenhum parceiro com essa função.
+                            </Text>
+                          ) : null}
+                          <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.recentScrollContent}
+                            keyboardShouldPersistTaps="handled"
+                          >
+                            {recentPartnersFiltrados.map((p) => (
+                              <React.Fragment key={p.id}>{renderRecentPartnerCard(p)}</React.Fragment>
+                            ))}
+                          </ScrollView>
+                        </>
                       )}
                     </View>
                   </View>
@@ -1034,6 +1216,28 @@ const styles = StyleSheet.create({
   },
   recentLoadingRow: { paddingVertical: 8, alignItems: 'flex-start' },
   recentErrorText: { fontSize: 13, lineHeight: 18 },
+  recentFilterBlock: { marginBottom: 12 },
+  recentFilterTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  recentFilterChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+    alignItems: 'center',
+    gap: 8,
+    paddingRight: 4,
+  },
+  recentFilterChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  recentFilterChipText: { fontSize: 13, maxWidth: 200 },
   recentScrollContent: {
     flexDirection: 'row',
     gap: 10,
@@ -1041,22 +1245,30 @@ const styles = StyleSheet.create({
     paddingBottom: 2,
   },
   recentCard: {
-    width: 158,
-    borderRadius: 14,
+    width: 192,
+    borderRadius: 12,
     borderWidth: 1,
-    padding: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
   },
-  recentAvatar: { width: 44, height: 44, borderRadius: 22, marginBottom: 8 },
-  recentName: { fontSize: 15, fontWeight: '700', lineHeight: 19, marginBottom: 4 },
-  recentMeta: { fontSize: 11, lineHeight: 15, marginBottom: 2 },
-  recentFuncao: { fontSize: 12, fontWeight: '600', marginBottom: 6 },
-  recentBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  recentCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  recentAvatar: { width: 36, height: 36, borderRadius: 18 },
+  recentName: { flex: 1, minWidth: 0, fontSize: 14, fontWeight: '700', lineHeight: 18 },
+  recentSummary: { fontSize: 12, lineHeight: 16, fontWeight: '500' },
+  recentSummaryEm: { fontWeight: '700' },
+  recentSummaryDot: { fontWeight: '400', opacity: 0.65 },
+  recentBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 6 },
   recentBadge: {
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
   },
-  recentBadgeText: { fontSize: 10, fontWeight: '700' },
+  recentBadgeText: { fontSize: 9, fontWeight: '700' },
   sectionTitle: { fontSize: 17, fontWeight: '800', marginBottom: 2 },
   sectionHint: { fontSize: 12, lineHeight: 17, marginBottom: 8 },
   subLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
