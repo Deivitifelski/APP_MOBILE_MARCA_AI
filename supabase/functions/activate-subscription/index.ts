@@ -15,11 +15,11 @@
  *
  * @see https://developer.apple.com/documentation/appstoreservernotifications
  */
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 
-const supabaseUrl = Deno.env.get('SUPABASE_URL');
-const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+const supabaseUrl = Deno.env.get("SUPABASE_URL");
+const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
 const supabase =
   supabaseUrl && serviceKey
@@ -29,21 +29,21 @@ const supabase =
     : null;
 
 const ALLOWED_PRODUCT_IDS = new Set([
-  'marcaai_mensal_app',
-  'marcaai_anual_app',
-  'marcaai_mensal',
-  'marcaai_anual',
+  "marcaai_mensal_app",
+  "marcaai_anual_app",
+  "marcaai_mensal",
+  "marcaai_anual",
 ]);
 
 function decodeJWSPayload<T = Record<string, unknown>>(jws: string): T {
-  const parts = jws.split('.');
+  const parts = jws.split(".");
   if (parts.length < 2) {
-    throw new Error('JWS inválido');
+    throw new Error("JWS inválido");
   }
   const payload = parts[1];
-  const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+  const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
   const pad = base64.length % 4;
-  const padded = pad ? base64 + '='.repeat(4 - pad) : base64;
+  const padded = pad ? base64 + "=".repeat(4 - pad) : base64;
   const json = atob(padded);
   return JSON.parse(json) as T;
 }
@@ -53,46 +53,50 @@ async function verifyJWS(_jws: string): Promise<boolean> {
   return true;
 }
 
-function mapSubscriptionStatus(notificationType: string, subtype: string | undefined): string {
+function mapSubscriptionStatus(
+  notificationType: string,
+  subtype: string | undefined,
+): string {
   switch (notificationType) {
-    case 'SUBSCRIBED':
-    case 'DID_RENEW':
-    case 'RENEWAL_EXTENDED':
-    case 'OFFER_REDEEMED':
-      return 'active';
+    case "SUBSCRIBED":
+    case "DID_RENEW":
+    case "RENEWAL_EXTENDED":
+    case "OFFER_REDEEMED":
+      return "active";
 
-    case 'DID_CHANGE_RENEWAL_PREF':
-    case 'DID_CHANGE_RENEWAL_STATUS':
-      return 'active';
+    case "DID_CHANGE_RENEWAL_PREF":
+    case "DID_CHANGE_RENEWAL_STATUS":
+      return "active";
 
-    case 'EXPIRED':
-    case 'GRACE_PERIOD_EXPIRED':
-      return 'expired';
+    case "EXPIRED":
+    case "GRACE_PERIOD_EXPIRED":
+      return "expired";
 
-    case 'REFUND':
-    case 'REVOKE':
-      return 'revoked';
+    case "REFUND":
+    case "REVOKE":
+      return "revoked";
 
-    case 'DID_FAIL_TO_RENEW':
-      return subtype === 'GRACE_PERIOD' ? 'grace_period' : 'active';
+    case "DID_FAIL_TO_RENEW":
+      return subtype === "GRACE_PERIOD" ? "grace_period" : "active";
 
-    case 'PRICE_INCREASE':
-      return 'active';
+    case "PRICE_INCREASE":
+      return "active";
 
     default:
-      return 'pending';
+      return "pending";
   }
 }
 
 /** Alinhado à RPC sync_user_subscription_from_client (SKU explícito, não só "annual" no nome). */
-function billingPeriodFromProductId(productId: string): 'monthly' | 'annual' {
+function billingPeriodFromProductId(productId: string): "monthly" | "annual" {
   const p = productId.trim();
-  if (p === 'marcaai_anual_app' || p === 'marcaai_anual') return 'annual';
-  if (p === 'marcaai_mensal_app' || p === 'marcaai_mensal') return 'monthly';
+  if (p === "marcaai_anual_app" || p === "marcaai_anual") return "annual";
+  if (p === "marcaai_mensal_app" || p === "marcaai_mensal") return "monthly";
   const low = p.toLowerCase();
-  if (low.includes('anual') || low.includes('annual') || low.includes('year')) return 'annual';
-  if (low.includes('mensal') || low.includes('month')) return 'monthly';
-  return 'monthly';
+  if (low.includes("anual") || low.includes("annual") || low.includes("year"))
+    return "annual";
+  if (low.includes("mensal") || low.includes("month")) return "monthly";
+  return "monthly";
 }
 
 function msToIso(ms: number | undefined): string | null {
@@ -103,9 +107,12 @@ function msToIso(ms: number | undefined): string | null {
 type JsonRecord = Record<string, unknown>;
 
 /** Preserva metadata do app (ex.: client_sync) e sobrepõe campos oficiais da Apple. */
-function mergeAppleServerMetadata(prev: unknown, layer: JsonRecord): JsonRecord {
+function mergeAppleServerMetadata(
+  prev: unknown,
+  layer: JsonRecord,
+): JsonRecord {
   const base =
-    prev && typeof prev === 'object' && prev !== null && !Array.isArray(prev)
+    prev && typeof prev === "object" && prev !== null && !Array.isArray(prev)
       ? { ...(prev as JsonRecord) }
       : {};
   return { ...base, ...layer };
@@ -122,14 +129,14 @@ async function selectRowByLatestTransactionId(
   transactionId: string,
 ): Promise<SubRow | null> {
   const { data, error } = await supabase!
-    .from('user_subscriptions')
-    .select('id, metadata')
-    .eq('user_id', userId)
-    .eq('store_latest_transaction_id', transactionId)
-    .order('updated_at', { ascending: false })
+    .from("user_subscriptions")
+    .select("id, metadata")
+    .eq("user_id", userId)
+    .eq("store_latest_transaction_id", transactionId)
+    .order("updated_at", { ascending: false })
     .limit(1);
   if (error) {
-    console.warn('selectRowByLatestTransactionId:', error.message);
+    console.warn("selectRowByLatestTransactionId:", error.message);
     return null;
   }
   return (data?.[0] as SubRow | undefined) ?? null;
@@ -140,31 +147,34 @@ async function selectRowByOriginalTransactionId(
   originalTransactionId: string,
 ): Promise<SubRow | null> {
   const { data, error } = await supabase!
-    .from('user_subscriptions')
-    .select('id, metadata')
-    .eq('user_id', userId)
-    .eq('store_original_transaction_id', originalTransactionId)
-    .order('updated_at', { ascending: false })
+    .from("user_subscriptions")
+    .select("id, metadata")
+    .eq("user_id", userId)
+    .eq("store_original_transaction_id", originalTransactionId)
+    .order("updated_at", { ascending: false })
     .limit(1);
   if (error) {
-    console.warn('selectRowByOriginalTransactionId:', error.message);
+    console.warn("selectRowByOriginalTransactionId:", error.message);
     return null;
   }
   return (data?.[0] as SubRow | undefined) ?? null;
 }
 
 /** Expira outros `pending` iOS da loja após consolidar numa única linha (evita pending órfão + active duplicado). */
-async function expireOtherIosPendingDuplicates(userId: string, keepId: string): Promise<void> {
+async function expireOtherIosPendingDuplicates(
+  userId: string,
+  keepId: string,
+): Promise<void> {
   const { error } = await supabase!
-    .from('user_subscriptions')
-    .update({ status: 'expired' })
-    .eq('user_id', userId)
-    .eq('platform', 'ios')
-    .eq('status', 'pending')
-    .neq('id', keepId)
-    .or('metadata->>source.is.null,metadata->>source.neq.manual_db');
+    .from("user_subscriptions")
+    .update({ status: "expired" })
+    .eq("user_id", userId)
+    .eq("platform", "ios")
+    .eq("status", "pending")
+    .neq("id", keepId)
+    .or("metadata->>source.is.null,metadata->>source.neq.manual_db");
   if (error) {
-    console.warn('expireOtherIosPendingDuplicates:', error.message);
+    console.warn("expireOtherIosPendingDuplicates:", error.message);
   }
 }
 
@@ -177,47 +187,56 @@ async function syncUserPlanActive(
 
   let planActive = false;
 
-  if (status === 'revoked' || status === 'expired') {
+  if (status === "revoked" || status === "expired") {
     planActive = false;
-  } else if (status === 'active' || status === 'grace_period') {
+  } else if (status === "active" || status === "grace_period") {
     planActive = true;
-  } else if (status === 'pending' && expiresAtIso && new Date(expiresAtIso).getTime() > Date.now()) {
+  } else if (
+    status === "pending" &&
+    expiresAtIso &&
+    new Date(expiresAtIso).getTime() > Date.now()
+  ) {
     planActive = true;
   }
 
-  const { error } = await supabase.from('users').update({ plan_is_active: planActive }).eq('id', userId);
+  const { error } = await supabase
+    .from("users")
+    .update({ plan_is_active: planActive })
+    .eq("id", userId);
 
   if (error) {
-    console.error('❌ Erro ao atualizar users.plan_is_active:', error.message);
+    console.error("❌ Erro ao atualizar users.plan_is_active:", error.message);
   }
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { status: 204 });
   }
 
-  if (req.method !== 'POST') {
-    return new Response('method not allowed', { status: 405 });
+  if (req.method !== "POST") {
+    return new Response("method not allowed", { status: 405 });
   }
 
   if (!supabase) {
-    console.error('❌ SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY ausente');
-    return new Response('server misconfigured', { status: 500 });
+    console.error("❌ SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY ausente");
+    return new Response("server misconfigured", { status: 500 });
   }
 
   try {
     const body = await req.json();
 
     const signedPayload = body?.signedPayload as string | undefined;
-    if (!signedPayload || typeof signedPayload !== 'string') {
-      console.warn('⚠️ Corpo sem signedPayload (V2). Se a Apple estiver em V1, altere para V2 no App Store Connect.');
-      return new Response('ok', { status: 200 });
+    if (!signedPayload || typeof signedPayload !== "string") {
+      console.warn(
+        "⚠️ Corpo sem signedPayload (V2). Se a Apple estiver em V1, altere para V2 no App Store Connect.",
+      );
+      return new Response("ok", { status: 200 });
     }
 
     const outerOk = await verifyJWS(signedPayload);
     if (!outerOk) {
-      return new Response('invalid signature', { status: 401 });
+      return new Response("invalid signature", { status: 401 });
     }
 
     const outer = decodeJWSPayload<{
@@ -232,19 +251,19 @@ serve(async (req) => {
       };
     }>(signedPayload);
 
-    const notificationType = outer.notificationType ?? 'UNKNOWN';
+    const notificationType = outer.notificationType ?? "UNKNOWN";
     const subtype = outer.subtype;
-    console.log('🍎 Apple ASN V2:', notificationType, subtype ?? '');
+    console.log("🍎 Apple ASN V2:", notificationType, subtype ?? "");
 
     const signedTransactionInfo = outer.data?.signedTransactionInfo;
     if (!signedTransactionInfo) {
-      console.log('ℹ️ Sem signedTransactionInfo — ignorado');
-      return new Response('ok', { status: 200 });
+      console.log("ℹ️ Sem signedTransactionInfo — ignorado");
+      return new Response("ok", { status: 200 });
     }
 
     const txOk = await verifyJWS(signedTransactionInfo);
     if (!txOk) {
-      return new Response('invalid transaction jws', { status: 401 });
+      return new Response("invalid transaction jws", { status: 401 });
     }
 
     const tx = decodeJWSPayload<{
@@ -262,38 +281,41 @@ serve(async (req) => {
     const productId = tx.productId;
 
     if (!originalTransactionId || !transactionId || !productId) {
-      console.warn('⚠️ Transação sem campos obrigatórios');
-      return new Response('ok', { status: 200 });
+      console.warn("⚠️ Transação sem campos obrigatórios");
+      return new Response("ok", { status: 200 });
     }
 
     if (!ALLOWED_PRODUCT_IDS.has(productId.trim())) {
-      console.warn('⚠️ product_id fora da lista Marca AI:', productId);
+      console.warn("⚠️ product_id fora da lista Marca AI:", productId);
     }
 
     let userId: string | null = null;
 
     if (tx.appAccountToken) {
       const raw = tx.appAccountToken.trim();
-      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const uuidRe =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (uuidRe.test(raw)) {
         userId = raw;
       } else {
-        console.warn('⚠️ appAccountToken presente mas não é UUID válido');
+        console.warn("⚠️ appAccountToken presente mas não é UUID válido");
       }
     }
 
     if (!userId) {
       const { data } = await supabase
-        .from('user_subscriptions')
-        .select('user_id')
-        .eq('store_original_transaction_id', originalTransactionId)
+        .from("user_subscriptions")
+        .select("user_id")
+        .eq("store_original_transaction_id", originalTransactionId)
         .maybeSingle();
       userId = data?.user_id ?? null;
     }
 
     if (!userId) {
-      console.error('❌ user_id não encontrado — use appAccountToken = UUID Supabase na compra (iOS).');
-      return new Response('ok', { status: 200 });
+      console.error(
+        "❌ user_id não encontrado — use appAccountToken = UUID Supabase na compra (iOS).",
+      );
+      return new Response("ok", { status: 200 });
     }
 
     const status = mapSubscriptionStatus(notificationType, subtype);
@@ -307,7 +329,9 @@ serve(async (req) => {
       try {
         const renOk = await verifyJWS(signedRenewal);
         if (renOk) {
-          const ren = decodeJWSPayload<{ autoRenewStatus?: number }>(signedRenewal);
+          const ren = decodeJWSPayload<{ autoRenewStatus?: number }>(
+            signedRenewal,
+          );
           if (ren.autoRenewStatus === 0) autoRenew = false;
         }
       } catch {
@@ -316,7 +340,7 @@ serve(async (req) => {
     }
 
     const appleMetaLayer: JsonRecord = {
-      source: 'apple_asn_v2',
+      source: "apple_asn_v2",
       apple_store_confirmed: true,
       apple_confirmed_at_ms: Date.now(),
       notificationType,
@@ -330,7 +354,7 @@ serve(async (req) => {
       user_id: userId,
       product_id: productId,
       billing_period: billingPeriodFromProductId(productId),
-      platform: 'ios' as const,
+      platform: "ios" as const,
       status,
       purchased_at: purchasedAt,
       expires_at: expiresAt,
@@ -341,111 +365,136 @@ serve(async (req) => {
       metadata,
     });
 
-    const existingByTx = await selectRowByLatestTransactionId(userId, transactionId);
+    const existingByTx = await selectRowByLatestTransactionId(
+      userId,
+      transactionId,
+    );
 
     if (existingByTx) {
-      const metadata = mergeAppleServerMetadata(existingByTx.metadata, appleMetaLayer);
+      const metadata = mergeAppleServerMetadata(
+        existingByTx.metadata,
+        appleMetaLayer,
+      );
       const { error } = await supabase
-        .from('user_subscriptions')
+        .from("user_subscriptions")
         .update(rowPayload(metadata))
-        .eq('id', existingByTx.id);
+        .eq("id", existingByTx.id);
       if (error) {
-        console.error('❌ Update (confirm por transactionId) user_subscriptions:', error.message);
-        return new Response('db error', { status: 500 });
+        console.error(
+          "❌ Update (confirm por transactionId) user_subscriptions:",
+          error.message,
+        );
+        return new Response("db error", { status: 500 });
       }
       await expireOtherIosPendingDuplicates(userId, existingByTx.id);
-      console.log('✅ Apple confirmou registro já criado pelo app (mesmo transactionId)');
+      console.log(
+        "✅ Apple confirmou registro já criado pelo app (mesmo transactionId)",
+      );
       await syncUserPlanActive(userId, status, expiresAt);
-      return new Response('ok', { status: 200 });
+      return new Response("ok", { status: 200 });
     }
 
-    const existingSub = await selectRowByOriginalTransactionId(userId, originalTransactionId);
+    const existingSub = await selectRowByOriginalTransactionId(
+      userId,
+      originalTransactionId,
+    );
 
     if (existingSub) {
-      const metadata = mergeAppleServerMetadata(existingSub.metadata, appleMetaLayer);
+      const metadata = mergeAppleServerMetadata(
+        existingSub.metadata,
+        appleMetaLayer,
+      );
       const { error } = await supabase
-        .from('user_subscriptions')
+        .from("user_subscriptions")
         .update(rowPayload(metadata))
-        .eq('id', existingSub.id);
+        .eq("id", existingSub.id);
       if (error) {
-        console.error('❌ Update user_subscriptions:', error.message);
-        return new Response('db error', { status: 500 });
+        console.error("❌ Update user_subscriptions:", error.message);
+        return new Response("db error", { status: 500 });
       }
       await expireOtherIosPendingDuplicates(userId, existingSub.id);
-      console.log('🔄 Assinatura atualizada (original_transaction_id)');
+      console.log("🔄 Assinatura atualizada (original_transaction_id)");
     } else {
       const { data: consolidateRows, error: consolidateErr } = await supabase
-        .from('user_subscriptions')
-        .select('id, metadata')
-        .eq('user_id', userId)
-        .eq('platform', 'ios')
-        .in('status', ['active', 'grace_period', 'pending'])
-        .or('metadata->>source.is.null,metadata->>source.neq.manual_db')
-        .order('updated_at', { ascending: false })
+        .from("user_subscriptions")
+        .select("id, metadata")
+        .eq("user_id", userId)
+        .eq("platform", "ios")
+        .in("status", ["active", "grace_period", "pending"])
+        .or("metadata->>source.is.null,metadata->>source.neq.manual_db")
+        .order("updated_at", { ascending: false })
         .limit(1);
       if (consolidateErr) {
-        console.warn('⚠️ Busca consolidada iOS:', consolidateErr.message);
+        console.warn("⚠️ Busca consolidada iOS:", consolidateErr.message);
       }
       const consolidateRow = consolidateRows?.[0] as SubRow | undefined;
 
       if (consolidateRow) {
-        const metadata = mergeAppleServerMetadata(consolidateRow.metadata, appleMetaLayer);
+        const metadata = mergeAppleServerMetadata(
+          consolidateRow.metadata,
+          appleMetaLayer,
+        );
         const { error } = await supabase
-          .from('user_subscriptions')
+          .from("user_subscriptions")
           .update(rowPayload(metadata))
-          .eq('id', consolidateRow.id);
+          .eq("id", consolidateRow.id);
         if (error) {
-          console.error('❌ Update user_subscriptions (consolidado iOS):', error.message);
-          return new Response('db error', { status: 500 });
+          console.error(
+            "❌ Update user_subscriptions (consolidado iOS):",
+            error.message,
+          );
+          return new Response("db error", { status: 500 });
         }
         await expireOtherIosPendingDuplicates(userId, consolidateRow.id);
-        console.log('🔄 Assinatura consolidada na linha iOS existente do usuário (evita duplicata)');
+        console.log(
+          "🔄 Assinatura consolidada na linha iOS existente do usuário (evita duplicata)",
+        );
       } else {
-        if (status === 'active' || status === 'grace_period') {
+        if (status === "active" || status === "grace_period") {
           await supabase
-            .from('user_subscriptions')
-            .update({ status: 'expired' })
-            .eq('user_id', userId)
-            .in('status', ['active', 'grace_period', 'pending'])
-            .or('metadata->>source.is.null,metadata->>source.neq.manual_db');
+            .from("user_subscriptions")
+            .update({ status: "expired" })
+            .eq("user_id", userId)
+            .in("status", ["active", "grace_period", "pending"])
+            .or("metadata->>source.is.null,metadata->>source.neq.manual_db");
           // Índice único (um active por usuário): assinatura Apple real substitui cortesia manual.
           const { data: manualOnly } = await supabase
-            .from('user_subscriptions')
-            .select('id')
-            .eq('user_id', userId)
-            .eq('metadata->>source', 'manual_db')
-            .in('status', ['active', 'grace_period'])
+            .from("user_subscriptions")
+            .select("id")
+            .eq("user_id", userId)
+            .eq("metadata->>source", "manual_db")
+            .in("status", ["active", "grace_period"])
             .maybeSingle();
           if (manualOnly) {
             await supabase
-              .from('user_subscriptions')
-              .update({ status: 'expired' })
-              .eq('id', manualOnly.id);
+              .from("user_subscriptions")
+              .update({ status: "expired" })
+              .eq("id", manualOnly.id);
           }
         }
 
         const metadata = mergeAppleServerMetadata({}, appleMetaLayer);
         const { data: insertedRows, error } = await supabase
-          .from('user_subscriptions')
+          .from("user_subscriptions")
           .insert(rowPayload(metadata))
-          .select('id');
+          .select("id");
         if (error) {
-          console.error('❌ Insert user_subscriptions:', error.message);
-          return new Response('db error', { status: 500 });
+          console.error("❌ Insert user_subscriptions:", error.message);
+          return new Response("db error", { status: 500 });
         }
         const insertedId = insertedRows?.[0]?.id;
         if (insertedId) {
           await expireOtherIosPendingDuplicates(userId, insertedId);
         }
-        console.log('🆕 Assinatura criada');
+        console.log("🆕 Assinatura criada");
       }
     }
 
     await syncUserPlanActive(userId, status, expiresAt);
 
-    return new Response('ok', { status: 200 });
+    return new Response("ok", { status: 200 });
   } catch (err) {
-    console.error('❌ Erro:', err);
-    return new Response('error', { status: 500 });
+    console.error("❌ Erro:", err);
+    return new Response("error", { status: 500 });
   }
 });
