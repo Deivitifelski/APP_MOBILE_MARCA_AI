@@ -120,6 +120,61 @@ function mergeAppleServerMetadata(
 
 type SubRow = { id: string; metadata: unknown };
 
+function isManualDbMetadata(metadata: unknown): boolean {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return false;
+  }
+  return (metadata as JsonRecord).source === "manual_db";
+}
+
+/**
+ * Linha iOS não manual a atualizar (pending/active/grace ou, se só houver, a mais recente inclusive expired).
+ * Evita `.or` em JSON no PostgREST, que costuma falhar e forçar INSERT duplicado.
+ */
+async function selectIosRowToMergeAppleWebhook(
+  userId: string,
+): Promise<SubRow | null> {
+  const { data, error } = await supabase!
+    .from("user_subscriptions")
+    .select("id, metadata, status")
+    .eq("user_id", userId)
+    .eq("platform", "ios")
+    .order("updated_at", { ascending: false })
+    .limit(40);
+  if (error) {
+    console.warn("selectIosRowToMergeAppleWebhook:", error.message);
+    return null;
+  }
+  const rows = (data ?? []) as {
+    id: string;
+    metadata: unknown;
+    status: string;
+  }[];
+  const nonManual = rows.filter((r) => !isManualDbMetadata(r.metadata));
+  if (nonManual.length === 0) return null;
+  const preferred = nonManual.find((r) =>
+    ["pending", "active", "grace_period"].includes(r.status),
+  );
+  const chosen = preferred ?? nonManual[0];
+  return { id: chosen.id, metadata: chosen.metadata };
+}
+
+async function selectUserIdByOriginalTransactionId(
+  originalTransactionId: string,
+): Promise<string | null> {
+  const { data, error } = await supabase!
+    .from("user_subscriptions")
+    .select("user_id")
+    .eq("store_original_transaction_id", originalTransactionId)
+    .order("updated_at", { ascending: false })
+    .limit(1);
+  if (error) {
+    console.warn("selectUserIdByOriginalTransactionId:", error.message);
+    return null;
+  }
+  return (data?.[0] as { user_id?: string } | undefined)?.user_id ?? null;
+}
+
 /**
  * `.maybeSingle()` retorna erro (PGRST116) se houver 2+ linhas — comum com pending duplicado do app + webhook.
  * Sempre usa limit(1) ordenado pela linha mais recente.
@@ -160,21 +215,70 @@ async function selectRowByOriginalTransactionId(
   return (data?.[0] as SubRow | undefined) ?? null;
 }
 
-/** Expira outros `pending` iOS da loja após consolidar numa única linha (evita pending órfão + active duplicado). */
+/** Expira outros `pending` iOS não manual (sem `.or` em JSON no PostgREST). */
 async function expireOtherIosPendingDuplicates(
   userId: string,
   keepId: string,
 ): Promise<void> {
-  const { error } = await supabase!
+  const { data, error } = await supabase!
     .from("user_subscriptions")
-    .update({ status: "expired" })
+    .select("id, metadata")
     .eq("user_id", userId)
     .eq("platform", "ios")
     .eq("status", "pending")
-    .neq("id", keepId)
-    .or("metadata->>source.is.null,metadata->>source.neq.manual_db");
+    .neq("id", keepId);
   if (error) {
     console.warn("expireOtherIosPendingDuplicates:", error.message);
+    return;
+  }
+  const pendingRows = (data ?? []) as { id: string; metadata: unknown }[];
+  for (const row of pendingRows) {
+    if (isManualDbMetadata(row.metadata)) continue;
+    const { error: upErr } = await supabase!
+      .from("user_subscriptions")
+      .update({ status: "expired" })
+      .eq("id", row.id);
+    if (upErr) {
+      console.warn("expireOtherIosPendingDuplicates update:", upErr.message);
+    }
+  }
+}
+
+/** Antes do INSERT: expira linhas iOS ativas/pending não manuais + cortesia manual ativa. */
+async function expireIosNonManualForAppleReplace(userId: string): Promise<void> {
+  const { data, error } = await supabase!
+    .from("user_subscriptions")
+    .select("id, metadata")
+    .eq("user_id", userId)
+    .eq("platform", "ios")
+    .in("status", ["active", "grace_period", "pending"]);
+  if (error) {
+    console.warn("expireIosNonManualForAppleReplace:", error.message);
+    return;
+  }
+  const rows = (data ?? []) as { id: string; metadata: unknown }[];
+  for (const row of rows) {
+    if (isManualDbMetadata(row.metadata)) continue;
+    await supabase!
+      .from("user_subscriptions")
+      .update({ status: "expired" })
+      .eq("id", row.id);
+  }
+  const { data: manualRows } = await supabase!
+    .from("user_subscriptions")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("platform", "ios")
+    .eq("metadata->>source", "manual_db")
+    .in("status", ["active", "grace_period"])
+    .order("updated_at", { ascending: false })
+    .limit(1);
+  const manualId = manualRows?.[0]?.id as string | undefined;
+  if (manualId) {
+    await supabase!
+      .from("user_subscriptions")
+      .update({ status: "expired" })
+      .eq("id", manualId);
   }
 }
 
@@ -286,7 +390,11 @@ serve(async (req) => {
     }
 
     if (!ALLOWED_PRODUCT_IDS.has(productId.trim())) {
-      console.warn("⚠️ product_id fora da lista Marca AI:", productId);
+      console.warn(
+        "⚠️ product_id não suportado — ignorado (sem alterar DB):",
+        productId,
+      );
+      return new Response("ok", { status: 200 });
     }
 
     let userId: string | null = null;
@@ -303,12 +411,7 @@ serve(async (req) => {
     }
 
     if (!userId) {
-      const { data } = await supabase
-        .from("user_subscriptions")
-        .select("user_id")
-        .eq("store_original_transaction_id", originalTransactionId)
-        .maybeSingle();
-      userId = data?.user_id ?? null;
+      userId = await selectUserIdByOriginalTransactionId(originalTransactionId);
     }
 
     if (!userId) {
@@ -415,19 +518,7 @@ serve(async (req) => {
       await expireOtherIosPendingDuplicates(userId, existingSub.id);
       console.log("🔄 Assinatura atualizada (original_transaction_id)");
     } else {
-      const { data: consolidateRows, error: consolidateErr } = await supabase
-        .from("user_subscriptions")
-        .select("id, metadata")
-        .eq("user_id", userId)
-        .eq("platform", "ios")
-        .in("status", ["active", "grace_period", "pending"])
-        .or("metadata->>source.is.null,metadata->>source.neq.manual_db")
-        .order("updated_at", { ascending: false })
-        .limit(1);
-      if (consolidateErr) {
-        console.warn("⚠️ Busca consolidada iOS:", consolidateErr.message);
-      }
-      const consolidateRow = consolidateRows?.[0] as SubRow | undefined;
+      const consolidateRow = await selectIosRowToMergeAppleWebhook(userId);
 
       if (consolidateRow) {
         const metadata = mergeAppleServerMetadata(
@@ -440,37 +531,18 @@ serve(async (req) => {
           .eq("id", consolidateRow.id);
         if (error) {
           console.error(
-            "❌ Update user_subscriptions (consolidado iOS):",
+            "❌ Update user_subscriptions (consolidado iOS por user_id):",
             error.message,
           );
           return new Response("db error", { status: 500 });
         }
         await expireOtherIosPendingDuplicates(userId, consolidateRow.id);
         console.log(
-          "🔄 Assinatura consolidada na linha iOS existente do usuário (evita duplicata)",
+          "🔄 Assinatura atualizada na linha iOS existente do usuário (sem INSERT)",
         );
       } else {
         if (status === "active" || status === "grace_period") {
-          await supabase
-            .from("user_subscriptions")
-            .update({ status: "expired" })
-            .eq("user_id", userId)
-            .in("status", ["active", "grace_period", "pending"])
-            .or("metadata->>source.is.null,metadata->>source.neq.manual_db");
-          // Índice único (um active por usuário): assinatura Apple real substitui cortesia manual.
-          const { data: manualOnly } = await supabase
-            .from("user_subscriptions")
-            .select("id")
-            .eq("user_id", userId)
-            .eq("metadata->>source", "manual_db")
-            .in("status", ["active", "grace_period"])
-            .maybeSingle();
-          if (manualOnly) {
-            await supabase
-              .from("user_subscriptions")
-              .update({ status: "expired" })
-              .eq("id", manualOnly.id);
-          }
+          await expireIosNonManualForAppleReplace(userId);
         }
 
         const metadata = mergeAppleServerMetadata({}, appleMetaLayer);
@@ -486,7 +558,7 @@ serve(async (req) => {
         if (insertedId) {
           await expireOtherIosPendingDuplicates(userId, insertedId);
         }
-        console.log("🆕 Assinatura criada");
+        console.log("🆕 Assinatura criada (primeira linha iOS para o usuário)");
       }
     }
 

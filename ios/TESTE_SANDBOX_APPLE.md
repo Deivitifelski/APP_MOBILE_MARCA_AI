@@ -68,7 +68,7 @@ Se ainda aparecer **`Xcode`**: scheme local ou build antigo — repita o passo 1
 ## 6. Webhook (App Store Server Notifications)
 
 - App Store Connect → seu app → **Notificações do servidor** (V2).
-- URL de **Sandbox** apontando para a edge function (ex.: `…/functions/v1/apple-subscription-webhook`).
+- URL de **Sandbox** apontando para a edge function (ex.: `…/functions/v1/activate-subscription`).
 - O app já envia **`appAccountToken`** = UUID do usuário Supabase na compra (`assine-premium.tsx`).
 
 ## 7. Banco sem depender do webhook
