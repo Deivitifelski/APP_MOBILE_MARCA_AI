@@ -133,6 +133,15 @@ BEGIN
       platform = p_platform,
       status = CASE
         WHEN v_status = 'expired' THEN 'expired'
+        WHEN status = 'expired'
+          AND v_status = 'pending'
+          AND p_platform = 'ios'
+          AND p_expires_at_ms IS NOT NULL
+          AND p_expires_at_ms > v_now_ms THEN
+          CASE
+            WHEN COALESCE((metadata->>'apple_store_confirmed')::boolean, false) THEN 'active'
+            ELSE 'pending'
+          END
         WHEN COALESCE((metadata->>'apple_store_confirmed')::boolean, false)
           AND status IN ('active', 'grace_period') THEN status
         ELSE 'pending'
@@ -140,6 +149,12 @@ BEGIN
       purchased_at = v_purchased,
       expires_at = CASE
         WHEN v_status = 'expired' THEN v_expires_from_store
+        WHEN status = 'expired'
+          AND v_status = 'pending'
+          AND p_platform = 'ios'
+          AND p_expires_at_ms IS NOT NULL
+          AND p_expires_at_ms > v_now_ms THEN
+          COALESCE(v_expires_from_store, to_timestamp(p_expires_at_ms / 1000.0))
         WHEN COALESCE((metadata->>'apple_store_confirmed')::boolean, false)
           AND status IN ('active', 'grace_period') THEN COALESCE(v_expires_from_store, expires_at)
         ELSE clock_timestamp() + interval '1 day'
@@ -194,6 +209,15 @@ BEGIN
       platform = p_platform,
       status = CASE
         WHEN v_status = 'expired' THEN 'expired'
+        WHEN status = 'expired'
+          AND v_status = 'pending'
+          AND p_platform = 'ios'
+          AND p_expires_at_ms IS NOT NULL
+          AND p_expires_at_ms > v_now_ms THEN
+          CASE
+            WHEN COALESCE((metadata->>'apple_store_confirmed')::boolean, false) THEN 'active'
+            ELSE 'pending'
+          END
         WHEN COALESCE((metadata->>'apple_store_confirmed')::boolean, false)
           AND status IN ('active', 'grace_period') THEN status
         ELSE 'pending'
@@ -201,6 +225,12 @@ BEGIN
       purchased_at = v_purchased,
       expires_at = CASE
         WHEN v_status = 'expired' THEN v_expires_from_store
+        WHEN status = 'expired'
+          AND v_status = 'pending'
+          AND p_platform = 'ios'
+          AND p_expires_at_ms IS NOT NULL
+          AND p_expires_at_ms > v_now_ms THEN
+          COALESCE(v_expires_from_store, to_timestamp(p_expires_at_ms / 1000.0))
         WHEN COALESCE((metadata->>'apple_store_confirmed')::boolean, false)
           AND status IN ('active', 'grace_period') THEN COALESCE(v_expires_from_store, expires_at)
         ELSE clock_timestamp() + interval '1 day'
