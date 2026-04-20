@@ -11,12 +11,15 @@
  * Corpo: { "signedPayload": "<JWS>" }
  * O app deve enviar appAccountToken = UUID do usuário Supabase na compra (StoreKit 2).
  *
- * Produção: implementar verifyJWS com certificados Apple (hoje só decodifica).
+ * Assinatura: `verifyJWS` valida ES256, cadeia `x5c` (folha → intermediária) contra a raiz
+ * Apple Root CA - G3 (PEM embutido) e confirma o JWS com `jose.compactVerify`.
  *
  * @see https://developer.apple.com/documentation/appstoreservernotifications
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import * as jose from "npm:jose@5.9.6";
+import { X509Certificate } from "node:crypto";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL");
 const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -48,9 +51,69 @@ function decodeJWSPayload<T = Record<string, unknown>>(jws: string): T {
   return JSON.parse(json) as T;
 }
 
-/** Produção: validar assinatura com certificados Apple. */
-async function verifyJWS(_jws: string): Promise<boolean> {
-  return true;
+/**
+ * Raiz Apple G3 (DER oficial → PEM). Usada como âncora de confiança; não confiar no 3º
+ * certificado do `x5c` sem validar a cadeia até esta raiz.
+ * Fonte: https://www.apple.com/certificateauthority/AppleRootCA-G3.cer
+ */
+const APPLE_ROOT_CA_G3_PEM = `-----BEGIN CERTIFICATE-----
+MIICQzCCAcmgAwIBAgIILcX8iNLFS5UwCgYIKoZIzj0EAwMwZzEbMBkGA1UEAwwS
+QXBwbGUgUm9vdCBDQSAtIEczMSYwJAYDVQQLDB1BcHBsZSBDZXJ0aWZpY2F0aW9u
+IEF1dGhvcml0eTETMBEGA1UECgwKQXBwbGUgSW5jLjELMAkGA1UEBhMCVVMwHhcN
+MTQwNDMwMTgxOTA2WhcNMzkwNDMwMTgxOTA2WjBnMRswGQYDVQQDDBJBcHBsZSBS
+b290IENBIC0gRzMxJjAkBgNVBAsMHUFwcGxlIENlcnRpZmljYXRpb24gQXV0aG9y
+aXR5MRMwEQYDVQQKDApBcHBsZSBJbmMuMQswCQYDVQQGEwJVUzB2MBAGByqGSM49
+AgEGBSuBBAAiA2IABJjpLz1AcqTtkyJygRMc3RCV8cWjTnHcFBbZDuWmBSp3ZHtf
+TjjTuxxEtX/1H7YyYl3J6YRbTzBPEVoA/VhYDKX1DyxNB0cTddqXl5dvMVztK517
+IDvYuVTZXpmkOlEKMaNCMEAwHQYDVR0OBBYEFLuw3qFYM4iapIqZ3r6966/ayySr
+MA8GA1UdEwEB/wQFMAMBAf8wDgYDVR0PAQH/BAQDAgEGMAoGCCqGSM49BAMDA2gA
+MGUCMQCD6cHEFl4aXTQY2e3v9GwOAEZLuN+yRhHFD/3meoyhpmvOwgPUnPWTxnS4
+at+qIxUCMG1mihDK1A3UT82NQz60imOlM27jbdoXt2QfyFMm+YhidDkLF1vLUagM
+6BgD56KyKA==
+-----END CERTIFICATE-----
+`;
+
+function derFromX5cBase64(b64: string): Uint8Array {
+  const clean = b64.replace(/\s/g, "");
+  const bin = atob(clean);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+/** Valida JWS assinado pela Apple (ASN V2 / transação / renovação): x5c + ES256 + raiz G3. */
+async function verifyJWS(jws: string): Promise<boolean> {
+  try {
+    const header = jose.decodeProtectedHeader(jws);
+    if (header.alg !== "ES256") return false;
+
+    const x5c = header.x5c;
+    if (!Array.isArray(x5c) || x5c.length < 2) return false;
+    const leafB64 = x5c[0];
+    const intermediateB64 = x5c[1];
+    if (typeof leafB64 !== "string" || typeof intermediateB64 !== "string") {
+      return false;
+    }
+
+    const leaf = new X509Certificate(derFromX5cBase64(leafB64));
+    const intermediate = new X509Certificate(derFromX5cBase64(intermediateB64));
+    const root = new X509Certificate(APPLE_ROOT_CA_G3_PEM);
+
+    if (!intermediate.checkIssued(root)) return false;
+    if (!leaf.checkIssued(intermediate)) return false;
+    if (!intermediate.verify(root.publicKey)) return false;
+    if (!leaf.verify(intermediate.publicKey)) return false;
+
+    const now = Date.now();
+    if (new Date(leaf.validTo).getTime() < now) return false;
+    if (new Date(leaf.validFrom).getTime() > now) return false;
+
+    const key = await jose.importX509(leaf.toString(), "ES256");
+    await jose.compactVerify(jws, key);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function mapSubscriptionStatus(
