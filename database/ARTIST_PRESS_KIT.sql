@@ -41,7 +41,7 @@ CREATE POLICY "artist_press_kit_insert_admin"
       SELECT 1 FROM public.artist_members am
       WHERE am.artist_id = artist_press_kit_items.artist_id
         AND am.user_id = auth.uid()
-        AND am.role = 'admin'
+        AND am.role IN ('admin', 'editor')
     )
   );
 
@@ -54,7 +54,7 @@ CREATE POLICY "artist_press_kit_update_admin"
       SELECT 1 FROM public.artist_members am
       WHERE am.artist_id = artist_press_kit_items.artist_id
         AND am.user_id = auth.uid()
-        AND am.role = 'admin'
+        AND am.role IN ('admin', 'editor')
     )
   )
   WITH CHECK (
@@ -62,7 +62,7 @@ CREATE POLICY "artist_press_kit_update_admin"
       SELECT 1 FROM public.artist_members am
       WHERE am.artist_id = artist_press_kit_items.artist_id
         AND am.user_id = auth.uid()
-        AND am.role = 'admin'
+        AND am.role IN ('admin', 'editor')
     )
   );
 
@@ -75,7 +75,7 @@ CREATE POLICY "artist_press_kit_delete_admin"
       SELECT 1 FROM public.artist_members am
       WHERE am.artist_id = artist_press_kit_items.artist_id
         AND am.user_id = auth.uid()
-        AND am.role = 'admin'
+        AND am.role IN ('admin', 'editor')
     )
   );
 

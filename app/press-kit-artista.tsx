@@ -21,6 +21,7 @@ import { sharePressKitItems } from '../services/pressKitShareService';
 import {
   addArtistPressKitFile,
   addArtistPressKitLink,
+  addArtistPressKitText,
   deleteArtistPressKitItem,
   listArtistPressKitItems,
   type ArtistPressKitItem,
@@ -44,11 +45,15 @@ export default function PressKitArtistaScreen() {
   const { activeArtist } = useActiveArtistContext();
   const [items, setItems] = useState<ArtistPressKitItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [canManage, setCanManage] = useState(false);
+  const [canManageByRole, setCanManageByRole] = useState(false);
   const [showLinkModal, setShowLinkModal] = useState(false);
+  const [showTextModal, setShowTextModal] = useState(false);
   const [linkTitle, setLinkTitle] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
+  const [textTitle, setTextTitle] = useState('');
+  const [textContent, setTextContent] = useState('');
   const [savingLink, setSavingLink] = useState(false);
+  const [savingText, setSavingText] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [pendingFile, setPendingFile] = useState<PendingFile | null>(null);
   const [fileTitleDraft, setFileTitleDraft] = useState('');
@@ -56,6 +61,7 @@ export default function PressKitArtistaScreen() {
   const [selectedShareIds, setSelectedShareIds] = useState<string[]>([]);
   const [isPremiumSubscriber, setIsPremiumSubscriber] = useState(false);
   const [sharingItemId, setSharingItemId] = useState<string | null>(null);
+  const canAddMaterials = canManageByRole && isPremiumSubscriber;
 
   const load = useCallback(async () => {
     if (!activeArtist?.id) {
@@ -67,11 +73,11 @@ export default function PressKitArtistaScreen() {
       const { user } = await getCurrentUser();
       if (user) {
         const perms = await getUserPermissions(user.id, activeArtist.id);
-        setCanManage(Boolean(perms?.permissions.canManageArtist));
+        setCanManageByRole(perms?.role === 'admin' || perms?.role === 'editor');
         const { active } = await userSubscriptionIsActive(user.id);
         setIsPremiumSubscriber(active);
       } else {
-        setCanManage(false);
+        setCanManageByRole(false);
         setIsPremiumSubscriber(false);
       }
       const { items: rows, error } = await listArtistPressKitItems(activeArtist.id);
@@ -103,7 +109,7 @@ export default function PressKitArtistaScreen() {
   );
 
   const onAddLink = async () => {
-    if (!activeArtist?.id || !canManage) return;
+    if (!activeArtist?.id || !canAddMaterials) return;
     const title = linkTitle.trim();
     const urlRaw = linkUrl.trim();
     if (!title || !urlRaw) {
@@ -128,7 +134,7 @@ export default function PressKitArtistaScreen() {
   };
 
   const onPickFile = async () => {
-    if (!activeArtist?.id || !canManage) return;
+    if (!activeArtist?.id || !canAddMaterials) return;
     try {
       const picked = await DocumentPicker.getDocumentAsync({
         copyToCacheDirectory: true,
@@ -145,6 +151,30 @@ export default function PressKitArtistaScreen() {
       setFileTitleDraft(defaultTitle);
     } catch {
       Alert.alert('Erro', 'Não foi possível selecionar o arquivo.');
+    }
+  };
+
+  const onAddText = async () => {
+    if (!activeArtist?.id || !canAddMaterials) return;
+    const title = textTitle.trim();
+    const content = textContent.trim();
+    if (!title || !content) {
+      Alert.alert('Atenção', 'Preencha título e texto.');
+      return;
+    }
+    setSavingText(true);
+    try {
+      const { error } = await addArtistPressKitText(activeArtist.id, title, content);
+      if (error) {
+        Alert.alert('Erro', error);
+        return;
+      }
+      setShowTextModal(false);
+      setTextTitle('');
+      setTextContent('');
+      await load();
+    } finally {
+      setSavingText(false);
     }
   };
 
@@ -237,7 +267,7 @@ export default function PressKitArtistaScreen() {
     <PressKitListItem
       item={item}
       colors={colors}
-      canManage={canManage}
+      canManage={canManageByRole}
       shareLoading={sharingItemId === item.id}
       onPressShare={() => {
         if (!isPremiumSubscriber) {
@@ -332,35 +362,82 @@ export default function PressKitArtistaScreen() {
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={[styles.heroTitle, { color: colors.text }]}>{activeArtist.name}</Text>
           <Text style={[styles.heroSub, { color: colors.textSecondary }]}>
-            Logos, capas e links para enviar rápido a produtores. Apenas administradores alteram a lista.
+            Logos, capas, textos e links para enviar rápido a produtores. Toda a equipe visualiza e baixa os materiais.
           </Text>
           <Text style={[styles.heroLimit, { color: colors.textSecondary }]}>
-            Limite por artista: até 10 links e 10 arquivos.
+            Limite por artista: até 10 links, 10 arquivos e 20 textos.
           </Text>
         </View>
       </View>
 
-      {canManage ? (
+      {canManageByRole ? (
         <View style={styles.toolbar}>
           <TouchableOpacity
             style={[styles.toolbarBtn, { backgroundColor: colors.primary }]}
             onPress={() => {
+              if (!isPremiumSubscriber) {
+                Alert.alert(
+                  'Recurso para assinantes',
+                  'Adicionar materiais ao press kit está disponível para assinantes Premium.',
+                  [
+                    { text: 'Agora não', style: 'cancel' },
+                    { text: 'Ver planos', onPress: () => router.push('/assine-premium') },
+                  ]
+                );
+                return;
+              }
               setLinkTitle('');
               setLinkUrl('');
               setShowLinkModal(true);
             }}
-            disabled={uploadingFile}
+            disabled={uploadingFile || savingText}
           >
             <Ionicons name="add-circle-outline" size={20} color="#fff" />
             <Text style={styles.toolbarBtnText}>Link</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toolbarBtn, { backgroundColor: colors.primary }]}
+            onPress={() => {
+              if (!isPremiumSubscriber) {
+                Alert.alert(
+                  'Recurso para assinantes',
+                  'Adicionar materiais ao press kit está disponível para assinantes Premium.',
+                  [
+                    { text: 'Agora não', style: 'cancel' },
+                    { text: 'Ver planos', onPress: () => router.push('/assine-premium') },
+                  ]
+                );
+                return;
+              }
+              setTextTitle('');
+              setTextContent('');
+              setShowTextModal(true);
+            }}
+            disabled={uploadingFile || savingText}
+          >
+            <Ionicons name="document-text-outline" size={20} color="#fff" />
+            <Text style={styles.toolbarBtnText}>Texto</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[
               styles.toolbarBtn,
               { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
             ]}
-            onPress={() => void onPickFile()}
-            disabled={uploadingFile}
+            onPress={() => {
+              if (!isPremiumSubscriber) {
+                Alert.alert(
+                  'Recurso para assinantes',
+                  'Adicionar materiais ao press kit está disponível para assinantes Premium.',
+                  [
+                    { text: 'Agora não', style: 'cancel' },
+                    { text: 'Ver planos', onPress: () => router.push('/assine-premium') },
+                  ]
+                );
+                return;
+              }
+              void onPickFile();
+            }}
+            disabled={uploadingFile || savingText}
           >
             {uploadingFile ? (
               <ActivityIndicator color={colors.primary} />
@@ -386,7 +463,7 @@ export default function PressKitArtistaScreen() {
           contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
           ListEmptyComponent={
             <Text style={{ textAlign: 'center', color: colors.textSecondary, marginTop: 32 }}>
-              Nenhum material cadastrado. {canManage ? 'Adicione links (Drive, site) ou envie arquivos.' : ''}
+              Nenhum material cadastrado. {canManageByRole ? 'Adicione links (Drive, site), textos ou envie arquivos.' : ''}
             </Text>
           }
         />
@@ -435,6 +512,59 @@ export default function PressKitArtistaScreen() {
                   disabled={savingLink}
                 >
                   {savingLink ? <ActivityIndicator color="#fff" /> : <Text style={styles.sheetPrimaryText}>Salvar</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal visible={showTextModal} transparent animationType="slide" onRequestClose={() => setShowTextModal(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowTextModal(false)}>
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+            style={{ flex: 1, justifyContent: 'flex-end' }}
+          >
+            <View style={[styles.sheet, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.sheetTitle, { color: colors.text }]}>Adicionar texto</Text>
+              <Text style={[styles.sheetHint, { color: colors.textSecondary }]}>
+                Texto rápido para compartilhar junto com o press kit.
+              </Text>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Título</Text>
+              <TextInput
+                value={textTitle}
+                onChangeText={setTextTitle}
+                placeholder="Release curto"
+                placeholderTextColor={colors.textSecondary}
+                style={[styles.input, { borderColor: colors.border, color: colors.text }]}
+                editable={!savingText}
+              />
+              <Text style={[styles.inputLabel, { color: colors.text, marginTop: 12 }]}>Texto</Text>
+              <TextInput
+                value={textContent}
+                onChangeText={setTextContent}
+                placeholder="Digite o texto para compartilhar..."
+                placeholderTextColor={colors.textSecondary}
+                style={[styles.input, styles.textAreaInput, { borderColor: colors.border, color: colors.text }]}
+                multiline
+                textAlignVertical="top"
+                editable={!savingText}
+              />
+              <View style={styles.sheetActions}>
+                <TouchableOpacity
+                  style={[styles.sheetGhost, { borderColor: colors.border }]}
+                  onPress={() => setShowTextModal(false)}
+                  disabled={savingText}
+                >
+                  <Text style={{ color: colors.text }}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.sheetPrimary, { backgroundColor: colors.primary }]}
+                  onPress={() => void onAddText()}
+                  disabled={savingText}
+                >
+                  {savingText ? <ActivityIndicator color="#fff" /> : <Text style={styles.sheetPrimaryText}>Salvar</Text>}
                 </TouchableOpacity>
               </View>
             </View>
@@ -532,7 +662,7 @@ export default function PressKitArtistaScreen() {
                         {it.title}
                       </Text>
                       <Text style={[styles.sharePickerType, { color: colors.textSecondary }]}>
-                        {it.item_type === 'link' ? 'Link' : 'Arquivo'}
+                        {it.item_type === 'link' ? 'Link' : it.item_type === 'file' ? 'Arquivo' : 'Texto'}
                       </Text>
                     </View>
                     <Ionicons
@@ -657,6 +787,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
+  },
+  textAreaInput: {
+    minHeight: 110,
   },
   sheetActions: { flexDirection: 'row', gap: 12, marginTop: 20 },
   shareSelectActionsRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
