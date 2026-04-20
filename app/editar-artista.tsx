@@ -127,7 +127,6 @@ export default function EditarArtistaScreen() {
   const [showFormatDraft, setShowFormatDraft] = useState('');
   const [profileUrl, setProfileUrl] = useState('');
   const [originalProfileUrl, setOriginalProfileUrl] = useState('');
-
   const formatCurrencyInput = (raw: string): string => {
     const digitsOnly = raw.replace(/\D/g, '');
     if (!digitsOnly) return '';
@@ -788,6 +787,23 @@ export default function EditarArtistaScreen() {
           )}
         </View>
 
+        <TouchableOpacity
+          style={[styles.pressKitRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          onPress={() => router.push('/press-kit-artista')}
+          activeOpacity={0.75}
+        >
+          <View style={[styles.pressKitIconWrap, { backgroundColor: colors.primary + '22' }]}>
+            <Ionicons name="images-outline" size={22} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.pressKitTitle, { color: colors.text }]}>Press kit e identidade</Text>
+            <Text style={[styles.pressKitSub, { color: colors.textSecondary }]}>
+              Logos, capas e links para enviar rápido a produtores
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={22} color={colors.textSecondary} />
+        </TouchableOpacity>
+
         {/* Informações adicionais */}
         <View style={[styles.infoCard, { backgroundColor: colors.primary + '20' }]}>
           <Ionicons name="information-circle" size={20} color={colors.primary} />
@@ -1083,6 +1099,32 @@ const styles = StyleSheet.create({
   },
   estadoItemText: {
     fontSize: 16,
+  },
+  pressKitRow: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  pressKitIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pressKitTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  pressKitSub: {
+    fontSize: 13,
+    marginTop: 4,
+    lineHeight: 18,
   },
   infoCard: {
     marginHorizontal: 20,

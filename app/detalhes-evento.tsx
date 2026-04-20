@@ -42,6 +42,8 @@ import {
     updateEvent,
 } from '../services/supabase/eventService';
 import { removeEventContractByUrl, uploadEventContractFile } from '../services/supabase/eventContractUploadService';
+import { sharePressKitItems } from '../services/pressKitShareService';
+import { listArtistPressKitItems, type ArtistPressKitItem } from '../services/supabase/artistPressKitService';
 import {
     AvaliacaoParticipacaoEventoRow,
     cancelarConviteParticipacao,
@@ -244,6 +246,7 @@ export default function DetalhesEventoScreen() {
   const [openingContract, setOpeningContract] = useState(false);
   const [isSavingContract, setIsSavingContract] = useState(false);
   const [pickedContractName, setPickedContractName] = useState<string | null>(null);
+  const [pressKitItems, setPressKitItems] = useState<ArtistPressKitItem[]>([]);
   const [auditLogs, setAuditLogs] = useState<EventAuditLogRow[]>([]);
   const [showAudit, setShowAudit] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
@@ -539,7 +542,12 @@ export default function DetalhesEventoScreen() {
       const toastMsg = consumePendingEventUpdatedToast();
       if (toastMsg) setEventUpdatedToastMessage(toastMsg);
       loadEventData(false); // Reload silencioso
-    }, [eventId])
+      if (activeArtist?.id) {
+        void listArtistPressKitItems(activeArtist.id).then(({ items }) => setPressKitItems(items));
+      } else {
+        setPressKitItems([]);
+      }
+    }, [eventId, activeArtist?.id])
   );
 
 
@@ -1162,6 +1170,19 @@ export default function DetalhesEventoScreen() {
     }
   };
 
+  const shareArtistPressKit = async () => {
+    if (!activeArtist?.id) return;
+    if (pressKitItems.length === 0) {
+      Alert.alert(
+        'Press kit vazio',
+        'Adicione logos, capas ou links em Configurações → Press kit e identidade.'
+      );
+      return;
+    }
+    const artistLabel = (activeArtist.name || '').trim() || 'Artista';
+    await sharePressKitItems(artistLabel, pressKitItems);
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 }]}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
@@ -1299,6 +1320,38 @@ export default function DetalhesEventoScreen() {
                 ) : null}
               </View>
             )}
+
+            {activeArtist?.id ? (
+              <View style={styles.contractSection}>
+                <View style={styles.contractRow}>
+                  <Ionicons name="color-palette-outline" size={20} color={colors.primary} />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={[styles.detailText, { color: colors.text, marginLeft: 0 }]}>Press kit do artista</Text>
+                    <Text style={[styles.contractHint, { color: colors.textSecondary }]}>
+                      {pressKitItems.length === 0
+                        ? 'Nenhum material cadastrado'
+                        : `${pressKitItems.length} item(ns) — envie rapidamente ao produtor`}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.contractActionsRow}>
+                  <TouchableOpacity
+                    style={[styles.contractActionBtn, { borderColor: colors.border }]}
+                    onPress={() => router.push('/press-kit-artista')}
+                  >
+                    <Ionicons name="create-outline" size={16} color={colors.text} />
+                    <Text style={[styles.contractActionText, { color: colors.text }]}>Gerenciar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.contractActionBtn, { borderColor: colors.border }]}
+                    onPress={() => void shareArtistPressKit()}
+                  >
+                    <Ionicons name="share-outline" size={16} color={colors.primary} />
+                    <Text style={[styles.contractActionText, { color: colors.primary }]}>Compartilhar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : null}
 
             {event.tag && (
               <View style={styles.detailRow}>

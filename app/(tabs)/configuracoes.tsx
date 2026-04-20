@@ -779,6 +779,13 @@ export default function ConfiguracoesScreen() {
               )}
 
               {renderSettingItem(
+                'color-palette-outline',
+                'Press kit e identidade',
+                'Logos, capas e links para enviar a produtores',
+                () => router.push('/press-kit-artista')
+              )}
+
+              {renderSettingItem(
                 'log-out',
                 'Sair do Artista',
                 'Remover-se do artista atual',
