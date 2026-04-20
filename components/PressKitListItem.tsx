@@ -25,11 +25,19 @@ type Props = {
   item: ArtistPressKitItem;
   colors: ThemeColors;
   canManage: boolean;
+  shareLoading?: boolean;
   onPressDelete: () => void;
   onPressShare: () => void;
 };
 
-export default function PressKitListItem({ item, colors, canManage, onPressDelete, onPressShare }: Props) {
+export default function PressKitListItem({
+  item,
+  colors,
+  canManage,
+  shareLoading = false,
+  onPressDelete,
+  onPressShare,
+}: Props) {
   const [preview, setPreview] = useState<LinkPreviewResult | null>(null);
   const [previewLoading, setPreviewLoading] = useState(item.item_type === 'link');
 
@@ -130,9 +138,14 @@ export default function PressKitListItem({ item, colors, canManage, onPressDelet
         <TouchableOpacity
           style={[styles.iconOnlyBtn, { borderColor: colors.primary + '66' }]}
           onPress={onPressShare}
+          disabled={shareLoading}
           hitSlop={8}
         >
-          <Ionicons name="share-social-outline" size={17} color={colors.primary} />
+          {shareLoading ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Ionicons name="share-social-outline" size={17} color={colors.primary} />
+          )}
         </TouchableOpacity>
       </View>
     </View>

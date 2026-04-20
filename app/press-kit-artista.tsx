@@ -55,6 +55,7 @@ export default function PressKitArtistaScreen() {
   const [showSharePickerModal, setShowSharePickerModal] = useState(false);
   const [selectedShareIds, setSelectedShareIds] = useState<string[]>([]);
   const [isPremiumSubscriber, setIsPremiumSubscriber] = useState(false);
+  const [sharingItemId, setSharingItemId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!activeArtist?.id) {
@@ -237,6 +238,7 @@ export default function PressKitArtistaScreen() {
       item={item}
       colors={colors}
       canManage={canManage}
+      shareLoading={sharingItemId === item.id}
       onPressShare={() => {
         if (!isPremiumSubscriber) {
           Alert.alert(
@@ -250,7 +252,10 @@ export default function PressKitArtistaScreen() {
           return;
         }
         const artistLabel = (activeArtist?.name || '').trim() || 'Artista';
-        void sharePressKitItems(artistLabel, [item]);
+        setSharingItemId(item.id);
+        void sharePressKitItems(artistLabel, [item]).finally(() => {
+          setSharingItemId((current) => (current === item.id ? null : current));
+        });
       }}
       onPressDelete={() => {
         Alert.alert('Remover', `Remover "${item.title}"?`, [
