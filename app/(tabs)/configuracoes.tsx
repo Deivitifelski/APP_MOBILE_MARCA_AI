@@ -92,6 +92,8 @@ export default function ConfiguracoesScreen() {
   const [imageLoadError, setImageLoadError] = useState(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
   const [showArtistProfileModal, setShowArtistProfileModal] = useState(false);
+  const [showPressKitLockedModal, setShowPressKitLockedModal] = useState(false);
+  const [showCreateArtistLockedModal, setShowCreateArtistLockedModal] = useState(false);
   const appVersion = Constants.expoConfig?.version ?? Constants.manifest?.version ?? '1.0.6';
   const nativeBuild =
     Platform.OS === 'ios'
@@ -344,14 +346,11 @@ export default function ConfiguracoesScreen() {
   };
 
   const handleCreateNewArtistPremiumLocked = () => {
-    Alert.alert(
-      'Recurso Premium',
-      'No plano Premium, você pode ter vários artistas para gerenciar na mesma conta. Faça upgrade para liberar esta opção.',
-      [
-        { text: 'Agora não', style: 'cancel' },
-        { text: 'Ver Premium', onPress: () => router.push('/assine-premium') },
-      ],
-    );
+    setShowCreateArtistLockedModal(true);
+  };
+
+  const handlePressKitPremiumLocked = () => {
+    setShowPressKitLockedModal(true);
   };
 
   const handleLogout = () => {
@@ -782,7 +781,10 @@ export default function ConfiguracoesScreen() {
                 'color-palette-outline',
                 'Press kit e identidade',
                 'Logos, capas e links para enviar a produtores',
-                () => router.push('/press-kit-artista')
+                premiumEntitlementActive ? () => router.push('/press-kit-artista') : handlePressKitPremiumLocked,
+                !premiumEntitlementActive ? (
+                  <Ionicons name="lock-closed" size={18} color={isDarkMode ? '#999' : '#888'} />
+                ) : undefined
               )}
 
               {renderSettingItem(
@@ -1642,6 +1644,129 @@ export default function ConfiguracoesScreen() {
         </View>
       </Modal>
 
+      {/* Modal Premium: Press kit bloqueado */}
+      <Modal
+        visible={showPressKitLockedModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowPressKitLockedModal(false)}
+      >
+        <View style={dynamicStyles.pressKitLockOverlay}>
+          <View style={[dynamicStyles.pressKitLockContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[dynamicStyles.pressKitLockIconWrap, { backgroundColor: colors.primary + '18' }]}>
+              <Ionicons name="lock-closed" size={30} color={colors.primary} />
+            </View>
+
+            <Text style={[dynamicStyles.pressKitLockTitle, { color: colors.text }]}>Press kit para assinantes</Text>
+            <Text style={[dynamicStyles.pressKitLockDescription, { color: colors.textSecondary }]}>
+              Organize e compartilhe materiais profissionais do artista em segundos.
+            </Text>
+
+            <View style={dynamicStyles.pressKitLockList}>
+              <View style={dynamicStyles.pressKitLockItem}>
+                <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                <Text style={[dynamicStyles.pressKitLockItemText, { color: colors.textSecondary }]}>
+                  Compartilhar toda a lista de materiais
+                </Text>
+              </View>
+              <View style={dynamicStyles.pressKitLockItem}>
+                <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                <Text style={[dynamicStyles.pressKitLockItemText, { color: colors.textSecondary }]}>
+                  Selecionar itens específicos para enviar
+                </Text>
+              </View>
+              <View style={dynamicStyles.pressKitLockItem}>
+                <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                <Text style={[dynamicStyles.pressKitLockItemText, { color: colors.textSecondary }]}>
+                  Compartilhar por item direto no card
+                </Text>
+              </View>
+            </View>
+
+            <View style={dynamicStyles.pressKitLockActions}>
+              <TouchableOpacity
+                style={[dynamicStyles.pressKitLockSecondaryBtn, { borderColor: colors.border, backgroundColor: colors.background }]}
+                onPress={() => setShowPressKitLockedModal(false)}
+              >
+                <Text style={[dynamicStyles.pressKitLockSecondaryText, { color: colors.text }]}>Agora não</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[dynamicStyles.pressKitLockPrimaryBtn, { backgroundColor: colors.primary }]}
+                onPress={() => {
+                  setShowPressKitLockedModal(false);
+                  router.push('/assine-premium');
+                }}
+              >
+                <Text style={dynamicStyles.pressKitLockPrimaryText}>Ver Premium</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal Premium: Criar Novo Artista bloqueado */}
+      <Modal
+        visible={showCreateArtistLockedModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowCreateArtistLockedModal(false)}
+      >
+        <View style={dynamicStyles.pressKitLockOverlay}>
+          <View style={[dynamicStyles.pressKitLockContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[dynamicStyles.pressKitLockIconWrap, { backgroundColor: colors.primary + '18' }]}>
+              <Ionicons name="people-outline" size={30} color={colors.primary} />
+              <View style={[dynamicStyles.pressKitLockBadge, { backgroundColor: colors.primary }]}>
+                <Ionicons name="lock-closed" size={10} color="#fff" />
+              </View>
+            </View>
+
+            <Text style={[dynamicStyles.pressKitLockTitle, { color: colors.text }]}>Criar novo artista</Text>
+            <Text style={[dynamicStyles.pressKitLockDescription, { color: colors.textSecondary }]}>
+              Recurso disponível para assinantes Premium.
+            </Text>
+
+            <View style={dynamicStyles.pressKitLockList}>
+              <View style={dynamicStyles.pressKitLockItem}>
+                <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                <Text style={[dynamicStyles.pressKitLockItemText, { color: colors.textSecondary }]}>
+                  Gerenciar vários artistas na mesma conta
+                </Text>
+              </View>
+              <View style={dynamicStyles.pressKitLockItem}>
+                <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                <Text style={[dynamicStyles.pressKitLockItemText, { color: colors.textSecondary }]}>
+                  Alternar entre perfis sem perder dados
+                </Text>
+              </View>
+              <View style={dynamicStyles.pressKitLockItem}>
+                <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                <Text style={[dynamicStyles.pressKitLockItemText, { color: colors.textSecondary }]}>
+                  Organizar sua operação por artista/projeto
+                </Text>
+              </View>
+            </View>
+
+            <View style={dynamicStyles.pressKitLockActions}>
+              <TouchableOpacity
+                style={[dynamicStyles.pressKitLockSecondaryBtn, { borderColor: colors.border, backgroundColor: colors.background }]}
+                onPress={() => setShowCreateArtistLockedModal(false)}
+              >
+                <Text style={[dynamicStyles.pressKitLockSecondaryText, { color: colors.text }]}>Agora não</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[dynamicStyles.pressKitLockPrimaryBtn, { backgroundColor: colors.primary }]}
+                onPress={() => {
+                  setShowCreateArtistLockedModal(false);
+                  router.push('/assine-premium');
+                }}
+              >
+                <Text style={dynamicStyles.pressKitLockPrimaryText}>Ver Premium</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Modal de Logout */}
       <Modal
         visible={showLogoutModal}
@@ -2425,6 +2550,93 @@ const createDynamicStyles = (isDark: boolean, colors: any) => StyleSheet.create(
            color: '#fff',
            fontSize: 15,
            fontWeight: '600',
+         },
+         // Estilos do modal de bloqueio do Press kit
+         pressKitLockOverlay: {
+           flex: 1,
+           backgroundColor: 'rgba(0, 0, 0, 0.5)',
+           justifyContent: 'center',
+           alignItems: 'center',
+           padding: 20,
+         },
+         pressKitLockContent: {
+           width: '100%',
+           maxWidth: 390,
+           borderRadius: 18,
+           borderWidth: 1,
+           padding: 22,
+         },
+         pressKitLockIconWrap: {
+           width: 56,
+           height: 56,
+           borderRadius: 28,
+           alignItems: 'center',
+           justifyContent: 'center',
+           alignSelf: 'center',
+           marginBottom: 14,
+           position: 'relative',
+         },
+         pressKitLockBadge: {
+           position: 'absolute',
+           right: -2,
+           bottom: -2,
+           width: 18,
+           height: 18,
+           borderRadius: 9,
+           alignItems: 'center',
+           justifyContent: 'center',
+         },
+         pressKitLockTitle: {
+           fontSize: 21,
+           fontWeight: '700',
+           textAlign: 'center',
+         },
+         pressKitLockDescription: {
+           marginTop: 8,
+           fontSize: 14,
+           lineHeight: 20,
+           textAlign: 'center',
+         },
+         pressKitLockList: {
+           marginTop: 18,
+           gap: 10,
+         },
+         pressKitLockItem: {
+           flexDirection: 'row',
+           alignItems: 'center',
+           gap: 8,
+         },
+         pressKitLockItemText: {
+           flex: 1,
+           fontSize: 14,
+           lineHeight: 19,
+         },
+         pressKitLockActions: {
+           flexDirection: 'row',
+           gap: 10,
+           marginTop: 22,
+         },
+         pressKitLockSecondaryBtn: {
+           flex: 1,
+           borderWidth: 1,
+           borderRadius: 10,
+           paddingVertical: 12,
+           alignItems: 'center',
+         },
+         pressKitLockSecondaryText: {
+           fontSize: 15,
+           fontWeight: '600',
+         },
+         pressKitLockPrimaryBtn: {
+           flex: 1,
+           borderRadius: 10,
+           paddingVertical: 12,
+           alignItems: 'center',
+         },
+         pressKitLockPrimaryText: {
+           color: '#fff',
+           fontSize: 15,
+           fontWeight: '700',
          },
          // Estilos do modal de Logout
          logoutModalOverlay: {

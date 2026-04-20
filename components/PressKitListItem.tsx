@@ -132,7 +132,7 @@ export default function PressKitListItem({ item, colors, canManage, onPressDelet
           onPress={onPressShare}
           hitSlop={8}
         >
-          <Ionicons name="paper-plane-outline" size={17} color={colors.primary} />
+          <Ionicons name="share-social-outline" size={17} color={colors.primary} />
         </TouchableOpacity>
       </View>
     </View>

@@ -28,6 +28,7 @@ import {
 import { uploadArtistPressKitFile } from '../services/supabase/artistPressKitUploadService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { getUserPermissions } from '../services/supabase/permissionsService';
+import { userSubscriptionIsActive } from '../services/supabase/userService';
 
 function normalizeUrl(raw: string): string {
   const t = raw.trim();
@@ -53,6 +54,7 @@ export default function PressKitArtistaScreen() {
   const [fileTitleDraft, setFileTitleDraft] = useState('');
   const [showSharePickerModal, setShowSharePickerModal] = useState(false);
   const [selectedShareIds, setSelectedShareIds] = useState<string[]>([]);
+  const [isPremiumSubscriber, setIsPremiumSubscriber] = useState(false);
 
   const load = useCallback(async () => {
     if (!activeArtist?.id) {
@@ -65,8 +67,11 @@ export default function PressKitArtistaScreen() {
       if (user) {
         const perms = await getUserPermissions(user.id, activeArtist.id);
         setCanManage(Boolean(perms?.permissions.canManageArtist));
+        const { active } = await userSubscriptionIsActive(user.id);
+        setIsPremiumSubscriber(active);
       } else {
         setCanManage(false);
+        setIsPremiumSubscriber(false);
       }
       const { items: rows, error } = await listArtistPressKitItems(activeArtist.id);
       if (error) {
@@ -186,6 +191,17 @@ export default function PressKitArtistaScreen() {
       Alert.alert('Atenção', 'Adicione pelo menos um link ou arquivo.');
       return;
     }
+    if (!isPremiumSubscriber) {
+      Alert.alert(
+        'Recurso para assinantes',
+        'Nesta tela você pode:\n• Compartilhar todos os materiais\n• Selecionar itens para compartilhar\n• Compartilhar um item direto no card\n\nAssine o Premium para liberar o compartilhamento.',
+        [
+          { text: 'Agora não', style: 'cancel' },
+          { text: 'Ver planos', onPress: () => router.push('/assine-premium') },
+        ]
+      );
+      return;
+    }
     Alert.alert('Compartilhar press kit', 'Escolha como deseja compartilhar.', [
       { text: 'Cancelar', style: 'cancel' },
       {
@@ -222,6 +238,17 @@ export default function PressKitArtistaScreen() {
       colors={colors}
       canManage={canManage}
       onPressShare={() => {
+        if (!isPremiumSubscriber) {
+          Alert.alert(
+            'Recurso para assinantes',
+            'Nesta tela você pode:\n• Compartilhar todos os materiais\n• Selecionar itens para compartilhar\n• Compartilhar um item direto no card\n\nAssine o Premium para liberar o compartilhamento.',
+            [
+              { text: 'Agora não', style: 'cancel' },
+              { text: 'Ver planos', onPress: () => router.push('/assine-premium') },
+            ]
+          );
+          return;
+        }
         const artistLabel = (activeArtist?.name || '').trim() || 'Artista';
         void sharePressKitItems(artistLabel, [item]);
       }}
