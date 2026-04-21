@@ -18,7 +18,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import PressKitListItem from '../components/PressKitListItem';
 import { useActiveArtistContext } from '../contexts/ActiveArtistContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -54,6 +54,7 @@ type PendingFile = { uri: string; name: string | null; mimeType: string | null }
 
 export default function PressKitArtistaScreen() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const { activeArtist } = useActiveArtistContext();
   const [items, setItems] = useState<ArtistPressKitItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -443,13 +444,14 @@ export default function PressKitArtistaScreen() {
       <Modal visible={showLinkModal} transparent animationType="fade" onRequestClose={() => setShowLinkModal(false)}>
         <KeyboardAvoidingView
           style={styles.linkModalRoot}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 12 : Math.max(insets.top, 16)}
         >
           <Pressable style={styles.linkModalBackdrop} onPress={() => setShowLinkModal(false)} />
           <View style={styles.linkModalCenterWrap} pointerEvents="box-none">
             <ScrollView
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
               bounces={false}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.linkModalScrollInner}
@@ -466,6 +468,7 @@ export default function PressKitArtistaScreen() {
                   onChangeText={setLinkTitle}
                   placeholder="Logo horizontal"
                   placeholderTextColor={colors.textSecondary}
+                  returnKeyType="next"
                   style={[styles.input, { borderColor: colors.border, color: colors.text }]}
                 />
                 <Text style={[styles.inputLabel, { color: colors.text, marginTop: 12 }]}>URL</Text>
@@ -476,6 +479,7 @@ export default function PressKitArtistaScreen() {
                   placeholderTextColor={colors.textSecondary}
                   autoCapitalize="none"
                   keyboardType="url"
+                  returnKeyType="done"
                   style={[styles.input, { borderColor: colors.border, color: colors.text }]}
                 />
                 <View style={styles.sheetActions}>
@@ -502,48 +506,75 @@ export default function PressKitArtistaScreen() {
       <Modal
         visible={pendingFile != null}
         transparent
-        animationType="slide"
+        animationType="fade"
         onRequestClose={() => !uploadingFile && setPendingFile(null)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.sheet, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.sheetTitle, { color: colors.text }]}>Nome do material</Text>
-            <Text style={[styles.sheetHint, { color: colors.textSecondary }]}>
-              Arquivo: {pendingFile?.name ?? '—'}
-            </Text>
-            <TextInput
-              value={fileTitleDraft}
-              onChangeText={setFileTitleDraft}
-              placeholder="Como aparece na lista"
-              placeholderTextColor={colors.textSecondary}
-              style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-              editable={!uploadingFile}
-            />
-            <View style={styles.sheetActions}>
-              <TouchableOpacity
-                style={[styles.sheetGhost, { borderColor: colors.border }]}
-                disabled={uploadingFile}
-                onPress={() => {
-                  setPendingFile(null);
-                  setFileTitleDraft('');
-                }}
+        <KeyboardAvoidingView
+          style={styles.linkModalRoot}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 12 : Math.max(insets.top, 16)}
+        >
+          <Pressable
+            style={styles.linkModalBackdrop}
+            onPress={() => {
+              if (!uploadingFile) {
+                setPendingFile(null);
+                setFileTitleDraft('');
+              }
+            }}
+          />
+          <View style={styles.linkModalCenterWrap} pointerEvents="box-none">
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              bounces={false}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.linkModalScrollInner}
+            >
+              <View
+                onStartShouldSetResponder={() => true}
+                style={[styles.linkModalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
               >
-                <Text style={{ color: colors.text }}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.sheetPrimary, { backgroundColor: colors.primary }]}
-                disabled={uploadingFile}
-                onPress={() => void confirmUploadPendingFile()}
-              >
-                {uploadingFile ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.sheetPrimaryText}>Enviar</Text>
-                )}
-              </TouchableOpacity>
-            </View>
+                <Text style={[styles.sheetTitle, { color: colors.text }]}>Nome do material</Text>
+                <Text style={[styles.sheetHint, { color: colors.textSecondary }]}>
+                  Arquivo: {pendingFile?.name ?? '—'}
+                </Text>
+                <TextInput
+                  value={fileTitleDraft}
+                  onChangeText={setFileTitleDraft}
+                  placeholder="Como aparece na lista"
+                  placeholderTextColor={colors.textSecondary}
+                  returnKeyType="done"
+                  style={[styles.input, { borderColor: colors.border, color: colors.text }]}
+                  editable={!uploadingFile}
+                />
+                <View style={styles.sheetActions}>
+                  <TouchableOpacity
+                    style={[styles.sheetGhost, { borderColor: colors.border }]}
+                    disabled={uploadingFile}
+                    onPress={() => {
+                      setPendingFile(null);
+                      setFileTitleDraft('');
+                    }}
+                  >
+                    <Text style={{ color: colors.text }}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.sheetPrimary, { backgroundColor: colors.primary }]}
+                    disabled={uploadingFile}
+                    onPress={() => void confirmUploadPendingFile()}
+                  >
+                    {uploadingFile ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.sheetPrimaryText}>Enviar</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal
