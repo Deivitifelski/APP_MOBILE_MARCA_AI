@@ -184,6 +184,9 @@ function pickBestActiveSubscription(rows: ActiveSubscription[]): ActiveSubscript
 
 function activeSubscriptionToPayload(sub: ActiveSubscription): SyncPayload {
   const platform = Platform.OS === 'ios' ? 'ios' : 'android';
+  const iosSub = sub as ActiveSubscription & {
+    originalTransactionIdentifierIOS?: string | null;
+  };
   const productId =
     platform === 'ios'
       ? effectivePremiumSkuForIos({
@@ -198,7 +201,7 @@ function activeSubscriptionToPayload(sub: ActiveSubscription): SyncPayload {
       platform: 'ios',
       productId,
       transactionId: sub.transactionId ?? null,
-      originalTransactionId: sub.transactionId ?? null,
+      originalTransactionId: iosSub.originalTransactionIdentifierIOS ?? sub.transactionId ?? null,
       purchaseToken: sub.purchaseToken ?? null,
       expiresAtMs: sub.expirationDateIOS ?? null,
       purchasedAtMs: sub.transactionDate,

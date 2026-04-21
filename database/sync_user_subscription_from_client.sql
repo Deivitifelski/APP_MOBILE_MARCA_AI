@@ -33,6 +33,7 @@ DECLARE
   v_expires_from_store timestamptz;
   v_existing_tx_id uuid;
   v_existing_sub_id uuid;
+  v_existing_confirmed_ios_id uuid;
   v_billing text;
   v_plan_active boolean;
   v_product text;
@@ -273,6 +274,41 @@ BEGIN
 
     UPDATE public.users SET plan_is_active = COALESCE(v_plan_active, false) WHERE id = uid;
     RETURN jsonb_build_object('ok', true, 'action', 'updated');
+  END IF;
+
+  -- iOS reconcile não deve alterar status/datas quando já existe confirmação Apple.
+  -- Nesse cenário, apenas webhook ASN V2 deve atualizar a assinatura.
+  IF v_status = 'pending' AND p_platform = 'ios' THEN
+    SELECT s.id INTO v_existing_confirmed_ios_id
+    FROM public.user_subscriptions s
+    WHERE s.user_id = uid
+      AND s.platform = 'ios'
+      AND s.product_id = v_product
+      AND COALESCE((s.metadata->>'apple_store_confirmed')::boolean, false) = true
+      AND s.status IN ('active', 'grace_period', 'expired')
+    ORDER BY s.updated_at DESC NULLS LAST, s.created_at DESC
+    LIMIT 1;
+
+    IF v_existing_confirmed_ios_id IS NOT NULL
+       AND COALESCE(nullif(btrim(p_source), ''), 'client_sync') = 'reconcile' THEN
+      UPDATE public.users
+      SET plan_is_active = public.user_subscription_is_active(uid)
+      WHERE id = uid;
+
+      RETURN jsonb_build_object('ok', true, 'action', 'noop_reconcile_waiting_apple_webhook');
+    END IF;
+  END IF;
+
+  -- iOS reconcile sem match em linha existente: não inserir pending novo.
+  -- A criação/atualização deve vir do webhook da Apple.
+  IF v_status = 'pending'
+     AND p_platform = 'ios'
+     AND COALESCE(nullif(btrim(p_source), ''), 'client_sync') = 'reconcile' THEN
+    UPDATE public.users
+    SET plan_is_active = public.user_subscription_is_active(uid)
+    WHERE id = uid;
+
+    RETURN jsonb_build_object('ok', true, 'action', 'noop_reconcile_waiting_apple_webhook');
   END IF;
 
   -- Nova compra IAP (pending): só expira outras pendentes da loja; não mexe em active/grace (webhook troca depois).
