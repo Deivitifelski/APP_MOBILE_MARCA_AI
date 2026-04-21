@@ -96,9 +96,9 @@ BEGIN
   v_now_ms := (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint;
   v_source := COALESCE(nullif(btrim(p_source), ''), 'client_sync');
 
-  -- iOS após compra concluída no app: libera Premium imediato (active provisório)
-  -- até chegar confirmação oficial da Apple via webhook ASN V2.
-  IF p_platform = 'ios' AND v_source = 'after_purchase' THEN
+  -- Após compra concluída no app (iOS/Android): libera Premium imediato
+  -- como active provisório até confirmação oficial da loja/webhook.
+  IF v_source = 'after_purchase' THEN
     v_make_provisional_active := true;
   END IF;
 
@@ -398,4 +398,4 @@ GRANT EXECUTE ON FUNCTION public.sync_user_subscription_from_client(
 ) TO service_role;
 
 COMMENT ON FUNCTION public.sync_user_subscription_from_client IS
-  'IAP: pending com expires_at = agora+1 dia; plan_is_active true enquanto pending na janela (Premium). Webhook confirma → active. store_expires_at_client_ms no metadata.';
+  'IAP: after_purchase libera active provisório imediato (iOS/Android), reconcile iOS não cria pending novo, e confirmação oficial da loja/webhook mantém ou ajusta status. store_expires_at_client_ms no metadata.';
