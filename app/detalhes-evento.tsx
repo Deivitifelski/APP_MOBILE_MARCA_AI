@@ -44,7 +44,6 @@ import {
 import { removeEventContractByUrl, uploadEventContractFile } from '../services/supabase/eventContractUploadService';
 import { sharePressKitItems } from '../services/pressKitShareService';
 import { listArtistPressKitItems, type ArtistPressKitItem } from '../services/supabase/artistPressKitService';
-import { userSubscriptionIsActive } from '../services/supabase/userService';
 import {
     AvaliacaoParticipacaoEventoRow,
     cancelarConviteParticipacao,
@@ -258,8 +257,6 @@ export default function DetalhesEventoScreen() {
   const [isCheckingAccess, setIsCheckingAccess] = useState(true);
   const [canCreateEventsPermission, setCanCreateEventsPermission] = useState(false);
   const [artistMemberRole, setArtistMemberRole] = useState<string | null>(null);
-  const [currentUserPremium, setCurrentUserPremium] = useState(false);
-
   const [participationFromInviteBanner, setParticipationFromInviteBanner] = useState<string | null>(null);
   /** Texto livre do convite (mensagem); não expõe observações internas do evento do organizador. */
   const [participationInviteMessage, setParticipationInviteMessage] = useState<string | null>(null);
@@ -296,16 +293,6 @@ export default function DetalhesEventoScreen() {
     };
     getCurrentUser();
   }, []);
-
-  useEffect(() => {
-    if (!currentUserId) {
-      setCurrentUserPremium(false);
-      return;
-    }
-    void userSubscriptionIsActive(currentUserId).then(({ active }) => {
-      setCurrentUserPremium(active);
-    });
-  }, [currentUserId]);
 
   // Verificar permissões quando o artista ativo mudar
   useEffect(() => {
@@ -1199,7 +1186,7 @@ export default function DetalhesEventoScreen() {
     if (pressKitItems.length === 0) {
       Alert.alert(
         'Press kit vazio',
-        'Adicione logos, capas ou links em Configurações → Press kit e identidade.'
+        'Adicione imagens, áudios em Configurações → Press kit e identidade para compartilhar rápido com equipe e contratantes.'
       );
       return;
     }
@@ -1354,11 +1341,11 @@ export default function DetalhesEventoScreen() {
                     <Text style={[styles.contractHint, { color: colors.textSecondary }]}>
                       {pressKitItems.length === 0
                         ? 'Nenhum material cadastrado'
-                        : `${pressKitItems.length} item(ns) — envie rapidamente ao produtor`}
+                        : `${pressKitItems.length} item(ns) — imagens e áudios para compartilhar rápido com equipe e contratantes`}
                     </Text>
                   </View>
                 </View>
-                {artistMemberRole === 'admin' || currentUserPremium ? (
+                {artistMemberRole === 'admin' ? (
                   <View style={styles.contractActionsRow}>
                     <TouchableOpacity
                       style={[styles.contractActionBtn, { borderColor: colors.border }]}
@@ -1367,26 +1354,29 @@ export default function DetalhesEventoScreen() {
                       <Ionicons name="create-outline" size={16} color={colors.text} />
                       <Text style={[styles.contractActionText, { color: colors.text }]}>Gerenciar</Text>
                     </TouchableOpacity>
-                    {artistMemberRole === 'admin' ? (
-                      <TouchableOpacity
-                        style={[styles.contractActionBtn, { borderColor: colors.border }]}
-                        onPress={() => void shareArtistPressKit()}
-                      >
-                        <Ionicons name="share-outline" size={16} color={colors.primary} />
-                        <Text style={[styles.contractActionText, { color: colors.primary }]}>Compartilhar</Text>
-                      </TouchableOpacity>
-                    ) : null}
+                    <TouchableOpacity
+                      style={[styles.contractActionBtn, { borderColor: colors.border }]}
+                      onPress={() => void shareArtistPressKit()}
+                    >
+                      <Ionicons name="share-outline" size={16} color={colors.primary} />
+                      <Text style={[styles.contractActionText, { color: colors.primary }]}>Compartilhar</Text>
+                    </TouchableOpacity>
                   </View>
                 ) : !isCheckingAccess ? (
-                  <Text
-                    style={[
-                      styles.contractHint,
-                      { color: colors.textSecondary, marginTop: 10, marginHorizontal: 4 },
-                    ]}
-                  >
-                    Assinantes Premium ou o administrador podem abrir o press kit para incluir materiais. Só o
-                    administrador compartilha.
-                  </Text>
+                  <View style={{ marginTop: 10, marginHorizontal: 4, alignItems: 'flex-start' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                      <Ionicons name="lock-closed" size={18} color={colors.textSecondary} />
+                      <Text
+                        style={[
+                          styles.contractHint,
+                          { color: colors.textSecondary, flex: 1, marginLeft: 8, marginTop: 0 },
+                        ]}
+                      >
+                        Somente o administrador do artista pode abrir o press kit para gerenciar e compartilhar os
+                        materiais.
+                      </Text>
+                    </View>
+                  </View>
                 ) : null}
               </View>
             ) : null}

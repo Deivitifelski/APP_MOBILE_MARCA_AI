@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { router, useFocusEffect } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -34,7 +34,6 @@ import { PRESS_KIT_MAX_FILE_BYTES } from '../services/supabase/pressKitConstants
 import { uploadArtistPressKitFile } from '../services/supabase/artistPressKitUploadService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { getUserPermissions } from '../services/supabase/permissionsService';
-import { userSubscriptionIsActive } from '../services/supabase/userService';
 
 function alertPressKitFileTooLarge() {
   Alert.alert(
@@ -59,9 +58,8 @@ export default function PressKitArtistaScreen() {
   const [items, setItems] = useState<ArtistPressKitItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isArtistAdmin, setIsArtistAdmin] = useState(false);
-  const [isPremiumSubscriber, setIsPremiumSubscriber] = useState(false);
 
-  const canInsertMaterials = isArtistAdmin || isPremiumSubscriber;
+  const canInsertMaterials = isArtistAdmin;
   const canSharePressKit = isArtistAdmin;
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [linkTitle, setLinkTitle] = useState('');
@@ -74,27 +72,28 @@ export default function PressKitArtistaScreen() {
   const [selectedShareIds, setSelectedShareIds] = useState<string[]>([]);
   const [sharingItemId, setSharingItemId] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (activeArtist?.id) {
+      setLoading(true);
+    }
+  }, [activeArtist?.id]);
+
   const load = useCallback(async () => {
     if (!activeArtist?.id) {
       setLoading(false);
       return;
     }
-    setLoading(true);
     try {
       const { user } = await getCurrentUser();
       if (!user) {
         setIsArtistAdmin(false);
-        setIsPremiumSubscriber(false);
         return;
       }
       const perms = await getUserPermissions(user.id, activeArtist.id);
       const admin = perms?.role === 'admin';
-      const { active: premium } = await userSubscriptionIsActive(user.id);
       setIsArtistAdmin(admin);
-      setIsPremiumSubscriber(premium);
-      if (!admin && !premium) {
-        Alert.alert('Press kit', 'Só administrador ou assinante Premium.');
-        router.back();
+      if (!admin) {
+        setItems([]);
         return;
       }
       const { items: rows, error } = await listArtistPressKitItems(activeArtist.id);
@@ -329,6 +328,59 @@ export default function PressKitArtistaScreen() {
     );
   }
 
+  const headerEl = (
+    <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+      <View style={styles.headerTop}>
+        <View style={styles.headerSideSlot}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.headerIconButton}>
+            <Ionicons name="arrow-back" size={26} color={colors.text} />
+          </TouchableOpacity>
+        </View>
+        <Text style={[styles.headerScreenTitle, { color: colors.text }]} numberOfLines={1}>
+          Press kit
+        </Text>
+        <View style={[styles.headerButtons, styles.headerSideSlotEnd]}>
+          <View style={styles.headerRightSpacer} />
+        </View>
+      </View>
+    </View>
+  );
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        {headerEl}
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!isArtistAdmin) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        {headerEl}
+        <View style={[styles.centered, styles.lockScreenBody]}>
+          <View style={[styles.lockIconWrap, { backgroundColor: colors.primary + '22' }]}>
+            <Ionicons name="lock-closed" size={48} color={colors.primary} />
+          </View>
+          <Text style={[styles.lockTitle, { color: colors.text }]}>Acesso restrito</Text>
+          <Text style={[styles.lockMessage, { color: colors.textSecondary }]}>
+            Somente o administrador do artista pode abrir o press kit.
+          </Text>
+          <TouchableOpacity
+            style={[styles.lockBackBtn, { backgroundColor: colors.primary }]}
+            onPress={() => router.back()}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.lockBackBtnText}>Voltar</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
@@ -361,20 +413,10 @@ export default function PressKitArtistaScreen() {
         <Ionicons name="color-palette-outline" size={28} color={colors.primary} />
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={[styles.heroTitle, { color: colors.text }]}>{activeArtist.name}</Text>
-          {isArtistAdmin ? (
-            <>
-              <Text style={[styles.heroSub, { color: colors.textSecondary }]}>
-                Materiais do artista. Você compartilha; quem é Premium pode incluir links e arquivos.
-              </Text>
-              <Text style={[styles.heroLimit, { color: colors.textSecondary }]}>
-                Até 10 links e 10 arquivos.
-              </Text>
-            </>
-          ) : (
-            <Text style={[styles.heroSub, { color: colors.textSecondary }]}>
-              Inclua links ou arquivos. Só o administrador compartilha.
-            </Text>
-          )}
+          <Text style={[styles.heroSub, { color: colors.textSecondary }]}>
+            Adicione imagens, áudios para compartilhar rápido com sua equipe e contratantes.
+          </Text>
+          <Text style={[styles.heroLimit, { color: colors.textSecondary }]}>Até 10 links e 10 arquivos.</Text>
         </View>
       </View>
 
@@ -723,6 +765,39 @@ const styles = StyleSheet.create({
   toolbarBtnText: { color: '#fff', fontWeight: '600' },
   toolbarBtnTextDark: { fontWeight: '600' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  lockScreenBody: {
+    paddingHorizontal: 28,
+  },
+  lockIconWrap: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  lockTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  lockMessage: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 28,
+  },
+  lockBackBtn: {
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+  },
+  lockBackBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   listContent: {
     padding: 16,
     paddingBottom: 24,

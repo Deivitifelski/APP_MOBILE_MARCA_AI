@@ -322,6 +322,17 @@ export default function EditarArtistaScreen() {
     }
   };
 
+  const handlePressKitPress = () => {
+    if (userPermissions?.role !== 'admin') {
+      Alert.alert(
+        'Press kit',
+        'Somente o administrador do artista pode abrir o press kit.'
+      );
+      return;
+    }
+    router.push('/press-kit-artista');
+  };
+
   const handleSave = async () => {
     if (!artist) return;
 
@@ -789,7 +800,7 @@ export default function EditarArtistaScreen() {
 
         <TouchableOpacity
           style={[styles.pressKitRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
-          onPress={() => router.push('/press-kit-artista')}
+          onPress={handlePressKitPress}
           activeOpacity={0.75}
         >
           <View style={[styles.pressKitIconWrap, { backgroundColor: colors.primary + '22' }]}>
@@ -798,10 +809,16 @@ export default function EditarArtistaScreen() {
           <View style={{ flex: 1 }}>
             <Text style={[styles.pressKitTitle, { color: colors.text }]}>Press kit e identidade</Text>
             <Text style={[styles.pressKitSub, { color: colors.textSecondary }]}>
-              Logos, capas e links para enviar rápido a produtores
+              {userPermissions?.role === 'admin'
+                ? 'Adicione imagens, áudios para compartilhar rápido com sua equipe e contratantes.'
+                : 'Somente o administrador pode abrir e gerenciar o press kit.'}
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={22} color={colors.textSecondary} />
+          {userPermissions?.role === 'admin' ? (
+            <Ionicons name="chevron-forward" size={22} color={colors.textSecondary} />
+          ) : (
+            <Ionicons name="lock-closed" size={22} color={colors.textSecondary} />
+          )}
         </TouchableOpacity>
 
         {/* Informações adicionais */}

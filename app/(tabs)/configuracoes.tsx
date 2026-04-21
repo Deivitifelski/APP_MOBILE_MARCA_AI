@@ -361,7 +361,7 @@ export default function ConfiguracoesScreen() {
   const handlePressKitAccessDenied = () => {
     Alert.alert(
       'Press kit',
-      'Apenas o administrador do artista ou assinantes Premium podem abrir o press kit para incluir materiais.'
+      'Somente o administrador do artista pode abrir o press kit. Peça acesso de administrador se precisar gerenciar os materiais.'
     );
   };
 
@@ -792,11 +792,13 @@ export default function ConfiguracoesScreen() {
               {renderSettingItem(
                 'color-palette-outline',
                 'Press kit e identidade',
-                'Admin: ver, compartilhar e editar. Assinante Premium: incluir links e arquivos.',
-                currentArtist.role === 'admin' || premiumEntitlementActive
+                currentArtist.role === 'admin'
+                  ? 'Adicione imagens, áudios para compartilhar rápido com sua equipe e contratantes.'
+                  : 'Somente o administrador pode ver, editar e compartilhar.',
+                currentArtist.role === 'admin'
                   ? () => router.push('/press-kit-artista')
                   : handlePressKitAccessDenied,
-                currentArtist.role !== 'admin' && !premiumEntitlementActive ? (
+                currentArtist.role !== 'admin' ? (
                   <Ionicons name="lock-closed" size={18} color={isDarkMode ? '#999' : '#888'} />
                 ) : undefined
               )}
