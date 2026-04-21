@@ -1,12 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
+  Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -25,10 +30,18 @@ import {
   listArtistPressKitItems,
   type ArtistPressKitItem,
 } from '../services/supabase/artistPressKitService';
+import { PRESS_KIT_MAX_FILE_BYTES } from '../services/supabase/pressKitConstants';
 import { uploadArtistPressKitFile } from '../services/supabase/artistPressKitUploadService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { getUserPermissions } from '../services/supabase/permissionsService';
 import { userSubscriptionIsActive } from '../services/supabase/userService';
+
+function alertPressKitFileTooLarge() {
+  Alert.alert(
+    'Arquivo muito grande',
+    'O arquivo ultrapassa o limite de 50 MB. Escolha um arquivo menor.'
+  );
+}
 
 function normalizeUrl(raw: string): string {
   const t = raw.trim();
@@ -44,7 +57,11 @@ export default function PressKitArtistaScreen() {
   const { activeArtist } = useActiveArtistContext();
   const [items, setItems] = useState<ArtistPressKitItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [canManageByRole, setCanManageByRole] = useState(false);
+  const [isArtistAdmin, setIsArtistAdmin] = useState(false);
+  const [isPremiumSubscriber, setIsPremiumSubscriber] = useState(false);
+
+  const canInsertMaterials = isArtistAdmin || isPremiumSubscriber;
+  const canSharePressKit = isArtistAdmin;
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [linkTitle, setLinkTitle] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
@@ -54,9 +71,7 @@ export default function PressKitArtistaScreen() {
   const [fileTitleDraft, setFileTitleDraft] = useState('');
   const [showSharePickerModal, setShowSharePickerModal] = useState(false);
   const [selectedShareIds, setSelectedShareIds] = useState<string[]>([]);
-  const [isPremiumSubscriber, setIsPremiumSubscriber] = useState(false);
   const [sharingItemId, setSharingItemId] = useState<string | null>(null);
-  const canAddMaterials = canManageByRole && isPremiumSubscriber;
 
   const load = useCallback(async () => {
     if (!activeArtist?.id) {
@@ -66,14 +81,20 @@ export default function PressKitArtistaScreen() {
     setLoading(true);
     try {
       const { user } = await getCurrentUser();
-      if (user) {
-        const perms = await getUserPermissions(user.id, activeArtist.id);
-        setCanManageByRole(perms?.role === 'admin' || perms?.role === 'editor');
-        const { active } = await userSubscriptionIsActive(user.id);
-        setIsPremiumSubscriber(active);
-      } else {
-        setCanManageByRole(false);
+      if (!user) {
+        setIsArtistAdmin(false);
         setIsPremiumSubscriber(false);
+        return;
+      }
+      const perms = await getUserPermissions(user.id, activeArtist.id);
+      const admin = perms?.role === 'admin';
+      const { active: premium } = await userSubscriptionIsActive(user.id);
+      setIsArtistAdmin(admin);
+      setIsPremiumSubscriber(premium);
+      if (!admin && !premium) {
+        Alert.alert('Press kit', 'Só administrador ou assinante Premium.');
+        router.back();
+        return;
       }
       const { items: rows, error } = await listArtistPressKitItems(activeArtist.id);
       if (error) {
@@ -86,7 +107,7 @@ export default function PressKitArtistaScreen() {
         ) {
           Alert.alert(
             'Configuração pendente',
-            'A tabela de press kit ainda não foi criada no Supabase. Execute o script database/ARTIST_PRESS_KIT.sql no projeto.'
+            'Crie a tabela no Supabase (script database/ARTIST_PRESS_KIT.sql).'
           );
         }
       } else {
@@ -104,7 +125,7 @@ export default function PressKitArtistaScreen() {
   );
 
   const onAddLink = async () => {
-    if (!activeArtist?.id || !canAddMaterials) return;
+    if (!activeArtist?.id || !canInsertMaterials) return;
     const title = linkTitle.trim();
     const urlRaw = linkUrl.trim();
     if (!title || !urlRaw) {
@@ -129,7 +150,7 @@ export default function PressKitArtistaScreen() {
   };
 
   const onPickFile = async () => {
-    if (!activeArtist?.id || !canAddMaterials) return;
+    if (!activeArtist?.id || !canInsertMaterials) return;
     try {
       const picked = await DocumentPicker.getDocumentAsync({
         copyToCacheDirectory: true,
@@ -137,6 +158,21 @@ export default function PressKitArtistaScreen() {
       });
       if (picked.canceled || !picked.assets?.[0]) return;
       const asset = picked.assets[0];
+      if (typeof asset.size === 'number' && asset.size > PRESS_KIT_MAX_FILE_BYTES) {
+        alertPressKitFileTooLarge();
+        return;
+      }
+      if (asset.size == null) {
+        try {
+          const info = await FileSystem.getInfoAsync(asset.uri);
+          if (info.exists && typeof info.size === 'number' && info.size > PRESS_KIT_MAX_FILE_BYTES) {
+            alertPressKitFileTooLarge();
+            return;
+          }
+        } catch {
+          // segue: o upload também valida tamanho quando possível
+        }
+      }
       const defaultTitle = asset.name?.replace(/\.[^/.]+$/, '') || 'Arquivo';
       setPendingFile({
         uri: asset.uri,
@@ -150,7 +186,18 @@ export default function PressKitArtistaScreen() {
   };
 
   const confirmUploadPendingFile = async () => {
-    if (!activeArtist?.id || !pendingFile) return;
+    if (!activeArtist?.id || !pendingFile || !canInsertMaterials) return;
+    try {
+      const info = await FileSystem.getInfoAsync(pendingFile.uri);
+      if (info.exists && typeof info.size === 'number' && info.size > PRESS_KIT_MAX_FILE_BYTES) {
+        alertPressKitFileTooLarge();
+        setPendingFile(null);
+        setFileTitleDraft('');
+        return;
+      }
+    } catch {
+      // continua; upload valida de novo
+    }
     const title = fileTitleDraft.trim() || pendingFile.name || 'Arquivo';
     setUploadingFile(true);
     try {
@@ -176,8 +223,9 @@ export default function PressKitArtistaScreen() {
   };
 
   const shareList = async () => {
+    if (!canSharePressKit) return;
     if (!activeArtist?.id || items.length === 0) {
-      Alert.alert('Atenção', 'Adicione pelo menos um link ou arquivo.');
+      Alert.alert('Atenção', 'Adicione itens antes.');
       return;
     }
     const artistLabel = (activeArtist.name || '').trim() || 'Artista';
@@ -189,22 +237,12 @@ export default function PressKitArtistaScreen() {
   };
 
   const onSharePress = () => {
+    if (!canSharePressKit) return;
     if (!activeArtist?.id || items.length === 0) {
-      Alert.alert('Atenção', 'Adicione pelo menos um link ou arquivo.');
+      Alert.alert('Atenção', 'Adicione itens antes.');
       return;
     }
-    if (!isPremiumSubscriber) {
-      Alert.alert(
-        'Recurso para assinantes',
-        'Nesta tela você pode:\n• Compartilhar todos os materiais\n• Selecionar itens para compartilhar\n• Compartilhar um item direto no card\n\nAssine o Premium para liberar o compartilhamento.',
-        [
-          { text: 'Agora não', style: 'cancel' },
-          { text: 'Ver planos', onPress: () => router.push('/assine-premium') },
-        ]
-      );
-      return;
-    }
-    Alert.alert('Compartilhar press kit', 'Escolha como deseja compartilhar.', [
+    Alert.alert('Compartilhar', 'Enviar tudo ou escolher itens?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Enviar tudo',
@@ -223,10 +261,10 @@ export default function PressKitArtistaScreen() {
   };
 
   const shareSelectedItems = async () => {
-    if (!activeArtist?.id) return;
+    if (!canSharePressKit || !activeArtist?.id) return;
     const pickedItems = items.filter((it) => selectedShareIds.includes(it.id));
     if (pickedItems.length === 0) {
-      Alert.alert('Atenção', 'Selecione ao menos um item para compartilhar.');
+      Alert.alert('Atenção', 'Marque pelo menos um item.');
       return;
     }
     const artistLabel = (activeArtist.name || '').trim() || 'Artista';
@@ -238,20 +276,10 @@ export default function PressKitArtistaScreen() {
     <PressKitListItem
       item={item}
       colors={colors}
-      canManage={canManageByRole}
+      canDelete={isArtistAdmin}
+      canShare={canSharePressKit}
       shareLoading={sharingItemId === item.id}
       onPressShare={() => {
-        if (!isPremiumSubscriber) {
-          Alert.alert(
-            'Recurso para assinantes',
-            'Nesta tela você pode:\n• Compartilhar todos os materiais\n• Selecionar itens para compartilhar\n• Compartilhar um item direto no card\n\nAssine o Premium para liberar o compartilhamento.',
-            [
-              { text: 'Agora não', style: 'cancel' },
-              { text: 'Ver planos', onPress: () => router.push('/assine-premium') },
-            ]
-          );
-          return;
-        }
         const artistLabel = (activeArtist?.name || '').trim() || 'Artista';
         setSharingItemId(item.id);
         void sharePressKitItems(artistLabel, [item]).finally(() => {
@@ -294,7 +322,7 @@ export default function PressKitArtistaScreen() {
           </View>
         </View>
         <View style={styles.centered}>
-          <Text style={{ color: colors.textSecondary }}>Selecione um artista nas configurações.</Text>
+          <Text style={{ color: colors.textSecondary }}>Escolha um artista em Configurações.</Text>
         </View>
       </SafeAreaView>
     );
@@ -313,7 +341,7 @@ export default function PressKitArtistaScreen() {
             Press kit
           </Text>
           <View style={[styles.headerButtons, styles.headerSideSlotEnd]}>
-            {items.length > 0 ? (
+            {items.length > 0 && canSharePressKit ? (
               <TouchableOpacity
                 style={styles.headerIconButton}
                 onPress={onSharePress}
@@ -332,31 +360,28 @@ export default function PressKitArtistaScreen() {
         <Ionicons name="color-palette-outline" size={28} color={colors.primary} />
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={[styles.heroTitle, { color: colors.text }]}>{activeArtist.name}</Text>
-          <Text style={[styles.heroSub, { color: colors.textSecondary }]}>
-            Logos, capas, textos e links para enviar rápido a produtores. Toda a equipe visualiza e baixa os materiais.
-          </Text>
-          <Text style={[styles.heroLimit, { color: colors.textSecondary }]}>
-            Limite por artista: até 10 links, 10 arquivos e 20 textos.
-          </Text>
+          {isArtistAdmin ? (
+            <>
+              <Text style={[styles.heroSub, { color: colors.textSecondary }]}>
+                Materiais do artista. Você compartilha; quem é Premium pode incluir links e arquivos.
+              </Text>
+              <Text style={[styles.heroLimit, { color: colors.textSecondary }]}>
+                Até 10 links e 10 arquivos.
+              </Text>
+            </>
+          ) : (
+            <Text style={[styles.heroSub, { color: colors.textSecondary }]}>
+              Inclua links ou arquivos. Só o administrador compartilha.
+            </Text>
+          )}
         </View>
       </View>
 
-      {canManageByRole ? (
+      {canInsertMaterials ? (
         <View style={styles.toolbar}>
           <TouchableOpacity
             style={[styles.toolbarBtn, { backgroundColor: colors.primary }]}
             onPress={() => {
-              if (!isPremiumSubscriber) {
-                Alert.alert(
-                  'Recurso para assinantes',
-                  'Adicionar materiais ao press kit está disponível para assinantes Premium.',
-                  [
-                    { text: 'Agora não', style: 'cancel' },
-                    { text: 'Ver planos', onPress: () => router.push('/assine-premium') },
-                  ]
-                );
-                return;
-              }
               setLinkTitle('');
               setLinkUrl('');
               setShowLinkModal(true);
@@ -372,17 +397,6 @@ export default function PressKitArtistaScreen() {
               { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
             ]}
             onPress={() => {
-              if (!isPremiumSubscriber) {
-                Alert.alert(
-                  'Recurso para assinantes',
-                  'Adicionar materiais ao press kit está disponível para assinantes Premium.',
-                  [
-                    { text: 'Agora não', style: 'cancel' },
-                    { text: 'Ver planos', onPress: () => router.push('/assine-premium') },
-                  ]
-                );
-                return;
-              }
               void onPickFile();
             }}
             disabled={uploadingFile}
@@ -408,63 +422,81 @@ export default function PressKitArtistaScreen() {
           data={items}
           keyExtractor={(it) => it.id}
           renderItem={renderItem}
-          contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+          contentContainerStyle={[
+            styles.listContent,
+            items.length === 0 ? styles.listContentEmpty : null,
+          ]}
           ListEmptyComponent={
-            <Text style={{ textAlign: 'center', color: colors.textSecondary, marginTop: 32 }}>
-              Nenhum material cadastrado. {canManageByRole ? 'Adicione links (Drive, site) ou envie arquivos.' : ''}
-            </Text>
+            <View style={styles.emptyState} accessibilityLabel="Nenhum material no press kit">
+              <Ionicons name="folder-open-outline" size={72} color={colors.textSecondary} style={{ opacity: 0.55 }} />
+              <Text style={[styles.emptyStateTitle, { color: colors.text }]}>
+                Nenhum material
+              </Text>
+              <Text style={[styles.emptyStateHint, { color: colors.textSecondary }]}>
+                {canInsertMaterials ? 'Use Link ou Arquivo acima.' : 'Só o administrador adiciona itens.'}
+              </Text>
+            </View>
           }
         />
       )}
 
-      <Modal visible={showLinkModal} transparent animationType="slide" onRequestClose={() => setShowLinkModal(false)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowLinkModal(false)}>
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={(e) => e.stopPropagation()}
-            style={{ flex: 1, justifyContent: 'flex-end' }}
-          >
-            <View style={[styles.sheet, { backgroundColor: colors.surface }]}>
-              <Text style={[styles.sheetTitle, { color: colors.text }]}>Adicionar link</Text>
-              <Text style={[styles.sheetHint, { color: colors.textSecondary }]}>
-                Ex.: link do Drive, site oficial, EPK.
-              </Text>
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Título</Text>
-              <TextInput
-                value={linkTitle}
-                onChangeText={setLinkTitle}
-                placeholder="Logo horizontal"
-                placeholderTextColor={colors.textSecondary}
-                style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-              />
-              <Text style={[styles.inputLabel, { color: colors.text, marginTop: 12 }]}>URL</Text>
-              <TextInput
-                value={linkUrl}
-                onChangeText={setLinkUrl}
-                placeholder="https://..."
-                placeholderTextColor={colors.textSecondary}
-                autoCapitalize="none"
-                keyboardType="url"
-                style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-              />
-              <View style={styles.sheetActions}>
-                <TouchableOpacity
-                  style={[styles.sheetGhost, { borderColor: colors.border }]}
-                  onPress={() => setShowLinkModal(false)}
-                >
-                  <Text style={{ color: colors.text }}>Cancelar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.sheetPrimary, { backgroundColor: colors.primary }]}
-                  onPress={() => void onAddLink()}
-                  disabled={savingLink}
-                >
-                  {savingLink ? <ActivityIndicator color="#fff" /> : <Text style={styles.sheetPrimaryText}>Salvar</Text>}
-                </TouchableOpacity>
+      <Modal visible={showLinkModal} transparent animationType="fade" onRequestClose={() => setShowLinkModal(false)}>
+        <KeyboardAvoidingView
+          style={styles.linkModalRoot}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+        >
+          <Pressable style={styles.linkModalBackdrop} onPress={() => setShowLinkModal(false)} />
+          <View style={styles.linkModalCenterWrap} pointerEvents="box-none">
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              bounces={false}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.linkModalScrollInner}
+            >
+              <View
+                onStartShouldSetResponder={() => true}
+                style={[styles.linkModalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              >
+                <Text style={[styles.sheetTitle, { color: colors.text }]}>Adicionar link</Text>
+                <Text style={[styles.sheetHint, { color: colors.textSecondary }]}>Endereço na web (URL).</Text>
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Título</Text>
+                <TextInput
+                  value={linkTitle}
+                  onChangeText={setLinkTitle}
+                  placeholder="Logo horizontal"
+                  placeholderTextColor={colors.textSecondary}
+                  style={[styles.input, { borderColor: colors.border, color: colors.text }]}
+                />
+                <Text style={[styles.inputLabel, { color: colors.text, marginTop: 12 }]}>URL</Text>
+                <TextInput
+                  value={linkUrl}
+                  onChangeText={setLinkUrl}
+                  placeholder="https://..."
+                  placeholderTextColor={colors.textSecondary}
+                  autoCapitalize="none"
+                  keyboardType="url"
+                  style={[styles.input, { borderColor: colors.border, color: colors.text }]}
+                />
+                <View style={styles.sheetActions}>
+                  <TouchableOpacity
+                    style={[styles.sheetGhost, { borderColor: colors.border }]}
+                    onPress={() => setShowLinkModal(false)}
+                  >
+                    <Text style={{ color: colors.text }}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.sheetPrimary, { backgroundColor: colors.primary }]}
+                    onPress={() => void onAddLink()}
+                    disabled={savingLink}
+                  >
+                    {savingLink ? <ActivityIndicator color="#fff" /> : <Text style={styles.sheetPrimaryText}>Salvar</Text>}
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal
@@ -523,9 +555,7 @@ export default function PressKitArtistaScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.sheet, { backgroundColor: colors.surface }]}>
             <Text style={[styles.sheetTitle, { color: colors.text }]}>Selecionar itens</Text>
-            <Text style={[styles.sheetHint, { color: colors.textSecondary }]}>
-              Marque os materiais que deseja compartilhar agora.
-            </Text>
+            <Text style={[styles.sheetHint, { color: colors.textSecondary }]}>Marque o que enviar.</Text>
 
             <View style={styles.shareSelectActionsRow}>
               <TouchableOpacity
@@ -557,7 +587,7 @@ export default function PressKitArtistaScreen() {
                         {it.title}
                       </Text>
                       <Text style={[styles.sharePickerType, { color: colors.textSecondary }]}>
-                        {it.item_type === 'link' ? 'Link' : it.item_type === 'file' ? 'Arquivo' : 'Texto'}
+                        {it.item_type === 'link' ? 'Link' : 'Arquivo'}
                       </Text>
                     </View>
                     <Ionicons
@@ -662,10 +692,63 @@ const styles = StyleSheet.create({
   toolbarBtnText: { color: '#fff', fontWeight: '600' },
   toolbarBtnTextDark: { fontWeight: '600' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  listContent: {
+    padding: 16,
+    paddingBottom: 24,
+  },
+  listContentEmpty: {
+    flexGrow: 1,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    minHeight: 280,
+  },
+  emptyStateTitle: {
+    marginTop: 16,
+    fontSize: 17,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  emptyStateHint: {
+    marginTop: 8,
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'flex-end',
+  },
+  linkModalRoot: {
+    flex: 1,
+  },
+  linkModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  linkModalCenterWrap: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+  },
+  linkModalScrollInner: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
+  linkModalCard: {
+    width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 20,
   },
   sheet: {
     borderTopLeftRadius: 16,

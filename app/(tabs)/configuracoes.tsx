@@ -93,7 +93,6 @@ export default function ConfiguracoesScreen() {
   const [imageLoadError, setImageLoadError] = useState(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
   const [showArtistProfileModal, setShowArtistProfileModal] = useState(false);
-  const [showPressKitLockedModal, setShowPressKitLockedModal] = useState(false);
   const [showCreateArtistLockedModal, setShowCreateArtistLockedModal] = useState(false);
   const { expo: expoFromRepo } = appJson;
   const appVersion =
@@ -359,8 +358,11 @@ export default function ConfiguracoesScreen() {
     setShowCreateArtistLockedModal(true);
   };
 
-  const handlePressKitPremiumLocked = () => {
-    setShowPressKitLockedModal(true);
+  const handlePressKitAccessDenied = () => {
+    Alert.alert(
+      'Press kit',
+      'Apenas o administrador do artista ou assinantes Premium podem abrir o press kit para incluir materiais.'
+    );
   };
 
   const handleLogout = () => {
@@ -790,9 +792,11 @@ export default function ConfiguracoesScreen() {
               {renderSettingItem(
                 'color-palette-outline',
                 'Press kit e identidade',
-                'Logos, capas e links para enviar a produtores',
-                premiumEntitlementActive ? () => router.push('/press-kit-artista') : handlePressKitPremiumLocked,
-                !premiumEntitlementActive ? (
+                'Admin: ver, compartilhar e editar. Assinante Premium: incluir links e arquivos.',
+                currentArtist.role === 'admin' || premiumEntitlementActive
+                  ? () => router.push('/press-kit-artista')
+                  : handlePressKitAccessDenied,
+                currentArtist.role !== 'admin' && !premiumEntitlementActive ? (
                   <Ionicons name="lock-closed" size={18} color={isDarkMode ? '#999' : '#888'} />
                 ) : undefined
               )}
@@ -1650,66 +1654,6 @@ export default function ConfiguracoesScreen() {
             >
               <Text style={dynamicStyles.aboutCloseButtonTextSmall}>OK</Text>
             </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Modal Premium: Press kit bloqueado */}
-      <Modal
-        visible={showPressKitLockedModal}
-        animationType="fade"
-        transparent={true}
-        onRequestClose={() => setShowPressKitLockedModal(false)}
-      >
-        <View style={dynamicStyles.pressKitLockOverlay}>
-          <View style={[dynamicStyles.pressKitLockContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={[dynamicStyles.pressKitLockIconWrap, { backgroundColor: colors.primary + '18' }]}>
-              <Ionicons name="lock-closed" size={30} color={colors.primary} />
-            </View>
-
-            <Text style={[dynamicStyles.pressKitLockTitle, { color: colors.text }]}>Press kit para assinantes</Text>
-            <Text style={[dynamicStyles.pressKitLockDescription, { color: colors.textSecondary }]}>
-              Organize e compartilhe materiais profissionais do artista em segundos.
-            </Text>
-
-            <View style={dynamicStyles.pressKitLockList}>
-              <View style={dynamicStyles.pressKitLockItem}>
-                <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
-                <Text style={[dynamicStyles.pressKitLockItemText, { color: colors.textSecondary }]}>
-                  Compartilhar toda a lista de materiais
-                </Text>
-              </View>
-              <View style={dynamicStyles.pressKitLockItem}>
-                <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
-                <Text style={[dynamicStyles.pressKitLockItemText, { color: colors.textSecondary }]}>
-                  Selecionar itens específicos para enviar
-                </Text>
-              </View>
-              <View style={dynamicStyles.pressKitLockItem}>
-                <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
-                <Text style={[dynamicStyles.pressKitLockItemText, { color: colors.textSecondary }]}>
-                  Compartilhar por item direto no card
-                </Text>
-              </View>
-            </View>
-
-            <View style={dynamicStyles.pressKitLockActions}>
-              <TouchableOpacity
-                style={[dynamicStyles.pressKitLockSecondaryBtn, { borderColor: colors.border, backgroundColor: colors.background }]}
-                onPress={() => setShowPressKitLockedModal(false)}
-              >
-                <Text style={[dynamicStyles.pressKitLockSecondaryText, { color: colors.text }]}>Agora não</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[dynamicStyles.pressKitLockPrimaryBtn, { backgroundColor: colors.primary }]}
-                onPress={() => {
-                  setShowPressKitLockedModal(false);
-                  router.push('/assine-premium');
-                }}
-              >
-                <Text style={dynamicStyles.pressKitLockPrimaryText}>Ver Premium</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         </View>
       </Modal>

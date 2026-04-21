@@ -32,8 +32,10 @@ CREATE POLICY "artist_press_kit_select_members"
     )
   );
 
+-- INSERT: administrador do artista OU membro com assinatura ativa (RPC user_subscription_is_active).
 DROP POLICY IF EXISTS "artist_press_kit_insert_admin" ON public.artist_press_kit_items;
-CREATE POLICY "artist_press_kit_insert_admin"
+DROP POLICY IF EXISTS "artist_press_kit_insert_admin_or_subscriber" ON public.artist_press_kit_items;
+CREATE POLICY "artist_press_kit_insert_admin_or_subscriber"
   ON public.artist_press_kit_items
   FOR INSERT
   WITH CHECK (
@@ -41,7 +43,15 @@ CREATE POLICY "artist_press_kit_insert_admin"
       SELECT 1 FROM public.artist_members am
       WHERE am.artist_id = artist_press_kit_items.artist_id
         AND am.user_id = auth.uid()
-        AND am.role IN ('admin', 'editor')
+    )
+    AND (
+      EXISTS (
+        SELECT 1 FROM public.artist_members am2
+        WHERE am2.artist_id = artist_press_kit_items.artist_id
+          AND am2.user_id = auth.uid()
+          AND am2.role = 'admin'
+      )
+      OR public.user_subscription_is_active(auth.uid()) IS TRUE
     )
   );
 
@@ -54,7 +64,7 @@ CREATE POLICY "artist_press_kit_update_admin"
       SELECT 1 FROM public.artist_members am
       WHERE am.artist_id = artist_press_kit_items.artist_id
         AND am.user_id = auth.uid()
-        AND am.role IN ('admin', 'editor')
+        AND am.role = 'admin'
     )
   )
   WITH CHECK (
@@ -62,7 +72,7 @@ CREATE POLICY "artist_press_kit_update_admin"
       SELECT 1 FROM public.artist_members am
       WHERE am.artist_id = artist_press_kit_items.artist_id
         AND am.user_id = auth.uid()
-        AND am.role IN ('admin', 'editor')
+        AND am.role = 'admin'
     )
   );
 
@@ -75,10 +85,10 @@ CREATE POLICY "artist_press_kit_delete_admin"
       SELECT 1 FROM public.artist_members am
       WHERE am.artist_id = artist_press_kit_items.artist_id
         AND am.user_id = auth.uid()
-        AND am.role IN ('admin', 'editor')
+        AND am.role = 'admin'
     )
   );
 
--- Arquivos: use o mesmo bucket público dos contratos de evento (já existente no projeto).
--- Caminho sugerido no Storage: {user_id}/press_kit/{artist_id}/{arquivo}
--- Garanta políticas de upload no bucket "event_contracts" para o prefixo do usuário autenticado.
+-- Arquivos: bucket Storage `press_kit` (público, com RLS em storage.objects).
+-- Caminho no app (bucket press_kit): {user_id}/press_kit/{artist_id}/{arquivo}
+-- Execute database/STORAGE_PRESS_KIT_BUCKET.sql no Supabase após criar o projeto / bucket.

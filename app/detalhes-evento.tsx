@@ -44,6 +44,7 @@ import {
 import { removeEventContractByUrl, uploadEventContractFile } from '../services/supabase/eventContractUploadService';
 import { sharePressKitItems } from '../services/pressKitShareService';
 import { listArtistPressKitItems, type ArtistPressKitItem } from '../services/supabase/artistPressKitService';
+import { userSubscriptionIsActive } from '../services/supabase/userService';
 import {
     AvaliacaoParticipacaoEventoRow,
     cancelarConviteParticipacao,
@@ -256,6 +257,8 @@ export default function DetalhesEventoScreen() {
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [isCheckingAccess, setIsCheckingAccess] = useState(true);
   const [canCreateEventsPermission, setCanCreateEventsPermission] = useState(false);
+  const [artistMemberRole, setArtistMemberRole] = useState<string | null>(null);
+  const [currentUserPremium, setCurrentUserPremium] = useState(false);
 
   const [participationFromInviteBanner, setParticipationFromInviteBanner] = useState<string | null>(null);
   /** Texto livre do convite (mensagem); não expõe observações internas do evento do organizador. */
@@ -294,6 +297,16 @@ export default function DetalhesEventoScreen() {
     getCurrentUser();
   }, []);
 
+  useEffect(() => {
+    if (!currentUserId) {
+      setCurrentUserPremium(false);
+      return;
+    }
+    void userSubscriptionIsActive(currentUserId).then(({ active }) => {
+      setCurrentUserPremium(active);
+    });
+  }, [currentUserId]);
+
   // Verificar permissões quando o artista ativo mudar
   useEffect(() => {
     checkUserAccess();
@@ -304,6 +317,7 @@ export default function DetalhesEventoScreen() {
       setHasAccess(null);
       setIsCheckingAccess(false);
       setCanCreateEventsPermission(false);
+      setArtistMemberRole(null);
       return;
     }
 
@@ -322,10 +336,12 @@ export default function DetalhesEventoScreen() {
         setHasAccess(false);
         setIsCheckingAccess(false);
         setCanCreateEventsPermission(false);
+        setArtistMemberRole(null);
         return;
       }
 
       const userRole = memberData?.role;
+      setArtistMemberRole(typeof userRole === 'string' ? userRole : null);
 
       // ✅ Ocultar valores APENAS para viewers
       const isViewer = userRole === 'viewer';
@@ -338,6 +354,7 @@ export default function DetalhesEventoScreen() {
     } catch (error) {
       setHasAccess(false);
       setCanCreateEventsPermission(false);
+      setArtistMemberRole(null);
       setIsCheckingAccess(false);
     }
   };
@@ -1172,6 +1189,13 @@ export default function DetalhesEventoScreen() {
 
   const shareArtistPressKit = async () => {
     if (!activeArtist?.id) return;
+    if (artistMemberRole !== 'admin') {
+      Alert.alert(
+        'Press kit',
+        'Apenas o administrador do artista pode compartilhar o press kit.'
+      );
+      return;
+    }
     if (pressKitItems.length === 0) {
       Alert.alert(
         'Press kit vazio',
@@ -1334,22 +1358,36 @@ export default function DetalhesEventoScreen() {
                     </Text>
                   </View>
                 </View>
-                <View style={styles.contractActionsRow}>
-                  <TouchableOpacity
-                    style={[styles.contractActionBtn, { borderColor: colors.border }]}
-                    onPress={() => router.push('/press-kit-artista')}
+                {artistMemberRole === 'admin' || currentUserPremium ? (
+                  <View style={styles.contractActionsRow}>
+                    <TouchableOpacity
+                      style={[styles.contractActionBtn, { borderColor: colors.border }]}
+                      onPress={() => router.push('/press-kit-artista')}
+                    >
+                      <Ionicons name="create-outline" size={16} color={colors.text} />
+                      <Text style={[styles.contractActionText, { color: colors.text }]}>Gerenciar</Text>
+                    </TouchableOpacity>
+                    {artistMemberRole === 'admin' ? (
+                      <TouchableOpacity
+                        style={[styles.contractActionBtn, { borderColor: colors.border }]}
+                        onPress={() => void shareArtistPressKit()}
+                      >
+                        <Ionicons name="share-outline" size={16} color={colors.primary} />
+                        <Text style={[styles.contractActionText, { color: colors.primary }]}>Compartilhar</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                ) : !isCheckingAccess ? (
+                  <Text
+                    style={[
+                      styles.contractHint,
+                      { color: colors.textSecondary, marginTop: 10, marginHorizontal: 4 },
+                    ]}
                   >
-                    <Ionicons name="create-outline" size={16} color={colors.text} />
-                    <Text style={[styles.contractActionText, { color: colors.text }]}>Gerenciar</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.contractActionBtn, { borderColor: colors.border }]}
-                    onPress={() => void shareArtistPressKit()}
-                  >
-                    <Ionicons name="share-outline" size={16} color={colors.primary} />
-                    <Text style={[styles.contractActionText, { color: colors.primary }]}>Compartilhar</Text>
-                  </TouchableOpacity>
-                </View>
+                    Assinantes Premium ou o administrador podem abrir o press kit para incluir materiais. Só o
+                    administrador compartilha.
+                  </Text>
+                ) : null}
               </View>
             ) : null}
 

@@ -24,7 +24,10 @@ type ThemeColors = {
 type Props = {
   item: ArtistPressKitItem;
   colors: ThemeColors;
-  canManage: boolean;
+  /** Ex.: só administrador remove itens. */
+  canDelete: boolean;
+  /** Ex.: só administrador compartilha. */
+  canShare: boolean;
   shareLoading?: boolean;
   onPressDelete: () => void;
   onPressShare: () => void;
@@ -33,7 +36,8 @@ type Props = {
 export default function PressKitListItem({
   item,
   colors,
-  canManage,
+  canDelete,
+  canShare,
   shareLoading = false,
   onPressDelete,
   onPressShare,
@@ -126,7 +130,7 @@ export default function PressKitListItem({
           <Ionicons name="open-outline" size={16} color={colors.text} />
           <Text style={[styles.smallBtnText, { color: colors.text }]}>Abrir</Text>
         </TouchableOpacity>
-        {canManage ? (
+        {canDelete ? (
           <TouchableOpacity
             style={[styles.smallBtn, { borderColor: colors.error + '66' }]}
             onPress={onPressDelete}
@@ -135,18 +139,20 @@ export default function PressKitListItem({
             <Text style={[styles.smallBtnText, { color: colors.error }]}>Excluir</Text>
           </TouchableOpacity>
         ) : null}
-        <TouchableOpacity
-          style={[styles.iconOnlyBtn, { borderColor: colors.primary + '66' }]}
-          onPress={onPressShare}
-          disabled={shareLoading}
-          hitSlop={8}
-        >
-          {shareLoading ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
-            <Ionicons name="share-social-outline" size={17} color={colors.primary} />
-          )}
-        </TouchableOpacity>
+        {canShare ? (
+          <TouchableOpacity
+            style={[styles.iconOnlyBtn, { borderColor: colors.primary + '66' }]}
+            onPress={onPressShare}
+            disabled={shareLoading}
+            hitSlop={8}
+          >
+            {shareLoading ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Ionicons name="share-social-outline" size={17} color={colors.primary} />
+            )}
+          </TouchableOpacity>
+        ) : null}
       </View>
     </View>
   );
