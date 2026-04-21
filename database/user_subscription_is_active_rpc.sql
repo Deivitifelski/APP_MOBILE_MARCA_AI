@@ -73,7 +73,7 @@ COMMENT ON FUNCTION public.user_subscription_is_active(uuid) IS
 COMMENT ON FUNCTION public.any_users_have_active_subscription(uuid[]) IS
   'Indica se algum dos usuários tem assinatura vigente (inclui pending na janela).';
 
--- Expira pending cuja janela (1 dia) passou sem apple_store_confirmed; recalcula plan_is_active.
+-- Expira pending/active provisório cuja janela passou sem apple_store_confirmed; recalcula plan_is_active.
 CREATE OR REPLACE FUNCTION public.expire_stale_pending_subscriptions_for_user()
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -96,10 +96,11 @@ BEGIN
       metadata = s.metadata
         || jsonb_build_object(
           'pending_expired_reason', 'webhook_not_confirmed_in_window',
-          'pending_expired_at', clock_timestamp()
+          'pending_expired_at', clock_timestamp(),
+          'provisional_active', false
         )
     WHERE s.user_id = uid
-      AND s.status = 'pending'
+      AND s.status IN ('pending', 'active')
       AND s.expires_at IS NOT NULL
       AND s.expires_at <= clock_timestamp()
       AND COALESCE((s.metadata->>'apple_store_confirmed')::boolean, false) = false
@@ -125,4 +126,4 @@ GRANT EXECUTE ON FUNCTION public.expire_stale_pending_subscriptions_for_user() T
 GRANT EXECUTE ON FUNCTION public.expire_stale_pending_subscriptions_for_user() TO service_role;
 
 COMMENT ON FUNCTION public.expire_stale_pending_subscriptions_for_user() IS
-  'Marca pending vencido como expired (não apaga): mantém store_*_transaction_id e metadata para o webhook ASN ainda encontrar a linha por transactionId e atualizar para active se a Apple confirmar tarde. Atualiza users.plan_is_active.';
+  'Marca pending/active provisório vencido como expired (não apaga): mantém store_*_transaction_id e metadata para o webhook ASN ainda encontrar a linha por transactionId e atualizar para active se a Apple confirmar tarde. Atualiza users.plan_is_active.';

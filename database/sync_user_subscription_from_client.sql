@@ -26,8 +26,10 @@ DECLARE
   uid uuid;
   v_tx text;
   v_orig text;
+  v_source text;
   v_now_ms bigint;
   v_status text;
+  v_make_provisional_active boolean := false;
   v_purchased timestamptz;
   v_expires timestamptz;
   v_expires_from_store timestamptz;
@@ -92,11 +94,21 @@ BEGIN
   END IF;
 
   v_now_ms := (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint;
+  v_source := COALESCE(nullif(btrim(p_source), ''), 'client_sync');
+
+  -- iOS após compra concluída no app: libera Premium imediato (active provisório)
+  -- até chegar confirmação oficial da Apple via webhook ASN V2.
+  IF p_platform = 'ios' AND v_source = 'after_purchase' THEN
+    v_make_provisional_active := true;
+  END IF;
+
   IF p_expires_at_ms IS NOT NULL AND p_expires_at_ms < v_now_ms THEN
     v_status := 'expired';
   ELSE
-    -- App só marca pendente; ASN V2 (webhook) passa a active após confirmação da Apple.
-    v_status := 'pending';
+    v_status := CASE
+      WHEN v_make_provisional_active THEN 'active'
+      ELSE 'pending'
+    END;
   END IF;
 
   IF p_purchased_at_ms IS NOT NULL THEN
@@ -145,7 +157,10 @@ BEGIN
           END
         WHEN COALESCE((metadata->>'apple_store_confirmed')::boolean, false)
           AND status IN ('active', 'grace_period') THEN status
-        ELSE 'pending'
+        ELSE CASE
+          WHEN v_make_provisional_active THEN 'active'
+          ELSE 'pending'
+        END
       END,
       purchased_at = v_purchased,
       expires_at = CASE
@@ -158,7 +173,7 @@ BEGIN
           COALESCE(v_expires_from_store, to_timestamp(p_expires_at_ms / 1000.0))
         WHEN COALESCE((metadata->>'apple_store_confirmed')::boolean, false)
           AND status IN ('active', 'grace_period') THEN COALESCE(v_expires_from_store, expires_at)
-        ELSE clock_timestamp() + interval '1 day'
+        ELSE COALESCE(v_expires_from_store, clock_timestamp() + interval '1 day')
       END,
       auto_renew = COALESCE(p_auto_renew, TRUE),
       metadata = CASE
@@ -166,14 +181,17 @@ BEGIN
           metadata
             || jsonb_build_object(
               'client_resync_at_ms', v_now_ms,
-              'source', COALESCE(nullif(btrim(p_source), ''), metadata->>'source', 'client_sync')
+              'source', COALESCE(v_source, metadata->>'source', 'client_sync'),
+              'provisional_active', false
             )
         ELSE jsonb_build_object(
-          'source', COALESCE(nullif(btrim(p_source), ''), 'client_sync'),
+          'source', v_source,
           'purchaseTokenPresent', (p_purchase_token IS NOT NULL AND btrim(p_purchase_token) <> ''),
           'apple_store_confirmed', false,
           'client_sync_at_ms', v_now_ms,
-          'store_expires_at_client_ms', p_expires_at_ms
+          'store_expires_at_client_ms', p_expires_at_ms,
+          'provisional_active', v_make_provisional_active,
+          'provisional_until_ms', COALESCE(p_expires_at_ms, v_now_ms + 86400000)
         )
       END
     WHERE id = v_existing_tx_id;
@@ -221,7 +239,10 @@ BEGIN
           END
         WHEN COALESCE((metadata->>'apple_store_confirmed')::boolean, false)
           AND status IN ('active', 'grace_period') THEN status
-        ELSE 'pending'
+        ELSE CASE
+          WHEN v_make_provisional_active THEN 'active'
+          ELSE 'pending'
+        END
       END,
       purchased_at = v_purchased,
       expires_at = CASE
@@ -234,7 +255,7 @@ BEGIN
           COALESCE(v_expires_from_store, to_timestamp(p_expires_at_ms / 1000.0))
         WHEN COALESCE((metadata->>'apple_store_confirmed')::boolean, false)
           AND status IN ('active', 'grace_period') THEN COALESCE(v_expires_from_store, expires_at)
-        ELSE clock_timestamp() + interval '1 day'
+        ELSE COALESCE(v_expires_from_store, clock_timestamp() + interval '1 day')
       END,
       cancelled_at = NULL,
       store_original_transaction_id = v_orig,
@@ -245,14 +266,17 @@ BEGIN
           metadata
             || jsonb_build_object(
               'client_resync_at_ms', v_now_ms,
-              'source', COALESCE(nullif(btrim(p_source), ''), metadata->>'source', 'client_sync')
+              'source', COALESCE(v_source, metadata->>'source', 'client_sync'),
+              'provisional_active', false
             )
         ELSE jsonb_build_object(
-          'source', COALESCE(nullif(btrim(p_source), ''), 'client_sync'),
+          'source', v_source,
           'purchaseTokenPresent', (p_purchase_token IS NOT NULL AND btrim(p_purchase_token) <> ''),
           'apple_store_confirmed', false,
           'client_sync_at_ms', v_now_ms,
-          'store_expires_at_client_ms', p_expires_at_ms
+          'store_expires_at_client_ms', p_expires_at_ms,
+          'provisional_active', v_make_provisional_active,
+          'provisional_until_ms', COALESCE(p_expires_at_ms, v_now_ms + 86400000)
         )
       END
     WHERE id = v_existing_sub_id;
@@ -290,7 +314,7 @@ BEGIN
     LIMIT 1;
 
     IF v_existing_confirmed_ios_id IS NOT NULL
-       AND COALESCE(nullif(btrim(p_source), ''), 'client_sync') = 'reconcile' THEN
+       AND v_source = 'reconcile' THEN
       UPDATE public.users
       SET plan_is_active = public.user_subscription_is_active(uid)
       WHERE id = uid;
@@ -303,7 +327,7 @@ BEGIN
   -- A criação/atualização deve vir do webhook da Apple.
   IF v_status = 'pending'
      AND p_platform = 'ios'
-     AND COALESCE(nullif(btrim(p_source), ''), 'client_sync') = 'reconcile' THEN
+     AND v_source = 'reconcile' THEN
     UPDATE public.users
     SET plan_is_active = public.user_subscription_is_active(uid)
     WHERE id = uid;
@@ -320,11 +344,11 @@ BEGIN
       AND COALESCE(metadata->>'source', '') <> 'manual_db';
   END IF;
 
-  -- Pending: expires_at = +1 dia (janela até o webhook); expired: data real da loja.
-  IF v_status = 'pending' THEN
-    v_expires := clock_timestamp() + interval '1 day';
-  ELSE
+  -- Não-expired: usa data da loja quando existir; senão janela curta (+1 dia) até confirmação.
+  IF v_status = 'expired' THEN
     v_expires := v_expires_from_store;
+  ELSE
+    v_expires := COALESCE(v_expires_from_store, clock_timestamp() + interval '1 day');
   END IF;
 
   INSERT INTO public.user_subscriptions (
@@ -338,16 +362,19 @@ BEGIN
     v_orig, v_tx,
     COALESCE(p_auto_renew, TRUE),
     jsonb_build_object(
-      'source', COALESCE(nullif(btrim(p_source), ''), 'client_sync'),
+      'source', v_source,
       'purchaseTokenPresent', (p_purchase_token IS NOT NULL AND btrim(p_purchase_token) <> ''),
       'apple_store_confirmed', false,
       'client_sync_at_ms', v_now_ms,
-      'store_expires_at_client_ms', p_expires_at_ms
+      'store_expires_at_client_ms', p_expires_at_ms,
+      'provisional_active', v_make_provisional_active,
+      'provisional_until_ms', COALESCE(p_expires_at_ms, v_now_ms + 86400000)
     )
   );
 
-  v_plan_active := (v_status = 'pending');
-  UPDATE public.users SET plan_is_active = v_plan_active WHERE id = uid;
+  UPDATE public.users
+  SET plan_is_active = public.user_subscription_is_active(uid)
+  WHERE id = uid;
 
   RETURN jsonb_build_object('ok', true, 'action', 'inserted');
 EXCEPTION
