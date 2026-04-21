@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { setStringAsync } from 'expo-clipboard';
 import Constants from 'expo-constants';
+import appJson from '../../app.json';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -94,13 +95,22 @@ export default function ConfiguracoesScreen() {
   const [showArtistProfileModal, setShowArtistProfileModal] = useState(false);
   const [showPressKitLockedModal, setShowPressKitLockedModal] = useState(false);
   const [showCreateArtistLockedModal, setShowCreateArtistLockedModal] = useState(false);
-  const appVersion = Constants.expoConfig?.version ?? Constants.manifest?.version ?? '1.0.6';
+  const { expo: expoFromRepo } = appJson;
+  const appVersion =
+    expoFromRepo.version ??
+    Constants.expoConfig?.version ??
+    Constants.manifest?.version ??
+    '1.0.6';
+  const iosBuildNumber = (expoFromRepo.ios as { buildNumber?: string } | undefined)?.buildNumber;
+  const androidVersionCode = (expoFromRepo.android as { versionCode?: number } | undefined)?.versionCode;
   const nativeBuild =
     Platform.OS === 'ios'
-      ? Constants.expoConfig?.ios?.buildNumber
-      : Constants.expoConfig?.android?.versionCode != null
-        ? String(Constants.expoConfig.android.versionCode)
-        : undefined;
+      ? iosBuildNumber ?? Constants.expoConfig?.ios?.buildNumber
+      : androidVersionCode != null
+        ? String(androidVersionCode)
+        : Constants.expoConfig?.android?.versionCode != null
+          ? String(Constants.expoConfig.android.versionCode)
+          : undefined;
   const appVersionDisplay = nativeBuild ? `${appVersion} (${nativeBuild})` : appVersion;
 
   const formatDate = (value?: string) => {
