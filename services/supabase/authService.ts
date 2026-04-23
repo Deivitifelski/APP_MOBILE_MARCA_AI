@@ -247,10 +247,11 @@ export const deleteAccount = async (): Promise<{ success: boolean; error?: strin
       status = String(statusValue).toLowerCase();
     }
 
-    const responseError = (response.error || response.message) as string | undefined;
+    const responseError = response.error as string | undefined;
+    const responseMessage = response.message as string | undefined;
 
     if (status === 'error' || responseError) {
-      const message = responseError || 'Erro desconhecido ao excluir a conta.';
+      const message = responseError || responseMessage || 'Erro desconhecido ao excluir a conta.';
       return { success: false, error: message, log: JSON.stringify(response, null, 2) };
     }
 
