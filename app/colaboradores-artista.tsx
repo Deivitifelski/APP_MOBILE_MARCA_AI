@@ -24,7 +24,7 @@ import { deletePendingInviteNotifications } from '../services/supabase/notificat
 import { normalizeArtistMemberRole } from '../services/supabase/permissionsService';
 import { useActiveArtist } from '../services/useActiveArtist';
 
-type CollaboratorInviteRole = 'admin' | 'editor' | 'viewer';
+type CollaboratorInviteRole = 'admin' | 'vendedor' | 'viewer';
 
 /** Textos alinhados às regras reais (agenda, finanças, colaboradores, perfil). */
 const COLLABORATOR_ROLES_CONFIG: {
@@ -49,19 +49,20 @@ const COLLABORATOR_ROLES_CONFIG: {
     modalColor: '#FF6B35',
   },
   {
-    value: 'editor',
-    label: 'Editor',
-    summary: 'Cuida da agenda e do dinheiro; não apaga eventos nem gerencia a equipe.',
+    value: 'vendedor',
+    label: 'Vendedor',
+    summary: 'Como o Visualizador, mas pode criar eventos e ver o valor dos que ele mesmo criou.',
     powers: [
-      'Ver e editar eventos e despesas (com valores) e exportar finanças',
-      'Ver colaboradores (sem mudar permissões)',
+      'Criar eventos',
+      'Ver o valor (cachê) apenas dos eventos que ele mesmo criou',
     ],
     limitations: [
-      'Não exclui eventos',
+      'Não edita nem exclui eventos',
+      'Não vê valores de eventos criados por outros nem o financeiro do artista',
       'Não convida/remove colaboradores nem edita perfil do artista',
     ],
-    modalIcon: 'create',
-    modalColor: '#4ECDC4',
+    modalIcon: 'pricetag',
+    modalColor: '#5B8DEF',
   },
   {
     value: 'viewer',
@@ -276,7 +277,7 @@ export default function ColaboradoresArtistaScreen() {
           const n = normalizeArtistMemberRole(role);
           const roles: Record<CollaboratorInviteRole, string> = {
             viewer: 'Visualizador',
-            editor: 'Editor',
+            vendedor: 'Vendedor',
             admin: 'Administrador',
           };
           return roles[n];
@@ -543,8 +544,8 @@ export default function ColaboradoresArtistaScreen() {
     switch (role) {
       case 'admin':
         return 'shield-checkmark';
-      case 'editor':
-        return 'create';
+      case 'vendedor':
+        return 'pricetag';
       case 'viewer':
         return 'eye';
       default:
@@ -556,8 +557,8 @@ export default function ColaboradoresArtistaScreen() {
     switch (role) {
       case 'admin':
         return '#FF6B35'; // Laranja - mantém fixo
-      case 'editor':
-        return colors.success; // Verde
+      case 'vendedor':
+        return '#5B8DEF'; // Azul
       case 'viewer':
         return colors.textSecondary; // Cinza
       default:
@@ -569,8 +570,8 @@ export default function ColaboradoresArtistaScreen() {
     switch (role) {
       case 'admin':
         return 'Administrador';
-      case 'editor':
-        return 'Editor';
+      case 'vendedor':
+        return 'Vendedor';
       case 'viewer':
         return 'Visualizador';
       default:
@@ -1039,16 +1040,16 @@ export default function ColaboradoresArtistaScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setShowRoleModal(false)}
       >
-        <SafeAreaView style={styles.roleModalContainer}>
-          <View style={styles.roleModalHeader}>
-            <TouchableOpacity 
+        <SafeAreaView style={[styles.roleModalContainer, { backgroundColor: colors.background }]}>
+          <View style={[styles.roleModalHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+            <TouchableOpacity
               onPress={() => setShowRoleModal(false)}
               style={styles.modalCloseButton}
             >
-              <Ionicons name="close" size={24} color="#666" />
+              <Ionicons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
-            <Text style={styles.roleModalTitle}>Alterar Permissão</Text>
-            <TouchableOpacity 
+            <Text style={[styles.roleModalTitle, { color: colors.text }]}>Alterar Permissão</Text>
+            <TouchableOpacity
               onPress={handleConfirmRoleUpdate}
               style={styles.modalSaveButton}
               disabled={isUpdatingRole}
@@ -1061,10 +1062,10 @@ export default function ColaboradoresArtistaScreen() {
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.roleModalContent}>
+          <ScrollView style={[styles.roleModalContent, { backgroundColor: colors.background }]}>
             {/* Card do Colaborador */}
             {selectedCollaborator && (
-              <View style={styles.selectedCollaboratorCard}>
+              <View style={[styles.selectedCollaboratorCard, { backgroundColor: colors.surface }]}>
                 <View style={styles.selectedCollaboratorHeader}>
                   <OptimizedImage
                     imageUrl={selectedCollaborator.user.profile_url || ''}
@@ -1076,20 +1077,20 @@ export default function ColaboradoresArtistaScreen() {
                     fallbackIconColor="#FFFFFF"
                   />
                   <View style={styles.selectedCollaboratorInfo}>
-                    <Text style={styles.selectedCollaboratorName}>
+                    <Text style={[styles.selectedCollaboratorName, { color: colors.text }]}>
                       {selectedCollaborator.user.name}
                     </Text>
-                    <Text style={styles.selectedCollaboratorEmail}>
+                    <Text style={[styles.selectedCollaboratorEmail, { color: colors.textSecondary }]}>
                       {selectedCollaborator.user.email}
                     </Text>
                   </View>
                 </View>
-                
-                <View style={styles.currentRoleBadge}>
-                  <Ionicons 
-                    name={getRoleIcon(selectedCollaborator.role) as any} 
-                    size={16} 
-                    color={getRoleColor(selectedCollaborator.role)} 
+
+                <View style={[styles.currentRoleBadge, { backgroundColor: colors.background }]}>
+                  <Ionicons
+                    name={getRoleIcon(selectedCollaborator.role) as any}
+                    size={16}
+                    color={getRoleColor(selectedCollaborator.role)}
                   />
                   <Text style={[styles.currentRoleText, { color: getRoleColor(selectedCollaborator.role) }]}>
                     Atual: {getRoleLabel(selectedCollaborator.role)}
@@ -1099,9 +1100,9 @@ export default function ColaboradoresArtistaScreen() {
             )}
 
             {/* Título de Seleção */}
-            <View style={styles.roleSelectionHeader}>
+            <View style={[styles.roleSelectionHeader, { borderBottomColor: colors.border }]}>
               <Ionicons name="shield-checkmark" size={24} color="#667eea" />
-              <Text style={styles.roleSelectionTitle}>Nova permissão</Text>
+              <Text style={[styles.roleSelectionTitle, { color: colors.text }]}>Nova permissão</Text>
             </View>
 
             {/* Opções de Role */}
@@ -1113,8 +1114,10 @@ export default function ColaboradoresArtistaScreen() {
                     key={role.value}
                     style={[
                       styles.roleOptionCard,
+                      { backgroundColor: colors.surface, borderColor: colors.border },
                       roleSel ? styles.roleOptionCardExpanded : styles.roleOptionCardCollapsed,
-                      roleSel && styles.roleOptionCardSelected
+                      roleSel && styles.roleOptionCardSelected,
+                      roleSel && { backgroundColor: role.modalColor + '15', borderColor: role.modalColor }
                     ]}
                     onPress={() => setSelectedRole(role.value)}
                     activeOpacity={0.85}
@@ -1126,6 +1129,7 @@ export default function ColaboradoresArtistaScreen() {
                       <View style={styles.roleLabelContainer}>
                         <Text style={[
                           styles.roleOptionLabel,
+                          { color: colors.text },
                           roleSel && styles.roleOptionLabelSelected
                         ]}>
                           {role.label}
@@ -1133,6 +1137,7 @@ export default function ColaboradoresArtistaScreen() {
                         <Text
                           style={[
                             styles.roleOptionDescription,
+                            { color: colors.textSecondary },
                             roleSel && styles.roleOptionDescriptionSelected,
                           ]}
                           numberOfLines={roleSel ? undefined : 2}
@@ -1142,6 +1147,7 @@ export default function ColaboradoresArtistaScreen() {
                       </View>
                       <View style={[
                         styles.roleRadio,
+                        { borderColor: colors.border },
                         roleSel && styles.roleRadioSelected
                       ]}>
                         {roleSel && (
@@ -1152,7 +1158,7 @@ export default function ColaboradoresArtistaScreen() {
 
                     {roleSel ? (
                       <>
-                        <Text style={styles.rolePowersSectionTitle}>Pode</Text>
+                        <Text style={[styles.rolePowersSectionTitle, { color: colors.textSecondary }]}>Pode</Text>
                         <View style={styles.roleFeaturesList}>
                           {role.powers.map((feature) => (
                             <View key={feature} style={styles.roleFeatureItem}>
@@ -1168,12 +1174,12 @@ export default function ColaboradoresArtistaScreen() {
                         </View>
                         {role.limitations?.length ? (
                           <>
-                            <Text style={[styles.rolePowersSectionTitle, { marginTop: 6 }]}>Não pode</Text>
+                            <Text style={[styles.rolePowersSectionTitle, { color: colors.textSecondary, marginTop: 6 }]}>Não pode</Text>
                             <View style={styles.roleFeaturesList}>
                               {role.limitations.map((line) => (
                                 <View key={line} style={styles.roleFeatureItem}>
                                   <Ionicons name="close-circle" size={14} color="#F59E0B" />
-                                  <Text style={[styles.roleFeatureText, { color: '#64748b' }]}>
+                                  <Text style={[styles.roleFeatureText, { color: colors.textSecondary }]}>
                                     {line}
                                   </Text>
                                 </View>

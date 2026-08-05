@@ -105,7 +105,7 @@ export default function DespesasEventoScreen() {
         setCanInviteCollaborator(false);
         return;
       }
-      setCanInviteCollaborator(['admin', 'editor'].includes(memberData.role));
+      setCanInviteCollaborator(memberData.role === 'admin');
     },
     [activeArtist?.id, currentUserId]
   );

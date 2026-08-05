@@ -44,8 +44,8 @@ const getRoleLabel = (role?: string) => {
   switch (role) {
     case 'admin':
       return 'Administrador';
-    case 'editor':
-      return 'Editor';
+    case 'vendedor':
+      return 'Vendedor';
     default:
       return 'Visualizador';
   }
@@ -824,7 +824,7 @@ export default function ConfiguracoesScreen() {
                 () => router.push('/parceiros-frequentes')
               )}
 
-              {['admin', 'editor'].includes(currentArtist.role || '') &&
+              {currentArtist.role === 'admin' &&
                 renderSettingItem(
                   'document-text-outline',
                   'Comentários recebidos',

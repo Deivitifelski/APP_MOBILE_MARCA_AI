@@ -5,7 +5,7 @@ export interface ArtistMember {
   id: string;
   artist_id: string;
   user_id: string;
-  role: 'viewer' | 'editor' | 'admin';
+  role: 'viewer' | 'vendedor' | 'admin';
   created_at: string;
   updated_at: string;
   user?: {
@@ -18,11 +18,11 @@ export interface ArtistMember {
 export interface CreateMemberData {
   artist_id: string;
   user_id: string;
-  role: 'viewer' | 'editor' | 'admin';
+  role: 'viewer' | 'vendedor' | 'admin';
 }
 
 export interface UpdateMemberData {
-  role: 'viewer' | 'editor' | 'admin';
+  role: 'viewer' | 'vendedor' | 'admin';
 }
 
 // Buscar membros de um artista com verificação de permissões

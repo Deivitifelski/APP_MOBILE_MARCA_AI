@@ -8,7 +8,7 @@ export interface ArtistInvite {
   artist_id: string;
   from_user_id: string;
   to_user_id: string;
-  role: 'viewer' | 'editor' | 'admin'; // Role que será atribuída ao aceitar
+  role: 'viewer' | 'vendedor' | 'admin'; // Role que será atribuída ao aceitar
   status: 'pending' | 'accepted' | 'declined';
   read: boolean;
   created_at: string;
@@ -33,7 +33,7 @@ export interface CreateInviteData {
   artistId: string;
   toUserId: string;
   fromUserId: string;
-  role?: 'viewer' | 'editor' | 'admin'; // Role a ser atribuída (padrão: viewer)
+  role?: 'viewer' | 'vendedor' | 'admin'; // Role a ser atribuída (padrão: viewer)
 }
 
 export interface InviteResponse {

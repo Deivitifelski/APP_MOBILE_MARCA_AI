@@ -42,7 +42,7 @@ export default function AdicionarReceitaScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [canAdd, setCanAdd] = useState<boolean | null>(null);
 
-  // Bloquear visualizador: apenas editor e admin podem adicionar receita
+  // Bloquear não-admin: apenas administradores podem adicionar receita
   useEffect(() => {
     const checkRole = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -57,12 +57,12 @@ export default function AdicionarReceitaScreen() {
         .eq('artist_id', activeArtist.id)
         .single();
       const role = data?.role;
-      const isViewer = role === 'viewer';
-      setCanAdd(!isViewer);
-      if (isViewer) {
+      const canAddRole = role === 'admin';
+      setCanAdd(canAddRole);
+      if (!canAddRole) {
         Alert.alert(
           'Acesso restrito',
-          'Apenas gerentes e editores podem adicionar receitas. Entre em contato com um gerente para solicitar mais permissões.',
+          'Apenas administradores podem adicionar receitas. Entre em contato com um administrador para solicitar mais permissões.',
           [{ text: 'OK', onPress: () => router.back() }]
         );
       }

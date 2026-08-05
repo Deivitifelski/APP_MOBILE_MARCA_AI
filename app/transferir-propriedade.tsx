@@ -148,8 +148,8 @@ export default function TransferirPropriedadeScreen() {
     switch (role) {
       case 'admin':
         return 'shield-checkmark';
-      case 'editor':
-        return 'create';
+      case 'vendedor':
+        return 'pricetag';
       case 'viewer':
         return 'eye';
       default:
@@ -161,7 +161,7 @@ export default function TransferirPropriedadeScreen() {
     switch (role) {
       case 'admin':
         return '#10B981';
-      case 'editor':
+      case 'vendedor':
         return '#3B82F6';
       case 'viewer':
         return '#6B7280';
@@ -174,8 +174,8 @@ export default function TransferirPropriedadeScreen() {
     switch (role) {
       case 'admin':
         return 'Administrador';
-      case 'editor':
-        return 'Editor';
+      case 'vendedor':
+        return 'Vendedor';
       case 'viewer':
         return 'Visualizador';
       default:

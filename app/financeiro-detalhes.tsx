@@ -84,7 +84,8 @@ export default function FinanceiroDetalhesScreen() {
       setHasAccess(false);
       return;
     }
-    setHasAccess(memberData.role !== 'viewer');
+    // Financeiro é exclusivo de admin — viewer e vendedor nunca têm acesso aqui.
+    setHasAccess(memberData.role === 'admin');
   }, [activeArtist]);
 
   const load = useCallback(async () => {
@@ -347,7 +348,7 @@ export default function FinanceiroDetalhesScreen() {
         <View style={styles.centered}>
           <Ionicons name="lock-closed" size={48} color={colors.textSecondary} />
           <Text style={[styles.muted, { color: colors.textSecondary, marginTop: 12, textAlign: 'center' }]}>
-            Apenas gerentes e editores podem ver os detalhes.
+            Apenas administradores podem ver os detalhes.
           </Text>
         </View>
       </SafeAreaView>

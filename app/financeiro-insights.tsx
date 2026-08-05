@@ -149,7 +149,8 @@ export default function FinanceiroInsightsScreen() {
       setHasAccess(false);
       return;
     }
-    setHasAccess(memberData.role !== 'viewer');
+    // Financeiro é exclusivo de admin — viewer e vendedor nunca têm acesso aqui.
+    setHasAccess(memberData.role === 'admin');
   }, [activeArtist]);
 
   const fetchInsights = useCallback(async () => {
@@ -657,7 +658,7 @@ export default function FinanceiroInsightsScreen() {
                 <Ionicons name="lock-closed-outline" size={22} color={colors.textSecondary} />
                 <Text style={[styles.lockNoteText, { color: colors.textSecondary }]}>
                   Valores de cachê, resumo financeiro, rankings por valor e listas de despesas/receitas ficam visíveis
-                  para gerentes e editores.
+                  apenas para administradores.
                 </Text>
               </View>
             )}

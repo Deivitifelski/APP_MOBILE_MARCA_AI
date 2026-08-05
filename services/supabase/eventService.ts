@@ -1,5 +1,5 @@
 import { supabase } from '../../lib/supabase';
-import { hasPermission } from './permissionsService';
+import { getUserPermissions, hasPermission } from './permissionsService';
 
 const SUPABASE_URL = 'https://ctulmpyaikxsnjqmrzxf.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN0dWxtcHlhaWt4c25qcW1yenhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2MzkxMjMsImV4cCI6MjA3MzIxNTEyM30.bu0gER4uTIZ5PDV7t1-fcwU01UZAJ6aFG6axFZQlU8U';
@@ -562,9 +562,16 @@ export const getEventByIdWithPermissions = async (eventId: string, userId: strin
 
     // Verificar se o usuário pode ver valores financeiros
     const canViewFinancials = await hasPermission(userId, eventResult.event.artist_id, 'canViewFinancials');
-    
-    // Se não pode ver finanças, remover o valor
-    if (!canViewFinancials) {
+
+    // Vendedor: vê o valor apenas do evento que ele mesmo criou
+    const userPermission = await getUserPermissions(userId, eventResult.event.artist_id);
+    const isOwnEventForVendedor =
+      userPermission?.role === 'vendedor' &&
+      userPermission.permissions.canViewOwnEventValue &&
+      eventResult.event.created_by === userId;
+
+    // Se não pode ver finanças (e não é o próprio evento do vendedor), remover o valor
+    if (!canViewFinancials && !isOwnEventForVendedor) {
       eventResult.event.value = undefined;
     }
 

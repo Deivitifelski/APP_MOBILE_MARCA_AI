@@ -284,7 +284,7 @@ export const getCollaboratorsStats = async (
   stats: {
     total: number;
     admins: number;
-    editors: number;
+    vendedores: number;
     viewers: number;
   } | null;
   error: string | null;
@@ -303,7 +303,7 @@ export const getCollaboratorsStats = async (
     const stats = {
       total: data?.length || 0,
       admins: data?.filter((c) => c.role === 'admin').length || 0,
-      editors: data?.filter(c => c.role === 'editor').length || 0,
+      vendedores: data?.filter(c => c.role === 'vendedor').length || 0,
       viewers: data?.filter(c => c.role === 'viewer').length || 0,
     };
 

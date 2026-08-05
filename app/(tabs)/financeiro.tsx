@@ -252,10 +252,10 @@ export default function FinanceiroScreen() {
 
       const userRole = memberData?.role;
 
-      // ✅ Ocultar valores APENAS para viewers
-      const isViewer = userRole === 'viewer';
-      const hasPermission = !isViewer; // Todos menos viewer têm acesso
-      
+      // ✅ Financeiro é exclusivo de admin. Viewer e vendedor NUNCA têm acesso aqui
+      // (vendedor vê o valor do próprio evento na tela de detalhes do evento, não aqui).
+      const hasPermission = userRole === 'admin';
+
       setHasAccess(hasPermission);
       setIsCheckingAccess(false);
     } catch (error) {
@@ -974,7 +974,7 @@ export default function FinanceiroScreen() {
     if (!success) {
       const friendly =
         error && /row-level security|RLS|permission denied|violates row-level/i.test(error)
-          ? 'Apenas editores, administradores e donos do artista podem alterar a meta.'
+          ? 'Apenas administradores podem alterar a meta.'
           : error || 'Tente novamente.';
       Alert.alert('Não foi possível salvar', friendly);
       return;
@@ -993,7 +993,7 @@ export default function FinanceiroScreen() {
     if (!success) {
       const friendly =
         error && /row-level security|RLS|permission denied|violates row-level/i.test(error)
-          ? 'Apenas editores, administradores e donos do artista podem remover a meta.'
+          ? 'Apenas administradores podem remover a meta.'
           : error || 'Tente novamente.';
       Alert.alert('Não foi possível remover', friendly);
       return;
@@ -1400,7 +1400,7 @@ export default function FinanceiroScreen() {
                     Valores financeiros ocultos
                   </Text>
                   <Text style={[styles.lockedSubtext, { color: colors.textSecondary }]}>
-                    Apenas gerentes e editores podem visualizar valores. Abaixo, quantidade de eventos por mês.
+                    Apenas administradores podem visualizar valores. Abaixo, quantidade de eventos por mês.
                   </Text>
                 </View>
                 <View style={[styles.annualTotalEventsBanner, { backgroundColor: colors.surface }]}>
@@ -1578,7 +1578,7 @@ export default function FinanceiroScreen() {
               <Ionicons name="lock-closed" size={32} color={colors.textSecondary} style={{ marginBottom: 8 }} />
               <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Valores Financeiros Ocultos</Text>
               <Text style={[styles.lockedSubtext, { color: colors.textSecondary }]}>
-                Apenas gerentes e editores podem visualizar dados financeiros
+                Apenas administradores podem visualizar dados financeiros
               </Text>
             </View>
           </View>
@@ -1911,7 +1911,7 @@ export default function FinanceiroScreen() {
         visible={showPermissionModal}
         onClose={() => setShowPermissionModal(false)}
         title="Acesso Restrito"
-        message="Apenas gerentes e editores podem visualizar os detalhes e valores financeiros dos eventos. Entre em contato com um gerente para solicitar mais permissões."
+        message="Apenas administradores podem visualizar os detalhes e valores financeiros dos eventos. Entre em contato com um administrador para solicitar mais permissões."
         icon="lock-closed"
       />
 

@@ -397,7 +397,7 @@ export default function NotificacoesScreen() {
       }
 
       // Verificar se o usuário tem permissão para ver detalhes do evento
-      // Apenas editor e admin podem ver detalhes dos eventos
+      // Apenas admin pode ver detalhes dos eventos por aqui
       const canEditEvents = await hasPermission(currentUserId, eventResult.event.artist_id, 'canEditEvents');
       
       if (!canEditEvents) {
@@ -1092,15 +1092,14 @@ export default function NotificacoesScreen() {
                   },
                 ]}
               >
-                <Ionicons 
+                <Ionicons
                   name={
                     acceptedInviteData.role === 'Administrador' ? 'shield-checkmark' :
-                    acceptedInviteData.role === 'Editor' ? 'create' :
-                    acceptedInviteData.role === 'Gerente' ? 'star' :
+                    acceptedInviteData.role === 'Vendedor' ? 'pricetag' :
                     'eye'
-                  } 
-                  size={16} 
-                  color={colors.primary} 
+                  }
+                  size={16}
+                  color={colors.primary}
                 />
                 <Text style={[styles.acceptedRoleText, { color: colors.primary }]}>{acceptedInviteData.role}</Text>
               </View>
@@ -1128,12 +1127,26 @@ export default function NotificacoesScreen() {
                   <Text style={[styles.acceptedPermissionText, { color: colors.text }]}>Ver dados do artista</Text>
                 </View>
                   
-                {/* Permissões para Editor/Admin */}
-                {(acceptedInviteData.role === 'Editor' || acceptedInviteData.role === 'Administrador') && (
+                {/* Permissões para Vendedor */}
+                {acceptedInviteData.role === 'Vendedor' && (
                   <>
                     <View style={styles.acceptedPermissionItem}>
                       <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
-                      <Text style={[styles.acceptedPermissionText, { color: colors.text }]}>Criar e editar eventos</Text>
+                      <Text style={[styles.acceptedPermissionText, { color: colors.text }]}>Criar eventos</Text>
+                    </View>
+                    <View style={styles.acceptedPermissionItem}>
+                      <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                      <Text style={[styles.acceptedPermissionText, { color: colors.text }]}>Ver o valor apenas dos eventos que você criar</Text>
+                    </View>
+                  </>
+                )}
+
+                {/* Permissões apenas para Admin */}
+                {acceptedInviteData.role === 'Administrador' && (
+                  <>
+                    <View style={styles.acceptedPermissionItem}>
+                      <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                      <Text style={[styles.acceptedPermissionText, { color: colors.text }]}>Criar, editar e excluir eventos</Text>
                     </View>
                     <View style={styles.acceptedPermissionItem}>
                       <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
@@ -1141,8 +1154,7 @@ export default function NotificacoesScreen() {
                     </View>
                   </>
                 )}
-                  
-                {/* Permissões apenas para Admin */}
+
                 {acceptedInviteData.role === 'Administrador' && (
                   <>
                     <View style={styles.acceptedPermissionItem}>

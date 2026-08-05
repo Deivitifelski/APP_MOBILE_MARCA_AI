@@ -330,11 +330,11 @@ export default function DetalhesEventoScreen() {
       const userRole = memberData?.role;
       setArtistMemberRole(typeof userRole === 'string' ? userRole : null);
 
-      // ✅ Ocultar valores APENAS para viewers
-      const isViewer = userRole === 'viewer';
-      const hasPermission = !isViewer; // Todos menos viewer têm acesso
-      const canCreate = ['admin', 'editor'].includes(userRole);
-      
+      // ✅ hasAccess = acesso total (editar, despesas, contrato, histórico).
+      // Vendedor NÃO edita eventos — só cria e vê o valor do que criou (ver ownEventValueVisible).
+      const hasPermission = userRole === 'admin';
+      const canCreate = userRole === 'admin';
+
       setHasAccess(hasPermission);
       setCanCreateEventsPermission(canCreate);
       setIsCheckingAccess(false);
@@ -1147,6 +1147,9 @@ export default function DetalhesEventoScreen() {
   }
 
   const profit = (event.value || 0) - totalExpenses;
+  // Vendedor vê apenas o valor (cachê) do próprio evento — sem despesas/lucro, que seguem restritos a hasAccess.
+  const ownEventValueVisible =
+    artistMemberRole === 'vendedor' && !!currentUserId && event.created_by === currentUserId;
 
   const openContractFile = async () => {
     if (!event.contract_url) return;
@@ -1484,6 +1487,13 @@ export default function DetalhesEventoScreen() {
               </View>
               </View>
             </>
+          ) : ownEventValueVisible ? (
+            <View style={[styles.financialItemCard, { borderColor: colors.border }]}>
+              <View style={styles.financialRow}>
+                <Text style={[styles.financialLabel, { color: colors.textSecondary }]}>Valor do Evento:</Text>
+                <Text style={[styles.financialValue, { color: colors.success }]}>{formatCurrency(event.value || 0)}</Text>
+              </View>
+            </View>
           ) : (
             <View style={styles.lockedFinancialContainer}>
               <Ionicons name="lock-closed" size={32} color={colors.textSecondary} />
@@ -1491,7 +1501,7 @@ export default function DetalhesEventoScreen() {
                 Valores financeiros ocultos
               </Text>
               <Text style={[styles.lockedFinancialSubtext, { color: colors.textSecondary }]}>
-                Apenas gerentes e editores podem visualizar dados financeiros
+                Apenas administradores podem visualizar dados financeiros
               </Text>
             </View>
           )}
@@ -1518,7 +1528,7 @@ export default function DetalhesEventoScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 }}>
                 <Ionicons name="lock-closed" size={16} color={colors.textSecondary} />
                 <Text style={[styles.contractHint, { color: colors.textSecondary }]}>
-                  O histórico é visível apenas para gerentes e editores.
+                  O histórico é visível apenas para administradores.
                 </Text>
               </View>
             ) : auditLogs.length === 0 ? (
@@ -1957,7 +1967,7 @@ export default function DetalhesEventoScreen() {
         visible={showPermissionModal}
         onClose={() => setShowPermissionModal(false)}
         title="Acesso Restrito"
-        message="Apenas gerentes e editores podem editar eventos, gerenciar despesas, incluir participação de outros artistas em eventos e visualizar valores financeiros. Entre em contato com um gerente para solicitar mais permissões."
+        message="Apenas administradores podem editar eventos, gerenciar despesas, incluir participação de outros artistas em eventos e visualizar valores financeiros. Entre em contato com um administrador para solicitar mais permissões."
         icon="lock-closed"
       />
 

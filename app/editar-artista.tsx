@@ -572,8 +572,8 @@ export default function EditarArtistaScreen() {
               <Text style={[styles.artistRole, { color: colors.primary }]}>
                 {userPermissions?.role === 'admin'
                   ? 'Administrador'
-                  : userPermissions?.role === 'editor'
-                    ? 'Editor'
+                  : userPermissions?.role === 'vendedor'
+                    ? 'Vendedor'
                     : userPermissions?.role === 'viewer'
                       ? 'Visualizador'
                       : 'Colaborador'}

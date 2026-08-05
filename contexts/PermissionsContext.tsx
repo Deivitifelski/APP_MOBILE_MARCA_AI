@@ -13,9 +13,11 @@ interface PermissionsContextData {
   canManageMembers: boolean;
   canManageArtist: boolean;
   canDeleteArtist: boolean;
+  /** Vendedor: vê o valor (cachê) apenas dos eventos que ele mesmo criou. */
+  canViewOwnEventValue: boolean;
   isViewer: boolean;
-  isEditor: boolean;
   isAdmin: boolean;
+  isVendedor: boolean;
   reloadPermissions: () => Promise<void>;
 }
 
@@ -133,10 +135,11 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const canManageMembers = userPermissions?.permissions.canManageMembers ?? false;
   const canManageArtist = userPermissions?.permissions.canManageArtist ?? false;
   const canDeleteArtist = userPermissions?.permissions.canDeleteArtist ?? false;
-  
+  const canViewOwnEventValue = userPermissions?.permissions.canViewOwnEventValue ?? false;
+
   const isViewer = userPermissions?.role === 'viewer';
-  const isEditor = userPermissions?.role === 'editor';
   const isAdmin = userPermissions?.role === 'admin';
+  const isVendedor = userPermissions?.role === 'vendedor';
 
   return (
     <PermissionsContext.Provider
@@ -150,9 +153,10 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         canManageMembers,
         canManageArtist,
         canDeleteArtist,
+        canViewOwnEventValue,
         isViewer,
-        isEditor,
         isAdmin,
+        isVendedor,
         reloadPermissions: loadPermissions,
       }}
     >

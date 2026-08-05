@@ -8,7 +8,7 @@ export interface Notification {
   /** Convite de participação em evento (quando existir no banco). */
   convite_participacao_evento_id?: string | null;
   event_id?: string;
-  role?: 'viewer' | 'editor' | 'admin'; // Role para convites de artista
+  role?: 'viewer' | 'vendedor' | 'admin'; // Role para convites de artista
   title: string;
   message: string;
   type: string;
@@ -32,7 +32,7 @@ export interface CreateNotificationData {
   from_user_id?: string;
   artist_id?: string;
   event_id?: string;
-  role?: 'viewer' | 'editor' | 'admin'; // Role para convites
+  role?: 'viewer' | 'vendedor' | 'admin'; // Role para convites
   title: string;
   message: string;
   type: string;

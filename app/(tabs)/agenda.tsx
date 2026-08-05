@@ -213,7 +213,12 @@ export default function AgendaScreen() {
 
   // ✅ VERIFICAR ROLE DIRETAMENTE NO BANCO
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [hasFinancialAccess, setHasFinancialAccess] = useState(false);
+  // Vendedor: viewer que também pode criar eventos e ver o valor apenas dos que criou
+  const isVendedor = currentUserRole === 'vendedor';
+  const canSeeEventValue = (item: { created_by?: string | null }) =>
+    hasFinancialAccess || (isVendedor && !!currentUserId && item.created_by === currentUserId);
   
   // Verificar se usuário tem artistas disponíveis
   useEffect(() => {
@@ -255,6 +260,7 @@ export default function AgendaScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setCurrentUserRole(null);
+        setCurrentUserId(null);
         setHasFinancialAccess(false);
         return;
       }
@@ -268,21 +274,24 @@ export default function AgendaScreen() {
 
       if (error || !memberData) {
         setCurrentUserRole(null);
+        setCurrentUserId(null);
         setHasFinancialAccess(false);
         return;
       }
 
       const userRole = memberData.role;
 
-      // ✅ Apenas viewer NÃO pode ver valores financeiros
-      const isViewer = userRole === 'viewer';
-      const canViewFinancials = !isViewer;
+      // ✅ Viewer e vendedor não têm acesso financeiro geral
+      // (vendedor vê o valor apenas dos próprios eventos, tratado à parte via canSeeEventValue)
+      const canViewFinancials = userRole !== 'viewer' && userRole !== 'vendedor';
 
       setCurrentUserRole(userRole);
+      setCurrentUserId(user.id);
       setHasFinancialAccess(canViewFinancials);
     } catch (error) {
       // Erro ao verificar role
       setCurrentUserRole(null);
+      setCurrentUserId(null);
       setHasFinancialAccess(false);
     }
   };
@@ -351,7 +360,7 @@ export default function AgendaScreen() {
           return;
         }
 
-        const allowedRoles = ['admin', 'editor'];
+        const allowedRoles = ['admin', 'vendedor'];
         const canCreate = allowedRoles.includes(memberData.role);
 
         if (!canCreate) {
@@ -809,8 +818,8 @@ export default function AgendaScreen() {
       }
 
       const userRole = memberData.role;
-      const allowedRoles = ['editor', 'admin'];
-      const canViewDetails = allowedRoles.includes(userRole);
+      // Vendedor só abre o detalhe de eventos que ele mesmo criou (checado após buscar o evento)
+      const canViewDetails = userRole === 'admin' || userRole === 'vendedor';
 
       if (!canViewDetails) {
         isNavigatingToEventRef.current = false;
@@ -824,6 +833,12 @@ export default function AgendaScreen() {
         setShowDeletedEventModal(true);
         cacheService.invalidateEventsCache(activeArtist.id, currentYear, currentMonth);
         loadEvents(true);
+        return;
+      }
+
+      if (userRole === 'vendedor' && eventResult.event.created_by !== user.id) {
+        isNavigatingToEventRef.current = false;
+        setShowPermissionModal(true);
         return;
       }
 
@@ -1081,7 +1096,7 @@ export default function AgendaScreen() {
   const getRoleLabel = (role: string) => {
     switch (role) {
       case 'admin': return 'Administrador';
-      case 'editor': return 'Editor';
+      case 'vendedor': return 'Vendedor';
       case 'viewer': return 'Visualizador';
       default: return role;
     }
@@ -1288,7 +1303,7 @@ export default function AgendaScreen() {
           },
         ]}
         onPress={() => handleEventPress(item.id)}
-        activeOpacity={hasFinancialAccess ? 0.7 : 1}
+        activeOpacity={canSeeEventValue(item) ? 0.7 : 1}
       >
         <View style={styles.showContent}>
           <View style={[styles.showDateSection, { backgroundColor: colors.primary }]}>
@@ -1305,7 +1320,7 @@ export default function AgendaScreen() {
                 >
                   {item.name}
                 </Text>
-                {!hasFinancialAccess && (
+                {!canSeeEventValue(item) && (
                   <Ionicons name="lock-closed" size={14} color={colors.textSecondary} style={{ marginLeft: 6 }} />
                 )}
               </View>
@@ -1347,7 +1362,7 @@ export default function AgendaScreen() {
 
               <View style={[styles.showFooterRow, { borderTopColor: colors.border }]}>
                 <View style={styles.showValueLeft}>
-                  {hasDisplayableEventValue(item.value) ? (
+                  {canSeeEventValue(item) && hasDisplayableEventValue(item.value) ? (
                     <Text style={[styles.showValue, { color: colors.primary }]} numberOfLines={1}>
                       {formatEventValueBRL(item.value)}
                     </Text>
@@ -2147,7 +2162,7 @@ export default function AgendaScreen() {
         visible={showPermissionModal}
         onClose={() => setShowPermissionModal(false)}
         title="Acesso Restrito"
-        message="Apenas gerentes e editores podem criar e visualizar detalhes e valores financeiros dos eventos. Entre em contato com um gerente para solicitar mais permissões."
+        message="Apenas administradores podem visualizar detalhes e valores financeiros dos eventos. Vendedores podem criar eventos, mas só veem o valor dos que eles mesmos criaram. Entre em contato com um administrador para solicitar mais permissões."
         icon="lock-closed"
       />
 
@@ -2232,7 +2247,7 @@ export default function AgendaScreen() {
                         </Text>
                         <Text style={[styles.removedModalArtistRole, { color: colors.textSecondary }]}>
                           {artist.role === 'admin' ? 'Administrador' :
-                           artist.role === 'editor' ? 'Editor' : 'Visualizador'}
+                           artist.role === 'vendedor' ? 'Vendedor' : 'Visualizador'}
                         </Text>
                       </View>
                     </View>

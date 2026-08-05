@@ -23,13 +23,13 @@ interface ArtistCollaborator {
   id: string;
   name: string;
   profile_url?: string;
-  role: 'admin' | 'editor' | 'viewer';
+  role: 'admin' | 'vendedor' | 'viewer';
   musical_style?: string;
   created_at: string;
   updated_at: string;
 }
 
-type RoleKey = 'admin' | 'editor' | 'viewer';
+type RoleKey = 'admin' | 'vendedor' | 'viewer';
 
 function hexWithAlpha(hex: string, alphaHex: string): string {
   if (hex.length === 7 && hex.startsWith('#')) {
@@ -114,10 +114,10 @@ export default function SelecionarArtistaScreen() {
               icon: 'shield-checkmark' as const,
               tint: colors.success,
             };
-          case 'editor':
+          case 'vendedor':
             return {
-              label: 'Editor',
-              icon: 'create' as const,
+              label: 'Vendedor',
+              icon: 'pricetag' as const,
               tint: colors.primary,
             };
           case 'viewer':

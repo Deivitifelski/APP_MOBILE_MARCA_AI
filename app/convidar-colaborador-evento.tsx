@@ -167,7 +167,7 @@ export default function ConvidarColaboradorEventoScreen() {
         .eq('user_id', userId)
         .eq('artist_id', activeArtist.id)
         .maybeSingle();
-      const canCreate = ['admin', 'editor'].includes(member?.role || '');
+      const canCreate = member?.role === 'admin';
       const allowed = canCreate && event.artist_id === activeArtist.id;
       const { profile: inviterProfile } = await getUserProfile(userId);
       const inviterWhats =
@@ -336,7 +336,7 @@ export default function ConvidarColaboradorEventoScreen() {
           .in('artist_id', ids);
         if (error) return { ok: false as const, rows: [] as Array<{ id: string; value: string }> };
 
-        const rolePriority: Record<string, number> = { admin: 1, editor: 2, viewer: 3 };
+        const rolePriority: Record<string, number> = { admin: 1, vendedor: 2, viewer: 3 };
         const byArtist = new Map<string, { priority: number; value: string }>();
 
         (

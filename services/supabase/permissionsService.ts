@@ -1,10 +1,15 @@
 import { supabase } from '../../lib/supabase';
 
-/** Papéis em `artist_members`: admin, editor e viewer. */
-export type UserRole = 'viewer' | 'editor' | 'admin';
+/**
+ * Papéis em `artist_members`: admin, vendedor e viewer.
+ * 'editor' foi descontinuado (migrado para 'vendedor' via SQL); mantido aqui apenas
+ * como fallback de leitura para não quebrar linhas antigas que ainda não migraram.
+ */
+export type UserRole = 'viewer' | 'admin' | 'vendedor';
 
 export function normalizeArtistMemberRole(role: string): UserRole {
-  if (role === 'viewer' || role === 'editor' || role === 'admin') return role;
+  if (role === 'viewer' || role === 'admin' || role === 'vendedor') return role;
+  if (role === 'editor') return 'vendedor'; // legado: trata como vendedor até a migração rodar
   return 'viewer';
 }
 
@@ -21,6 +26,8 @@ export interface UserPermission {
     canManageMembers: boolean;
     canManageArtist: boolean;
     canDeleteArtist: boolean;
+    /** Vendedor: vê o valor (cachê) apenas dos eventos que ele mesmo criou. */
+    canViewOwnEventValue: boolean;
   };
 }
 
@@ -93,20 +100,24 @@ export const getUserPermissionsByRole = (role: UserRole) => {
         canManageMembers: false,
         canManageArtist: false,
         canDeleteArtist: false,
+        canViewOwnEventValue: false,
       };
-    
-    case 'editor':
+
+    // Vendedor: igual ao viewer, exceto que pode criar eventos e ver o valor
+    // (cachê) apenas dos eventos que ele mesmo criou (ver canViewOwnEventValue).
+    case 'vendedor':
       return {
         canViewEvents: true,
-        canViewFinancials: true,
+        canViewFinancials: false,
         canCreateEvents: true,
-        canEditEvents: true,
+        canEditEvents: false,
         canDeleteEvents: false,
         canManageMembers: false,
         canManageArtist: false,
         canDeleteArtist: false,
+        canViewOwnEventValue: true,
       };
-    
+
     case 'admin':
       return {
         canViewEvents: true,
@@ -117,8 +128,9 @@ export const getUserPermissionsByRole = (role: UserRole) => {
         canManageMembers: true,
         canManageArtist: true,
         canDeleteArtist: true, // Admin pode deletar artista
+        canViewOwnEventValue: true,
       };
-    
+
     default:
       return {
         canViewEvents: false,
@@ -129,6 +141,7 @@ export const getUserPermissionsByRole = (role: UserRole) => {
         canManageMembers: false,
         canManageArtist: false,
         canDeleteArtist: false,
+        canViewOwnEventValue: false,
       };
   }
 };
