@@ -25,7 +25,7 @@ import LogoMarcaAi from '../../../components/LogoMarcaAi';
 import { useActiveArtistContext } from '../../../contexts/ActiveArtistContext';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { supabase } from '../../../lib/supabase';
-import { checkArtistsAndRedirect, getCurrentUser, loginUser, resendConfirmationEmail, sendPasswordResetEmail } from '../../../services/supabase/authService';
+import { checkArtistsAndRedirect, getCurrentUser, loginUser, logoutUser, resendConfirmationEmail, sendPasswordResetEmail } from '../../../services/supabase/authService';
 import {
     checkUserExists,
     createOrUpdateUserFromApple,
@@ -669,7 +669,7 @@ export default function LoginScreen() {
               </View>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Complete seu Cadastro</Text>
               <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
-                Você precisa finalizar seu perfil pessoal para continuar
+                Você precisa finalizar seu perfil pessoal para continuar. Se cancelar agora, sua sessão será encerrada.
               </Text>
             </View>
 
@@ -707,11 +707,14 @@ export default function LoginScreen() {
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalCancelButton, { backgroundColor: colors.background, borderColor: colors.border }]}
-                onPress={() => setShowCompleteProfileModal(false)}
+                onPress={async () => {
+                  setShowCompleteProfileModal(false);
+                  await logoutUser();
+                }}
               >
                 <Text style={[styles.modalCancelText, { color: colors.textSecondary }]}>Cancelar</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[styles.modalContinueButton, { backgroundColor: colors.primary }]}
                 onPress={() => {

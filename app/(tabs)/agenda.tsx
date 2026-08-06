@@ -2146,13 +2146,27 @@ export default function AgendaScreen() {
                 </TouchableOpacity>
               </View>
             ) : (
-              <TouchableOpacity
-                style={[styles.welcomeModalButtonDone, { backgroundColor: colors.primary }]}
-                onPress={() => setShowNewUserModal(false)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.welcomeModalButtonDoneText}>Pronto</Text>
-              </TouchableOpacity>
+              <View style={styles.welcomeModalFinalButtons}>
+                <TouchableOpacity
+                  style={[styles.welcomeModalButtonDone, { backgroundColor: colors.primary }]}
+                  onPress={() => {
+                    setShowNewUserModal(false);
+                    void tryNavigateToCadastroArtista();
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.welcomeModalButtonDoneText}>Criar meu artista agora</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.welcomeModalSkipButton}
+                  onPress={() => setShowNewUserModal(false)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.welcomeModalSkipButtonText, { color: colors.textSecondary }]}>
+                    Fazer isso depois
+                  </Text>
+                </TouchableOpacity>
+              </View>
             )}
           </View>
         </View>
@@ -3187,6 +3201,20 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 17,
     fontWeight: '600',
+  },
+  welcomeModalFinalButtons: {
+    width: '100%',
+    gap: 12,
+  },
+  welcomeModalSkipButton: {
+    width: '100%',
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  welcomeModalSkipButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
   newUserModalButtons: {
     flexDirection: 'row',
