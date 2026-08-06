@@ -1,51 +1,73 @@
-import { Ionicons } from '@expo/vector-icons';
-import * as Linking from 'expo-linking';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Ionicons } from "@expo/vector-icons";
+import * as Linking from "expo-linking";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Image,
-    Keyboard,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import OptimizedImage from '../../components/OptimizedImage';
-import PermissionModal from '../../components/PermissionModal';
-import TransientToast from '../../components/TransientToast';
-import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
-import { useSharedTabMonth } from '../../contexts/SharedTabMonthContext';
-import { useTheme } from '../../contexts/ThemeContext';
-import { formatEventLocationSlash } from '../../lib/brazilGeo';
-import { supabase } from '../../lib/supabase';
-import { setAppIconBadge } from '../../services/appIconBadge';
-import { artistImageUpdateService } from '../../services/artistImageUpdateService';
-import { cacheService } from '../../services/cacheService';
-import { getArtists } from '../../services/supabase/artistService';
-import { getCurrentUser } from '../../services/supabase/authService';
-import { canCreateArtist, FREE_PLAN_MAX_OWNED_ARTIST_PROFILES } from '../../services/supabase/userService';
-import { cancelarParticipacaoAceita } from '../../services/supabase/conviteParticipacaoEventoService';
-import { getEventById, getEventsByMonthWithRole } from '../../services/supabase/eventService';
-import { useNotifications } from '../../services/useNotifications';
-import { buildWhatsAppUrl } from '../../utils/brazilPhone';
-import { maybeShowConnectionError } from '../../utils/maybeShowConnectionError';
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import OptimizedImage from "../../components/OptimizedImage";
+import PermissionModal from "../../components/PermissionModal";
+import TransientToast from "../../components/TransientToast";
+import { useActiveArtistContext } from "../../contexts/ActiveArtistContext";
+import { useSharedTabMonth } from "../../contexts/SharedTabMonthContext";
+import { useTheme } from "../../contexts/ThemeContext";
+import { formatEventLocationSlash } from "../../lib/brazilGeo";
+import { supabase } from "../../lib/supabase";
+import { setAppIconBadge } from "../../services/appIconBadge";
+import { artistImageUpdateService } from "../../services/artistImageUpdateService";
+import { cacheService } from "../../services/cacheService";
+import { getArtists } from "../../services/supabase/artistService";
+import { getCurrentUser } from "../../services/supabase/authService";
+import { cancelarParticipacaoAceita } from "../../services/supabase/conviteParticipacaoEventoService";
+import {
+  getEventById,
+  getEventsByMonthWithRole,
+} from "../../services/supabase/eventService";
+import {
+  canCreateArtist,
+  FREE_PLAN_MAX_OWNED_ARTIST_PROFILES,
+} from "../../services/supabase/userService";
+import { useNotifications } from "../../services/useNotifications";
+import { buildWhatsAppUrl } from "../../utils/brazilPhone";
+import { maybeShowConnectionError } from "../../utils/maybeShowConnectionError";
 
 const months = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro",
 ];
-const weekdayLabels = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const weekdayLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 /** Máximo de fotos no card (organizador + convidados); excedente não aparece no card — o modal da badge lista todos. */
 const MAX_COLLAB_AVATARS_ON_CARD = 10;
@@ -69,7 +91,13 @@ export default function AgendaScreen() {
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [imageLoadError, setImageLoadError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const { activeArtist, refreshActiveArtist, isLoading, setActiveArtist, clearArtist } = useActiveArtistContext();
+  const {
+    activeArtist,
+    refreshActiveArtist,
+    isLoading,
+    setActiveArtist,
+    clearArtist,
+  } = useActiveArtistContext();
   const [artistImageUpdated, setArtistImageUpdated] = useState<boolean>(false);
   const { unreadCount, loadUnreadCount } = useNotifications();
   const [hasAnyArtist, setHasAnyArtist] = useState(false);
@@ -83,7 +111,7 @@ export default function AgendaScreen() {
   const [isLoadingArtists, setIsLoadingArtists] = useState(false);
   const [showArtistPickerModal, setShowArtistPickerModal] = useState(false);
   const [artistPickerList, setArtistPickerList] = useState<any[]>([]);
-  const [artistPickerSearch, setArtistPickerSearch] = useState('');
+  const [artistPickerSearch, setArtistPickerSearch] = useState("");
   const [isLoadingArtistPicker, setIsLoadingArtistPicker] = useState(false);
   const [showNewUserModal, setShowNewUserModal] = useState(false);
   const [welcomeStep, setWelcomeStep] = useState(0);
@@ -92,40 +120,54 @@ export default function AgendaScreen() {
     eventCreatedToast?: string;
     artistChangedToast?: string;
   }>();
-  const [agendaToastMessage, setAgendaToastMessage] = useState<string | null>(null);
+  const [agendaToastMessage, setAgendaToastMessage] = useState<string | null>(
+    null,
+  );
   const [isLoadingMonthEvents, setIsLoadingMonthEvents] = useState(false);
-  const [showInviteEventInfoModal, setShowInviteEventInfoModal] = useState(false);
-  const [selectedInviteEventInfo, setSelectedInviteEventInfo] = useState<any | null>(null);
-  const [inviteCancelReason, setInviteCancelReason] = useState('');
-  const [isCancellingInviteParticipation, setIsCancellingInviteParticipation] = useState(false);
-  const [invitePartnerByConviteId, setInvitePartnerByConviteId] = useState<Record<string, { name: string; profile_url: string | null }>>({});
-  const [selectedInviteFunction, setSelectedInviteFunction] = useState<string | null>(null);
-  const [conviteIdByEventId, setConviteIdByEventId] = useState<Record<string, string>>({});
-  /** Organizador + convidados por evento (lista completa; o card só mostra os primeiros). */
-  const [participantAvatarsByEventId, setParticipantAvatarsByEventId] = useState<
-    Record<string, AgendaParticipantRow[]>
+  const [showInviteEventInfoModal, setShowInviteEventInfoModal] =
+    useState(false);
+  const [selectedInviteEventInfo, setSelectedInviteEventInfo] = useState<
+    any | null
+  >(null);
+  const [inviteCancelReason, setInviteCancelReason] = useState("");
+  const [isCancellingInviteParticipation, setIsCancellingInviteParticipation] =
+    useState(false);
+  const [invitePartnerByConviteId, setInvitePartnerByConviteId] = useState<
+    Record<string, { name: string; profile_url: string | null }>
   >({});
+  const [selectedInviteFunction, setSelectedInviteFunction] = useState<
+    string | null
+  >(null);
+  const [conviteIdByEventId, setConviteIdByEventId] = useState<
+    Record<string, string>
+  >({});
+  /** Organizador + convidados por evento (lista completa; o card só mostra os primeiros). */
+  const [participantAvatarsByEventId, setParticipantAvatarsByEventId] =
+    useState<Record<string, AgendaParticipantRow[]>>({});
   const [showParticipantsModal, setShowParticipantsModal] = useState(false);
-  const [participantsModalTitle, setParticipantsModalTitle] = useState('');
-  const [participantsModalList, setParticipantsModalList] = useState<AgendaParticipantRow[]>([]);
-  const [participantsModalExpanded, setParticipantsModalExpanded] = useState(false);
+  const [participantsModalTitle, setParticipantsModalTitle] = useState("");
+  const [participantsModalList, setParticipantsModalList] = useState<
+    AgendaParticipantRow[]
+  >([]);
+  const [participantsModalExpanded, setParticipantsModalExpanded] =
+    useState(false);
 
   useEffect(() => {
-    if (params.showNewUserModal === '1') {
+    if (params.showNewUserModal === "1") {
       setShowNewUserModal(true);
       setWelcomeStep(0);
     }
   }, [params.showNewUserModal]);
 
   useEffect(() => {
-    if (params.eventCreatedToast !== '1') return;
-    setAgendaToastMessage('Evento criado com sucesso!');
+    if (params.eventCreatedToast !== "1") return;
+    setAgendaToastMessage("Evento criado com sucesso!");
     router.setParams({ eventCreatedToast: undefined });
   }, [params.eventCreatedToast]);
 
   useEffect(() => {
-    if (params.artistChangedToast !== '1') return;
-    setAgendaToastMessage('Artista alterado com sucesso!');
+    if (params.artistChangedToast !== "1") return;
+    setAgendaToastMessage("Artista alterado com sucesso!");
     router.setParams({ artistChangedToast: undefined });
   }, [params.artistChangedToast]);
 
@@ -141,39 +183,44 @@ export default function AgendaScreen() {
       return () => {
         isNavigatingToEventRef.current = false;
       };
-    }, [])
+    }, []),
   );
 
   const WELCOME_STEPS = [
     {
-      title: 'Conta criada com sucesso!',
-      subtitle: 'Bem-vindo ao Marca AI. Veja em poucos passos como aproveitar o app.',
+      title: "Conta criada com sucesso!",
+      subtitle:
+        "Bem-vindo ao Marca AI. Veja em poucos passos como aproveitar o app.",
       image: true,
       icon: null as string | null,
     },
     {
-      title: 'Crie seu perfil artista',
-      subtitle: 'Configure seu nome artístico, foto e informações. Você pode gerenciar vários artistas ou bandas.',
+      title: "Crie seu perfil artista",
+      subtitle:
+        "Configure seu nome artístico, foto e informações. Você pode gerenciar vários artistas ou bandas.",
       image: false,
-      icon: 'person-outline' as const,
+      icon: "person-outline" as const,
     },
     {
-      title: 'Gerencie seus eventos',
-      subtitle: 'Organize shows, ensaios e compromissos na agenda. Crie eventos, defina datas e convide sua equipe.',
+      title: "Gerencie seus eventos",
+      subtitle:
+        "Organize shows, ensaios e compromissos na agenda. Crie eventos, defina datas e convide sua equipe.",
       image: false,
-      icon: 'calendar-outline' as const,
+      icon: "calendar-outline" as const,
     },
     {
-      title: 'Controle financeiro',
-      subtitle: 'Acompanhe receitas, despesas e lucros por evento. Relatórios simples para você tomar melhores decisões.',
+      title: "Controle financeiro",
+      subtitle:
+        "Acompanhe receitas, despesas e lucros por evento. Relatórios simples para você tomar melhores decisões.",
       image: false,
-      icon: 'wallet-outline' as const,
+      icon: "wallet-outline" as const,
     },
     {
-      title: 'Pronto para começar',
-      subtitle: 'Para gerenciar um artista, crie um perfil de artista ou aguarde um convite de outro usuário.',
+      title: "Pronto para começar",
+      subtitle:
+        "O app funciona dentro de um perfil de artista: crie o seu se você administra a carreira, ou aguarde um convite se faz parte da equipe de outro artista.",
       image: false,
-      icon: 'rocket-outline' as const,
+      icon: "rocket-outline" as const,
     },
   ];
   const totalWelcomeSteps = WELCOME_STEPS.length;
@@ -187,28 +234,36 @@ export default function AgendaScreen() {
   const tryNavigateToCadastroArtista = async () => {
     const { user, error: userError } = await getCurrentUser();
     if (userError || !user) {
-      Alert.alert('Erro', 'Faça login novamente.');
+      Alert.alert("Erro", "Faça login novamente.");
       return;
     }
-    const { canCreate, error: limitError, ownedAsAdminCount, isPremium } = await canCreateArtist(user.id);
+    const {
+      canCreate,
+      error: limitError,
+      ownedAsAdminCount,
+      isPremium,
+    } = await canCreateArtist(user.id);
     if (limitError) {
-      Alert.alert('Erro', limitError);
+      Alert.alert("Erro", limitError);
       return;
     }
     if (!canCreate) {
       Alert.alert(
-        'Limite do plano gratuito',
+        "Limite do plano gratuito",
         isPremium
-          ? 'Não foi possível continuar agora. Tente novamente.'
+          ? "Não foi possível continuar agora. Tente novamente."
           : `Você já tem ${ownedAsAdminCount} perfil(is) como administrador (máximo ${FREE_PLAN_MAX_OWNED_ARTIST_PROFILES} no gratuito). Assine o Premium para criar mais.`,
         [
-          { text: 'OK', style: 'cancel' },
-          { text: 'Ver Premium', onPress: () => router.push('/assine-premium') },
+          { text: "OK", style: "cancel" },
+          {
+            text: "Ver Premium",
+            onPress: () => router.push("/assine-premium"),
+          },
         ],
       );
       return;
     }
-    router.push('/cadastro-artista?secondary=true');
+    router.push("/cadastro-artista?secondary=true");
   };
 
   // ✅ VERIFICAR ROLE DIRETAMENTE NO BANCO
@@ -216,10 +271,11 @@ export default function AgendaScreen() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [hasFinancialAccess, setHasFinancialAccess] = useState(false);
   // Vendedor: viewer que também pode criar eventos e ver o valor apenas dos que criou
-  const isVendedor = currentUserRole === 'vendedor';
+  const isVendedor = currentUserRole === "vendedor";
   const canSeeEventValue = (item: { created_by?: string | null }) =>
-    hasFinancialAccess || (isVendedor && !!currentUserId && item.created_by === currentUserId);
-  
+    hasFinancialAccess ||
+    (isVendedor && !!currentUserId && item.created_by === currentUserId);
+
   // Verificar se usuário tem artistas disponíveis
   useEffect(() => {
     checkIfUserHasArtists();
@@ -227,13 +283,15 @@ export default function AgendaScreen() {
 
   const checkIfUserHasArtists = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
 
       const { data, error } = await supabase
-        .from('artist_members')
-        .select('artist_id')
-        .eq('user_id', user.id)
+        .from("artist_members")
+        .select("artist_id")
+        .eq("user_id", user.id)
         .limit(1);
 
       setHasAnyArtist(!error && data && data.length > 0);
@@ -257,7 +315,9 @@ export default function AgendaScreen() {
     }
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         setCurrentUserRole(null);
         setCurrentUserId(null);
@@ -266,10 +326,10 @@ export default function AgendaScreen() {
       }
 
       const { data: memberData, error } = await supabase
-        .from('artist_members')
-        .select('role')
-        .eq('user_id', user.id)
-        .eq('artist_id', activeArtist.id)
+        .from("artist_members")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("artist_id", activeArtist.id)
         .single();
 
       if (error || !memberData) {
@@ -283,7 +343,8 @@ export default function AgendaScreen() {
 
       // ✅ Viewer e vendedor não têm acesso financeiro geral
       // (vendedor vê o valor apenas dos próprios eventos, tratado à parte via canSeeEventValue)
-      const canViewFinancials = userRole !== 'viewer' && userRole !== 'vendedor';
+      const canViewFinancials =
+        userRole !== "viewer" && userRole !== "vendedor";
 
       setCurrentUserRole(userRole);
       setCurrentUserId(user.id);
@@ -300,17 +361,17 @@ export default function AgendaScreen() {
   const currentYear = currentDate.getFullYear();
   const todayFormatted = (() => {
     const d = new Date();
-    const s = d.toLocaleDateString('pt-BR', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
+    const s = d.toLocaleDateString("pt-BR", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
     });
     return s.charAt(0).toUpperCase() + s.slice(1);
   })();
   const eventsByDate = useMemo(() => {
     const map: Record<string, any[]> = {};
-    events.forEach(event => {
+    events.forEach((event) => {
       if (!event.event_date) {
         return;
       }
@@ -327,10 +388,14 @@ export default function AgendaScreen() {
   const [isOpeningAddEventScreen, setIsOpeningAddEventScreen] = useState(false);
 
   const openAddEventScreen = useCallback(
-    async (navParams: { selectedMonth: number; selectedYear: number; selectedDate: string }) => {
+    async (navParams: {
+      selectedMonth: number;
+      selectedYear: number;
+      selectedDate: string;
+    }) => {
       if (isOpeningAddEventRef.current) return;
       if (!activeArtist) {
-        Alert.alert('Erro', 'Nenhum artista selecionado.');
+        Alert.alert("Erro", "Nenhum artista selecionado.");
         return;
       }
       isOpeningAddEventRef.current = true;
@@ -339,28 +404,28 @@ export default function AgendaScreen() {
         const { user, error: authErr } = await getCurrentUser();
         if (!user) {
           if (maybeShowConnectionError(null, authErr)) return;
-          Alert.alert('Erro', 'Usuário não encontrado');
+          Alert.alert("Erro", "Usuário não encontrado");
           return;
         }
 
         const { data: memberData, error: roleError } = await supabase
-          .from('artist_members')
-          .select('role')
-          .eq('user_id', user.id)
-          .eq('artist_id', activeArtist.id)
+          .from("artist_members")
+          .select("role")
+          .eq("user_id", user.id)
+          .eq("artist_id", activeArtist.id)
           .single();
 
         if (roleError) {
           if (maybeShowConnectionError(roleError, roleError.message)) return;
-          Alert.alert('Erro', 'Você não tem acesso a este artista');
+          Alert.alert("Erro", "Você não tem acesso a este artista");
           return;
         }
         if (!memberData) {
-          Alert.alert('Erro', 'Você não tem acesso a este artista');
+          Alert.alert("Erro", "Você não tem acesso a este artista");
           return;
         }
 
-        const allowedRoles = ['admin', 'vendedor'];
+        const allowedRoles = ["admin", "vendedor"];
         const canCreate = allowedRoles.includes(memberData.role);
 
         if (!canCreate) {
@@ -369,7 +434,7 @@ export default function AgendaScreen() {
         }
 
         router.push({
-          pathname: '/adicionar-evento',
+          pathname: "/adicionar-evento",
           params: {
             selectedMonth: navParams.selectedMonth,
             selectedYear: navParams.selectedYear,
@@ -378,7 +443,7 @@ export default function AgendaScreen() {
         });
       } catch (e) {
         if (!maybeShowConnectionError(e)) {
-          Alert.alert('Erro', 'Erro ao verificar permissões');
+          Alert.alert("Erro", "Erro ao verificar permissões");
         }
       } finally {
         isOpeningAddEventRef.current = false;
@@ -402,7 +467,7 @@ export default function AgendaScreen() {
         if (currentDay < 1 || currentDay > totalDays) {
           week.push(null);
         } else {
-          const dateString = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(currentDay).padStart(2, '0')}`;
+          const dateString = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(currentDay).padStart(2, "0")}`;
           week.push({ dayNumber: currentDay, dateString });
         }
       }
@@ -414,32 +479,32 @@ export default function AgendaScreen() {
   }, [currentMonth, currentYear]);
 
   const toHHMM = (t: any): string => {
-    if (!t) return '';
-    if (typeof t === 'string') return t.slice(0, 5);
+    if (!t) return "";
+    if (typeof t === "string") return t.slice(0, 5);
     return String(t).slice(0, 5);
   };
 
   const hasDefinedTime = (start: any, end: any) => {
-    const s = toHHMM(start) || '00:00';
-    const e = toHHMM(end) || '00:00';
+    const s = toHHMM(start) || "00:00";
+    const e = toHHMM(end) || "00:00";
     // 00:00/00:00 = "não definido"
-    return !(s === '00:00' && e === '00:00');
+    return !(s === "00:00" && e === "00:00");
   };
 
   const formatDisplayDate = (dateString: string | null) => {
-    if (!dateString) return '';
-    const [y, m, d] = dateString.split('-').map(Number);
+    if (!dateString) return "";
+    const [y, m, d] = dateString.split("-").map(Number);
     const date = new Date(y, m - 1, d);
-    return date.toLocaleDateString('pt-BR', {
-      weekday: 'long',
-      day: '2-digit',
-      month: 'long',
+    return date.toLocaleDateString("pt-BR", {
+      weekday: "long",
+      day: "2-digit",
+      month: "long",
     });
   };
 
   const todayString = useMemo(() => {
     const today = new Date();
-    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   }, []);
 
   useEffect(() => {
@@ -450,16 +515,18 @@ export default function AgendaScreen() {
   useEffect(() => {
     let cancelled = false;
     const loadConviteIdsByEvent = async () => {
-      const eventIds = events.map((e) => e?.id).filter((v): v is string => typeof v === 'string' && v.length > 0);
+      const eventIds = events
+        .map((e) => e?.id)
+        .filter((v): v is string => typeof v === "string" && v.length > 0);
       if (eventIds.length === 0) {
         if (!cancelled) setConviteIdByEventId({});
         return;
       }
 
       const { data } = await supabase
-        .from('events')
-        .select('id, convite_participacao_id')
-        .in('id', eventIds);
+        .from("events")
+        .select("id, convite_participacao_id")
+        .in("id", eventIds);
 
       const map: Record<string, string> = {};
       (data || []).forEach((row: any) => {
@@ -482,8 +549,8 @@ export default function AgendaScreen() {
         new Set(
           events
             .map((e) => e?.convite_participacao_id || conviteIdByEventId[e?.id])
-            .filter((v): v is string => typeof v === 'string' && v.length > 0)
-        )
+            .filter((v): v is string => typeof v === "string" && v.length > 0),
+        ),
       );
       if (conviteIds.length === 0) {
         if (!cancelled) setInvitePartnerByConviteId({});
@@ -491,9 +558,9 @@ export default function AgendaScreen() {
       }
 
       const { data: convites, error: convErr } = await supabase
-        .from('convite_participacao_evento')
-        .select('id, artista_que_convidou_id')
-        .in('id', conviteIds);
+        .from("convite_participacao_evento")
+        .select("id, artista_que_convidou_id")
+        .in("id", conviteIds);
 
       if (convErr || !convites?.length) return;
 
@@ -501,22 +568,33 @@ export default function AgendaScreen() {
         new Set(
           convites
             .map((c: any) => c.artista_que_convidou_id)
-            .filter((v: any): v is string => typeof v === 'string' && v.length > 0)
-        )
+            .filter(
+              (v: any): v is string => typeof v === "string" && v.length > 0,
+            ),
+        ),
       );
       if (artistIds.length === 0) return;
 
       const { data: artists } = await supabase
-        .from('artists')
-        .select('id, name, profile_url')
-        .in('id', artistIds);
+        .from("artists")
+        .select("id, name, profile_url")
+        .in("id", artistIds);
 
-      const artistMap: Record<string, { name: string; profile_url: string | null }> = {};
+      const artistMap: Record<
+        string,
+        { name: string; profile_url: string | null }
+      > = {};
       (artists || []).forEach((a: any) => {
-        artistMap[a.id] = { name: a.name || 'Artista', profile_url: a.profile_url ?? null };
+        artistMap[a.id] = {
+          name: a.name || "Artista",
+          profile_url: a.profile_url ?? null,
+        };
       });
 
-      const nextMap: Record<string, { name: string; profile_url: string | null }> = {};
+      const nextMap: Record<
+        string,
+        { name: string; profile_url: string | null }
+      > = {};
       (convites || []).forEach((c: any) => {
         const inviter = artistMap[c.artista_que_convidou_id];
         if (inviter) nextMap[c.id] = inviter;
@@ -547,31 +625,36 @@ export default function AgendaScreen() {
               (e) =>
                 e?.artist_id === activeArtist.id &&
                 !e?.convite_participacao_id &&
-                typeof e?.id === 'string'
+                typeof e?.id === "string",
             )
-            .map((e) => e.id as string)
-        )
+            .map((e) => e.id as string),
+        ),
       );
 
       const guestEventRows = events
         .map((e) => {
           const cid = e?.convite_participacao_id || conviteIdByEventId[e?.id];
-          if (!cid || typeof e?.id !== 'string') return null;
+          if (!cid || typeof e?.id !== "string") return null;
           return { eventId: e.id as string, conviteId: cid as string };
         })
         .filter((v): v is { eventId: string; conviteId: string } => v != null);
 
       const guestEventIdToOrigin: Record<string, string> = {};
-      const guestConviteIds = Array.from(new Set(guestEventRows.map((g) => g.conviteId)));
+      const guestConviteIds = Array.from(
+        new Set(guestEventRows.map((g) => g.conviteId)),
+      );
       if (guestConviteIds.length > 0) {
         const { data: conviteMeta } = await supabase
-          .from('convite_participacao_evento')
-          .select('id, evento_origem_id')
-          .in('id', guestConviteIds);
+          .from("convite_participacao_evento")
+          .select("id, evento_origem_id")
+          .in("id", guestConviteIds);
         const conviteIdToOrigin: Record<string, string> = {};
-        (conviteMeta || []).forEach((r: { id: string; evento_origem_id: string }) => {
-          if (r?.id && r?.evento_origem_id) conviteIdToOrigin[r.id] = r.evento_origem_id;
-        });
+        (conviteMeta || []).forEach(
+          (r: { id: string; evento_origem_id: string }) => {
+            if (r?.id && r?.evento_origem_id)
+              conviteIdToOrigin[r.id] = r.evento_origem_id;
+          },
+        );
         for (const g of guestEventRows) {
           const eo = conviteIdToOrigin[g.conviteId];
           if (eo) guestEventIdToOrigin[g.eventId] = eo;
@@ -579,7 +662,7 @@ export default function AgendaScreen() {
       }
 
       const allOriginIds = Array.from(
-        new Set([...originEventIds, ...Object.values(guestEventIdToOrigin)])
+        new Set([...originEventIds, ...Object.values(guestEventIdToOrigin)]),
       );
 
       if (allOriginIds.length === 0) {
@@ -592,14 +675,16 @@ export default function AgendaScreen() {
         artista_que_convidou_id: string;
         artista_convidado_id: string;
         criado_em: string;
-        status: 'pendente' | 'aceito' | 'recusado' | 'cancelado';
+        status: "pendente" | "aceito" | "recusado" | "cancelado";
       };
 
       const { data: direct, error } = await supabase
-        .from('convite_participacao_evento')
-        .select('evento_origem_id, artista_que_convidou_id, artista_convidado_id, criado_em, status')
-        .in('evento_origem_id', allOriginIds)
-        .in('status', ['pendente', 'aceito']);
+        .from("convite_participacao_evento")
+        .select(
+          "evento_origem_id, artista_que_convidou_id, artista_convidado_id, criado_em, status",
+        )
+        .in("evento_origem_id", allOriginIds)
+        .in("status", ["pendente", "aceito"]);
       if (error) {
         if (!cancelled) setParticipantAvatarsByEventId({});
         return;
@@ -607,7 +692,8 @@ export default function AgendaScreen() {
       const convites = (direct || []) as ConviteAvatarRow[];
 
       const sorted = [...convites].sort(
-        (a, b) => new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime()
+        (a, b) =>
+          new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime(),
       );
 
       const byEvent: Record<string, string[]> = {};
@@ -621,7 +707,7 @@ export default function AgendaScreen() {
         if (!list.includes(inv)) {
           list.unshift(inv);
         }
-        if (row.status === 'aceito' && !list.includes(conv)) {
+        if (row.status === "aceito" && !list.includes(conv)) {
           list.push(conv);
         }
       }
@@ -632,27 +718,35 @@ export default function AgendaScreen() {
       const nameById: Record<string, string> = {};
       if (allArtistIds.length > 0) {
         const { data: artists } = await supabase
-          .from('artists')
-          .select('id, name, profile_url')
-          .in('id', allArtistIds);
+          .from("artists")
+          .select("id, name, profile_url")
+          .in("id", allArtistIds);
 
-        (artists || []).forEach((a: { id: string; name: string | null; profile_url: string | null }) => {
-          profileById[a.id] = a.profile_url ?? null;
-          nameById[a.id] = (a.name && String(a.name).trim()) || 'Artista';
-        });
+        (artists || []).forEach(
+          (a: {
+            id: string;
+            name: string | null;
+            profile_url: string | null;
+          }) => {
+            profileById[a.id] = a.profile_url ?? null;
+            nameById[a.id] = (a.name && String(a.name).trim()) || "Artista";
+          },
+        );
       }
 
       const avatarListsByOriginId: Record<string, AgendaParticipantRow[]> = {};
       for (const [oid, ids] of Object.entries(byEvent)) {
         avatarListsByOriginId[oid] = ids.map((id, index) => ({
           id,
-          name: nameById[id] ?? 'Artista',
+          name: nameById[id] ?? "Artista",
           profile_url: profileById[id] ?? null,
           isHost: index === 0,
         }));
       }
 
-      const next: Record<string, AgendaParticipantRow[]> = { ...avatarListsByOriginId };
+      const next: Record<string, AgendaParticipantRow[]> = {
+        ...avatarListsByOriginId,
+      };
       for (const [guestEventId, eo] of Object.entries(guestEventIdToOrigin)) {
         const list = avatarListsByOriginId[eo];
         if (list && list.length > 0) {
@@ -671,7 +765,10 @@ export default function AgendaScreen() {
 
   // Escutar notificações de atualização da imagem do artista
   useEffect(() => {
-    const handleArtistImageUpdated = (data: { artistId: string; newImageUrl: string }) => {
+    const handleArtistImageUpdated = (data: {
+      artistId: string;
+      newImageUrl: string;
+    }) => {
       if (activeArtist && data.artistId === activeArtist.id) {
         setArtistImageUpdated(true);
         setImageLoadError(false); // Reset error state
@@ -681,7 +778,9 @@ export default function AgendaScreen() {
     artistImageUpdateService.onArtistImageUpdated(handleArtistImageUpdated);
 
     return () => {
-      artistImageUpdateService.removeArtistImageUpdatedListener(handleArtistImageUpdated);
+      artistImageUpdateService.removeArtistImageUpdatedListener(
+        handleArtistImageUpdated,
+      );
     };
   }, [activeArtist]);
 
@@ -731,20 +830,22 @@ export default function AgendaScreen() {
     const channel = supabase
       .channel(`events-realtime:${artistId}:${currentYear}-${currentMonth}`)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'events',
+          event: "*",
+          schema: "public",
+          table: "events",
           filter: `artist_id=eq.${artistId}`,
         },
-        refreshAgenda
+        refreshAgenda,
       )
       .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('📡 Realtime events: inscrito');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.warn('📡 Realtime events: erro - verifique se executou habilitar-realtime-events.sql');
+        if (status === "SUBSCRIBED") {
+          console.log("📡 Realtime events: inscrito");
+        } else if (status === "CHANNEL_ERROR") {
+          console.warn(
+            "📡 Realtime events: erro - verifique se executou habilitar-realtime-events.sql",
+          );
         }
       });
 
@@ -758,14 +859,18 @@ export default function AgendaScreen() {
     React.useCallback(() => {
       // Apenas invalidar cache e recarregar eventos se houver artista
       if (activeArtist) {
-        cacheService.invalidateEventsCache(activeArtist.id, currentYear, currentMonth);
+        cacheService.invalidateEventsCache(
+          activeArtist.id,
+          currentYear,
+          currentMonth,
+        );
         loadEvents(true);
       } else {
         // Verificar se criou novos artistas
         checkIfUserHasArtists();
       }
       loadUnreadCount();
-    }, [activeArtist, currentMonth, currentYear])
+    }, [activeArtist, currentMonth, currentYear]),
   );
 
   // Recarregar artista ativo apenas se a imagem foi atualizada via notificação
@@ -785,7 +890,7 @@ export default function AgendaScreen() {
 
     if (!activeArtist) {
       isNavigatingToEventRef.current = false;
-      Alert.alert('Erro', 'Nenhum artista selecionado.');
+      Alert.alert("Erro", "Nenhum artista selecionado.");
       return;
     }
 
@@ -794,32 +899,32 @@ export default function AgendaScreen() {
       if (!user) {
         isNavigatingToEventRef.current = false;
         if (maybeShowConnectionError(null, authErr)) return;
-        Alert.alert('Erro', 'Usuário não encontrado');
+        Alert.alert("Erro", "Usuário não encontrado");
         return;
       }
 
       const { data: memberData, error: roleError } = await supabase
-        .from('artist_members')
-        .select('role')
-        .eq('user_id', user.id)
-        .eq('artist_id', activeArtist.id)
+        .from("artist_members")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("artist_id", activeArtist.id)
         .single();
 
       if (roleError) {
         isNavigatingToEventRef.current = false;
         if (maybeShowConnectionError(roleError, roleError.message)) return;
-        Alert.alert('Erro', 'Você não tem acesso a este artista');
+        Alert.alert("Erro", "Você não tem acesso a este artista");
         return;
       }
       if (!memberData) {
         isNavigatingToEventRef.current = false;
-        Alert.alert('Erro', 'Você não tem acesso a este artista');
+        Alert.alert("Erro", "Você não tem acesso a este artista");
         return;
       }
 
       const userRole = memberData.role;
       // Vendedor só abre o detalhe de eventos que ele mesmo criou (checado após buscar o evento)
-      const canViewDetails = userRole === 'admin' || userRole === 'vendedor';
+      const canViewDetails = userRole === "admin" || userRole === "vendedor";
 
       if (!canViewDetails) {
         isNavigatingToEventRef.current = false;
@@ -831,12 +936,16 @@ export default function AgendaScreen() {
       if (!eventResult.success || !eventResult.event) {
         isNavigatingToEventRef.current = false;
         setShowDeletedEventModal(true);
-        cacheService.invalidateEventsCache(activeArtist.id, currentYear, currentMonth);
+        cacheService.invalidateEventsCache(
+          activeArtist.id,
+          currentYear,
+          currentMonth,
+        );
         loadEvents(true);
         return;
       }
 
-      if (userRole === 'vendedor' && eventResult.event.created_by !== user.id) {
+      if (userRole === "vendedor" && eventResult.event.created_by !== user.id) {
         isNavigatingToEventRef.current = false;
         setShowPermissionModal(true);
         return;
@@ -844,7 +953,7 @@ export default function AgendaScreen() {
 
       if (eventResult.event.convite_participacao_id) {
         setSelectedInviteEventInfo(eventResult.event);
-        setInviteCancelReason('');
+        setInviteCancelReason("");
         setShowInviteEventInfoModal(true);
         isNavigatingToEventRef.current = false;
         return;
@@ -854,17 +963,14 @@ export default function AgendaScreen() {
     } catch (error) {
       isNavigatingToEventRef.current = false;
       if (!maybeShowConnectionError(error)) {
-        Alert.alert('Erro', 'Erro ao verificar permissões');
+        Alert.alert("Erro", "Erro ao verificar permissões");
       }
     }
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([
-      loadEvents(true),
-      checkUserRole()
-    ]);
+    await Promise.all([loadEvents(true), checkUserRole()]);
     setRefreshing(false);
   };
 
@@ -879,7 +985,7 @@ export default function AgendaScreen() {
       const cachedEvents = await cacheService.getEventsData<any[]>(
         cacheKeyArtist,
         currentYear,
-        currentMonth
+        currentMonth,
       );
 
       if (cachedEvents && !isInitialLoad) {
@@ -890,7 +996,7 @@ export default function AgendaScreen() {
       const result = await getEventsByMonthWithRole(
         activeArtist.id,
         currentYear,
-        currentMonth
+        currentMonth,
       );
 
       if (result.success) {
@@ -901,12 +1007,16 @@ export default function AgendaScreen() {
           activeArtist.id,
           currentYear,
           currentMonth,
-          eventsData
+          eventsData,
         );
         return true;
       }
 
-      if (maybeShowConnectionError(null, result.error, { onRetry: () => void retryAgendaConnection() })) {
+      if (
+        maybeShowConnectionError(null, result.error, {
+          onRetry: () => void retryAgendaConnection(),
+        })
+      ) {
         if (cachedEvents) {
           setEvents(cachedEvents);
         } else {
@@ -916,10 +1026,10 @@ export default function AgendaScreen() {
       }
 
       const isAccessDenied =
-        result.errorCode === 'P0001' ||
+        result.errorCode === "P0001" ||
         (result.error &&
-          (result.error.includes('Usuário não tem acesso a este artista') ||
-            result.error.includes('não tem acesso')));
+          (result.error.includes("Usuário não tem acesso a este artista") ||
+            result.error.includes("não tem acesso")));
 
       if (isAccessDenied) {
         await handleUserRemovedFromArtist();
@@ -929,11 +1039,15 @@ export default function AgendaScreen() {
       setEvents([]);
       return true;
     } catch (error: any) {
-      if (maybeShowConnectionError(error, undefined, { onRetry: () => void retryAgendaConnection() })) {
+      if (
+        maybeShowConnectionError(error, undefined, {
+          onRetry: () => void retryAgendaConnection(),
+        })
+      ) {
         const cachedEvents = await cacheService.getEventsData<any[]>(
           cacheKeyArtist,
           currentYear,
-          currentMonth
+          currentMonth,
         );
         if (cachedEvents) {
           setEvents(cachedEvents);
@@ -944,10 +1058,10 @@ export default function AgendaScreen() {
       }
 
       const isAccessDenied =
-        error?.code === 'P0001' ||
+        error?.code === "P0001" ||
         (error?.message &&
-          (error.message.includes('Usuário não tem acesso a este artista') ||
-            error.message.includes('não tem acesso')));
+          (error.message.includes("Usuário não tem acesso a este artista") ||
+            error.message.includes("não tem acesso")));
 
       if (isAccessDenied) {
         await handleUserRemovedFromArtist();
@@ -976,7 +1090,7 @@ export default function AgendaScreen() {
   const handleUserRemovedFromArtist = async () => {
     try {
       setIsLoadingArtists(true);
-      
+
       // Buscar usuário atual
       const { user } = await getCurrentUser();
       if (!user) {
@@ -986,7 +1100,7 @@ export default function AgendaScreen() {
 
       // Buscar todos os artistas do usuário
       const { artists, error } = await getArtists(user.id);
-      
+
       if (error) {
         // Se der erro, limpar artista ativo e mostrar modal sem opções
         await clearArtist();
@@ -997,7 +1111,9 @@ export default function AgendaScreen() {
       }
 
       // Filtrar artistas diferentes do atual (que foi removido)
-      const otherArtists = (artists || []).filter(artist => artist.id !== activeArtist?.id);
+      const otherArtists = (artists || []).filter(
+        (artist) => artist.id !== activeArtist?.id,
+      );
       setAvailableArtists(otherArtists);
 
       // Limpar artista atual
@@ -1007,7 +1123,7 @@ export default function AgendaScreen() {
       // Mostrar modal
       setShowRemovedModal(true);
     } catch (error) {
-      console.error('Erro ao verificar artistas:', error);
+      console.error("Erro ao verificar artistas:", error);
       await clearArtist();
       setAvailableArtists([]);
       setShowRemovedModal(true);
@@ -1022,10 +1138,10 @@ export default function AgendaScreen() {
       await setActiveArtist({
         id: artist.id,
         name: artist.name,
-        role: artist.role || 'viewer',
+        role: artist.role || "viewer",
         profile_url: artist.profile_url,
         musical_style: artist.musical_style,
-        created_at: artist.created_at
+        created_at: artist.created_at,
       });
 
       // Fechar modal
@@ -1035,8 +1151,11 @@ export default function AgendaScreen() {
       // Recarregar eventos do novo artista
       // O useEffect vai detectar a mudança do activeArtist e carregar automaticamente
     } catch (error) {
-      console.error('Erro ao selecionar artista:', error);
-      Alert.alert('Erro', 'Não foi possível alterar o artista. Tente novamente.');
+      console.error("Erro ao selecionar artista:", error);
+      Alert.alert(
+        "Erro",
+        "Não foi possível alterar o artista. Tente novamente.",
+      );
     }
   };
 
@@ -1048,7 +1167,7 @@ export default function AgendaScreen() {
 
   const openArtistPickerModal = async () => {
     setShowArtistPickerModal(true);
-    setArtistPickerSearch('');
+    setArtistPickerSearch("");
     setIsLoadingArtistPicker(true);
     try {
       const { user, error: userError } = await getCurrentUser();
@@ -1067,7 +1186,7 @@ export default function AgendaScreen() {
 
   const closeArtistPickerModal = () => {
     setShowArtistPickerModal(false);
-    setArtistPickerSearch('');
+    setArtistPickerSearch("");
     setArtistPickerList([]);
   };
 
@@ -1076,15 +1195,18 @@ export default function AgendaScreen() {
       await setActiveArtist({
         id: artist.id,
         name: artist.name,
-        role: artist.role || 'viewer',
+        role: artist.role || "viewer",
         profile_url: artist.profile_url,
         musical_style: artist.musical_style,
-        created_at: artist.created_at
+        created_at: artist.created_at,
       });
       closeArtistPickerModal();
     } catch (error) {
-      console.error('Erro ao selecionar artista:', error);
-      Alert.alert('Erro', 'Não foi possível alterar o artista. Tente novamente.');
+      console.error("Erro ao selecionar artista:", error);
+      Alert.alert(
+        "Erro",
+        "Não foi possível alterar o artista. Tente novamente.",
+      );
     }
   };
 
@@ -1095,17 +1217,23 @@ export default function AgendaScreen() {
 
   const getRoleLabel = (role: string) => {
     switch (role) {
-      case 'admin': return 'Administrador';
-      case 'vendedor': return 'Vendedor';
-      case 'viewer': return 'Visualizador';
-      default: return role;
+      case "admin":
+        return "Administrador";
+      case "vendedor":
+        return "Vendedor";
+      case "viewer":
+        return "Visualizador";
+      default:
+        return role;
     }
   };
 
   const filteredArtistPickerList = useMemo(() => {
     const q = artistPickerSearch.trim().toLowerCase();
     if (!q) return artistPickerList;
-    return artistPickerList.filter((a) => (a.name || '').toLowerCase().includes(q));
+    return artistPickerList.filter((a) =>
+      (a.name || "").toLowerCase().includes(q),
+    );
   }, [artistPickerList, artistPickerSearch]);
 
   const handleAddShow = () => {
@@ -1123,9 +1251,9 @@ export default function AgendaScreen() {
 
   const handleWaitForInvite = () => {
     Alert.alert(
-      'Aguardar Convite',
-      'Você será notificado quando receber um convite para gerenciar um artista.',
-      [{ text: 'OK' }]
+      "Aguardar Convite",
+      "Se você faz parte da equipe de um artista, peça para ele te convidar pelo app. Você será notificado assim que o convite chegar.",
+      [{ text: "OK" }],
     );
   };
 
@@ -1133,7 +1261,10 @@ export default function AgendaScreen() {
     if (!selectedInviteEventInfo?.convite_participacao_id) return;
     const motivo = inviteCancelReason.trim();
     if (!motivo) {
-      Alert.alert('Motivo obrigatório', 'Informe o motivo para cancelar a participação.');
+      Alert.alert(
+        "Motivo obrigatório",
+        "Informe o motivo para cancelar a participação.",
+      );
       return;
     }
     try {
@@ -1142,20 +1273,30 @@ export default function AgendaScreen() {
       const { success, error } = await cancelarParticipacaoAceita(
         selectedInviteEventInfo.convite_participacao_id,
         motivo,
-        user?.id ?? null
+        user?.id ?? null,
       );
       if (!success) {
-        Alert.alert('Erro', error || 'Não foi possível cancelar a participação.');
+        Alert.alert(
+          "Erro",
+          error || "Não foi possível cancelar a participação.",
+        );
         return;
       }
       setShowInviteEventInfoModal(false);
       setSelectedInviteEventInfo(null);
-      setInviteCancelReason('');
+      setInviteCancelReason("");
       if (activeArtist) {
-        cacheService.invalidateEventsCache(activeArtist.id, currentYear, currentMonth);
+        cacheService.invalidateEventsCache(
+          activeArtist.id,
+          currentYear,
+          currentMonth,
+        );
         loadEvents(true);
       }
-      Alert.alert('Participação cancelada', 'Seu cancelamento foi enviado para quem convidou.');
+      Alert.alert(
+        "Participação cancelada",
+        "Seu cancelamento foi enviado para quem convidou.",
+      );
     } finally {
       setIsCancellingInviteParticipation(false);
     }
@@ -1174,9 +1315,9 @@ export default function AgendaScreen() {
         return;
       }
       const { data: convite } = await supabase
-        .from('convite_participacao_evento')
-        .select('funcao_participacao')
-        .eq('id', conviteId)
+        .from("convite_participacao_evento")
+        .select("funcao_participacao")
+        .eq("id", conviteId)
         .maybeSingle();
       const suggestedFunction = convite?.funcao_participacao?.trim() || null;
       if (!cancelled) setSelectedInviteFunction(suggestedFunction);
@@ -1185,7 +1326,10 @@ export default function AgendaScreen() {
     return () => {
       cancelled = true;
     };
-  }, [showInviteEventInfoModal, selectedInviteEventInfo?.convite_participacao_id]);
+  }, [
+    showInviteEventInfoModal,
+    selectedInviteEventInfo?.convite_participacao_id,
+  ]);
 
   useEffect(() => {
     if (showParticipantsModal) {
@@ -1195,39 +1339,39 @@ export default function AgendaScreen() {
 
   const getTagColor = (tag: string) => {
     switch (tag) {
-      case 'ensaio':
-        return '#10B981'; // Verde
-      case 'evento':
-        return '#667eea'; // Azul
-      case 'reunião':
-        return '#F59E0B'; // Laranja
+      case "ensaio":
+        return "#10B981"; // Verde
+      case "evento":
+        return "#667eea"; // Azul
+      case "reunião":
+        return "#F59E0B"; // Laranja
       default:
-        return '#667eea'; // Azul padrão
+        return "#667eea"; // Azul padrão
     }
   };
 
   const getTagIcon = (tag: string) => {
     switch (tag) {
-      case 'ensaio':
-        return 'musical-notes';
-      case 'evento':
-        return 'mic';
-      case 'reunião':
-        return 'people';
+      case "ensaio":
+        return "musical-notes";
+      case "evento":
+        return "mic";
+      case "reunião":
+        return "people";
       default:
-        return 'mic';
+        return "mic";
     }
   };
 
   const formatEventValueBRL = (value: number | string) => {
-    const n = typeof value === 'string' ? parseFloat(value) : Number(value);
-    if (Number.isNaN(n)) return 'R$ 0,00';
-    return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const n = typeof value === "string" ? parseFloat(value) : Number(value);
+    if (Number.isNaN(n)) return "R$ 0,00";
+    return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   };
 
   const hasDisplayableEventValue = (value: unknown) => {
-    if (value === null || value === undefined || value === '') return false;
-    const n = typeof value === 'string' ? parseFloat(value) : Number(value);
+    if (value === null || value === undefined || value === "") return false;
+    const n = typeof value === "string" ? parseFloat(value) : Number(value);
     if (!Number.isFinite(n)) return false;
     return n > 0;
   };
@@ -1236,22 +1380,25 @@ export default function AgendaScreen() {
     const full = participantAvatarsByEventId[item.id];
     if (full && full.length > 0) {
       setParticipantsModalList(full);
-      setParticipantsModalTitle(String(item.name || 'Participantes'));
+      setParticipantsModalTitle(String(item.name || "Participantes"));
       setShowParticipantsModal(true);
       return;
     }
-    const conviteIdForCard = item.convite_participacao_id || conviteIdByEventId[item.id];
-    const inviter = conviteIdForCard ? invitePartnerByConviteId[conviteIdForCard] : null;
+    const conviteIdForCard =
+      item.convite_participacao_id || conviteIdByEventId[item.id];
+    const inviter = conviteIdForCard
+      ? invitePartnerByConviteId[conviteIdForCard]
+      : null;
     if (inviter) {
       setParticipantsModalList([
         {
-          id: conviteIdForCard || 'invite',
+          id: conviteIdForCard || "invite",
           name: inviter.name,
           profile_url: inviter.profile_url,
           isHost: true,
         },
       ]);
-      setParticipantsModalTitle(String(item.name || 'Participantes'));
+      setParticipantsModalTitle(String(item.name || "Participantes"));
       setShowParticipantsModal(true);
     }
   };
@@ -1261,13 +1408,16 @@ export default function AgendaScreen() {
     if (!activeArtist) {
       return null;
     }
-    
-    // Parse da data sem conversão de fuso horário
-    const [year, month, day] = item.event_date.split('-').map(Number);
-    const eventDate = new Date(year, month - 1, day);
-    const dayOfWeek = eventDate.toLocaleDateString('pt-BR', { weekday: 'short' });
 
-    const conviteIdForCard = item.convite_participacao_id || conviteIdByEventId[item.id];
+    // Parse da data sem conversão de fuso horário
+    const [year, month, day] = item.event_date.split("-").map(Number);
+    const eventDate = new Date(year, month - 1, day);
+    const dayOfWeek = eventDate.toLocaleDateString("pt-BR", {
+      weekday: "short",
+    });
+
+    const conviteIdForCard =
+      item.convite_participacao_id || conviteIdByEventId[item.id];
     const isInvitedEvent = !!conviteIdForCard;
     const fromParticipantMap = participantAvatarsByEventId[item.id] || [];
     const collabAvatars: { profile_url: string | null; name: string }[] =
@@ -1275,15 +1425,20 @@ export default function AgendaScreen() {
         ? fromParticipantMap
             .filter((p) => !p.isHost)
             .slice(0, MAX_COLLAB_AVATARS_ON_CARD)
-            .map((p) => ({ profile_url: p.profile_url, name: p.name || 'Participante' }))
+            .map((p) => ({
+              profile_url: p.profile_url,
+              name: p.name || "Participante",
+            }))
         : [];
-    
-    const timeRange =
-      hasDefinedTime(item.start_time, item.end_time)
-        ? `${toHHMM(item.start_time)}${
-            toHHMM(item.end_time) && toHHMM(item.end_time) !== toHHMM(item.start_time) ? ` – ${toHHMM(item.end_time)}` : ''
-          }`
-        : '';
+
+    const timeRange = hasDefinedTime(item.start_time, item.end_time)
+      ? `${toHHMM(item.start_time)}${
+          toHHMM(item.end_time) &&
+          toHHMM(item.end_time) !== toHHMM(item.start_time)
+            ? ` – ${toHHMM(item.end_time)}`
+            : ""
+        }`
+      : "";
     const metaLineParts: string[] = [];
     if (timeRange) metaLineParts.push(timeRange);
     const locationLine = formatEventLocationSlash({
@@ -1291,7 +1446,7 @@ export default function AgendaScreen() {
       state_uf: item.state_uf,
     });
     if (locationLine) metaLineParts.push(locationLine);
-    const metaLine = metaLineParts.join(' · ');
+    const metaLine = metaLineParts.join(" · ");
 
     return (
       <TouchableOpacity
@@ -1306,106 +1461,163 @@ export default function AgendaScreen() {
         activeOpacity={canSeeEventValue(item) ? 0.7 : 1}
       >
         <View style={styles.showContent}>
-          <View style={[styles.showDateSection, { backgroundColor: colors.primary }]}>
+          <View
+            style={[
+              styles.showDateSection,
+              { backgroundColor: colors.primary },
+            ]}
+          >
             <Text style={styles.showDateNumber}>{day}</Text>
             <Text style={styles.showDateText}>{dayOfWeek}</Text>
           </View>
 
           <View style={styles.showInfoSection}>
-              <View style={styles.eventNameContainer}>
-                <Text
-                  style={[styles.showName, { color: colors.text }]}
-                  numberOfLines={2}
-                  ellipsizeMode="tail"
-                >
-                  {item.name}
-                </Text>
-                {!canSeeEventValue(item) && (
-                  <Ionicons name="lock-closed" size={14} color={colors.textSecondary} style={{ marginLeft: 6 }} />
-                )}
-              </View>
+            <View style={styles.eventNameContainer}>
+              <Text
+                style={[styles.showName, { color: colors.text }]}
+                numberOfLines={2}
+                ellipsizeMode="tail"
+              >
+                {item.name}
+              </Text>
+              {!canSeeEventValue(item) && (
+                <Ionicons
+                  name="lock-closed"
+                  size={14}
+                  color={colors.textSecondary}
+                  style={{ marginLeft: 6 }}
+                />
+              )}
+            </View>
 
-              <View style={styles.glLabelsRow}>
-                {item.tag ? (
-                  <View style={[styles.glLabelPill, { borderColor: `${getTagColor(item.tag)}55`, backgroundColor: `${getTagColor(item.tag)}18` }]}>
-                    <Ionicons name={getTagIcon(item.tag)} size={11} color={getTagColor(item.tag)} />
-                    <Text style={[styles.glLabelText, { color: colors.text }]} numberOfLines={1}>
-                      {item.tag}
-                    </Text>
-                  </View>
-                ) : null}
+            <View style={styles.glLabelsRow}>
+              {item.tag ? (
                 <View
                   style={[
                     styles.glLabelPill,
                     {
-                      borderColor: item.confirmed ? `${colors.success}55` : `${colors.warning}55`,
-                      backgroundColor: item.confirmed ? `${colors.success}18` : `${colors.warning}18`,
+                      borderColor: `${getTagColor(item.tag)}55`,
+                      backgroundColor: `${getTagColor(item.tag)}18`,
                     },
                   ]}
                 >
                   <Ionicons
-                    name={item.confirmed ? 'checkmark-circle' : 'time-outline'}
+                    name={getTagIcon(item.tag)}
                     size={11}
-                    color={item.confirmed ? colors.success : colors.warning}
+                    color={getTagColor(item.tag)}
                   />
-                  <Text style={[styles.glLabelText, { color: colors.text }]} numberOfLines={1}>
-                    {item.confirmed ? 'Confirmado' : 'A Confirmar'}
+                  <Text
+                    style={[styles.glLabelText, { color: colors.text }]}
+                    numberOfLines={1}
+                  >
+                    {item.tag}
                   </Text>
                 </View>
-              </View>
-
-              {metaLine ? (
-                <Text style={[styles.glMetaLine, { color: colors.textSecondary }]} numberOfLines={2}>
-                  {metaLine}
-                </Text>
               ) : null}
+              <View
+                style={[
+                  styles.glLabelPill,
+                  {
+                    borderColor: item.confirmed
+                      ? `${colors.success}55`
+                      : `${colors.warning}55`,
+                    backgroundColor: item.confirmed
+                      ? `${colors.success}18`
+                      : `${colors.warning}18`,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={item.confirmed ? "checkmark-circle" : "time-outline"}
+                  size={11}
+                  color={item.confirmed ? colors.success : colors.warning}
+                />
+                <Text
+                  style={[styles.glLabelText, { color: colors.text }]}
+                  numberOfLines={1}
+                >
+                  {item.confirmed ? "Confirmado" : "A Confirmar"}
+                </Text>
+              </View>
+            </View>
 
-              <View style={[styles.showFooterRow, { borderTopColor: colors.border }]}>
-                <View style={styles.showValueLeft}>
-                  {canSeeEventValue(item) && hasDisplayableEventValue(item.value) ? (
-                    <Text style={[styles.showValue, { color: colors.primary }]} numberOfLines={1}>
-                      {formatEventValueBRL(item.value)}
-                    </Text>
-                  ) : null}
-                </View>
-                <View style={styles.showFooterRight}>
-                  {collabAvatars.length > 0 ? (
-                    <TouchableOpacity
-                      style={[styles.collabFooterBadge, { backgroundColor: `${colors.primary}10`, borderColor: `${colors.primary}28` }]}
-                      onPress={() => handleOpenParticipantsModal(item)}
-                      activeOpacity={0.75}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
-                    >
-                      <View style={styles.collabAvatarStack}>
-                        {collabAvatars.map((a, idx) => (
-                          <View
-                            key={`${item.id}_collab_${idx}`}
-                            style={[
-                              styles.collabStackAvatarWrapper,
-                              ...(idx > 0 ? [styles.collabStackAvatarOverlap] : []),
-                              { borderColor: colors.surface, zIndex: idx, backgroundColor: colors.secondary },
-                            ]}
-                          >
-                            <OptimizedImage
-                              imageUrl={a.profile_url || ''}
-                              style={styles.collabStackAvatarInner}
-                              cacheKey={`collab_stack_${item.id}_${idx}_${a.profile_url || 'none'}`}
-                              fallbackText={a.name || 'Participante'}
-                              fallbackIcon="person"
-                              fallbackIconSize={9}
-                              fallbackIconColor="#FFFFFF"
-                              showLoadingIndicator={false}
-                            />
-                          </View>
-                        ))}
-                      </View>
-                    </TouchableOpacity>
-                  ) : null}
-                  <View style={styles.showArrowSection}>
-                    <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-                  </View>
+            {metaLine ? (
+              <Text
+                style={[styles.glMetaLine, { color: colors.textSecondary }]}
+                numberOfLines={2}
+              >
+                {metaLine}
+              </Text>
+            ) : null}
+
+            <View
+              style={[styles.showFooterRow, { borderTopColor: colors.border }]}
+            >
+              <View style={styles.showValueLeft}>
+                {canSeeEventValue(item) &&
+                hasDisplayableEventValue(item.value) ? (
+                  <Text
+                    style={[styles.showValue, { color: colors.primary }]}
+                    numberOfLines={1}
+                  >
+                    {formatEventValueBRL(item.value)}
+                  </Text>
+                ) : null}
+              </View>
+              <View style={styles.showFooterRight}>
+                {collabAvatars.length > 0 ? (
+                  <TouchableOpacity
+                    style={[
+                      styles.collabFooterBadge,
+                      {
+                        backgroundColor: `${colors.primary}10`,
+                        borderColor: `${colors.primary}28`,
+                      },
+                    ]}
+                    onPress={() => handleOpenParticipantsModal(item)}
+                    activeOpacity={0.75}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
+                  >
+                    <View style={styles.collabAvatarStack}>
+                      {collabAvatars.map((a, idx) => (
+                        <View
+                          key={`${item.id}_collab_${idx}`}
+                          style={[
+                            styles.collabStackAvatarWrapper,
+                            ...(idx > 0
+                              ? [styles.collabStackAvatarOverlap]
+                              : []),
+                            {
+                              borderColor: colors.surface,
+                              zIndex: idx,
+                              backgroundColor: colors.secondary,
+                            },
+                          ]}
+                        >
+                          <OptimizedImage
+                            imageUrl={a.profile_url || ""}
+                            style={styles.collabStackAvatarInner}
+                            cacheKey={`collab_stack_${item.id}_${idx}_${a.profile_url || "none"}`}
+                            fallbackText={a.name || "Participante"}
+                            fallbackIcon="person"
+                            fallbackIconSize={9}
+                            fallbackIconColor="#FFFFFF"
+                            showLoadingIndicator={false}
+                          />
+                        </View>
+                      ))}
+                    </View>
+                  </TouchableOpacity>
+                ) : null}
+                <View style={styles.showArrowSection}>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={colors.textSecondary}
+                  />
                 </View>
               </View>
+            </View>
           </View>
         </View>
       </TouchableOpacity>
@@ -1414,7 +1626,7 @@ export default function AgendaScreen() {
   const handleDayPress = async (dateString: string | null) => {
     if (!dateString) return;
     const dayEvents = eventsByDate[dateString];
-    
+
     // Se houver eventos, mostrar modal com os eventos
     if (dayEvents && dayEvents.length > 0) {
       setSelectedDay(dateString);
@@ -1424,7 +1636,7 @@ export default function AgendaScreen() {
     }
 
     // Se não houver eventos, navegar para criar evento com a data setada
-    const [year, month, day] = dateString.split('-').map(Number);
+    const [year, month, day] = dateString.split("-").map(Number);
     const selectedDate = new Date(year, month - 1, day);
     void openAddEventScreen({
       selectedMonth: month - 1,
@@ -1435,21 +1647,29 @@ export default function AgendaScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { 
-        backgroundColor: colors.surface, 
-        borderBottomColor: colors.border,
-        paddingTop: insets.top + 20
-      }]}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: colors.surface,
+            borderBottomColor: colors.border,
+            paddingTop: insets.top + 20,
+          },
+        ]}
+      >
         {/* Header do Artista */}
         {activeArtist && (
           <View style={styles.artistHeader}>
             <View style={styles.artistInfo}>
-              <TouchableOpacity onPress={openArtistPickerModal} activeOpacity={0.8}>
+              <TouchableOpacity
+                onPress={openArtistPickerModal}
+                activeOpacity={0.8}
+              >
                 <OptimizedImage
-                  imageUrl={activeArtist.profile_url || ''}
+                  imageUrl={activeArtist.profile_url || ""}
                   style={[styles.artistAvatar, { borderColor: colors.border }]}
                   cacheKey={`artist_${activeArtist.id}`}
-                  fallbackText={activeArtist.name || 'Artista'}
+                  fallbackText={activeArtist.name || "Artista"}
                   fallbackIcon="musical-notes"
                   fallbackIconSize={24}
                   fallbackIconColor={colors.primary}
@@ -1464,49 +1684,68 @@ export default function AgendaScreen() {
               </TouchableOpacity>
               <View style={styles.artistDetails}>
                 <View style={styles.artistNameRow}>
-                  <Text style={[styles.artistName, { color: colors.text }]}>{activeArtist.name}</Text>
+                  <Text style={[styles.artistName, { color: colors.text }]}>
+                    {activeArtist.name}
+                  </Text>
                   <View style={styles.headerActions}>
                     {/* Ícone de Notificações */}
                     <TouchableOpacity
                       style={styles.notificationButton}
-                      onPress={() => router.push('/notificacoes')}
+                      onPress={() => router.push("/notificacoes")}
                     >
-                      <Ionicons name="notifications-outline" size={24} color={colors.primary} />
+                      <Ionicons
+                        name="notifications-outline"
+                        size={24}
+                        color={colors.primary}
+                      />
                       {unreadCount > 0 && (
                         <View style={styles.notificationBadge}>
                           <Text style={styles.badgeText}>
-                            {unreadCount > 99 ? '99+' : unreadCount.toString()}
+                            {unreadCount > 99 ? "99+" : unreadCount.toString()}
                           </Text>
                         </View>
                       )}
                     </TouchableOpacity>
                   </View>
                 </View>
-                <Text style={[styles.artistSubtitle, { color: colors.textSecondary }]}>Agenda de Shows</Text>
+                <Text
+                  style={[
+                    styles.artistSubtitle,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  Agenda de Shows
+                </Text>
               </View>
             </View>
           </View>
         )}
-        
+
         {!activeArtist && (
           <View style={styles.noArtistHeader}>
-            <Text style={[styles.title, { color: colors.text }]}>Agenda de Shows</Text>
+            <Text style={[styles.title, { color: colors.text }]}>
+              Agenda de Shows
+            </Text>
             <TouchableOpacity
               style={styles.notificationButton}
-              onPress={() => router.push('/notificacoes')}
+              onPress={() => router.push("/notificacoes")}
             >
-              <Ionicons name="notifications-outline" size={24} color={colors.primary} />
+              <Ionicons
+                name="notifications-outline"
+                size={24}
+                color={colors.primary}
+              />
               {unreadCount > 0 && (
                 <View style={styles.notificationBadge}>
                   <Text style={styles.badgeText}>
-                    {unreadCount > 99 ? '99+' : unreadCount.toString()}
+                    {unreadCount > 99 ? "99+" : unreadCount.toString()}
                   </Text>
                 </View>
               )}
             </TouchableOpacity>
           </View>
         )}
-        
+
         {/* Navegação do mês */}
         <View style={styles.monthNavigation}>
           <TouchableOpacity
@@ -1515,9 +1754,11 @@ export default function AgendaScreen() {
               { backgroundColor: colors.secondary },
               !!activeArtist && isLoadingMonthEvents && { opacity: 0.45 },
             ]}
-            onPress={() => navigateMonth('prev')}
+            onPress={() => navigateMonth("prev")}
             disabled={!!activeArtist && isLoadingMonthEvents}
-            accessibilityState={{ disabled: !!activeArtist && isLoadingMonthEvents }}
+            accessibilityState={{
+              disabled: !!activeArtist && isLoadingMonthEvents,
+            }}
           >
             <Ionicons name="chevron-back" size={24} color={colors.primary} />
           </TouchableOpacity>
@@ -1529,7 +1770,12 @@ export default function AgendaScreen() {
             {activeArtist && isLoadingMonthEvents ? (
               <View style={styles.monthLoadingRow}>
                 <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={[styles.monthLoadingText, { color: colors.textSecondary }]}>
+                <Text
+                  style={[
+                    styles.monthLoadingText,
+                    { color: colors.textSecondary },
+                  ]}
+                >
                   Carregando eventos…
                 </Text>
               </View>
@@ -1542,23 +1788,33 @@ export default function AgendaScreen() {
               { backgroundColor: colors.secondary },
               !!activeArtist && isLoadingMonthEvents && { opacity: 0.45 },
             ]}
-            onPress={() => navigateMonth('next')}
+            onPress={() => navigateMonth("next")}
             disabled={!!activeArtist && isLoadingMonthEvents}
-            accessibilityState={{ disabled: !!activeArtist && isLoadingMonthEvents }}
+            accessibilityState={{
+              disabled: !!activeArtist && isLoadingMonthEvents,
+            }}
           >
             <Ionicons name="chevron-forward" size={24} color={colors.primary} />
           </TouchableOpacity>
         </View>
 
-        <View style={[styles.todayRow, { backgroundColor: colors.secondary + '55' }]}>
+        <View
+          style={[
+            styles.todayRow,
+            { backgroundColor: colors.secondary + "55" },
+          ]}
+        >
           <Ionicons name="today-outline" size={17} color={colors.primary} />
-          <Text style={[styles.todayText, { color: colors.textSecondary }]} numberOfLines={2}>
+          <Text
+            style={[styles.todayText, { color: colors.textSecondary }]}
+            numberOfLines={2}
+          >
             Hoje · {todayFormatted}
           </Text>
         </View>
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={[styles.content, { backgroundColor: colors.background }]}
         refreshControl={
           <RefreshControl
@@ -1571,32 +1827,54 @@ export default function AgendaScreen() {
       >
         {isLoading ? (
           <View style={styles.loadingContainer}>
-            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Carregando...</Text>
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+              Carregando...
+            </Text>
           </View>
         ) : !activeArtist ? (
           /* Estado vazio - sem artista selecionado */
-          <View style={[styles.emptyStateContainer, { backgroundColor: colors.background }]}>
+          <View
+            style={[
+              styles.emptyStateContainer,
+              { backgroundColor: colors.background },
+            ]}
+          >
             <View style={styles.emptyStateIcon}>
-              <Ionicons name="musical-notes" size={64} color={colors.textSecondary} />
+              <Ionicons
+                name="musical-notes"
+                size={64}
+                color={colors.textSecondary}
+              />
             </View>
-            
+
             {hasAnyArtist ? (
               /* Usuário tem artistas mas nenhum selecionado */
               <>
                 <Text style={[styles.emptyStateTitle, { color: colors.text }]}>
                   Selecione um Artista
                 </Text>
-                <Text style={[styles.emptyStateSubtitle, { color: colors.textSecondary }]}>
-                  Você precisa selecionar um artista para acessar a agenda de shows.
+                <Text
+                  style={[
+                    styles.emptyStateSubtitle,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  Você precisa selecionar um artista para acessar a agenda de
+                  shows.
                 </Text>
-                
+
                 <View style={styles.emptyStateActions}>
                   <TouchableOpacity
-                    style={[styles.createButton, { backgroundColor: colors.primary }]}
-                    onPress={() => router.push('/selecionar-artista')}
+                    style={[
+                      styles.createButton,
+                      { backgroundColor: colors.primary },
+                    ]}
+                    onPress={() => router.push("/selecionar-artista")}
                   >
                     <Ionicons name="list" size={20} color="#fff" />
-                    <Text style={styles.createButtonText}>Selecionar Artista</Text>
+                    <Text style={styles.createButtonText}>
+                      Selecionar Artista
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -1606,25 +1884,42 @@ export default function AgendaScreen() {
                 <Text style={[styles.emptyStateTitle, { color: colors.text }]}>
                   Nenhum perfil para gerenciar
                 </Text>
-                <Text style={[styles.emptyStateSubtitle, { color: colors.textSecondary }]}>
-                  Você ainda não tem nenhum artista para gerenciar. Crie um perfil agora ou aguarde um convite.
+                <Text
+                  style={[
+                    styles.emptyStateSubtitle,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  O app funciona dentro de um perfil de artista. Crie o seu se
+                  você administra a carreira, ou aguarde um convite se faz parte
+                  da equipe de outro artista.
                 </Text>
-                
+
                 <View style={styles.emptyStateActions}>
                   <TouchableOpacity
-                    style={[styles.createButton, { backgroundColor: colors.primary }]}
+                    style={[
+                      styles.createButton,
+                      { backgroundColor: colors.primary },
+                    ]}
                     onPress={handleCreateArtist}
                   >
                     <Ionicons name="add-circle" size={20} color="#fff" />
                     <Text style={styles.createButtonText}>Criar Agora</Text>
                   </TouchableOpacity>
-                  
+
                   <TouchableOpacity
-                    style={[styles.waitButton, { backgroundColor: colors.secondary }]}
+                    style={[
+                      styles.waitButton,
+                      { backgroundColor: colors.secondary },
+                    ]}
                     onPress={handleWaitForInvite}
                   >
                     <Ionicons name="time" size={20} color={colors.primary} />
-                    <Text style={[styles.waitButtonText, { color: colors.primary }]}>Aguardar Convite</Text>
+                    <Text
+                      style={[styles.waitButtonText, { color: colors.primary }]}
+                    >
+                      Aguardar Convite
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -1635,31 +1930,41 @@ export default function AgendaScreen() {
             <TouchableOpacity
               style={[
                 styles.calendarToggleButton,
-                { backgroundColor: colors.surface, borderColor: colors.border }
+                { backgroundColor: colors.surface, borderColor: colors.border },
               ]}
-              onPress={() => setIsCalendarVisible(prev => !prev)}
+              onPress={() => setIsCalendarVisible((prev) => !prev)}
               activeOpacity={0.85}
             >
               <Ionicons
-                name={isCalendarVisible ? 'chevron-up' : 'calendar-outline'}
+                name={isCalendarVisible ? "chevron-up" : "calendar-outline"}
                 size={18}
                 color={colors.primary}
               />
               <Text style={[styles.calendarToggleText, { color: colors.text }]}>
-                {isCalendarVisible ? 'Ocultar calendário' : 'Mostrar calendário'}
+                {isCalendarVisible
+                  ? "Ocultar calendário"
+                  : "Mostrar calendário"}
               </Text>
             </TouchableOpacity>
 
             {isCalendarVisible && (
-              <View style={[
-                styles.calendarContainer,
-                { backgroundColor: colors.surface, borderColor: colors.border }
-              ]}>
+              <View
+                style={[
+                  styles.calendarContainer,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
                 <View style={styles.calendarHeaderRow}>
-                  {weekdayLabels.map(label => (
+                  {weekdayLabels.map((label) => (
                     <Text
                       key={label}
-                      style={[styles.calendarHeaderText, { color: colors.textSecondary }]}
+                      style={[
+                        styles.calendarHeaderText,
+                        { color: colors.textSecondary },
+                      ]}
                     >
                       {label}
                     </Text>
@@ -1667,10 +1972,18 @@ export default function AgendaScreen() {
                 </View>
 
                 {calendarMatrix.map((week, weekIndex) => (
-                  <View key={`week-${weekIndex}`} style={styles.calendarWeekRow}>
+                  <View
+                    key={`week-${weekIndex}`}
+                    style={styles.calendarWeekRow}
+                  >
                     {week.map((day, dayIndex) => {
                       if (!day) {
-                        return <View key={`empty-${weekIndex}-${dayIndex}`} style={styles.calendarDayCell} />;
+                        return (
+                          <View
+                            key={`empty-${weekIndex}-${dayIndex}`}
+                            style={styles.calendarDayCell}
+                          />
+                        );
                       }
 
                       const dayEvents = eventsByDate[day.dateString] || [];
@@ -1682,8 +1995,11 @@ export default function AgendaScreen() {
                           key={day.dateString}
                           style={[
                             styles.calendarDayCell,
-                            isToday && { borderColor: colors.primary, borderWidth: 1.5 },
-                            hasEvents && { backgroundColor: colors.secondary }
+                            isToday && {
+                              borderColor: colors.primary,
+                              borderWidth: 1.5,
+                            },
+                            hasEvents && { backgroundColor: colors.secondary },
                           ]}
                           onPress={() => handleDayPress(day.dateString)}
                           activeOpacity={0.7}
@@ -1692,8 +2008,12 @@ export default function AgendaScreen() {
                           <Text
                             style={[
                               styles.calendarDayText,
-                              { color: hasEvents ? colors.text : colors.textSecondary },
-                              isToday && styles.calendarDayTodayText
+                              {
+                                color: hasEvents
+                                  ? colors.text
+                                  : colors.textSecondary,
+                              },
+                              isToday && styles.calendarDayTodayText,
                             ]}
                           >
                             {day.dayNumber}
@@ -1702,7 +2022,7 @@ export default function AgendaScreen() {
                             <View
                               style={[
                                 styles.eventIndicator,
-                                { backgroundColor: colors.primary }
+                                { backgroundColor: colors.primary },
                               ]}
                             />
                           )}
@@ -1724,8 +2044,17 @@ export default function AgendaScreen() {
                 />
               ) : (
                 <View style={styles.noShowsContainer}>
-                  <Ionicons name="calendar-outline" size={48} color={colors.textSecondary} />
-                  <Text style={[styles.noShowsText, { color: colors.textSecondary }]}>
+                  <Ionicons
+                    name="calendar-outline"
+                    size={48}
+                    color={colors.textSecondary}
+                  />
+                  <Text
+                    style={[
+                      styles.noShowsText,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
                     Nenhum show agendado para este mês
                   </Text>
                 </View>
@@ -1740,7 +2069,10 @@ export default function AgendaScreen() {
         <TouchableOpacity
           style={[
             styles.fab,
-            { backgroundColor: colors.primary, opacity: isOpeningAddEventScreen ? 0.85 : 1 },
+            {
+              backgroundColor: colors.primary,
+              opacity: isOpeningAddEventScreen ? 0.85 : 1,
+            },
           ]}
           onPress={handleAddShow}
           disabled={isOpeningAddEventScreen}
@@ -1766,7 +2098,12 @@ export default function AgendaScreen() {
             <View style={styles.dayModalBackdrop} />
           </TouchableWithoutFeedback>
 
-          <View style={[styles.dayModalContent, { backgroundColor: colors.surface }]}>
+          <View
+            style={[
+              styles.dayModalContent,
+              { backgroundColor: colors.surface },
+            ]}
+          >
             <TouchableOpacity
               style={styles.dayModalCloseButton}
               onPress={closeDayModal}
@@ -1779,7 +2116,7 @@ export default function AgendaScreen() {
               {formatDisplayDate(selectedDay)}
             </Text>
 
-            {selectedDayEvents.map(event => (
+            {selectedDayEvents.map((event) => (
               <TouchableOpacity
                 key={event.id}
                 style={[styles.dayEventCard, { borderColor: colors.border }]}
@@ -1807,9 +2144,17 @@ export default function AgendaScreen() {
                         size={16}
                         color={colors.textSecondary}
                       />
-                      <Text style={[styles.dayEventTime, { color: colors.textSecondary }]}>
+                      <Text
+                        style={[
+                          styles.dayEventTime,
+                          { color: colors.textSecondary },
+                        ]}
+                      >
                         {toHHMM(event.start_time)}
-                        {toHHMM(event.end_time) && toHHMM(event.end_time) !== toHHMM(event.start_time) ? ` - ${toHHMM(event.end_time)}` : ''}
+                        {toHHMM(event.end_time) &&
+                        toHHMM(event.end_time) !== toHHMM(event.start_time)
+                          ? ` - ${toHHMM(event.end_time)}`
+                          : ""}
                       </Text>
                     </>
                   ) : null}
@@ -1818,7 +2163,12 @@ export default function AgendaScreen() {
             ))}
 
             {selectedDayEvents.length === 0 && (
-              <Text style={[styles.dayEventEmptyText, { color: colors.textSecondary }]}>
+              <Text
+                style={[
+                  styles.dayEventEmptyText,
+                  { color: colors.textSecondary },
+                ]}
+              >
                 Nenhum evento para este dia.
               </Text>
             )}
@@ -1837,56 +2187,121 @@ export default function AgendaScreen() {
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.deletedEventModalOverlay}>
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width: '100%', alignItems: 'center' }}>
-              <View style={[styles.deletedEventModalContent, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, maxWidth: 360 }]}>
-                <Text style={[styles.deletedEventModalTitle, { color: colors.text }]}>Evento de participação</Text>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : undefined}
+              style={{ width: "100%", alignItems: "center" }}
+            >
+              <View
+                style={[
+                  styles.deletedEventModalContent,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    borderWidth: 1,
+                    maxWidth: 360,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.deletedEventModalTitle,
+                    { color: colors.text },
+                  ]}
+                >
+                  Evento de participação
+                </Text>
                 {selectedInviteEventInfo ? (
                   <ScrollView
-                    style={{ width: '100%' }}
+                    style={{ width: "100%" }}
                     keyboardShouldPersistTaps="handled"
                     showsVerticalScrollIndicator={false}
                   >
-                    <Text style={[styles.inviteInfoLine, { color: colors.text }]}>Evento: {selectedInviteEventInfo.name}</Text>
-                    <Text style={[styles.inviteInfoLine, { color: colors.textSecondary }]}>
-                      Horário: {selectedInviteEventInfo.start_time?.slice(0, 5)}–{selectedInviteEventInfo.end_time?.slice(0, 5)}
+                    <Text
+                      style={[styles.inviteInfoLine, { color: colors.text }]}
+                    >
+                      Evento: {selectedInviteEventInfo.name}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.inviteInfoLine,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      Horário: {selectedInviteEventInfo.start_time?.slice(0, 5)}
+                      –{selectedInviteEventInfo.end_time?.slice(0, 5)}
                     </Text>
                     {selectedInviteEventInfo.city ? (
-                      <Text style={[styles.inviteInfoLine, { color: colors.textSecondary }]}>Local: {selectedInviteEventInfo.city}</Text>
+                      <Text
+                        style={[
+                          styles.inviteInfoLine,
+                          { color: colors.textSecondary },
+                        ]}
+                      >
+                        Local: {selectedInviteEventInfo.city}
+                      </Text>
                     ) : null}
                     {selectedInviteEventInfo.value != null ? (
-                      <Text style={[styles.inviteInfoLine, { color: colors.textSecondary }]}>
-                        Cachê: {formatEventValueBRL(selectedInviteEventInfo.value)}
+                      <Text
+                        style={[
+                          styles.inviteInfoLine,
+                          { color: colors.textSecondary },
+                        ]}
+                      >
+                        Cachê:{" "}
+                        {formatEventValueBRL(selectedInviteEventInfo.value)}
                       </Text>
                     ) : null}
                     {selectedInviteEventInfo.contractor_phone ? (
                       <View
                         style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
+                          flexDirection: "row",
+                          alignItems: "center",
                           gap: 8,
                           marginBottom: 4,
-                          flexWrap: 'wrap',
+                          flexWrap: "wrap",
                         }}
                       >
-                        <Text style={[styles.inviteInfoLine, { color: colors.textSecondary, flex: 1, marginBottom: 0 }]}>
+                        <Text
+                          style={[
+                            styles.inviteInfoLine,
+                            {
+                              color: colors.textSecondary,
+                              flex: 1,
+                              marginBottom: 0,
+                            },
+                          ]}
+                        >
                           WhatsApp: {selectedInviteEventInfo.contractor_phone}
                         </Text>
-                        {buildWhatsAppUrl(selectedInviteEventInfo.contractor_phone) ? (
+                        {buildWhatsAppUrl(
+                          selectedInviteEventInfo.contractor_phone,
+                        ) ? (
                           <TouchableOpacity
                             onPress={() => {
-                              const url = buildWhatsAppUrl(selectedInviteEventInfo.contractor_phone);
+                              const url = buildWhatsAppUrl(
+                                selectedInviteEventInfo.contractor_phone,
+                              );
                               if (url) void Linking.openURL(url);
                             }}
                             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                             accessibilityLabel="Abrir WhatsApp"
                           >
-                            <Ionicons name="logo-whatsapp" size={26} color="#25D366" />
+                            <Ionicons
+                              name="logo-whatsapp"
+                              size={26}
+                              color="#25D366"
+                            />
                           </TouchableOpacity>
                         ) : null}
                       </View>
                     ) : null}
                     {selectedInviteFunction ? (
-                      <Text style={[styles.inviteInfoLine, { color: colors.textSecondary }]}>
+                      <Text
+                        style={[
+                          styles.inviteInfoLine,
+                          { color: colors.textSecondary },
+                        ]}
+                      >
                         Função sugerida: {selectedInviteFunction}
                       </Text>
                     ) : null}
@@ -1896,7 +2311,14 @@ export default function AgendaScreen() {
                       placeholder="Motivo do cancelamento (obrigatório)"
                       placeholderTextColor={colors.textSecondary}
                       multiline
-                      style={[styles.inviteCancelReasonInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
+                      style={[
+                        styles.inviteCancelReasonInput,
+                        {
+                          color: colors.text,
+                          borderColor: colors.border,
+                          backgroundColor: colors.background,
+                        },
+                      ]}
                     />
                   </ScrollView>
                 ) : null}
@@ -1912,19 +2334,39 @@ export default function AgendaScreen() {
                       setShowInviteEventInfoModal(false);
                     }}
                   >
-                    <Text style={[styles.deletedEventModalButtonText, styles.inviteModalButtonText, { color: colors.textSecondary }]}>Fechar</Text>
+                    <Text
+                      style={[
+                        styles.deletedEventModalButtonText,
+                        styles.inviteModalButtonText,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      Fechar
+                    </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[
                       styles.deletedEventModalButton,
                       styles.inviteBtnPrimary,
-                      { backgroundColor: colors.error, marginTop: 16, opacity: isCancellingInviteParticipation ? 0.7 : 1, flex: 1 },
+                      {
+                        backgroundColor: colors.error,
+                        marginTop: 16,
+                        opacity: isCancellingInviteParticipation ? 0.7 : 1,
+                        flex: 1,
+                      },
                     ]}
                     onPress={() => void handleCancelInviteParticipation()}
                     disabled={isCancellingInviteParticipation}
                   >
-                    <Text style={[styles.deletedEventModalButtonText, styles.inviteModalButtonText]}>
-                      {isCancellingInviteParticipation ? 'Cancelando...' : 'Cancelar participação'}
+                    <Text
+                      style={[
+                        styles.deletedEventModalButtonText,
+                        styles.inviteModalButtonText,
+                      ]}
+                    >
+                      {isCancellingInviteParticipation
+                        ? "Cancelando..."
+                        : "Cancelar participação"}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -1941,7 +2383,9 @@ export default function AgendaScreen() {
         onRequestClose={() => setShowParticipantsModal(false)}
       >
         <View style={styles.dayModalOverlay}>
-          <TouchableWithoutFeedback onPress={() => setShowParticipantsModal(false)}>
+          <TouchableWithoutFeedback
+            onPress={() => setShowParticipantsModal(false)}
+          >
             <View style={styles.dayModalBackdrop} />
           </TouchableWithoutFeedback>
           <View
@@ -1951,7 +2395,7 @@ export default function AgendaScreen() {
                 backgroundColor: colors.surface,
                 borderWidth: 1,
                 borderColor: colors.border,
-                maxHeight: '82%',
+                maxHeight: "82%",
               },
             ]}
           >
@@ -1963,33 +2407,52 @@ export default function AgendaScreen() {
                 participantsModalExpanded || !expandable
                   ? list
                   : list.slice(0, PARTICIPANTS_COLLAPSED_PREVIEW);
-              const participantRow = (p: AgendaParticipantRow, suffix: string) => (
+              const participantRow = (
+                p: AgendaParticipantRow,
+                suffix: string,
+              ) => (
                 <View
-                  key={`${p.id}_${p.isHost ? 'h' : 'g'}_${suffix}`}
-                  style={[styles.inviterRow, { backgroundColor: `${colors.primary}12`, borderColor: `${colors.primary}30` }]}
+                  key={`${p.id}_${p.isHost ? "h" : "g"}_${suffix}`}
+                  style={[
+                    styles.inviterRow,
+                    {
+                      backgroundColor: `${colors.primary}12`,
+                      borderColor: `${colors.primary}30`,
+                    },
+                  ]}
                 >
                   <OptimizedImage
-                    imageUrl={p.profile_url || ''}
+                    imageUrl={p.profile_url || ""}
                     style={styles.inviterAvatar}
-                    cacheKey={`participants_modal_${p.id}_${p.profile_url || 'none'}`}
-                    fallbackText={p.name || 'Participante'}
+                    cacheKey={`participants_modal_${p.id}_${p.profile_url || "none"}`}
+                    fallbackText={p.name || "Participante"}
                     fallbackIcon="person"
                     fallbackIconSize={18}
                     fallbackIconColor="#FFFFFF"
                     showLoadingIndicator={false}
                   />
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.inviterLabel, { color: colors.textSecondary }]}>
-                      {p.isHost ? 'Organizador' : 'Convidado'}
+                    <Text
+                      style={[
+                        styles.inviterLabel,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      {p.isHost ? "Organizador" : "Convidado"}
                     </Text>
-                    <Text style={[styles.inviterName, { color: colors.text }]}>{p.name}</Text>
+                    <Text style={[styles.inviterName, { color: colors.text }]}>
+                      {p.name}
+                    </Text>
                   </View>
                 </View>
               );
               return (
                 <>
                   <TouchableOpacity
-                    style={[styles.participantsSectionHeader, { marginBottom: 4 }]}
+                    style={[
+                      styles.participantsSectionHeader,
+                      { marginBottom: 4 },
+                    ]}
                     onPress={() => {
                       if (!headerDisabled) {
                         setParticipantsModalExpanded((v) => !v);
@@ -2001,15 +2464,25 @@ export default function AgendaScreen() {
                     <Text
                       style={[
                         styles.deletedEventModalTitle,
-                        { color: colors.text, alignSelf: 'stretch', textAlign: 'left', marginBottom: 0, flex: 1 },
+                        {
+                          color: colors.text,
+                          alignSelf: "stretch",
+                          textAlign: "left",
+                          marginBottom: 0,
+                          flex: 1,
+                        },
                       ]}
                     >
                       Participantes
-                      {list.length > 0 ? ` (${list.length})` : ''}
+                      {list.length > 0 ? ` (${list.length})` : ""}
                     </Text>
                     {expandable ? (
                       <Ionicons
-                        name={participantsModalExpanded ? 'chevron-up' : 'chevron-down'}
+                        name={
+                          participantsModalExpanded
+                            ? "chevron-up"
+                            : "chevron-down"
+                        }
                         size={22}
                         color={colors.primary}
                       />
@@ -2017,7 +2490,12 @@ export default function AgendaScreen() {
                   </TouchableOpacity>
                   {participantsModalTitle ? (
                     <Text
-                      style={{ color: colors.textSecondary, fontSize: 14, marginBottom: 10, alignSelf: 'stretch' }}
+                      style={{
+                        color: colors.textSecondary,
+                        fontSize: 14,
+                        marginBottom: 10,
+                        alignSelf: "stretch",
+                      }}
                       numberOfLines={2}
                     >
                       {participantsModalTitle}
@@ -2029,7 +2507,7 @@ export default function AgendaScreen() {
                         fontSize: 12,
                         color: colors.textSecondary,
                         marginBottom: 10,
-                        alignSelf: 'stretch',
+                        alignSelf: "stretch",
                       }}
                     >
                       Toque no título para ver todos
@@ -2037,29 +2515,36 @@ export default function AgendaScreen() {
                   ) : null}
                   {expandable && participantsModalExpanded ? (
                     <ScrollView
-                      style={{ alignSelf: 'stretch', maxHeight: 420 }}
+                      style={{ alignSelf: "stretch", maxHeight: 420 }}
                       contentContainerStyle={{ paddingBottom: 8 }}
                       nestedScrollEnabled
                       showsVerticalScrollIndicator
                       keyboardShouldPersistTaps="handled"
                     >
-                      {list.map((p) => participantRow(p, 'exp'))}
+                      {list.map((p) => participantRow(p, "exp"))}
                     </ScrollView>
                   ) : (
                     <ScrollView
-                      style={{ alignSelf: 'stretch', maxHeight: 360 }}
+                      style={{ alignSelf: "stretch", maxHeight: 360 }}
                       contentContainerStyle={{ paddingBottom: 8 }}
                       showsVerticalScrollIndicator={false}
                       keyboardShouldPersistTaps="handled"
                     >
-                      {listToShow.map((p) => participantRow(p, 'col'))}
+                      {listToShow.map((p) => participantRow(p, "col"))}
                     </ScrollView>
                   )}
                 </>
               );
             })()}
             <TouchableOpacity
-              style={[styles.deletedEventModalButton, { backgroundColor: colors.primary, marginTop: 16, alignSelf: 'stretch' }]}
+              style={[
+                styles.deletedEventModalButton,
+                {
+                  backgroundColor: colors.primary,
+                  marginTop: 16,
+                  alignSelf: "stretch",
+                },
+              ]}
               onPress={() => setShowParticipantsModal(false)}
             >
               <Text style={styles.deletedEventModalButtonText}>Fechar</Text>
@@ -2076,7 +2561,12 @@ export default function AgendaScreen() {
         onRequestClose={() => setShowNewUserModal(false)}
       >
         <View style={styles.removedModalOverlay}>
-          <View style={[styles.welcomeModalContent, { backgroundColor: colors.surface }]}>
+          <View
+            style={[
+              styles.welcomeModalContent,
+              { backgroundColor: colors.surface },
+            ]}
+          >
             {/* Conteúdo do step atual */}
             <ScrollView
               style={styles.welcomeModalScroll}
@@ -2086,13 +2576,18 @@ export default function AgendaScreen() {
               {WELCOME_STEPS[welcomeStep].image ? (
                 <View style={styles.welcomeModalImageWrap}>
                   <Image
-                    source={require('../../assets/images/icone_app.png')}
+                    source={require("../../assets/images/icone_app.png")}
                     style={styles.welcomeModalImage}
                     resizeMode="contain"
                   />
                 </View>
               ) : (
-                <View style={[styles.welcomeModalIconWrap, { backgroundColor: colors.primary + '20' }]}>
+                <View
+                  style={[
+                    styles.welcomeModalIconWrap,
+                    { backgroundColor: colors.primary + "20" },
+                  ]}
+                >
                   <Ionicons
                     name={WELCOME_STEPS[welcomeStep].icon as any}
                     size={56}
@@ -2100,10 +2595,17 @@ export default function AgendaScreen() {
                   />
                 </View>
               )}
-              <Text style={[styles.welcomeModalStepTitle, { color: colors.text }]}>
+              <Text
+                style={[styles.welcomeModalStepTitle, { color: colors.text }]}
+              >
                 {WELCOME_STEPS[welcomeStep].title}
               </Text>
-              <Text style={[styles.welcomeModalStepSubtitle, { color: colors.textSecondary }]}>
+              <Text
+                style={[
+                  styles.welcomeModalStepSubtitle,
+                  { color: colors.textSecondary },
+                ]}
+              >
                 {WELCOME_STEPS[welcomeStep].subtitle}
               </Text>
             </ScrollView>
@@ -2115,7 +2617,10 @@ export default function AgendaScreen() {
                   key={i}
                   style={[
                     styles.welcomeModalDot,
-                    { backgroundColor: i === welcomeStep ? colors.primary : colors.border },
+                    {
+                      backgroundColor:
+                        i === welcomeStep ? colors.primary : colors.border,
+                    },
                   ]}
                 />
               ))}
@@ -2126,11 +2631,21 @@ export default function AgendaScreen() {
               <View style={styles.welcomeModalNavButtons}>
                 {welcomeStep > 0 ? (
                   <TouchableOpacity
-                    style={[styles.welcomeModalNavButtonSecondary, { borderColor: colors.border }]}
+                    style={[
+                      styles.welcomeModalNavButtonSecondary,
+                      { borderColor: colors.border },
+                    ]}
                     onPress={() => setWelcomeStep((s) => s - 1)}
                   >
                     <Ionicons name="arrow-back" size={20} color={colors.text} />
-                    <Text style={[styles.welcomeModalNavButtonSecondaryText, { color: colors.text }]}>Voltar</Text>
+                    <Text
+                      style={[
+                        styles.welcomeModalNavButtonSecondaryText,
+                        { color: colors.text },
+                      ]}
+                    >
+                      Voltar
+                    </Text>
                   </TouchableOpacity>
                 ) : null}
                 <TouchableOpacity
@@ -2141,28 +2656,40 @@ export default function AgendaScreen() {
                   ]}
                   onPress={() => setWelcomeStep((s) => s + 1)}
                 >
-                  <Text style={styles.welcomeModalNavButtonPrimaryText}>Próximo</Text>
+                  <Text style={styles.welcomeModalNavButtonPrimaryText}>
+                    Próximo
+                  </Text>
                   <Ionicons name="arrow-forward" size={20} color="#fff" />
                 </TouchableOpacity>
               </View>
             ) : (
               <View style={styles.welcomeModalFinalButtons}>
                 <TouchableOpacity
-                  style={[styles.welcomeModalButtonDone, { backgroundColor: colors.primary }]}
+                  style={[
+                    styles.welcomeModalButtonDone,
+                    { backgroundColor: colors.primary },
+                  ]}
                   onPress={() => {
                     setShowNewUserModal(false);
                     void tryNavigateToCadastroArtista();
                   }}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.welcomeModalButtonDoneText}>Criar meu artista agora</Text>
+                  <Text style={styles.welcomeModalButtonDoneText}>
+                    Criar meu artista agora
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.welcomeModalSkipButton}
                   onPress={() => setShowNewUserModal(false)}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.welcomeModalSkipButtonText, { color: colors.textSecondary }]}>
+                  <Text
+                    style={[
+                      styles.welcomeModalSkipButtonText,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
                     Fazer isso depois
                   </Text>
                 </TouchableOpacity>
@@ -2188,16 +2715,36 @@ export default function AgendaScreen() {
         onRequestClose={() => setShowDeletedEventModal(false)}
       >
         <View style={styles.deletedEventModalOverlay}>
-          <View style={[styles.deletedEventModalContent, { backgroundColor: colors.surface }]}>
-            <Ionicons name="trash-outline" size={48} color={colors.textSecondary} style={{ marginBottom: 16 }} />
-            <Text style={[styles.deletedEventModalTitle, { color: colors.text }]}>
+          <View
+            style={[
+              styles.deletedEventModalContent,
+              { backgroundColor: colors.surface },
+            ]}
+          >
+            <Ionicons
+              name="trash-outline"
+              size={48}
+              color={colors.textSecondary}
+              style={{ marginBottom: 16 }}
+            />
+            <Text
+              style={[styles.deletedEventModalTitle, { color: colors.text }]}
+            >
               Evento não encontrado
             </Text>
-            <Text style={[styles.deletedEventModalMessage, { color: colors.textSecondary }]}>
+            <Text
+              style={[
+                styles.deletedEventModalMessage,
+                { color: colors.textSecondary },
+              ]}
+            >
               Este evento pode já ter sido deletado. A agenda foi atualizada.
             </Text>
             <TouchableOpacity
-              style={[styles.deletedEventModalButton, { backgroundColor: colors.primary }]}
+              style={[
+                styles.deletedEventModalButton,
+                { backgroundColor: colors.primary },
+              ]}
               onPress={() => setShowDeletedEventModal(false)}
             >
               <Text style={styles.deletedEventModalButtonText}>OK</Text>
@@ -2214,8 +2761,18 @@ export default function AgendaScreen() {
         onRequestClose={() => {}}
       >
         <View style={styles.removedModalOverlay}>
-          <View style={[styles.removedModalContent, { backgroundColor: colors.surface }]}>
-            <View style={[styles.removedModalIcon, { backgroundColor: colors.error + '20' }]}>
+          <View
+            style={[
+              styles.removedModalContent,
+              { backgroundColor: colors.surface },
+            ]}
+          >
+            <View
+              style={[
+                styles.removedModalIcon,
+                { backgroundColor: colors.error + "20" },
+              ]}
+            >
               <Ionicons name="alert-circle" size={48} color={colors.error} />
             </View>
 
@@ -2223,56 +2780,104 @@ export default function AgendaScreen() {
               Você foi removido deste artista
             </Text>
 
-            <Text style={[styles.removedModalMessage, { color: colors.textSecondary }]}>
-              Parece que você foi removido como colaborador deste artista. Escolha uma das opções abaixo para continuar.
+            <Text
+              style={[
+                styles.removedModalMessage,
+                { color: colors.textSecondary },
+              ]}
+            >
+              Parece que você foi removido como colaborador deste artista.
+              Escolha uma das opções abaixo para continuar.
             </Text>
 
             {isLoadingArtists ? (
               <View style={styles.removedModalLoading}>
                 <ActivityIndicator size="large" color={colors.primary} />
-                <Text style={[styles.removedModalLoadingText, { color: colors.textSecondary }]}>
+                <Text
+                  style={[
+                    styles.removedModalLoadingText,
+                    { color: colors.textSecondary },
+                  ]}
+                >
                   Carregando seus artistas...
                 </Text>
               </View>
             ) : availableArtists.length > 0 ? (
-              <ScrollView style={styles.removedModalArtistsList} showsVerticalScrollIndicator={false}>
-                <Text style={[styles.removedModalSubtitle, { color: colors.text }]}>
+              <ScrollView
+                style={styles.removedModalArtistsList}
+                showsVerticalScrollIndicator={false}
+              >
+                <Text
+                  style={[styles.removedModalSubtitle, { color: colors.text }]}
+                >
                   Seus outros artistas:
                 </Text>
                 {availableArtists.map((artist) => (
                   <TouchableOpacity
                     key={artist.id}
-                    style={[styles.removedModalArtistCard, { backgroundColor: colors.background, borderColor: colors.border }]}
+                    style={[
+                      styles.removedModalArtistCard,
+                      {
+                        backgroundColor: colors.background,
+                        borderColor: colors.border,
+                      },
+                    ]}
                     onPress={() => handleSelectOtherArtist(artist)}
                   >
                     <View style={styles.removedModalArtistInfo}>
                       <OptimizedImage
-                        imageUrl={artist.profile_url || ''}
+                        imageUrl={artist.profile_url || ""}
                         style={styles.removedModalArtistAvatar}
                         cacheKey={`artist_${artist.id}`}
-                        fallbackText={artist.name || 'Artista'}
+                        fallbackText={artist.name || "Artista"}
                         fallbackIcon="musical-notes"
                         fallbackIconSize={20}
                         fallbackIconColor={colors.primary}
                       />
                       <View style={styles.removedModalArtistDetails}>
-                        <Text style={[styles.removedModalArtistName, { color: colors.text }]}>
+                        <Text
+                          style={[
+                            styles.removedModalArtistName,
+                            { color: colors.text },
+                          ]}
+                        >
                           {artist.name}
                         </Text>
-                        <Text style={[styles.removedModalArtistRole, { color: colors.textSecondary }]}>
-                          {artist.role === 'admin' ? 'Administrador' :
-                           artist.role === 'vendedor' ? 'Vendedor' : 'Visualizador'}
+                        <Text
+                          style={[
+                            styles.removedModalArtistRole,
+                            { color: colors.textSecondary },
+                          ]}
+                        >
+                          {artist.role === "admin"
+                            ? "Administrador"
+                            : artist.role === "vendedor"
+                              ? "Vendedor"
+                              : "Visualizador"}
                         </Text>
                       </View>
                     </View>
-                    <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color={colors.textSecondary}
+                    />
                   </TouchableOpacity>
                 ))}
               </ScrollView>
             ) : (
               <View style={styles.removedModalNoArtists}>
-                <Ionicons name="musical-notes-outline" size={48} color={colors.textSecondary} />
-                <Text style={[styles.removedModalNoArtistsText, { color: colors.textSecondary }]}>
+                <Ionicons
+                  name="musical-notes-outline"
+                  size={48}
+                  color={colors.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.removedModalNoArtistsText,
+                    { color: colors.textSecondary },
+                  ]}
+                >
                   Você não está vinculado a nenhum outro artista.
                 </Text>
               </View>
@@ -2281,19 +2886,36 @@ export default function AgendaScreen() {
             <View style={styles.removedModalActions}>
               {availableArtists.length > 0 && (
                 <TouchableOpacity
-                  style={[styles.removedModalButton, styles.removedModalButtonSecondary, { borderColor: colors.border }]}
+                  style={[
+                    styles.removedModalButton,
+                    styles.removedModalButtonSecondary,
+                    { borderColor: colors.border },
+                  ]}
                   onPress={handleCreateNewArtist}
                 >
-                  <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
-                  <Text style={[styles.removedModalButtonTextSecondary, { color: colors.primary }]}>
+                  <Ionicons
+                    name="add-circle-outline"
+                    size={20}
+                    color={colors.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.removedModalButtonTextSecondary,
+                      { color: colors.primary },
+                    ]}
+                  >
                     Criar Novo Artista
                   </Text>
                 </TouchableOpacity>
               )}
-              
+
               {availableArtists.length === 0 && (
                 <TouchableOpacity
-                  style={[styles.removedModalButton, styles.removedModalButtonPrimary, { backgroundColor: colors.primary }]}
+                  style={[
+                    styles.removedModalButton,
+                    styles.removedModalButtonPrimary,
+                    { backgroundColor: colors.primary },
+                  ]}
                   onPress={handleCreateNewArtist}
                 >
                   <Ionicons name="add-circle" size={20} color="#fff" />
@@ -2318,104 +2940,188 @@ export default function AgendaScreen() {
           <TouchableWithoutFeedback onPress={closeArtistPickerModal}>
             <View style={StyleSheet.absoluteFill} />
           </TouchableWithoutFeedback>
-          <View style={[styles.artistPickerContent, { backgroundColor: colors.surface }]}>
-                <View style={[styles.artistPickerHeader, { borderBottomColor: colors.border }]}>
-                  <Text style={[styles.artistPickerTitle, { color: colors.text }]}>Selecionar artista</Text>
-                  <TouchableOpacity onPress={closeArtistPickerModal} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-                    <Ionicons name="close" size={28} color={colors.text} />
-                  </TouchableOpacity>
-                </View>
+          <View
+            style={[
+              styles.artistPickerContent,
+              { backgroundColor: colors.surface },
+            ]}
+          >
+            <View
+              style={[
+                styles.artistPickerHeader,
+                { borderBottomColor: colors.border },
+              ]}
+            >
+              <Text style={[styles.artistPickerTitle, { color: colors.text }]}>
+                Selecionar artista
+              </Text>
+              <TouchableOpacity
+                onPress={closeArtistPickerModal}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="close" size={28} color={colors.text} />
+              </TouchableOpacity>
+            </View>
 
-                <View style={[styles.artistPickerSearchWrap, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                  <Ionicons name="search" size={20} color={colors.textSecondary} />
-                  <TextInput
-                    style={[styles.artistPickerSearchInput, { color: colors.text }]}
-                    placeholder="Buscar artista..."
-                    placeholderTextColor={colors.textSecondary}
-                    value={artistPickerSearch}
-                    onChangeText={setArtistPickerSearch}
-                    autoCapitalize="none"
-                    autoCorrect={false}
+            <View
+              style={[
+                styles.artistPickerSearchWrap,
+                {
+                  backgroundColor: colors.background,
+                  borderColor: colors.border,
+                },
+              ]}
+            >
+              <Ionicons name="search" size={20} color={colors.textSecondary} />
+              <TextInput
+                style={[styles.artistPickerSearchInput, { color: colors.text }]}
+                placeholder="Buscar artista..."
+                placeholderTextColor={colors.textSecondary}
+                value={artistPickerSearch}
+                onChangeText={setArtistPickerSearch}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {artistPickerSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setArtistPickerSearch("")}>
+                  <Ionicons
+                    name="close-circle"
+                    size={20}
+                    color={colors.textSecondary}
                   />
-                  {artistPickerSearch.length > 0 && (
-                    <TouchableOpacity onPress={() => setArtistPickerSearch('')}>
-                      <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
-                    </TouchableOpacity>
-                  )}
-                </View>
+                </TouchableOpacity>
+              )}
+            </View>
 
-                {isLoadingArtistPicker ? (
-                  <View style={styles.artistPickerLoading}>
-                    <ActivityIndicator size="large" color={colors.primary} />
-                    <Text style={[styles.artistPickerLoadingText, { color: colors.textSecondary }]}>Carregando artistas...</Text>
+            {isLoadingArtistPicker ? (
+              <View style={styles.artistPickerLoading}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text
+                  style={[
+                    styles.artistPickerLoadingText,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  Carregando artistas...
+                </Text>
+              </View>
+            ) : (
+              <ScrollView
+                style={styles.artistPickerList}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                {filteredArtistPickerList.length === 0 ? (
+                  <View style={styles.artistPickerEmpty}>
+                    <Ionicons
+                      name="musical-notes-outline"
+                      size={48}
+                      color={colors.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.artistPickerEmptyText,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      {artistPickerSearch.trim()
+                        ? "Nenhum artista encontrado."
+                        : "Você ainda não tem artistas."}
+                    </Text>
                   </View>
                 ) : (
-                  <ScrollView
-                    style={styles.artistPickerList}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                  >
-                    {filteredArtistPickerList.length === 0 ? (
-                      <View style={styles.artistPickerEmpty}>
-                        <Ionicons name="musical-notes-outline" size={48} color={colors.textSecondary} />
-                        <Text style={[styles.artistPickerEmptyText, { color: colors.textSecondary }]}>
-                          {artistPickerSearch.trim() ? 'Nenhum artista encontrado.' : 'Você ainda não tem artistas.'}
-                        </Text>
-                      </View>
-                    ) : (
-                      filteredArtistPickerList.map((artist) => {
-                        const isActive = activeArtist?.id === artist.id;
-                        return (
-                          <TouchableOpacity
-                            key={artist.id}
+                  filteredArtistPickerList.map((artist) => {
+                    const isActive = activeArtist?.id === artist.id;
+                    return (
+                      <TouchableOpacity
+                        key={artist.id}
+                        style={[
+                          styles.artistPickerCard,
+                          {
+                            backgroundColor: colors.background,
+                            borderColor: isActive
+                              ? colors.primary
+                              : colors.border,
+                          },
+                          isActive && { borderWidth: 2 },
+                        ]}
+                        onPress={() =>
+                          !isActive && handleSelectArtistFromPicker(artist)
+                        }
+                        disabled={isActive}
+                      >
+                        <View style={styles.artistPickerCardInner}>
+                          <OptimizedImage
+                            imageUrl={artist.profile_url || ""}
                             style={[
-                              styles.artistPickerCard,
-                              { backgroundColor: colors.background, borderColor: isActive ? colors.primary : colors.border },
-                              isActive && { borderWidth: 2 }
+                              styles.artistPickerAvatar,
+                              { borderColor: colors.border },
                             ]}
-                            onPress={() => !isActive && handleSelectArtistFromPicker(artist)}
-                            disabled={isActive}
-                          >
-                            <View style={styles.artistPickerCardInner}>
-                              <OptimizedImage
-                                imageUrl={artist.profile_url || ''}
-                                style={[styles.artistPickerAvatar, { borderColor: colors.border }]}
-                                cacheKey={`artist_${artist.id}`}
-                                fallbackText={artist.name || 'Artista'}
-                                fallbackIcon="musical-notes"
-                                fallbackIconSize={20}
-                                fallbackIconColor={colors.primary}
-                              />
-                              <View style={styles.artistPickerCardDetails}>
-                                <Text style={[styles.artistPickerCardName, { color: colors.text }, isActive && { color: colors.primary }]}>
-                                  {artist.name}
-                                </Text>
-                                <Text style={[styles.artistPickerCardRole, { color: colors.textSecondary }]}>
-                                  {getRoleLabel(artist.role || 'viewer')}
-                                </Text>
-                              </View>
-                            </View>
-                            {isActive ? (
-                              <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
-                            ) : (
-                              <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-                            )}
-                          </TouchableOpacity>
-                        );
-                      })
-                    )}
-                  </ScrollView>
+                            cacheKey={`artist_${artist.id}`}
+                            fallbackText={artist.name || "Artista"}
+                            fallbackIcon="musical-notes"
+                            fallbackIconSize={20}
+                            fallbackIconColor={colors.primary}
+                          />
+                          <View style={styles.artistPickerCardDetails}>
+                            <Text
+                              style={[
+                                styles.artistPickerCardName,
+                                { color: colors.text },
+                                isActive && { color: colors.primary },
+                              ]}
+                            >
+                              {artist.name}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.artistPickerCardRole,
+                                { color: colors.textSecondary },
+                              ]}
+                            >
+                              {getRoleLabel(artist.role || "viewer")}
+                            </Text>
+                          </View>
+                        </View>
+                        {isActive ? (
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={24}
+                            color={colors.primary}
+                          />
+                        ) : (
+                          <Ionicons
+                            name="chevron-forward"
+                            size={20}
+                            color={colors.textSecondary}
+                          />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })
                 )}
+              </ScrollView>
+            )}
 
-                <View style={[styles.artistPickerFooter, { borderTopColor: colors.border }]}>
-                  <TouchableOpacity
-                    style={[styles.artistPickerCreateButton, { backgroundColor: colors.primary }]}
-                    onPress={handleCreateArtistFromPicker}
-                  >
-                    <Ionicons name="add-circle" size={22} color="#fff" />
-                    <Text style={styles.artistPickerCreateButtonText}>Criar artista</Text>
-                  </TouchableOpacity>
-                </View>
+            <View
+              style={[
+                styles.artistPickerFooter,
+                { borderTopColor: colors.border },
+              ]}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.artistPickerCreateButton,
+                  { backgroundColor: colors.primary },
+                ]}
+                onPress={handleCreateArtistFromPicker}
+              >
+                <Ionicons name="add-circle" size={22} color="#fff" />
+                <Text style={styles.artistPickerCreateButtonText}>
+                  Criar artista
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -2442,8 +3148,8 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   artistInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   artistAvatar: {
     width: 50,
@@ -2456,8 +3162,8 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 12,
     borderWidth: 2,
   },
@@ -2465,13 +3171,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   artistNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   artistName: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     flex: 1,
   },
   artistSubtitle: {
@@ -2479,30 +3185,30 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 15,
   },
   monthNavigation: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   monthTitleBlock: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 8,
     minHeight: 44,
   },
   monthLoadingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     marginTop: 6,
   },
   monthLoadingText: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   navButton: {
     padding: 8,
@@ -2510,12 +3216,12 @@ const styles = StyleSheet.create({
   },
   monthYear: {
     fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
+    fontWeight: "600",
+    textAlign: "center",
   },
   todayRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     marginTop: 12,
     paddingVertical: 8,
@@ -2525,7 +3231,7 @@ const styles = StyleSheet.create({
   todayText: {
     flex: 1,
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: "500",
     lineHeight: 18,
   },
   content: {
@@ -2541,28 +3247,28 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 12,
     borderWidth: 1,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: Platform.OS === 'android' ? 0 : 0.08,
-    shadowRadius: Platform.OS === 'android' ? 0 : 6,
-    elevation: Platform.OS === 'android' ? 0 : 4,
+    shadowOpacity: Platform.OS === "android" ? 0 : 0.08,
+    shadowRadius: Platform.OS === "android" ? 0 : 6,
+    elevation: Platform.OS === "android" ? 0 : 4,
   },
   calendarHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 8,
     paddingHorizontal: 4,
   },
   calendarHeaderText: {
     flex: 1,
-    textAlign: 'center',
+    textAlign: "center",
     fontSize: 13,
-    fontWeight: '600',
-    textTransform: 'uppercase',
+    fontWeight: "600",
+    textTransform: "uppercase",
   },
   calendarWeekRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 4,
   },
   calendarDayCell: {
@@ -2570,18 +3276,18 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     maxWidth: 48,
     borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginHorizontal: 2,
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: "transparent",
   },
   calendarDayText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   calendarDayTodayText: {
-    fontWeight: '700',
+    fontWeight: "700",
   },
   eventIndicator: {
     width: 6,
@@ -2593,17 +3299,17 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     marginBottom: 14,
     borderWidth: StyleSheet.hairlineWidth,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: Platform.OS === 'android' ? 0 : 0.08,
-    shadowRadius: Platform.OS === 'android' ? 0 : 6,
-    elevation: Platform.OS === 'android' ? 0 : 4,
-    overflow: 'hidden',
+    shadowOpacity: Platform.OS === "android" ? 0 : 0.08,
+    shadowRadius: Platform.OS === "android" ? 0 : 6,
+    elevation: Platform.OS === "android" ? 0 : 4,
+    overflow: "hidden",
   },
   showContent: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 14,
     paddingHorizontal: 12,
     minWidth: 0,
@@ -2612,20 +3318,20 @@ const styles = StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 10,
   },
   showDateNumber: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: "bold",
+    color: "#fff",
   },
   showDateText: {
     fontSize: 10,
-    color: '#fff',
-    textTransform: 'uppercase',
-    fontWeight: '600',
+    color: "#fff",
+    textTransform: "uppercase",
+    fontWeight: "600",
     marginTop: 2,
   },
   showInfoSection: {
@@ -2634,28 +3340,28 @@ const styles = StyleSheet.create({
     paddingRight: 0,
   },
   eventNameContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     marginBottom: 6,
   },
   showName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     lineHeight: 21,
     flex: 1,
     flexShrink: 1,
     minWidth: 0,
   },
   glLabelsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 6,
     marginBottom: 6,
   },
   glLabelPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
@@ -2664,31 +3370,31 @@ const styles = StyleSheet.create({
   },
   glLabelText: {
     fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'capitalize',
+    fontWeight: "600",
+    textTransform: "capitalize",
   },
   glMetaLine: {
     fontSize: 13,
     lineHeight: 18,
-    fontWeight: '500',
+    fontWeight: "500",
     marginBottom: 8,
   },
   showValue: {
     fontSize: 15,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   showFooterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginTop: 0,
     paddingTop: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
     gap: 8,
   },
   showFooterRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     flexShrink: 0,
     gap: 4,
   },
@@ -2697,56 +3403,56 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     paddingVertical: 2,
     paddingHorizontal: 4,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   showValueLeft: {
     flex: 1,
     minWidth: 0,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   lockedValueContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   lockedValueText: {
     fontSize: 12,
     marginLeft: 4,
-    fontStyle: 'italic',
+    fontStyle: "italic",
   },
   showArrowSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   noShowsContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 40,
   },
   noShowsText: {
     fontSize: 16,
     marginTop: 12,
-    textAlign: 'center',
+    textAlign: "center",
   },
   fab: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 20,
     right: 20,
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#667eea',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
+    backgroundColor: "#667eea",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: Platform.OS === 'android' ? 0 : 0.3,
-    shadowRadius: Platform.OS === 'android' ? 0 : 4.65,
-    elevation: Platform.OS === 'android' ? 0 : 8,
+    shadowOpacity: Platform.OS === "android" ? 0 : 0.3,
+    shadowRadius: Platform.OS === "android" ? 0 : 4.65,
+    elevation: Platform.OS === "android" ? 0 : 8,
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingVertical: 40,
   },
   loadingText: {
@@ -2754,8 +3460,8 @@ const styles = StyleSheet.create({
   },
   emptyStateContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 40,
     paddingVertical: 60,
   },
@@ -2764,80 +3470,80 @@ const styles = StyleSheet.create({
   },
   emptyStateTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    fontWeight: "bold",
+    textAlign: "center",
     marginBottom: 12,
   },
   emptyStateSubtitle: {
     fontSize: 16,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 24,
     marginBottom: 32,
   },
   emptyStateActions: {
-    width: '100%',
+    width: "100%",
     gap: 12,
   },
   createButton: {
     borderRadius: 12,
     paddingVertical: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 12,
   },
   createButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
+    fontWeight: "600",
+    color: "#fff",
     marginLeft: 8,
   },
   waitButton: {
     borderRadius: 12,
     paddingVertical: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
   },
   waitButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     marginLeft: 8,
   },
   noArtistHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 15,
   },
   headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   notificationButton: {
-    position: 'relative',
+    position: "relative",
     padding: 8,
   },
   notificationBadge: {
-    position: 'absolute',
+    position: "absolute",
     top: 2,
     right: 2,
-    backgroundColor: '#EF4444',
+    backgroundColor: "#EF4444",
     borderRadius: 10,
     minWidth: 20,
     height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 2,
-    borderColor: '#FFFFFF',
+    borderColor: "#FFFFFF",
   },
   badgeText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 12,
-    fontWeight: '600',
-    textAlign: 'center',
+    fontWeight: "600",
+    textAlign: "center",
   },
   calendarToggleButton: {
     marginHorizontal: 20,
@@ -2846,57 +3552,57 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 12,
     borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: Platform.OS === 'android' ? 0 : 0.05,
-    shadowRadius: Platform.OS === 'android' ? 0 : 4,
-    elevation: Platform.OS === 'android' ? 0 : 3,
+    shadowOpacity: Platform.OS === "android" ? 0 : 0.05,
+    shadowRadius: Platform.OS === "android" ? 0 : 4,
+    elevation: Platform.OS === "android" ? 0 : 3,
   },
   calendarToggleText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   dayModalOverlay: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 24,
   },
   dayModalBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
   },
   dayModalContent: {
-    width: '100%',
+    width: "100%",
     maxWidth: 360,
     borderRadius: 20,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: Platform.OS === 'android' ? 0 : 0.2,
-    shadowRadius: Platform.OS === 'android' ? 0 : 12,
-    elevation: Platform.OS === 'android' ? 0 : 12,
+    shadowOpacity: Platform.OS === "android" ? 0 : 0.2,
+    shadowRadius: Platform.OS === "android" ? 0 : 12,
+    elevation: Platform.OS === "android" ? 0 : 12,
   },
   dayModalCloseButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 12,
     right: 12,
     width: 40,
     height: 40,
     borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: "rgba(255, 255, 255, 0.2)",
   },
   dayModalTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    textTransform: 'capitalize',
+    fontWeight: "700",
+    textTransform: "capitalize",
     marginBottom: 20,
     paddingRight: 32,
   },
@@ -2907,54 +3613,54 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   dayEventHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 8,
     gap: 8,
   },
   dayEventName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     flex: 1,
   },
   dayEventMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
   },
   dayEventTime: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   dayEventEmptyText: {
     fontSize: 14,
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: 12,
   },
   // Modal: Evento não encontrado (deletado)
   deletedEventModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
     padding: 24,
   },
   deletedEventModalContent: {
     borderRadius: 16,
     padding: 24,
-    width: '100%',
+    width: "100%",
     maxWidth: 320,
-    alignItems: 'center',
+    alignItems: "center",
   },
   deletedEventModalTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
   deletedEventModalMessage: {
     fontSize: 14,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 20,
     marginBottom: 24,
   },
@@ -2962,13 +3668,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   deletedEventModalButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   inviteInfoLine: {
     fontSize: 14,
@@ -2979,30 +3685,30 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 10,
     minHeight: 88,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
     padding: 12,
     marginTop: 10,
   },
   inviteModalActions: {
-    width: '100%',
+    width: "100%",
     gap: 8,
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   inviteModalButtonText: {
     fontSize: 14,
   },
   inviteBtnSecondary: {
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
     borderWidth: 1,
   },
   inviteBtnPrimary: {
     borderWidth: 0,
   },
   participantsSectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
     marginBottom: 8,
     gap: 8,
   },
@@ -3011,8 +3717,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 10,
     marginBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
   },
   inviterAvatar: {
@@ -3022,29 +3728,29 @@ const styles = StyleSheet.create({
   },
   inviterLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   inviterName: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: "700",
     marginTop: 1,
   },
   collabAvatarStack: {
-    flexDirection: 'row',
-    flexWrap: 'nowrap',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
+    flexDirection: "row",
+    flexWrap: "nowrap",
+    alignItems: "center",
+    justifyContent: "flex-start",
   },
   collabStackAvatarWrapper: {
     width: 18,
     height: 18,
     borderRadius: 9,
     borderWidth: 1.5,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   collabStackAvatarInner: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   collabStackAvatarOverlap: {
     marginLeft: -8,
@@ -3052,100 +3758,100 @@ const styles = StyleSheet.create({
   // Estilos do Modal de Remoção
   removedModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   removedModalContent: {
-    width: '100%',
+    width: "100%",
     maxWidth: 400,
     borderRadius: 20,
     padding: 24,
-    maxHeight: '80%',
-    shadowColor: '#000',
+    maxHeight: "80%",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: Platform.OS === 'android' ? 0 : 0.3,
-    shadowRadius: Platform.OS === 'android' ? 0 : 20,
-    elevation: Platform.OS === 'android' ? 0 : 10,
+    shadowOpacity: Platform.OS === "android" ? 0 : 0.3,
+    shadowRadius: Platform.OS === "android" ? 0 : 20,
+    elevation: Platform.OS === "android" ? 0 : 10,
   },
   removedModalIcon: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'center',
+    justifyContent: "center",
+    alignItems: "center",
+    alignSelf: "center",
     marginBottom: 20,
   },
   removedModalTitle: {
     fontSize: 22,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    fontWeight: "bold",
+    textAlign: "center",
     marginBottom: 12,
   },
   removedModalMessage: {
     fontSize: 15,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 22,
     marginBottom: 24,
   },
   welcomeModalContent: {
-    width: '100%',
+    width: "100%",
     maxWidth: 400,
-    maxHeight: '85%',
+    maxHeight: "85%",
     borderRadius: 20,
     padding: 24,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: Platform.OS === 'android' ? 0 : 0.3,
-    shadowRadius: Platform.OS === 'android' ? 0 : 20,
-    elevation: Platform.OS === 'android' ? 0 : 10,
+    shadowOpacity: Platform.OS === "android" ? 0 : 0.3,
+    shadowRadius: Platform.OS === "android" ? 0 : 20,
+    elevation: Platform.OS === "android" ? 0 : 10,
   },
   welcomeModalScroll: {
     maxHeight: 340,
   },
   welcomeModalScrollContent: {
     paddingBottom: 16,
-    alignItems: 'center',
+    alignItems: "center",
   },
   welcomeModalImageWrap: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    overflow: 'hidden',
+    overflow: "hidden",
     marginBottom: 20,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   welcomeModalImage: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   welcomeModalIconWrap: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 20,
   },
   welcomeModalStepTitle: {
     fontSize: 22,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    fontWeight: "bold",
+    textAlign: "center",
     marginBottom: 12,
     paddingHorizontal: 8,
   },
   welcomeModalStepSubtitle: {
     fontSize: 15,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 22,
     paddingHorizontal: 4,
   },
   welcomeModalDots: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     gap: 8,
     marginVertical: 16,
   },
@@ -3155,14 +3861,14 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   welcomeModalNavButtons: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
-    alignItems: 'center',
+    alignItems: "center",
   },
   welcomeModalNavButtonSecondary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 6,
     paddingVertical: 14,
     paddingHorizontal: 20,
@@ -3171,13 +3877,13 @@ const styles = StyleSheet.create({
   },
   welcomeModalNavButtonSecondaryText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   welcomeModalNavButtonPrimary: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
     paddingVertical: 14,
     borderRadius: 12,
@@ -3186,38 +3892,38 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   welcomeModalNavButtonPrimaryText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   welcomeModalButtonDone: {
-    width: '100%',
+    width: "100%",
     paddingVertical: 16,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   welcomeModalButtonDoneText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   welcomeModalFinalButtons: {
-    width: '100%',
+    width: "100%",
     gap: 12,
   },
   welcomeModalSkipButton: {
-    width: '100%',
+    width: "100%",
     paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   welcomeModalSkipButtonText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   newUserModalButtons: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
     marginTop: 8,
   },
@@ -3225,30 +3931,30 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
   },
   newUserModalButtonSecondaryText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   newUserModalButtonPrimary: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
     paddingVertical: 14,
     borderRadius: 12,
   },
   newUserModalButtonPrimaryText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   removedModalLoading: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 40,
   },
   removedModalLoadingText: {
@@ -3257,7 +3963,7 @@ const styles = StyleSheet.create({
   },
   removedModalSubtitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 16,
   },
   removedModalArtistsList: {
@@ -3265,17 +3971,17 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   removedModalArtistCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
   },
   removedModalArtistInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     flex: 1,
   },
   removedModalArtistAvatar: {
@@ -3288,8 +3994,8 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 12,
   },
   removedModalArtistDetails: {
@@ -3297,20 +4003,20 @@ const styles = StyleSheet.create({
   },
   removedModalArtistName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 4,
   },
   removedModalArtistRole: {
     fontSize: 13,
   },
   removedModalNoArtists: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 40,
     marginBottom: 20,
   },
   removedModalNoArtistsText: {
     fontSize: 15,
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: 16,
     lineHeight: 22,
   },
@@ -3318,60 +4024,60 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   removedModalButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 14,
     borderRadius: 12,
     gap: 8,
   },
   removedModalButtonPrimary: {
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: Platform.OS === 'android' ? 0 : 0.1,
-    shadowRadius: Platform.OS === 'android' ? 0 : 4,
-    elevation: Platform.OS === 'android' ? 0 : 3,
+    shadowOpacity: Platform.OS === "android" ? 0 : 0.1,
+    shadowRadius: Platform.OS === "android" ? 0 : 4,
+    elevation: Platform.OS === "android" ? 0 : 3,
   },
   removedModalButtonSecondary: {
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
     borderWidth: 1.5,
   },
   removedModalButtonTextPrimary: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   removedModalButtonTextSecondary: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   // Modal: Selecionar Artista (ao clicar na imagem)
   artistPickerOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
   },
   artistPickerContent: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '85%',
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+    maxHeight: "85%",
+    paddingBottom: Platform.OS === "ios" ? 34 : 20,
   },
   artistPickerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
   },
   artistPickerTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   artistPickerSearchWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginHorizontal: 20,
     marginTop: 12,
     marginBottom: 8,
@@ -3388,7 +4094,7 @@ const styles = StyleSheet.create({
   },
   artistPickerLoading: {
     paddingVertical: 40,
-    alignItems: 'center',
+    alignItems: "center",
   },
   artistPickerLoadingText: {
     marginTop: 12,
@@ -3401,24 +4107,24 @@ const styles = StyleSheet.create({
   },
   artistPickerEmpty: {
     paddingVertical: 40,
-    alignItems: 'center',
+    alignItems: "center",
   },
   artistPickerEmptyText: {
     fontSize: 15,
-    textAlign: 'center',
+    textAlign: "center",
   },
   artistPickerCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     padding: 14,
     borderRadius: 12,
     marginBottom: 10,
     borderWidth: 1,
   },
   artistPickerCardInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     flex: 1,
   },
   artistPickerAvatar: {
@@ -3433,15 +4139,15 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 22,
     marginRight: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   artistPickerCardDetails: {
     flex: 1,
   },
   artistPickerCardName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   artistPickerCardRole: {
     fontSize: 13,
@@ -3453,16 +4159,16 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
   },
   artistPickerCreateButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 14,
     borderRadius: 12,
     gap: 8,
   },
   artistPickerCreateButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
