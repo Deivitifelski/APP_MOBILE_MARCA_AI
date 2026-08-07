@@ -8,7 +8,6 @@ import {
     Alert,
     Image,
     KeyboardAvoidingView,
-    Modal,
     Platform,
     ScrollView,
     StyleSheet,
@@ -45,7 +44,6 @@ export default function UserProfileScreen() {
   const [loading, setLoading] = useState(false);
   const [showEstados, setShowEstados] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [profileLoaded, setProfileLoaded] = useState(false);
 
   // Pré-preencher com dados já salvos (ex.: nome/email do Sign in with Apple - não exigir que o usuário digite de novo)
@@ -181,8 +179,8 @@ export default function UserProfileScreen() {
         return;
       }
 
-      // Mostrar modal de sucesso personalizado
-      setShowSuccessModal(true);
+      // Mesmo destino do fluxo Google/Apple: vai direto para a agenda com o modal de boas-vindas
+      router.replace({ pathname: '/(tabs)/agenda', params: { showNewUserModal: '1' } });
     } catch (error) {
       Alert.alert('Erro', 'Ocorreu um erro ao finalizar o cadastro');
     } finally {
@@ -347,53 +345,6 @@ export default function UserProfileScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-
-      {/* Modal de Sucesso */}
-      <Modal
-        visible={showSuccessModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowSuccessModal(false)}
-      >
-        <View style={styles.successModalOverlay}>
-          <View style={[styles.successModalContent, { backgroundColor: colors.surface }]}>
-            {/* Ícone de Sucesso */}
-            <View style={[styles.successIconContainer, { backgroundColor: colors.success + '20' }]}>
-              <Ionicons name="checkmark-circle" size={80} color={colors.success} />
-            </View>
-
-            {/* Título */}
-            <Text style={[styles.successTitle, { color: colors.text }]}>
-              Perfil Criado! 🎉
-            </Text>
-
-            {/* Nome do usuário */}
-            <View style={[styles.userNameCard, { backgroundColor: colors.background }]}>
-              <Ionicons name="person" size={20} color={colors.primary} />
-              <Text style={[styles.userNameText, { color: colors.text }]}>
-                {name}
-              </Text>
-            </View>
-
-            {/* Mensagem */}
-            <Text style={[styles.successMessage, { color: colors.textSecondary }]}>
-              Seu perfil foi criado com sucesso! Agora vamos configurar o perfil do artista.
-            </Text>
-
-            {/* Botão */}
-            <TouchableOpacity
-              style={[styles.successButton, { backgroundColor: colors.success }]}
-              onPress={() => {
-                setShowSuccessModal(false);
-                router.replace('/cadastro-artista');
-              }}
-            >
-              <Text style={styles.successButtonText}>Continuar</Text>
-              <Ionicons name="arrow-forward" size={20} color="#fff" />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -557,84 +508,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     textDecorationLine: 'underline',
-  },
-  successModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  successModalContent: {
-    width: '100%',
-    maxWidth: 400,
-    borderRadius: 24,
-    padding: 32,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: Platform.OS === 'android' ? 0 : 0.3,
-    shadowRadius: Platform.OS === 'android' ? 0 : 16,
-    elevation: Platform.OS === 'android' ? 0 : 10,
-  },
-  successIconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  successTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  userNameCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  userNameText: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  successMessage: {
-    fontSize: 15,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 24,
-    paddingHorizontal: 10,
-  },
-  successButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    width: '100%',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: Platform.OS === 'android' ? 0 : 0.25,
-    shadowRadius: Platform.OS === 'android' ? 0 : 3.84,
-    elevation: Platform.OS === 'android' ? 0 : 5,
-  },
-  successButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
   },
 });
