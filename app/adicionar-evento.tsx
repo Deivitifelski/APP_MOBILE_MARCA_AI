@@ -39,6 +39,7 @@ interface EventoForm {
   horarioFim: Date;
   status: 'confirmado' | 'a_confirmar';
   descricao: string;
+  descricaoViewer: string;
   tag: 'ensaio' | 'evento' | 'reunião';
 }
 
@@ -289,6 +290,7 @@ export default function AdicionarEventoScreen() {
     horarioFim: createDefaultTime(0, 0),
     status: 'confirmado',
     descricao: '',
+    descricaoViewer: '',
     tag: 'evento', // Valor padrão
   });
 
@@ -408,6 +410,7 @@ export default function AdicionarEventoScreen() {
         user_id: user.id,
         name: form.nome.trim(),
         description: form.descricao.trim() || undefined,
+        viewer_description: form.descricaoViewer.trim() || undefined,
         event_date: `${form.data.getFullYear()}-${String(form.data.getMonth() + 1).padStart(2, '0')}-${String(form.data.getDate()).padStart(2, '0')}`, // YYYY-MM-DD
         start_time: form.horarioInicio.toTimeString().split(' ')[0].substring(0, 5), // HH:MM
         end_time: form.horarioFim.toTimeString().split(' ')[0].substring(0, 5), // HH:MM
@@ -588,6 +591,24 @@ export default function AdicionarEventoScreen() {
             value={form.descricao}
             onChangeText={(text) => updateForm('descricao', text)}
             placeholder="Detalhes sobre o evento..."
+            placeholderTextColor={colors.textSecondary}
+            multiline
+            numberOfLines={4}
+            textAlignVertical="top"
+            autoCorrect={false}
+            autoCapitalize="sentences"
+            returnKeyType="default"
+          />
+        </View>
+
+        {/* Descrição para visualizadores */}
+        <View style={styles.inputGroup}>
+          <Text style={[styles.label, { color: colors.text }]}>Descrição para visualizadores (Opcional)</Text>
+          <TextInput
+            style={[styles.input, styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+            value={form.descricaoViewer}
+            onChangeText={(text) => updateForm('descricaoViewer', text)}
+            placeholder="Informações que os colaboradores visualizadores poderão ver..."
             placeholderTextColor={colors.textSecondary}
             multiline
             numberOfLines={4}

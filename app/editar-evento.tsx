@@ -38,6 +38,7 @@ interface EventoForm {
   horarioFim: Date;
   status: 'confirmado' | 'a_confirmar';
   descricao: string;
+  descricaoViewer: string;
   tag: 'ensaio' | 'evento' | 'reunião';
 }
 
@@ -259,6 +260,7 @@ export default function EditarEventoScreen() {
     horarioFim: createDefaultTime(0, 0),
     status: 'a_confirmar',
     descricao: '',
+    descricaoViewer: '',
     tag: 'evento', // Valor padrão
   });
 
@@ -347,6 +349,7 @@ export default function EditarEventoScreen() {
           horarioFim: endTime,
           status: (event.confirmed ? 'confirmado' : 'a_confirmar') as 'confirmado' | 'a_confirmar',
           descricao: event.description || '',
+          descricaoViewer: event.viewer_description || '',
           tag: event.tag || 'evento', // Carregar tag existente ou usar padrão
         });
         setRemoteContractUrl(event.contract_url ?? null);
@@ -429,6 +432,7 @@ export default function EditarEventoScreen() {
       const updateData: UpdateEventData = {
         name: form.nome.trim(),
         description: form.descricao.trim() || undefined,
+        viewer_description: form.descricaoViewer.trim() || undefined,
         ...(isInviteParticipationEvent ? {} : { value: parseFloat(numericValue) }),
         city: form.cidade.trim() || undefined,
         state_uf: form.estadoUf.trim()
@@ -656,6 +660,24 @@ export default function EditarEventoScreen() {
             value={form.descricao}
             onChangeText={(text) => updateForm('descricao', text)}
             placeholder="Detalhes sobre o evento..."
+            placeholderTextColor={colors.textSecondary}
+            multiline
+            numberOfLines={4}
+            textAlignVertical="top"
+            autoCorrect={false}
+            autoCapitalize="sentences"
+            returnKeyType="default"
+          />
+        </View>
+
+        {/* Descrição para visualizadores */}
+        <View style={styles.inputGroup}>
+          <Text style={[styles.label, { color: colors.text }]}>Descrição para visualizadores (Opcional)</Text>
+          <TextInput
+            style={[styles.input, styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+            value={form.descricaoViewer}
+            onChangeText={(text) => updateForm('descricaoViewer', text)}
+            placeholder="Informações que os colaboradores visualizadores poderão ver..."
             placeholderTextColor={colors.textSecondary}
             multiline
             numberOfLines={4}

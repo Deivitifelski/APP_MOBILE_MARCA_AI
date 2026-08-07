@@ -1550,6 +1550,15 @@ export default function AgendaScreen() {
               </Text>
             ) : null}
 
+            {currentUserRole === "viewer" && item.viewer_description ? (
+              <Text
+                style={[styles.glMetaLine, { color: colors.textSecondary }]}
+                numberOfLines={2}
+              >
+                {item.viewer_description}
+              </Text>
+            ) : null}
+
             <View
               style={[styles.showFooterRow, { borderTopColor: colors.border }]}
             >
@@ -2159,6 +2168,16 @@ export default function AgendaScreen() {
                     </>
                   ) : null}
                 </View>
+                {currentUserRole === "viewer" && event.viewer_description ? (
+                  <Text
+                    style={[
+                      styles.dayEventViewerDescription,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    {event.viewer_description}
+                  </Text>
+                ) : null}
               </TouchableOpacity>
             ))}
 
@@ -2703,7 +2722,7 @@ export default function AgendaScreen() {
         visible={showPermissionModal}
         onClose={() => setShowPermissionModal(false)}
         title="Acesso Restrito"
-        message="Apenas administradores podem visualizar detalhes e valores financeiros dos eventos. Vendedores podem criar eventos, mas só veem o valor dos que eles mesmos criaram. Entre em contato com um administrador para solicitar mais permissões."
+        message="Apenas administradores têm acesso aos detalhes do evento. Fale com um administrador para solicitar acesso."
         icon="lock-closed"
       />
 
@@ -3631,6 +3650,11 @@ const styles = StyleSheet.create({
   dayEventTime: {
     fontSize: 14,
     fontWeight: "500",
+  },
+  dayEventViewerDescription: {
+    fontSize: 13,
+    marginTop: 6,
+    lineHeight: 18,
   },
   dayEventEmptyText: {
     fontSize: 14,

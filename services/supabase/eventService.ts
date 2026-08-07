@@ -53,6 +53,8 @@ export interface Event {
   updated_by?: string | null;
   name: string;
   description?: string;
+  /** Descrição opt-in mostrada para colaboradores viewer (distinta de `description`, interna). */
+  viewer_description?: string | null;
   event_date: string;
   start_time: string;
   end_time: string;
@@ -89,6 +91,7 @@ export interface CreateEventData {
   user_id: string;
   name: string;
   description?: string;
+  viewer_description?: string | null;
   event_date: string;
   start_time: string;
   end_time: string;
@@ -113,6 +116,7 @@ export interface CreateExpenseData {
 export interface UpdateEventData {
   name?: string;
   description?: string;
+  viewer_description?: string | null;
   value?: number;
   city?: string;
   state_uf?: string | null;
@@ -145,6 +149,7 @@ export const createEvent = async (eventData: CreateEventData): Promise<{ success
         updated_by: eventData.user_id,
         name: eventData.name,
         description: eventData.description || null,
+        viewer_description: eventData.viewer_description || null,
         event_date: eventData.event_date,
         start_time: eventData.start_time,
         end_time: eventData.end_time,
@@ -594,6 +599,7 @@ export interface EventWithRole {
   created_by: string; // Quem criou o evento
   name: string;
   description?: string;
+  viewer_description?: string | null;
   event_date: string;
   start_time: string;
   end_time: string;
