@@ -2,7 +2,7 @@
   "expo": {
     "name": "Marca AI",
     "slug": "APP_MOBILE_MARCA_AI",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icone_app_1024.png",
     "scheme": "marcaai",
@@ -20,7 +20,7 @@
       "usesAppleSignIn": true,
       "supportsTablet": true,
       "bundleIdentifier": "com.marcaai.app",
-      "buildNumber": "102",
+      "buildNumber": "103",
       "icon": "./assets/images/icone_app_1024.png",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Este app precisa acessar sua galeria de fotos para permitir que você selecione uma foto de perfil.",
@@ -39,7 +39,7 @@
     },
     "android": {
       "package": "com.marcaaipro.app",
-      "versionCode": 48,
+      "versionCode": 49,
       "googleServicesFile": "./android/app/google-services.json",
       "icon": "./assets/images/icone_512x512.png",
       "adaptiveIcon": {

@@ -166,6 +166,52 @@ WITH CHECK (
   )
 );
 
+-- Vendedor pode editar e fazer soft delete apenas dos eventos que criou.
+-- As policies permissivas existentes para admin continuam valendo para os demais casos.
+DROP POLICY IF EXISTS "vendedor_pode_editar_proprios_eventos" ON public.events;
+
+CREATE POLICY "vendedor_pode_editar_proprios_eventos"
+ON public.events
+FOR UPDATE
+TO authenticated
+USING (
+  created_by = auth.uid()
+  AND EXISTS (
+    SELECT 1
+    FROM artist_members am
+    WHERE am.user_id = auth.uid()
+      AND am.artist_id = events.artist_id
+      AND am.role = 'vendedor'
+  )
+)
+WITH CHECK (
+  created_by = auth.uid()
+  AND EXISTS (
+    SELECT 1
+    FROM artist_members am
+    WHERE am.user_id = auth.uid()
+      AND am.artist_id = events.artist_id
+      AND am.role = 'vendedor'
+  )
+);
+
+DROP POLICY IF EXISTS "vendedor_pode_deletar_proprios_eventos" ON public.events;
+
+CREATE POLICY "vendedor_pode_deletar_proprios_eventos"
+ON public.events
+FOR DELETE
+TO authenticated
+USING (
+  created_by = auth.uid()
+  AND EXISTS (
+    SELECT 1
+    FROM artist_members am
+    WHERE am.user_id = auth.uid()
+      AND am.artist_id = events.artist_id
+      AND am.role = 'vendedor'
+  )
+);
+
 -- =====================================================
 -- CHECK constraint em notifications.role: ainda não aceita 'vendedor'
 -- (ver database/migrations-manual/adicionar-role-notifications.sql).

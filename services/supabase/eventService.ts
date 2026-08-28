@@ -364,6 +364,18 @@ export const updateEvent = async (eventId: string, eventData: UpdateEventData, u
       };
     }
 
+    if (!userId) {
+      return { success: false, error: 'Usuário não autenticado' };
+    }
+
+    const permissions = await getUserPermissions(userId, eventResult.event.artist_id);
+    const canEdit =
+      permissions?.permissions.canEditEvents ||
+      (permissions?.role === 'vendedor' && eventResult.event.created_by === userId);
+    if (!canEdit) {
+      return { success: false, error: 'Sem permissão para editar este evento' };
+    }
+
     const { data, error } = await supabase
       .from('events')
       .update({
@@ -411,7 +423,7 @@ export const deleteEvent = async (eventId: string, userId?: string): Promise<{ s
   try {
     const { data: eventRow, error: fetchError } = await supabase
       .from('events')
-      .select('id, name, artist_id')
+      .select('id, name, artist_id, created_by')
       .eq('id', eventId)
       .maybeSingle();
 
@@ -421,6 +433,18 @@ export const deleteEvent = async (eventId: string, userId?: string): Promise<{ s
 
     const eventName = eventRow.name;
     const artistId = eventRow.artist_id;
+    if (!userId) {
+      return { success: false, error: 'Usuário não autenticado' };
+    }
+
+    const permissions = await getUserPermissions(userId, artistId);
+    const canDelete =
+      permissions?.permissions.canDeleteEvents ||
+      (permissions?.role === 'vendedor' && eventRow.created_by === userId);
+    if (!canDelete) {
+      return { success: false, error: 'Sem permissão para deletar este evento' };
+    }
+
     const now = new Date().toISOString();
 
     const { error } = await supabase
@@ -509,7 +533,10 @@ export const updateEventWithPermissions = async (eventId: string, eventData: Upd
     }
 
     // Verificar se o usuário tem permissão para editar eventos
-    const canEdit = await hasPermission(userId, eventResult.event.artist_id, 'canEditEvents');
+    const permissions = await getUserPermissions(userId, eventResult.event.artist_id);
+    const canEdit =
+      permissions?.permissions.canEditEvents ||
+      (permissions?.role === 'vendedor' && eventResult.event.created_by === userId);
     if (!canEdit) {
       return { success: false, error: 'Sem permissão para editar eventos' };
     }
@@ -537,7 +564,10 @@ export const deleteEventWithPermissions = async (eventId: string, userId: string
     }
 
     // Verificar se o usuário tem permissão para deletar eventos
-    const canDelete = await hasPermission(userId, eventResult.event.artist_id, 'canDeleteEvents');
+    const permissions = await getUserPermissions(userId, eventResult.event.artist_id);
+    const canDelete =
+      permissions?.permissions.canDeleteEvents ||
+      (permissions?.role === 'vendedor' && eventResult.event.created_by === userId);
     if (!canDelete) {
       return { success: false, error: 'Sem permissão para deletar eventos' };
     }

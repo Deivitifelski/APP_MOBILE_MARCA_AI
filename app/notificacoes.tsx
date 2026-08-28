@@ -396,11 +396,18 @@ export default function NotificacoesScreen() {
         return;
       }
 
-      // Verificar se o usuário tem permissão para ver detalhes do evento
-      // Apenas admin pode ver detalhes dos eventos por aqui
-      const canEditEvents = await hasPermission(currentUserId, eventResult.event.artist_id, 'canEditEvents');
-      
-      if (!canEditEvents) {
+      // Admin vê qualquer evento; vendedor vê apenas o que criou.
+      const { data: membership } = await supabase
+        .from('artist_members')
+        .select('role')
+        .eq('user_id', currentUserId)
+        .eq('artist_id', eventResult.event.artist_id)
+        .maybeSingle();
+      const canViewDetails =
+        membership?.role === 'admin' ||
+        (membership?.role === 'vendedor' && eventResult.event.created_by === currentUserId);
+
+      if (!canViewDetails) {
         setShowPermissionModal(true);
         return;
       }

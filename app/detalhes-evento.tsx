@@ -330,8 +330,8 @@ export default function DetalhesEventoScreen() {
       const userRole = memberData?.role;
       setArtistMemberRole(typeof userRole === 'string' ? userRole : null);
 
-      // ✅ hasAccess = acesso total (editar, despesas, contrato, histórico).
-      // Vendedor NÃO edita eventos — só cria e vê o valor do que criou (ver ownEventValueVisible).
+      // ✅ hasAccess = acesso administrativo (despesas, contrato, histórico).
+      // Vendedor pode editar/deletar apenas eventos criados por ele.
       const hasPermission = userRole === 'admin';
       const canCreate = userRole === 'admin';
 
@@ -750,6 +750,12 @@ export default function DetalhesEventoScreen() {
     return true;
   };
 
+  const canManageOwnEvent =
+    hasAccess ||
+    (artistMemberRole === 'vendedor' &&
+      !!currentUserId &&
+      event?.created_by === currentUserId);
+
   const openRemoveParticipationModal = (c: ConviteParticipacaoEventoRow) => {
     if (!handleRestrictedAction('remover participação')) return;
     if (!canCreateEventsPermission || !event || event.artist_id !== activeArtist?.id) {
@@ -926,7 +932,10 @@ export default function DetalhesEventoScreen() {
   };
 
   const handleEditEvent = () => {
-    if (!handleRestrictedAction('editar')) return;
+    if (!canManageOwnEvent) {
+      setShowPermissionModal(true);
+      return;
+    }
     if (event?.convite_participacao_id) {
       Alert.alert(
         'Edição bloqueada',
@@ -963,7 +972,10 @@ export default function DetalhesEventoScreen() {
   };
 
   const handleDeleteEvent = () => {
-    if (!handleRestrictedAction('deletar')) return;
+    if (!canManageOwnEvent) {
+      setShowPermissionModal(true);
+      return;
+    }
     
     Alert.alert(
       'Deletar Evento',
@@ -1703,7 +1715,7 @@ export default function DetalhesEventoScreen() {
           >
             <Ionicons name="create" size={24} color={colors.warning} />
             <Text style={[styles.actionButtonText, { color: colors.text }]}>Editar Evento</Text>
-            {!hasAccess && <Ionicons name="lock-closed" size={16} color={colors.textSecondary} style={{ marginLeft: 8 }} />}
+            {!canManageOwnEvent && <Ionicons name="lock-closed" size={16} color={colors.textSecondary} style={{ marginLeft: 8 }} />}
             <Ionicons name="chevron-forward" size={20} color={colors.text} />
           </TouchableOpacity>
 
@@ -1747,7 +1759,7 @@ export default function DetalhesEventoScreen() {
             <Text style={[styles.actionButtonText, styles.deleteButtonText, { color: colors.error }]}>
               {isDeleting ? 'Deletando...' : 'Deletar Evento'}
             </Text>
-            {!hasAccess && <Ionicons name="lock-closed" size={16} color={colors.textSecondary} style={{ marginLeft: 8 }} />}
+            {!canManageOwnEvent && <Ionicons name="lock-closed" size={16} color={colors.textSecondary} style={{ marginLeft: 8 }} />}
             <Ionicons name="chevron-forward" size={20} color={colors.text} />
           </TouchableOpacity>
         </View>
@@ -1967,7 +1979,7 @@ export default function DetalhesEventoScreen() {
         visible={showPermissionModal}
         onClose={() => setShowPermissionModal(false)}
         title="Acesso Restrito"
-        message="Apenas administradores podem editar eventos, gerenciar despesas, incluir participação de outros artistas em eventos e visualizar valores financeiros. Entre em contato com um administrador para solicitar mais permissões."
+        message="Administradores podem gerenciar todos os recursos. Vendedores podem editar e deletar apenas os eventos que criaram; despesas, contratos, participações e valores financeiros continuam restritos aos administradores."
         icon="lock-closed"
       />
 
