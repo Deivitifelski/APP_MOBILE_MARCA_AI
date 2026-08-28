@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Linking from "expo-linking";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, {
@@ -74,6 +75,15 @@ const MAX_COLLAB_AVATARS_ON_CARD = 10;
 
 /** No modal de participantes (toque na badge), lista colapsada mostra só os primeiros N. */
 const PARTICIPANTS_COLLAPSED_PREVIEW = 4;
+const AGENDA_VALUES_VISIBILITY_KEY = "agenda-values-visible";
+const PARTICIPANT_AVATAR_COLORS = [
+  "#2563EB",
+  "#0F766E",
+  "#C2410C",
+  "#9333EA",
+  "#BE123C",
+  "#4D7C0F",
+];
 
 type AgendaParticipantRow = {
   id: string;
@@ -270,11 +280,42 @@ export default function AgendaScreen() {
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [hasFinancialAccess, setHasFinancialAccess] = useState(false);
+  const [showEventValues, setShowEventValues] = useState(true);
   // Vendedor: viewer que também pode criar eventos e ver o valor apenas dos que criou
   const isVendedor = currentUserRole === "vendedor";
+  const canToggleEventValues =
+    currentUserRole === "admin" || currentUserRole === "vendedor";
   const canSeeEventValue = (item: { created_by?: string | null }) =>
     hasFinancialAccess ||
     (isVendedor && !!currentUserId && item.created_by === currentUserId);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadValuesVisibility = async () => {
+      if (!currentUserId || !canToggleEventValues) {
+        setShowEventValues(true);
+        return;
+      }
+      const savedValue = await AsyncStorage.getItem(
+        `${AGENDA_VALUES_VISIBILITY_KEY}:${currentUserId}`,
+      );
+      if (!cancelled) setShowEventValues(savedValue !== "false");
+    };
+    void loadValuesVisibility();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId, canToggleEventValues]);
+
+  const toggleEventValues = async () => {
+    if (!currentUserId || !canToggleEventValues) return;
+    const nextValue = !showEventValues;
+    setShowEventValues(nextValue);
+    await AsyncStorage.setItem(
+      `${AGENDA_VALUES_VISIBILITY_KEY}:${currentUserId}`,
+      String(nextValue),
+    );
+  };
 
   // Verificar se usuário tem artistas disponíveis
   useEffect(() => {
@@ -1363,6 +1404,16 @@ export default function AgendaScreen() {
     }
   };
 
+  const getParticipantAvatarColor = (participantId: string) => {
+    const colorIndex = Array.from(participantId).reduce(
+      (total, character) => total + character.charCodeAt(0),
+      0,
+    );
+    return PARTICIPANT_AVATAR_COLORS[
+      colorIndex % PARTICIPANT_AVATAR_COLORS.length
+    ];
+  };
+
   const formatEventValueBRL = (value: number | string) => {
     const n = typeof value === "string" ? parseFloat(value) : Number(value);
     if (Number.isNaN(n)) return "R$ 0,00";
@@ -1420,7 +1471,11 @@ export default function AgendaScreen() {
       item.convite_participacao_id || conviteIdByEventId[item.id];
     const isInvitedEvent = !!conviteIdForCard;
     const fromParticipantMap = participantAvatarsByEventId[item.id] || [];
-    const collabAvatars: { profile_url: string | null; name: string }[] =
+    const collabAvatars: {
+      profile_url: string | null;
+      name: string;
+      color: string;
+    }[] =
       fromParticipantMap.length > 0
         ? fromParticipantMap
             .filter((p) => !p.isHost)
@@ -1428,6 +1483,7 @@ export default function AgendaScreen() {
             .map((p) => ({
               profile_url: p.profile_url,
               name: p.name || "Participante",
+              color: getParticipantAvatarColor(p.id),
             }))
         : [];
 
@@ -1569,7 +1625,9 @@ export default function AgendaScreen() {
                     style={[styles.showValue, { color: colors.primary }]}
                     numberOfLines={1}
                   >
-                    {formatEventValueBRL(item.value)}
+                    {showEventValues
+                      ? formatEventValueBRL(item.value)
+                      : "R$ •••••"}
                   </Text>
                 ) : null}
               </View>
@@ -1611,6 +1669,7 @@ export default function AgendaScreen() {
                             fallbackIcon="person"
                             fallbackIconSize={9}
                             fallbackIconColor="#FFFFFF"
+                            fallbackBackgroundColor={a.color}
                             showLoadingIndicator={false}
                           />
                         </View>
@@ -1697,6 +1756,26 @@ export default function AgendaScreen() {
                     {activeArtist.name}
                   </Text>
                   <View style={styles.headerActions}>
+                    {canToggleEventValues ? (
+                      <TouchableOpacity
+                        style={styles.notificationButton}
+                        onPress={() => void toggleEventValues()}
+                        accessibilityLabel={
+                          showEventValues
+                            ? "Ocultar valores"
+                            : "Mostrar valores"
+                        }
+                        accessibilityRole="button"
+                      >
+                        <Ionicons
+                          name={
+                            showEventValues ? "eye-outline" : "eye-off-outline"
+                          }
+                          size={24}
+                          color={colors.primary}
+                        />
+                      </TouchableOpacity>
+                    ) : null}
                     {/* Ícone de Notificações */}
                     <TouchableOpacity
                       style={styles.notificationButton}
@@ -2259,7 +2338,8 @@ export default function AgendaScreen() {
                         Local: {selectedInviteEventInfo.city}
                       </Text>
                     ) : null}
-                    {selectedInviteEventInfo.value != null ? (
+                    {selectedInviteEventInfo.value != null &&
+                    canSeeEventValue(selectedInviteEventInfo) ? (
                       <Text
                         style={[
                           styles.inviteInfoLine,
@@ -2267,7 +2347,9 @@ export default function AgendaScreen() {
                         ]}
                       >
                         Cachê:{" "}
-                        {formatEventValueBRL(selectedInviteEventInfo.value)}
+                        {showEventValues
+                          ? formatEventValueBRL(selectedInviteEventInfo.value)
+                          : "R$ •••••"}
                       </Text>
                     ) : null}
                     {selectedInviteEventInfo.contractor_phone ? (
@@ -2448,6 +2530,7 @@ export default function AgendaScreen() {
                     fallbackIcon="person"
                     fallbackIconSize={18}
                     fallbackIconColor="#FFFFFF"
+                    fallbackBackgroundColor={getParticipantAvatarColor(p.id)}
                     showLoadingIndicator={false}
                   />
                   <View style={{ flex: 1 }}>

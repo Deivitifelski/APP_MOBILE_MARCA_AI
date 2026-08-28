@@ -499,7 +499,19 @@ export const countPendingArtistInvites = async (artistId: string): Promise<{ cou
     if (error) {
       return { count: 0, error: error.message };
     }
-    return { count: count ?? 0, error: null };
+
+    // Convites por link (pra quem ainda não tem conta) também ocupam vaga no time.
+    const { count: linkCount, error: linkError } = await supabase
+      .from('pending_collaborator_invites')
+      .select('*', { count: 'exact', head: true })
+      .eq('artist_id', artistId)
+      .is('consumed_at', null);
+
+    if (linkError) {
+      return { count: 0, error: linkError.message };
+    }
+
+    return { count: (count ?? 0) + (linkCount ?? 0), error: null };
   } catch {
     return { count: 0, error: 'Erro de conexão' };
   }

@@ -8,6 +8,7 @@ import {
     Modal,
     Platform,
     ScrollView,
+    Share,
     StyleSheet,
     Text,
     TextInput,
@@ -20,9 +21,14 @@ import { useTheme } from '../contexts/ThemeContext';
 import { checkPendingInvite, createArtistInvite } from '../services/supabase/artistInviteService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { addCollaborator, Collaborator, getCollaborators, removeCollaborator, searchUsersForCollaboratorInvite, updateCollaboratorRole } from '../services/supabase/collaboratorService';
+import { createCollaboratorLinkInvite } from '../services/supabase/collaboratorLinkInviteService';
 import { deletePendingInviteNotifications } from '../services/supabase/notificationService';
 import { normalizeArtistMemberRole } from '../services/supabase/permissionsService';
 import { useActiveArtist } from '../services/useActiveArtist';
+import { APP_STORE_URL, PLAY_STORE_URL } from '../utils/storeLinks';
+
+/** Aceita só o essencial: algo@algo.algo — suficiente pra decidir se vale oferecer convite por link. */
+const isValidEmailForLinkInvite = (value: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
 type CollaboratorInviteRole = 'admin' | 'vendedor' | 'viewer';
 
@@ -123,6 +129,8 @@ export default function ColaboradoresArtistaScreen() {
     role: string;
     createdAt: string;
   } | null>(null);
+  const [linkInviteRole, setLinkInviteRole] = useState<CollaboratorInviteRole>('viewer');
+  const [isInvitingByLink, setIsInvitingByLink] = useState(false);
 
   useEffect(() => {
     loadActiveArtist();
@@ -203,6 +211,51 @@ export default function ColaboradoresArtistaScreen() {
   const closeBuscarColaboradorModal = () => {
     resetBuscarColaboradorModal();
     setShowAddModal(false);
+  };
+
+  const handleInviteByLink = async () => {
+    if (!activeArtist || !currentUserId) {
+      Alert.alert('Erro', 'Dados insuficientes');
+      return;
+    }
+    const email = searchTerm.trim().toLowerCase();
+    if (!isValidEmailForLinkInvite(email)) return;
+
+    setIsInvitingByLink(true);
+    try {
+      const { success, error } = await createCollaboratorLinkInvite(
+        activeArtist.id,
+        email,
+        linkInviteRole,
+        currentUserId
+      );
+
+      if (!success) {
+        Alert.alert('Erro', error || 'Erro ao criar convite por link');
+        return;
+      }
+
+      const roleLabel = getRoleLabel(linkInviteRole);
+      const storeUrl = Platform.OS === 'ios' ? APP_STORE_URL : PLAY_STORE_URL;
+      await Share.share({
+        message:
+          `Você foi convidado(a) para colaborar como ${roleLabel} no MarcaAi, o app de gestão de agenda do artista "${activeArtist.name}".\n\n` +
+          `1. Baixe o app: ${storeUrl}\n` +
+          `2. Crie sua conta usando este email: ${email}\n\n` +
+          `Assim que você criar a conta, já entra automaticamente na equipe.`,
+      });
+
+      resetBuscarColaboradorModal();
+      setShowAddModal(false);
+      Alert.alert(
+        'Convite pronto',
+        'Assim que essa pessoa criar conta no MarcaAi usando o mesmo email, ela entra automaticamente na equipe.'
+      );
+    } catch {
+      Alert.alert('Erro', 'Erro ao criar convite por link');
+    } finally {
+      setIsInvitingByLink(false);
+    }
   };
 
   const handleSearchUsers = async (term: string) => {
@@ -877,6 +930,61 @@ export default function ColaboradoresArtistaScreen() {
               
               {searchTerm.length >= 2 && searchResults.length === 0 && !isSearching && (
                 <Text style={[styles.noResultsText, { color: colors.textSecondary }]}>Nenhum usuário encontrado</Text>
+              )}
+
+              {searchTerm.length >= 2 && searchResults.length === 0 && !isSearching && isValidEmailForLinkInvite(searchTerm) && (
+                <View style={[styles.linkInviteCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <Text style={[styles.linkInviteTitle, { color: colors.text }]}>
+                    Esse email ainda não tem conta no MarcaAi
+                  </Text>
+                  <Text style={[styles.linkInviteSubtitle, { color: colors.textSecondary }]}>
+                    Escolha a permissão e envie um convite por link. Quando a pessoa criar a conta com esse email, ela entra na equipe automaticamente.
+                  </Text>
+
+                  <View style={styles.linkInviteRoleRow}>
+                    {COLLABORATOR_ROLES_FOR_PICKER.map((role) => {
+                      const isSel = linkInviteRole === role.value;
+                      return (
+                        <TouchableOpacity
+                          key={role.value}
+                          style={[
+                            styles.linkInviteRoleChip,
+                            { borderColor: colors.border },
+                            isSel && { backgroundColor: colors.primary + '15', borderColor: colors.primary },
+                          ]}
+                          onPress={() => setLinkInviteRole(role.value)}
+                          activeOpacity={0.85}
+                        >
+                          <Text
+                            style={[
+                              styles.linkInviteRoleChipText,
+                              { color: colors.text },
+                              isSel && { color: colors.primary, fontWeight: '700' },
+                            ]}
+                          >
+                            {role.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.linkInviteButton, { backgroundColor: colors.primary }]}
+                    onPress={handleInviteByLink}
+                    disabled={isInvitingByLink}
+                    activeOpacity={0.85}
+                  >
+                    {isInvitingByLink ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <Ionicons name="link-outline" size={18} color="#fff" />
+                        <Text style={styles.linkInviteButtonText}>Convidar por link</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
               )}
             </View>
           </ScrollView>
@@ -1736,6 +1844,52 @@ const styles = StyleSheet.create({
     padding: 16,
     fontSize: 14,
     color: '#999',
+  },
+  linkInviteCard: {
+    marginTop: 8,
+    marginHorizontal: 16,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  linkInviteTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  linkInviteSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 14,
+  },
+  linkInviteRoleRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  linkInviteRoleChip: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  linkInviteRoleChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  linkInviteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 10,
+    paddingVertical: 12,
+  },
+  linkInviteButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
   },
   roleOptions: {
     gap: 12,

@@ -1,13 +1,14 @@
-import { Ionicons } from '@expo/vector-icons';
-import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, ImageProps, Text, View } from 'react-native';
-import { cacheService, cacheUtils } from '../services/cacheService';
+import { Ionicons } from "@expo/vector-icons";
+import React, { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Image, ImageProps, Text, View } from "react-native";
+import { cacheService, cacheUtils } from "../services/cacheService";
 
-interface OptimizedImageProps extends Omit<ImageProps, 'source'> {
+interface OptimizedImageProps extends Omit<ImageProps, "source"> {
   imageUrl: string;
   fallbackIcon?: keyof typeof Ionicons.glyphMap;
   fallbackIconSize?: number;
   fallbackIconColor?: string;
+  fallbackBackgroundColor?: string;
   fallbackText?: string;
   showLoadingIndicator?: boolean;
   cacheKey?: string;
@@ -24,9 +25,10 @@ interface ImageCacheData {
 
 export default function OptimizedImage({
   imageUrl,
-  fallbackIcon = 'person',
+  fallbackIcon = "person",
   fallbackIconSize = 40,
-  fallbackIconColor = '#667eea',
+  fallbackIconColor = "#667eea",
+  fallbackBackgroundColor = "#f0f0f0",
   fallbackText,
   showLoadingIndicator = true,
   cacheKey,
@@ -41,7 +43,7 @@ export default function OptimizedImage({
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
   const loadAttempts = useRef(0);
   const maxLoadAttempts = 3;
-  const firstInitial = (fallbackText || '').trim().charAt(0).toUpperCase();
+  const firstInitial = (fallbackText || "").trim().charAt(0).toUpperCase();
 
   // Gerar chave única para o cache
   const finalCacheKey = cacheKey || cacheUtils.generateImageKey(imageUrl);
@@ -51,21 +53,26 @@ export default function OptimizedImage({
   }, [imageUrl, forceReload]);
 
   const loadImage = async () => {
-    if (!imageUrl || imageUrl.trim() === '') {
+    if (!imageUrl || imageUrl.trim() === "") {
       setImageLoadError(true);
       setCurrentImageUrl(null);
       return;
     }
 
     // Verificar se já temos esta imagem em cache
-    const cachedData = await cacheService.getImageData<ImageCacheData>(finalCacheKey);
-    
-    const cachedBaseUrl = cachedData?.url?.split('?')[0];
-    const requestedBaseUrl = imageUrl.split('?')[0];
+    const cachedData =
+      await cacheService.getImageData<ImageCacheData>(finalCacheKey);
+
+    const cachedBaseUrl = cachedData?.url?.split("?")[0];
+    const requestedBaseUrl = imageUrl.split("?")[0];
 
     if (cachedData && cachedBaseUrl !== requestedBaseUrl) {
       await cacheService.invalidateImageData(finalCacheKey);
-    } else if (cachedData && !forceReload && !cacheUtils.shouldReloadImage(cachedData.url, cachedData.lastLoaded)) {
+    } else if (
+      cachedData &&
+      !forceReload &&
+      !cacheUtils.shouldReloadImage(cachedData.url, cachedData.lastLoaded)
+    ) {
       setCurrentImageUrl(cachedData.url);
       setImageLoadError(false);
       setIsLoading(false);
@@ -76,11 +83,11 @@ export default function OptimizedImage({
     // Carregar nova imagem
     setIsLoading(true);
     setImageLoadError(false);
-    
+
     try {
       // Adicionar timestamp para evitar cache
-      const urlWithTimestamp = `${imageUrl}${imageUrl.includes('?') ? '&' : '?'}t=${Date.now()}`;
-      
+      const urlWithTimestamp = `${imageUrl}${imageUrl.includes("?") ? "&" : "?"}t=${Date.now()}`;
+
       setCurrentImageUrl(urlWithTimestamp);
 
       // Salvar no cache
@@ -92,12 +99,11 @@ export default function OptimizedImage({
 
       setImageLoadError(false);
       onLoadSuccess?.();
-      
     } catch (error) {
-      console.error('Erro ao carregar imagem:', error);
-      
+      console.error("Erro ao carregar imagem:", error);
+
       loadAttempts.current++;
-      
+
       if (loadAttempts.current < maxLoadAttempts) {
         // Tentar novamente após um delay
         setTimeout(() => {
@@ -105,7 +111,7 @@ export default function OptimizedImage({
         }, 1000 * loadAttempts.current);
         return;
       }
-      
+
       setImageLoadError(true);
       setCurrentImageUrl(null);
       onLoadError?.(error);
@@ -115,7 +121,7 @@ export default function OptimizedImage({
   };
 
   const handleImageError = (error: any) => {
-    console.error('Erro na imagem:', error);
+    console.error("Erro na imagem:", error);
     setImageLoadError(true);
     onLoadError?.(error);
   };
@@ -128,7 +134,7 @@ export default function OptimizedImage({
   // Se está carregando e deve mostrar indicador
   if (isLoading && showLoadingIndicator) {
     return (
-      <View style={[{ justifyContent: 'center', alignItems: 'center' }, style]}>
+      <View style={[{ justifyContent: "center", alignItems: "center" }, style]}>
         <ActivityIndicator size="small" color="#667eea" />
       </View>
     );
@@ -137,13 +143,22 @@ export default function OptimizedImage({
   // Se há erro ou não há URL
   if (imageLoadError || !currentImageUrl) {
     return (
-      <View style={[{ justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0' }, style]}>
+      <View
+        style={[
+          {
+            justifyContent: "center",
+            alignItems: "center",
+            backgroundColor: fallbackBackgroundColor,
+          },
+          style,
+        ]}
+      >
         {firstInitial ? (
           <Text
             style={{
               color: fallbackIconColor,
               fontSize: Math.max(12, Math.round(fallbackIconSize * 0.65)),
-              fontWeight: '700',
+              fontWeight: "700",
             }}
           >
             {firstInitial}
@@ -162,9 +177,9 @@ export default function OptimizedImage({
   // Renderizar imagem
   return (
     <Image
-      source={{ 
+      source={{
         uri: currentImageUrl,
-        cache: 'force-cache' // Forçar cache local
+        cache: "force-cache", // Forçar cache local
       }}
       style={style}
       onError={handleImageError}
@@ -184,10 +199,10 @@ export const useOptimizedImage = (imageUrl: string, cacheKey?: string) => {
       if (!imageUrl) return;
 
       setIsLoading(true);
-      
+
       const key = cacheKey || cacheUtils.generateImageKey(imageUrl);
       const cached = await cacheService.getImageData<ImageCacheData>(key);
-      
+
       setImageData(cached);
       setIsLoading(false);
     };

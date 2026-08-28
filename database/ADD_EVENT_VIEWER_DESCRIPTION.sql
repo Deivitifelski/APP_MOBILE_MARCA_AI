@@ -7,7 +7,9 @@
 -- Baseado na versão atual de RPC_GET_EVENTS_ADD_VENDEDOR_ROLE.sql (state_uf, soft delete via
 -- `ativo`, timestamptz).
 --
--- IMPORTANTE: mudar o RETURNS TABLE de uma função existente (mesmo só acrescentando uma coluna
+-- IMPORTANTE: mudar o RETU00
++
+RNS TABLE de uma função existente (mesmo só acrescentando uma coluna
 -- no final) NÃO é aceito por CREATE OR REPLACE FUNCTION — o Postgres recusa com "cannot change
 -- return type of existing function". É sempre necessário DROP FUNCTION antes. Por isso usamos
 -- DROP FUNCTION IF EXISTS + CREATE FUNCTION dentro de uma transação (BEGIN/COMMIT): isso deixa a
