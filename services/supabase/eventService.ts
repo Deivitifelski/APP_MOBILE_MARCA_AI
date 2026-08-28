@@ -1,8 +1,9 @@
-import { supabase } from '../../lib/supabase';
-import { getUserPermissions, hasPermission } from './permissionsService';
+import { supabase } from "../../lib/supabase";
+import { getUserPermissions, hasPermission } from "./permissionsService";
 
-const SUPABASE_URL = 'https://ctulmpyaikxsnjqmrzxf.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN0dWxtcHlhaWt4c25qcW1yenhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2MzkxMjMsImV4cCI6MjA3MzIxNTEyM30.bu0gER4uTIZ5PDV7t1-fcwU01UZAJ6aFG6axFZQlU8U';
+const SUPABASE_URL = "https://ctulmpyaikxsnjqmrzxf.supabase.co";
+const SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN0dWxtcHlhaWt4c25qcW1yenhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2MzkxMjMsImV4cCI6MjA3MzIxNTEyM30.bu0gER4uTIZ5PDV7t1-fcwU01UZAJ6aFG6axFZQlU8U";
 
 /**
  * Envia push (Edge Function send-push) para todos os membros do artista, exceto `excludeUserId`.
@@ -12,36 +13,33 @@ export const notifyArtistMembersPush = async (
   excludeUserId: string,
   title: string,
   message: string,
-  data: Record<string, any> = {}
+  data: Record<string, any> = {},
 ): Promise<void> => {
   try {
-    const response = await fetch(
-      `${SUPABASE_URL}/functions/v1/send-push`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({
-          artist_id: artistId,
-          creator_user_id: excludeUserId,
-          title,
-          message,
-          data,
-        }),
-      }
-    );
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/send-push`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({
+        artist_id: artistId,
+        creator_user_id: excludeUserId,
+        title,
+        message,
+        data,
+      }),
+    });
 
     const json = await response.json();
-    
+
     if (!response.ok) {
-      console.error('⚠️ Erro ao enviar notificações push:', json);
+      console.error("⚠️ Erro ao enviar notificações push:", json);
     } else {
-      console.log('✅ Notificações push enviadas:', json);
+      console.log("✅ Notificações push enviadas:", json);
     }
   } catch (error) {
-    console.error('⚠️ Erro ao chamar função de notificação:', error);
+    console.error("⚠️ Erro ao chamar função de notificação:", error);
     // Não falha a operação se o push falhar
   }
 };
@@ -63,7 +61,7 @@ export interface Event {
   state_uf?: string | null;
   contractor_phone?: string;
   confirmed: boolean;
-  tag: 'ensaio' | 'evento' | 'reunião';
+  tag: "ensaio" | "evento" | "reunião";
   ativo?: boolean;
   update_ativo?: string | null;
   /** URL pública do arquivo de contrato (Storage) */
@@ -100,7 +98,7 @@ export interface CreateEventData {
   state_uf?: string | null;
   contractor_phone?: string;
   confirmed?: boolean;
-  tag?: 'ensaio' | 'evento' | 'reunião';
+  tag?: "ensaio" | "evento" | "reunião";
   expenses?: CreateExpenseData[];
   contract_url?: string | null;
   contract_file_name?: string | null;
@@ -125,24 +123,26 @@ export interface UpdateEventData {
   start_time?: string;
   end_time?: string;
   confirmed?: boolean;
-  tag?: 'ensaio' | 'evento' | 'reunião';
+  tag?: "ensaio" | "evento" | "reunião";
   contract_url?: string | null;
   contract_file_name?: string | null;
   updated_by?: string | null;
 }
 
 // Criar evento com despesas
-export const createEvent = async (eventData: CreateEventData): Promise<{ success: boolean; error: string | null; event?: Event }> => {
+export const createEvent = async (
+  eventData: CreateEventData,
+): Promise<{ success: boolean; error: string | null; event?: Event }> => {
   try {
-    console.log('📝 Criando evento:', {
+    console.log("📝 Criando evento:", {
       artist_id: eventData.artist_id,
       user_id: eventData.user_id,
-      name: eventData.name
+      name: eventData.name,
     });
 
     // Criar o evento
     const { data: event, error: eventError } = await supabase
-      .from('events')
+      .from("events")
       .insert({
         artist_id: eventData.artist_id,
         created_by: eventData.user_id, // Quem criou o evento
@@ -156,27 +156,28 @@ export const createEvent = async (eventData: CreateEventData): Promise<{ success
         // Preservar R$ 0,00 (0 é um valor válido; `|| null` convertia 0 em null)
         value: eventData.value ?? null,
         city: eventData.city || null,
-        state_uf: eventData.state_uf != null && String(eventData.state_uf).trim()
-          ? String(eventData.state_uf).trim().toUpperCase().slice(0, 2)
-          : null,
+        state_uf:
+          eventData.state_uf != null && String(eventData.state_uf).trim()
+            ? String(eventData.state_uf).trim().toUpperCase().slice(0, 2)
+            : null,
         contractor_phone: eventData.contractor_phone || null,
         confirmed: eventData.confirmed || false,
-        tag: eventData.tag || 'evento', // Default para 'evento' se não especificado
+        tag: eventData.tag || "evento", // Default para 'evento' se não especificado
         contract_url: eventData.contract_url ?? null,
         contract_file_name: eventData.contract_file_name ?? null,
         convite_participacao_id: eventData.convite_participacao_id ?? null,
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
       .select()
       .single();
 
     if (eventError) {
-      console.error('❌ Erro ao criar evento:', eventError);
+      console.error("❌ Erro ao criar evento:", eventError);
       return { success: false, error: eventError.message };
     }
 
-    console.log('✅ Evento criado com sucesso:', event.id);
+    console.log("✅ Evento criado com sucesso:", event.id);
 
     // O trigger notify_event_created() no banco já cria as notificações
     // automaticamente para todos os colaboradores (exceto o criador)
@@ -185,51 +186,53 @@ export const createEvent = async (eventData: CreateEventData): Promise<{ success
     await notifyArtistMembersPush(
       eventData.artist_id,
       eventData.user_id,
-      'Novo Evento Criado',
-      `${eventData.name} - ${new Date(eventData.event_date).toLocaleDateString('pt-BR')}`,
+      "Novo Evento Criado",
+      `${eventData.name} - ${new Date(eventData.event_date).toLocaleDateString("pt-BR")}`,
       {
-        screen: 'event',
+        screen: "event",
         event_id: event.id,
-      }
+      },
     );
 
     // Se há despesas, criar elas
     if (eventData.expenses && eventData.expenses.length > 0) {
-      const expensesToInsert = eventData.expenses.map(expense => ({
+      const expensesToInsert = eventData.expenses.map((expense) => ({
         event_id: event.id,
         name: expense.name,
         value: expense.value,
         receipt_url: expense.receipt_url || null,
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       }));
 
       const { error: expensesError } = await supabase
-        .from('event_expenses')
+        .from("event_expenses")
         .insert(expensesToInsert);
 
       if (expensesError) {
         // Se der erro nas despesas, deletar o evento criado
-        await supabase.from('events').delete().eq('id', event.id);
+        await supabase.from("events").delete().eq("id", event.id);
         return { success: false, error: expensesError.message };
       }
     }
 
     return { success: true, error: null, event };
   } catch {
-    return { success: false, error: 'Erro de conexão' };
+    return { success: false, error: "Erro de conexão" };
   }
 };
 
 // Buscar eventos do artista (apenas ativos)
-export const getEventsByArtist = async (artistId: string): Promise<{ success: boolean; error: string | null; events?: Event[] }> => {
+export const getEventsByArtist = async (
+  artistId: string,
+): Promise<{ success: boolean; error: string | null; events?: Event[] }> => {
   try {
     const { data, error } = await supabase
-      .from('events')
-      .select('*')
-      .eq('artist_id', artistId)
-      .eq('ativo', true)
-      .order('event_date', { ascending: true });
+      .from("events")
+      .select("*")
+      .eq("artist_id", artistId)
+      .eq("ativo", true)
+      .order("event_date", { ascending: true });
 
     if (error) {
       return { success: false, error: error.message };
@@ -237,28 +240,39 @@ export const getEventsByArtist = async (artistId: string): Promise<{ success: bo
 
     return { success: true, error: null, events: data || [] };
   } catch {
-    return { success: false, error: 'Erro de conexão' };
+    return { success: false, error: "Erro de conexão" };
   }
 };
 
 // Buscar eventos por mês
-export const getEventsByMonth = async (artistId: string, year: number, month: number): Promise<{ success: boolean; error: string | null; events?: Event[] }> => {
+export const getEventsByMonth = async (
+  artistId: string,
+  year: number,
+  month: number,
+): Promise<{ success: boolean; error: string | null; events?: Event[] }> => {
   try {
-    const startDate = new Date(year, month, 1).toISOString().split('T')[0];
-    const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+    const startDate = new Date(year, month, 1).toISOString().split("T")[0];
+    const endDate = new Date(year, month + 1, 0).toISOString().split("T")[0];
 
-    console.log('getEventsByMonth: Buscando eventos para artista:', artistId, 'De:', startDate, 'Até:', endDate);
+    console.log(
+      "getEventsByMonth: Buscando eventos para artista:",
+      artistId,
+      "De:",
+      startDate,
+      "Até:",
+      endDate,
+    );
 
     const { data, error } = await supabase
-      .from('events')
-      .select('*')
-      .eq('artist_id', artistId)
-      .eq('ativo', true)
-      .gte('event_date', startDate)
-      .lte('event_date', endDate)
-      .order('event_date', { ascending: true });
+      .from("events")
+      .select("*")
+      .eq("artist_id", artistId)
+      .eq("ativo", true)
+      .gte("event_date", startDate)
+      .lte("event_date", endDate)
+      .order("event_date", { ascending: true });
 
-    console.log('getEventsByMonth: Resultado da query:', { data, error });
+    console.log("getEventsByMonth: Resultado da query:", { data, error });
 
     if (error) {
       return { success: false, error: error.message };
@@ -266,27 +280,27 @@ export const getEventsByMonth = async (artistId: string, year: number, month: nu
 
     return { success: true, error: null, events: data || [] };
   } catch {
-    return { success: false, error: 'Erro de conexão' };
+    return { success: false, error: "Erro de conexão" };
   }
 };
 
 /** Eventos ativos do artista entre 1º de jan e 31 de dezem do ano (inclusive). */
 export const getEventsByYear = async (
   artistId: string,
-  year: number
+  year: number,
 ): Promise<{ success: boolean; error: string | null; events?: Event[] }> => {
   try {
-    const startDate = new Date(year, 0, 1).toISOString().split('T')[0];
-    const endDate = new Date(year, 11, 31).toISOString().split('T')[0];
+    const startDate = new Date(year, 0, 1).toISOString().split("T")[0];
+    const endDate = new Date(year, 11, 31).toISOString().split("T")[0];
 
     const { data, error } = await supabase
-      .from('events')
-      .select('*')
-      .eq('artist_id', artistId)
-      .eq('ativo', true)
-      .gte('event_date', startDate)
-      .lte('event_date', endDate)
-      .order('event_date', { ascending: true });
+      .from("events")
+      .select("*")
+      .eq("artist_id", artistId)
+      .eq("ativo", true)
+      .gte("event_date", startDate)
+      .lte("event_date", endDate)
+      .order("event_date", { ascending: true });
 
     if (error) {
       return { success: false, error: error.message };
@@ -294,7 +308,7 @@ export const getEventsByYear = async (
 
     return { success: true, error: null, events: data || [] };
   } catch {
-    return { success: false, error: 'Erro de conexão' };
+    return { success: false, error: "Erro de conexão" };
   }
 };
 
@@ -302,17 +316,17 @@ export const getEventsByYear = async (
 export const getEventsByDateRange = async (
   artistId: string,
   startDate: string,
-  endDate: string
+  endDate: string,
 ): Promise<{ success: boolean; error: string | null; events?: Event[] }> => {
   try {
     const { data, error } = await supabase
-      .from('events')
-      .select('*')
-      .eq('artist_id', artistId)
-      .eq('ativo', true)
-      .gte('event_date', startDate)
-      .lte('event_date', endDate)
-      .order('event_date', { ascending: true });
+      .from("events")
+      .select("*")
+      .eq("artist_id", artistId)
+      .eq("ativo", true)
+      .gte("event_date", startDate)
+      .lte("event_date", endDate)
+      .order("event_date", { ascending: true });
 
     if (error) {
       return { success: false, error: error.message };
@@ -320,18 +334,20 @@ export const getEventsByDateRange = async (
 
     return { success: true, error: null, events: data || [] };
   } catch {
-    return { success: false, error: 'Erro de conexão' };
+    return { success: false, error: "Erro de conexão" };
   }
 };
 
 // Buscar evento por ID (só retorna se ativo = true; evento "deletado" = não encontrado)
-export const getEventById = async (eventId: string): Promise<{ success: boolean; error: string | null; event?: Event }> => {
+export const getEventById = async (
+  eventId: string,
+): Promise<{ success: boolean; error: string | null; event?: Event }> => {
   try {
     const { data, error } = await supabase
-      .from('events')
-      .select('*')
-      .eq('id', eventId)
-      .eq('ativo', true)
+      .from("events")
+      .select("*")
+      .eq("id", eventId)
+      .eq("ativo", true)
       .maybeSingle();
 
     if (error) {
@@ -339,63 +355,80 @@ export const getEventById = async (eventId: string): Promise<{ success: boolean;
     }
 
     if (!data) {
-      return { success: false, error: 'Evento não encontrado' };
+      return { success: false, error: "Evento não encontrado" };
     }
 
     return { success: true, error: null, event: data };
   } catch {
-    return { success: false, error: 'Erro de conexão' };
+    return { success: false, error: "Erro de conexão" };
   }
 };
 
 // Atualizar evento
-export const updateEvent = async (eventId: string, eventData: UpdateEventData, userId?: string): Promise<{ success: boolean; error: string | null; event?: Event }> => {
+export const updateEvent = async (
+  eventId: string,
+  eventData: UpdateEventData,
+  userId?: string,
+): Promise<{ success: boolean; error: string | null; event?: Event }> => {
   try {
     // Buscar o evento antes de atualizar para obter informações necessárias
     const eventResult = await getEventById(eventId);
     if (!eventResult.success || !eventResult.event) {
-      return { success: false, error: 'Evento não encontrado' };
+      return { success: false, error: "Evento não encontrado" };
     }
 
     if (eventResult.event.convite_participacao_id) {
       return {
         success: false,
-        error: 'Eventos vindos de convite de participação não podem ser alterados após o aceite.',
+        error:
+          "Eventos vindos de convite de participação não podem ser alterados após o aceite.",
       };
     }
 
     if (!userId) {
-      return { success: false, error: 'Usuário não autenticado' };
+      return { success: false, error: "Usuário não autenticado" };
     }
 
-    const permissions = await getUserPermissions(userId, eventResult.event.artist_id);
+    const permissions = await getUserPermissions(
+      userId,
+      eventResult.event.artist_id,
+    );
     const canEdit =
       permissions?.permissions.canEditEvents ||
-      (permissions?.role === 'vendedor' && eventResult.event.created_by === userId);
+      (permissions?.role === "vendedor" &&
+        eventResult.event.created_by === userId);
     if (!canEdit) {
-      return { success: false, error: 'Sem permissão para editar este evento' };
+      return { success: false, error: "Sem permissão para editar este evento" };
     }
 
     const { data, error } = await supabase
-      .from('events')
+      .from("events")
       .update({
         ...eventData,
         updated_by: userId ?? eventData.updated_by ?? null,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
-      .eq('id', eventId)
+      .eq("id", eventId)
       .select()
       .single();
 
     if (error) {
-      if (error.message?.includes('JSON object')) {
-        return { success: false, error: 'Não foi possível atualizar o evento. Verifique suas permissões ou se o evento existe.' };
+      if (error.message?.includes("JSON object")) {
+        return {
+          success: false,
+          error:
+            "Não foi possível atualizar o evento. Verifique suas permissões ou se o evento existe.",
+        };
       }
       return { success: false, error: error.message };
     }
 
     if (!data) {
-      return { success: false, error: 'Evento não encontrado ou você não possui permissão para editá-lo.' };
+      return {
+        success: false,
+        error:
+          "Evento não encontrado ou você não possui permissão para editá-lo.",
+      };
     }
 
     // Enviar notificações push para todos os membros do artista (exceto quem editou)
@@ -403,54 +436,65 @@ export const updateEvent = async (eventId: string, eventData: UpdateEventData, u
       await notifyArtistMembersPush(
         data.artist_id,
         userId,
-        'Evento Atualizado',
+        "Evento Atualizado",
         `${data.name} foi atualizado`,
         {
-          screen: 'event',
+          screen: "event",
           event_id: eventId,
-        }
+        },
       );
     }
 
     return { success: true, error: null, event: data };
   } catch {
-    return { success: false, error: 'Erro de conexão' };
+    return { success: false, error: "Erro de conexão" };
   }
 };
 
 // Deletar evento (soft delete: ativo = false, update_ativo = agora)
-export const deleteEvent = async (eventId: string, userId?: string): Promise<{ success: boolean; error: string | null }> => {
+export const deleteEvent = async (
+  eventId: string,
+  userId?: string,
+): Promise<{ success: boolean; error: string | null }> => {
   try {
     const { data: eventRow, error: fetchError } = await supabase
-      .from('events')
-      .select('id, name, artist_id, created_by')
-      .eq('id', eventId)
+      .from("events")
+      .select("id, name, artist_id, created_by")
+      .eq("id", eventId)
       .maybeSingle();
 
     if (fetchError || !eventRow) {
-      return { success: false, error: 'Evento não encontrado' };
+      return { success: false, error: "Evento não encontrado" };
     }
 
     const eventName = eventRow.name;
     const artistId = eventRow.artist_id;
     if (!userId) {
-      return { success: false, error: 'Usuário não autenticado' };
+      return { success: false, error: "Usuário não autenticado" };
     }
 
     const permissions = await getUserPermissions(userId, artistId);
     const canDelete =
       permissions?.permissions.canDeleteEvents ||
-      (permissions?.role === 'vendedor' && eventRow.created_by === userId);
+      (permissions?.role === "vendedor" && eventRow.created_by === userId);
     if (!canDelete) {
-      return { success: false, error: 'Sem permissão para deletar este evento' };
+      return {
+        success: false,
+        error: "Sem permissão para deletar este evento",
+      };
     }
 
     const now = new Date().toISOString();
 
     const { error } = await supabase
-      .from('events')
-      .update({ ativo: false, update_ativo: now, updated_at: now, updated_by: userId ?? null })
-      .eq('id', eventId);
+      .from("events")
+      .update({
+        ativo: false,
+        update_ativo: now,
+        updated_at: now,
+        updated_by: userId ?? null,
+      })
+      .eq("id", eventId);
 
     if (error) {
       return { success: false, error: error.message };
@@ -460,18 +504,18 @@ export const deleteEvent = async (eventId: string, userId?: string): Promise<{ s
       await notifyArtistMembersPush(
         artistId,
         userId,
-        'Evento Deletado',
+        "Evento Deletado",
         `${eventName} foi deletado`,
         {
-          screen: 'events',
+          screen: "events",
           event_id: eventId,
-        }
+        },
       );
     }
 
     return { success: true, error: null };
   } catch {
-    return { success: false, error: 'Erro de conexão' };
+    return { success: false, error: "Erro de conexão" };
   }
 };
 
@@ -480,65 +524,81 @@ export const deleteEvent = async (eventId: string, userId?: string): Promise<{ s
 // =====================================================
 
 // Buscar eventos com verificação de permissões
-export const getEventsWithPermissions = async (artistId: string, userId: string): Promise<{ events: Event[] | null; error: string | null }> => {
+export const getEventsWithPermissions = async (
+  artistId: string,
+  userId: string,
+): Promise<{ events: Event[] | null; error: string | null }> => {
   try {
     // Verificar se o usuário tem permissão para visualizar eventos
-    const canView = await hasPermission(userId, artistId, 'canViewEvents');
+    const canView = await hasPermission(userId, artistId, "canViewEvents");
     if (!canView) {
-      return { events: null, error: 'Sem permissão para visualizar eventos' };
+      return { events: null, error: "Sem permissão para visualizar eventos" };
     }
 
     // Usar a função do banco que filtra por role
-    const { data, error } = await supabase
-      .rpc('get_events_by_role', { p_artist_id: artistId });
+    const { data, error } = await supabase.rpc("get_events_by_role", {
+      p_artist_id: artistId,
+    });
 
     if (error) {
-      console.error('Erro ao buscar eventos:', error);
+      console.error("Erro ao buscar eventos:", error);
       return { events: null, error: error.message };
     }
 
     return { events: data || [], error: null };
   } catch (error) {
-    console.error('Erro ao buscar eventos:', error);
-    return { events: null, error: 'Erro ao buscar eventos' };
+    console.error("Erro ao buscar eventos:", error);
+    return { events: null, error: "Erro ao buscar eventos" };
   }
 };
 
 // Criar evento com verificação de permissões
 export const createEventWithPermissions = async (
   eventData: CreateEventData,
-  userId: string
+  userId: string,
 ): Promise<{ success: boolean; error: string | null; event?: Event }> => {
   try {
     // Verificar se o usuário tem permissão para criar eventos
-    const canCreate = await hasPermission(userId, eventData.artist_id, 'canCreateEvents');
+    const canCreate = await hasPermission(
+      userId,
+      eventData.artist_id,
+      "canCreateEvents",
+    );
     if (!canCreate) {
-      return { success: false, error: 'Sem permissão para criar eventos' };
+      return { success: false, error: "Sem permissão para criar eventos" };
     }
 
     return await createEvent(eventData);
   } catch (error) {
-    console.error('Erro ao criar evento:', error);
-    return { success: false, error: 'Erro ao criar evento' };
+    console.error("Erro ao criar evento:", error);
+    return { success: false, error: "Erro ao criar evento" };
   }
 };
 
 // Atualizar evento com verificação de permissões
-export const updateEventWithPermissions = async (eventId: string, eventData: UpdateEventData, userId: string): Promise<{ success: boolean; error: string | null }> => {
+export const updateEventWithPermissions = async (
+  eventId: string,
+  eventData: UpdateEventData,
+  userId: string,
+): Promise<{ success: boolean; error: string | null }> => {
   try {
     // Primeiro, buscar o evento para obter o artist_id
     const eventResult = await getEventById(eventId);
     if (!eventResult.success || !eventResult.event) {
-      return { success: false, error: 'Evento não encontrado' };
+      return { success: false, error: "Evento não encontrado" };
     }
 
     // Verificar se o usuário tem permissão para editar eventos
-    const permissions = await getUserPermissions(userId, eventResult.event.artist_id);
+    const permissions = await getUserPermissions(
+      userId,
+      eventResult.event.artist_id,
+    );
     const canEdit =
       permissions?.permissions.canEditEvents ||
-      (permissions?.role === 'vendedor' && eventResult.event.created_by === userId);
+      (permissions?.role === "vendedor" &&
+        eventResult.event.created_by === userId);
     if (!canEdit) {
-      return { success: false, error: 'Sem permissão para editar eventos' };
+      return { success: false, error: "Sem permissão para editar eventos" };
     }
 
     // Atualizar o evento (passa userId para enviar notificações)
@@ -549,59 +609,83 @@ export const updateEventWithPermissions = async (eventId: string, eventData: Upd
 
     return result;
   } catch (error) {
-    console.error('Erro ao atualizar evento:', error);
-    return { success: false, error: 'Erro ao atualizar evento' };
+    console.error("Erro ao atualizar evento:", error);
+    return { success: false, error: "Erro ao atualizar evento" };
   }
 };
 
 // Deletar evento com verificação de permissões
-export const deleteEventWithPermissions = async (eventId: string, userId: string): Promise<{ success: boolean; error: string | null }> => {
+export const deleteEventWithPermissions = async (
+  eventId: string,
+  userId: string,
+): Promise<{ success: boolean; error: string | null }> => {
   try {
     // Primeiro, buscar o evento para obter o artist_id
     const eventResult = await getEventById(eventId);
     if (!eventResult.success || !eventResult.event) {
-      return { success: false, error: 'Evento não encontrado' };
+      return { success: false, error: "Evento não encontrado" };
     }
 
     // Verificar se o usuário tem permissão para deletar eventos
-    const permissions = await getUserPermissions(userId, eventResult.event.artist_id);
+    const permissions = await getUserPermissions(
+      userId,
+      eventResult.event.artist_id,
+    );
     const canDelete =
       permissions?.permissions.canDeleteEvents ||
-      (permissions?.role === 'vendedor' && eventResult.event.created_by === userId);
+      (permissions?.role === "vendedor" &&
+        eventResult.event.created_by === userId);
     if (!canDelete) {
-      return { success: false, error: 'Sem permissão para deletar eventos' };
+      return { success: false, error: "Sem permissão para deletar eventos" };
     }
 
     // Deletar o evento (passa userId para enviar notificações)
     return await deleteEvent(eventId, userId);
   } catch (error) {
-    console.error('Erro ao deletar evento:', error);
-    return { success: false, error: 'Erro ao deletar evento' };
+    console.error("Erro ao deletar evento:", error);
+    return { success: false, error: "Erro ao deletar evento" };
   }
 };
 
 // Buscar evento por ID com verificação de permissões
-export const getEventByIdWithPermissions = async (eventId: string, userId: string): Promise<{ event: Event | null; error: string | null }> => {
+export const getEventByIdWithPermissions = async (
+  eventId: string,
+  userId: string,
+): Promise<{ event: Event | null; error: string | null }> => {
   try {
     // Primeiro, buscar o evento
     const eventResult = await getEventById(eventId);
     if (!eventResult.success || !eventResult.event) {
-      return { event: null, error: 'Evento não encontrado' };
+      return { event: null, error: "Evento não encontrado" };
     }
 
     // Verificar se o usuário tem permissão para visualizar eventos
-    const canView = await hasPermission(userId, eventResult.event.artist_id, 'canViewEvents');
+    const canView = await hasPermission(
+      userId,
+      eventResult.event.artist_id,
+      "canViewEvents",
+    );
     if (!canView) {
-      return { event: null, error: 'Sem permissão para visualizar este evento' };
+      return {
+        event: null,
+        error: "Sem permissão para visualizar este evento",
+      };
     }
 
     // Verificar se o usuário pode ver valores financeiros
-    const canViewFinancials = await hasPermission(userId, eventResult.event.artist_id, 'canViewFinancials');
+    const canViewFinancials = await hasPermission(
+      userId,
+      eventResult.event.artist_id,
+      "canViewFinancials",
+    );
 
     // Vendedor: vê o valor apenas do evento que ele mesmo criou
-    const userPermission = await getUserPermissions(userId, eventResult.event.artist_id);
+    const userPermission = await getUserPermissions(
+      userId,
+      eventResult.event.artist_id,
+    );
     const isOwnEventForVendedor =
-      userPermission?.role === 'vendedor' &&
+      userPermission?.role === "vendedor" &&
       userPermission.permissions.canViewOwnEventValue &&
       eventResult.event.created_by === userId;
 
@@ -612,8 +696,8 @@ export const getEventByIdWithPermissions = async (eventId: string, userId: strin
 
     return { event: eventResult.event, error: null };
   } catch (error) {
-    console.error('Erro ao buscar evento:', error);
-    return { event: null, error: 'Erro ao buscar evento' };
+    console.error("Erro ao buscar evento:", error);
+    return { event: null, error: "Erro ao buscar evento" };
   }
 };
 
@@ -638,55 +722,77 @@ export interface EventWithRole {
   state_uf?: string | null;
   contractor_phone?: string;
   confirmed: boolean;
-  tag: 'ensaio' | 'evento' | 'reunião';
+  tag: "ensaio" | "evento" | "reunião";
   created_at: string;
   updated_at: string;
   user_role?: string; // Role do usuário atual para este artista
 }
 
 // Buscar eventos de um artista com filtragem automática por role
-export const getEventsByArtistWithRole = async (artistId: string): Promise<{ events: EventWithRole[] | null; error: string | null; errorCode?: string }> => {
+export const getEventsByArtistWithRole = async (
+  artistId: string,
+): Promise<{
+  events: EventWithRole[] | null;
+  error: string | null;
+  errorCode?: string;
+}> => {
   try {
-    console.log('🔐 Buscando eventos com filtragem por role para artista:', artistId);
-    
-    const { data, error } = await supabase
-      .rpc('get_events_by_role', { p_artist_id: artistId });
+    console.log(
+      "🔐 Buscando eventos com filtragem por role para artista:",
+      artistId,
+    );
+
+    const { data, error } = await supabase.rpc("get_events_by_role", {
+      p_artist_id: artistId,
+    });
 
     if (error) {
-      console.error('❌ Erro ao buscar eventos com role:', error);
-      return { 
-        events: null, 
+      console.error("❌ Erro ao buscar eventos com role:", error);
+      return {
+        events: null,
         error: error.message,
-        errorCode: error.code || undefined
+        errorCode: error.code || undefined,
       };
     }
 
-    console.log('✅ Eventos carregados com filtragem:', data?.length || 0);
+    console.log("✅ Eventos carregados com filtragem:", data?.length || 0);
     return { events: data || [], error: null };
   } catch (error: any) {
-    console.error('❌ Erro ao buscar eventos com role:', error);
-    return { 
-      events: null, 
-      error: error?.message || 'Erro ao buscar eventos',
-      errorCode: error?.code
+    console.error("❌ Erro ao buscar eventos com role:", error);
+    return {
+      events: null,
+      error: error?.message || "Erro ao buscar eventos",
+      errorCode: error?.code,
     };
   }
 };
 
 // Buscar eventos de um mês específico com filtragem por role
 export const getEventsByMonthWithRole = async (
-  artistId: string, 
-  year: number, 
-  month: number
-): Promise<{ success: boolean; error: string | null; events?: EventWithRole[]; errorCode?: string }> => {
+  artistId: string,
+  year: number,
+  month: number,
+): Promise<{
+  success: boolean;
+  error: string | null;
+  events?: EventWithRole[];
+  errorCode?: string;
+}> => {
   try {
-    const startDate = new Date(year, month, 1).toISOString().split('T')[0];
-    const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+    const startDate = new Date(year, month, 1).toISOString().split("T")[0];
+    const endDate = new Date(year, month + 1, 0).toISOString().split("T")[0];
 
-    console.log('🔐 getEventsByMonthWithRole:', { artistId, year, month, startDate, endDate });
+    console.log("🔐 getEventsByMonthWithRole:", {
+      artistId,
+      year,
+      month,
+      startDate,
+      endDate,
+    });
 
     // Buscar todos os eventos do artista com filtragem por role
-    const { events, error, errorCode } = await getEventsByArtistWithRole(artistId);
+    const { events, error, errorCode } =
+      await getEventsByArtistWithRole(artistId);
 
     if (error) {
       return { success: false, error, errorCode };
@@ -695,38 +801,41 @@ export const getEventsByMonthWithRole = async (
     // Filtrar por mês no cliente (eventos ativos vêm da RPC get_events_by_role no banco)
     const filteredEvents =
       events?.filter(
-        (event) => event.event_date >= startDate && event.event_date <= endDate
+        (event) => event.event_date >= startDate && event.event_date <= endDate,
       ) ?? [];
 
-    console.log('✅ Eventos filtrados por mês:', filteredEvents.length);
+    console.log("✅ Eventos filtrados por mês:", filteredEvents.length);
     return { success: true, error: null, events: filteredEvents };
   } catch (error: any) {
-    console.error('❌ Erro ao buscar eventos por mês:', error);
-    return { 
-      success: false, 
-      error: error?.message || 'Erro de conexão',
-      errorCode: error?.code
+    console.error("❌ Erro ao buscar eventos por mês:", error);
+    return {
+      success: false,
+      error: error?.message || "Erro de conexão",
+      errorCode: error?.code,
     };
   }
 };
 
 // Buscar um evento específico com filtragem por role
-export const getEventByIdWithRole = async (eventId: string): Promise<{ event: EventWithRole | null; error: string | null }> => {
+export const getEventByIdWithRole = async (
+  eventId: string,
+): Promise<{ event: EventWithRole | null; error: string | null }> => {
   try {
-    console.log('🔐 Buscando evento por ID com role:', eventId);
-    
-    const { data, error } = await supabase
-      .rpc('get_event_by_id_with_role', { p_event_id: eventId });
+    console.log("🔐 Buscando evento por ID com role:", eventId);
+
+    const { data, error } = await supabase.rpc("get_event_by_id_with_role", {
+      p_event_id: eventId,
+    });
 
     if (error) {
-      console.error('❌ Erro ao buscar evento:', error);
+      console.error("❌ Erro ao buscar evento:", error);
       return { event: null, error: error.message };
     }
 
-    console.log('✅ Evento carregado:', data?.[0]);
+    console.log("✅ Evento carregado:", data?.[0]);
     return { event: data?.[0] || null, error: null };
   } catch (error) {
-    console.error('❌ Erro ao buscar evento:', error);
-    return { event: null, error: 'Erro ao buscar evento' };
+    console.error("❌ Erro ao buscar evento:", error);
+    return { event: null, error: "Erro ao buscar evento" };
   }
 };
