@@ -212,6 +212,81 @@ USING (
   )
 );
 
+-- Vendedor também pode consultar e gerenciar despesas dos próprios eventos.
+DROP POLICY IF EXISTS "vendedor_pode_ver_despesas_proprios_eventos" ON public.event_expenses;
+CREATE POLICY "vendedor_pode_ver_despesas_proprios_eventos"
+ON public.event_expenses
+FOR SELECT
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM public.events e
+    JOIN public.artist_members am ON am.artist_id = e.artist_id
+    WHERE e.id = event_expenses.event_id
+      AND e.created_by = auth.uid()
+      AND am.user_id = auth.uid()
+      AND am.role = 'vendedor'
+  )
+);
+
+DROP POLICY IF EXISTS "vendedor_pode_adicionar_despesas_proprios_eventos" ON public.event_expenses;
+CREATE POLICY "vendedor_pode_adicionar_despesas_proprios_eventos"
+ON public.event_expenses
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM public.events e
+    JOIN public.artist_members am ON am.artist_id = e.artist_id
+    WHERE e.id = event_expenses.event_id
+      AND e.created_by = auth.uid()
+      AND am.user_id = auth.uid()
+      AND am.role = 'vendedor'
+  )
+);
+
+DROP POLICY IF EXISTS "vendedor_pode_editar_despesas_proprios_eventos" ON public.event_expenses;
+CREATE POLICY "vendedor_pode_editar_despesas_proprios_eventos"
+ON public.event_expenses
+FOR UPDATE
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM public.events e
+    JOIN public.artist_members am ON am.artist_id = e.artist_id
+    WHERE e.id = event_expenses.event_id
+      AND e.created_by = auth.uid()
+      AND am.user_id = auth.uid()
+      AND am.role = 'vendedor'
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM public.events e
+    JOIN public.artist_members am ON am.artist_id = e.artist_id
+    WHERE e.id = event_expenses.event_id
+      AND e.created_by = auth.uid()
+      AND am.user_id = auth.uid()
+      AND am.role = 'vendedor'
+  )
+);
+
+DROP POLICY IF EXISTS "vendedor_pode_deletar_despesas_proprios_eventos" ON public.event_expenses;
+CREATE POLICY "vendedor_pode_deletar_despesas_proprios_eventos"
+ON public.event_expenses
+FOR DELETE
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM public.events e
+    JOIN public.artist_members am ON am.artist_id = e.artist_id
+    WHERE e.id = event_expenses.event_id
+      AND e.created_by = auth.uid()
+      AND am.user_id = auth.uid()
+      AND am.role = 'vendedor'
+  )
+);
+
 -- =====================================================
 -- CHECK constraint em notifications.role: ainda não aceita 'vendedor'
 -- (ver database/migrations-manual/adicionar-role-notifications.sql).

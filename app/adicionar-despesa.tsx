@@ -1,6 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import { Ionicons } from "@expo/vector-icons";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -13,20 +13,26 @@ import {
     TextInput,
     TouchableOpacity,
     View,
-} from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useActiveArtistContext } from '../contexts/ActiveArtistContext';
-import { useTheme } from '../contexts/ThemeContext';
-import { supabase } from '../lib/supabase';
-import { createExpense, createStandaloneExpense } from '../services/supabase/expenseService';
+} from "react-native";
+import {
+    SafeAreaView,
+    useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import { useActiveArtistContext } from "../contexts/ActiveArtistContext";
+import { useTheme } from "../contexts/ThemeContext";
+import { supabase } from "../lib/supabase";
+import {
+    createExpense,
+    createStandaloneExpense,
+} from "../services/supabase/expenseService";
 
 const CATEGORIAS = [
-  { value: 'equipamento', label: 'Equipamento', icon: 'hardware-chip' },
-  { value: 'manutencao', label: 'Manutenção', icon: 'construct' },
-  { value: 'transporte', label: 'Transporte', icon: 'car' },
-  { value: 'software', label: 'Software/Assinaturas', icon: 'laptop' },
-  { value: 'marketing', label: 'Marketing', icon: 'megaphone' },
-  { value: 'outros', label: 'Outros', icon: 'ellipsis-horizontal-circle' },
+  { value: "equipamento", label: "Equipamento", icon: "hardware-chip" },
+  { value: "manutencao", label: "Manutenção", icon: "construct" },
+  { value: "transporte", label: "Transporte", icon: "car" },
+  { value: "software", label: "Software/Assinaturas", icon: "laptop" },
+  { value: "marketing", label: "Marketing", icon: "megaphone" },
+  { value: "outros", label: "Outros", icon: "ellipsis-horizontal-circle" },
 ];
 
 export default function AdicionarDespesaScreen() {
@@ -45,57 +51,66 @@ export default function AdicionarDespesaScreen() {
     return value ?? undefined;
   }, [params]);
   const isEventExpense = !!eventId;
-  const [descricao, setDescricao] = useState('');
-  const [valor, setValor] = useState('');
-  const [categoria, setCategoria] = useState('');
-  const [observacoes, setObservacoes] = useState('');
+  const [descricao, setDescricao] = useState("");
+  const [valor, setValor] = useState("");
+  const [categoria, setCategoria] = useState("");
+  const [observacoes, setObservacoes] = useState("");
   const [data, setData] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [canAdd, setCanAdd] = useState<boolean | null>(null);
 
-  // Bloquear não-admin: apenas administradores podem adicionar despesa
+  // Admin pode adicionar qualquer despesa; vendedor só nos próprios eventos.
   useEffect(() => {
     const checkRole = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user || !activeArtist) {
         setCanAdd(false);
         return;
       }
       const { data } = await supabase
-        .from('artist_members')
-        .select('role')
-        .eq('user_id', user.id)
-        .eq('artist_id', activeArtist.id)
+        .from("artist_members")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("artist_id", activeArtist.id)
         .single();
-      const role = data?.role;
-      const canAddRole = role === 'admin';
+      let canAddRole = data?.role === "admin";
+      if (isEventExpense && eventId && data?.role === "vendedor") {
+        const { data: event } = await supabase
+          .from("events")
+          .select("created_by")
+          .eq("id", eventId)
+          .maybeSingle();
+        canAddRole = event?.created_by === user.id;
+      }
       setCanAdd(canAddRole);
       if (!canAddRole) {
         Alert.alert(
-          'Acesso restrito',
-          'Apenas administradores podem adicionar despesas. Entre em contato com um administrador para solicitar mais permissões.',
-          [{ text: 'OK', onPress: () => router.back() }]
+          "Acesso restrito",
+          "Você só pode adicionar despesas nos eventos que criou.",
+          [{ text: "OK", onPress: () => router.back() }],
         );
       }
     };
     checkRole();
-  }, [activeArtist?.id]);
+  }, [activeArtist?.id, eventId, isEventExpense]);
 
   const formatarValor = (text: string) => {
     // Remove tudo exceto números
-    const apenasNumeros = text.replace(/[^0-9]/g, '');
-    
-    if (apenasNumeros === '') {
-      setValor('');
+    const apenasNumeros = text.replace(/[^0-9]/g, "");
+
+    if (apenasNumeros === "") {
+      setValor("");
       return;
     }
 
     // Converte para número com centavos
     const numero = parseInt(apenasNumeros) / 100;
-    
+
     // Formata como moeda brasileira
-    const valorFormatado = numero.toLocaleString('pt-BR', {
+    const valorFormatado = numero.toLocaleString("pt-BR", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
@@ -105,22 +120,22 @@ export default function AdicionarDespesaScreen() {
 
   const handleSalvar = async () => {
     if (!activeArtist) {
-      Alert.alert('Erro', 'Nenhum artista selecionado');
+      Alert.alert("Erro", "Nenhum artista selecionado");
       return;
     }
 
     if (!descricao.trim()) {
-      Alert.alert('Atenção', 'Preencha a descrição da despesa');
+      Alert.alert("Atenção", "Preencha a descrição da despesa");
       return;
     }
 
-    if (!valor || parseFloat(valor.replace(',', '.')) <= 0) {
-      Alert.alert('Atenção', 'Informe um valor válido');
+    if (!valor || parseFloat(valor.replace(",", ".")) <= 0) {
+      Alert.alert("Atenção", "Informe um valor válido");
       return;
     }
 
     if (!isEventExpense && !categoria) {
-      Alert.alert('Atenção', 'Selecione uma categoria');
+      Alert.alert("Atenção", "Selecione uma categoria");
       return;
     }
 
@@ -128,7 +143,9 @@ export default function AdicionarDespesaScreen() {
       setIsLoading(true);
 
       // Converter valor de string formatada para número
-      const valorNumerico = parseFloat(valor.replace('.', '').replace(',', '.'));
+      const valorNumerico = parseFloat(
+        valor.replace(".", "").replace(",", "."),
+      );
 
       let success = false;
       let error: string | null = null;
@@ -147,24 +164,24 @@ export default function AdicionarDespesaScreen() {
           value: valorNumerico,
           category: categoria,
           notes: observacoes.trim() || undefined,
-          date: data.toISOString().split('T')[0],
+          date: data.toISOString().split("T")[0],
         });
         success = response.success;
         error = response.error;
       }
 
       if (success) {
-        Alert.alert('Sucesso', 'Despesa adicionada com sucesso!', [
+        Alert.alert("Sucesso", "Despesa adicionada com sucesso!", [
           {
-            text: 'OK',
+            text: "OK",
             onPress: () => router.back(),
           },
         ]);
       } else {
-        Alert.alert('Erro', error || 'Não foi possível adicionar a despesa');
+        Alert.alert("Erro", error || "Não foi possível adicionar a despesa");
       }
     } catch (err) {
-      Alert.alert('Erro', 'Erro ao adicionar despesa');
+      Alert.alert("Erro", "Erro ao adicionar despesa");
     } finally {
       setIsLoading(false);
     }
@@ -173,21 +190,39 @@ export default function AdicionarDespesaScreen() {
   if (canAdd === false) return null;
   if (canAdd === null) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-        <ActivityIndicator size="large" color={colors.primary} style={{ flex: 1, justifyContent: 'center' }} />
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={["top"]}
+      >
+        <ActivityIndicator
+          size="large"
+          color={colors.primary}
+          style={{ flex: 1, justifyContent: "center" }}
+        />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={["top"]}
+    >
       {/* Header */}
-      <View style={[styles.header, { 
-        backgroundColor: colors.surface, 
-        borderBottomColor: colors.border,
-        paddingTop: insets.top > 0 ? 16 : 20
-      }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: colors.surface,
+            borderBottomColor: colors.border,
+            paddingTop: insets.top > 0 ? 16 : 20,
+          },
+        ]}
+      >
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text }]}>Nova Despesa</Text>
@@ -195,30 +230,53 @@ export default function AdicionarDespesaScreen() {
       </View>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.content}
       >
         <ScrollView>
           {/* Info Card */}
-          <View style={[styles.infoCard, { backgroundColor: colors.primary + '20' }]}>
-            <Ionicons name="information-circle" size={20} color={colors.primary} />
+          <View
+            style={[
+              styles.infoCard,
+              { backgroundColor: colors.primary + "20" },
+            ]}
+          >
+            <Ionicons
+              name="information-circle"
+              size={20}
+              color={colors.primary}
+            />
             <Text style={[styles.infoText, { color: colors.primary }]}>
               {isEventExpense
-                ? `Esta despesa será vinculada ao evento${eventName ? ` "${eventName}"` : ''}. Use para registrar gastos específicos deste evento.`
-                : 'Despesas avulsas não estão vinculadas a eventos específicos. Use para gastos gerais como equipamentos, manutenção, etc.'}
+                ? `Esta despesa será vinculada ao evento${eventName ? ` "${eventName}"` : ""}. Use para registrar gastos específicos deste evento.`
+                : "Despesas avulsas não estão vinculadas a eventos específicos. Use para gastos gerais como equipamentos, manutenção, etc."}
             </Text>
           </View>
 
           {/* Formulário */}
-          <View style={[styles.formContainer, { backgroundColor: colors.surface }]}>
+          <View
+            style={[styles.formContainer, { backgroundColor: colors.surface }]}
+          >
             {/* Descrição */}
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: colors.text }]}>
-                {isEventExpense ? 'Nome da Despesa *' : 'Descrição *'} <Text style={styles.required}>*</Text>
+                {isEventExpense ? "Nome da Despesa *" : "Descrição *"}{" "}
+                <Text style={styles.required}>*</Text>
               </Text>
               <TextInput
-                style={[styles.input, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
-                placeholder={isEventExpense ? 'Ex: Locação de som' : 'Ex: Parcela do violão'}
+                style={[
+                  styles.input,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.background,
+                    color: colors.text,
+                  },
+                ]}
+                placeholder={
+                  isEventExpense
+                    ? "Ex: Locação de som"
+                    : "Ex: Parcela do violão"
+                }
                 placeholderTextColor={colors.textSecondary}
                 value={descricao}
                 onChangeText={setDescricao}
@@ -231,7 +289,15 @@ export default function AdicionarDespesaScreen() {
               <Text style={[styles.label, { color: colors.text }]}>
                 Valor * <Text style={styles.required}>*</Text>
               </Text>
-              <View style={[styles.valorContainer, { borderColor: colors.border, backgroundColor: colors.background }]}>
+              <View
+                style={[
+                  styles.valorContainer,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.background,
+                  },
+                ]}
+              >
                 <Text style={[styles.cifrao, { color: colors.text }]}>R$</Text>
                 <TextInput
                   style={[styles.valorInput, { color: colors.text }]}
@@ -258,8 +324,14 @@ export default function AdicionarDespesaScreen() {
                         style={[
                           styles.categoriaButton,
                           {
-                            backgroundColor: categoria === cat.value ? colors.primary : colors.background,
-                            borderColor: categoria === cat.value ? colors.primary : colors.border,
+                            backgroundColor:
+                              categoria === cat.value
+                                ? colors.primary
+                                : colors.background,
+                            borderColor:
+                              categoria === cat.value
+                                ? colors.primary
+                                : colors.border,
                           },
                         ]}
                         onPress={() => setCategoria(cat.value)}
@@ -267,12 +339,15 @@ export default function AdicionarDespesaScreen() {
                         <Ionicons
                           name={cat.icon as any}
                           size={20}
-                          color={categoria === cat.value ? '#fff' : colors.text}
+                          color={categoria === cat.value ? "#fff" : colors.text}
                         />
                         <Text
                           style={[
                             styles.categoriaText,
-                            { color: categoria === cat.value ? '#fff' : colors.text },
+                            {
+                              color:
+                                categoria === cat.value ? "#fff" : colors.text,
+                            },
                           ]}
                         >
                           {cat.label}
@@ -284,25 +359,43 @@ export default function AdicionarDespesaScreen() {
 
                 {/* Data */}
                 <View style={styles.inputGroup}>
-                  <Text style={[styles.label, { color: colors.text }]}>Data</Text>
+                  <Text style={[styles.label, { color: colors.text }]}>
+                    Data
+                  </Text>
                   <TouchableOpacity
-                    style={[styles.dateButton, { borderColor: colors.border, backgroundColor: colors.background }]}
+                    style={[
+                      styles.dateButton,
+                      {
+                        borderColor: colors.border,
+                        backgroundColor: colors.background,
+                      },
+                    ]}
                     onPress={() => setShowDatePicker(true)}
                   >
-                    <Ionicons name="calendar" size={20} color={colors.primary} />
+                    <Ionicons
+                      name="calendar"
+                      size={20}
+                      color={colors.primary}
+                    />
                     <Text style={[styles.dateText, { color: colors.text }]}>
-                      {data.toLocaleDateString('pt-BR')}
+                      {data.toLocaleDateString("pt-BR")}
                     </Text>
                   </TouchableOpacity>
                 </View>
 
                 {/* Observações */}
                 <View style={styles.inputGroup}>
-                  <Text style={[styles.label, { color: colors.text }]}>Observações (opcional)</Text>
+                  <Text style={[styles.label, { color: colors.text }]}>
+                    Observações (opcional)
+                  </Text>
                   <TextInput
                     style={[
                       styles.textArea,
-                      { borderColor: colors.border, backgroundColor: colors.background, color: colors.text },
+                      {
+                        borderColor: colors.border,
+                        backgroundColor: colors.background,
+                        color: colors.text,
+                      },
                     ]}
                     placeholder="Adicione detalhes extras sobre esta despesa..."
                     placeholderTextColor={colors.textSecondary}
@@ -319,7 +412,12 @@ export default function AdicionarDespesaScreen() {
           </View>
 
           {/* Botão Salvar */}
-          <View style={[styles.buttonContainer, { paddingBottom: Math.max(insets.bottom, 20) + 40 }]}>
+          <View
+            style={[
+              styles.buttonContainer,
+              { paddingBottom: Math.max(insets.bottom, 20) + 40 },
+            ]}
+          >
             <TouchableOpacity
               style={[styles.saveButton, { backgroundColor: colors.primary }]}
               onPress={handleSalvar}
@@ -345,36 +443,54 @@ export default function AdicionarDespesaScreen() {
           animationType="fade"
           onRequestClose={() => setShowDatePicker(false)}
         >
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.modalOverlay}
             activeOpacity={1}
             onPress={() => setShowDatePicker(false)}
           >
-            <View style={[styles.calendarModal, { backgroundColor: colors.surface }]}>
+            <View
+              style={[
+                styles.calendarModal,
+                { backgroundColor: colors.surface },
+              ]}
+            >
               <Text style={[styles.calendarTitle, { color: colors.text }]}>
-                {data.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                {data.toLocaleDateString("pt-BR", {
+                  month: "long",
+                  year: "numeric",
+                })}
               </Text>
 
               {/* Grid de Dias */}
               <View style={styles.calendarGrid}>
-                {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day) => (
-                  <Text key={day} style={[styles.calendarWeekday, { color: colors.textSecondary }]}>
-                    {day}
-                  </Text>
-                ))}
-                
+                {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map(
+                  (day) => (
+                    <Text
+                      key={day}
+                      style={[
+                        styles.calendarWeekday,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      {day}
+                    </Text>
+                  ),
+                )}
+
                 {(() => {
                   const year = data.getFullYear();
                   const month = data.getMonth();
                   const firstDay = new Date(year, month, 1).getDay();
                   const daysInMonth = new Date(year, month + 1, 0).getDate();
                   const days = [];
-                  
+
                   // Dias vazios antes do primeiro dia
                   for (let i = 0; i < firstDay; i++) {
-                    days.push(<View key={`empty-${i}`} style={styles.calendarDay} />);
+                    days.push(
+                      <View key={`empty-${i}`} style={styles.calendarDay} />,
+                    );
                   }
-                  
+
                   // Dias do mês
                   for (let day = 1; day <= daysInMonth; day++) {
                     const isSelected = data.getDate() === day;
@@ -383,7 +499,10 @@ export default function AdicionarDespesaScreen() {
                         key={day}
                         style={[
                           styles.calendarDay,
-                          isSelected && { backgroundColor: colors.primary, borderRadius: 20 }
+                          isSelected && {
+                            backgroundColor: colors.primary,
+                            borderRadius: 20,
+                          },
                         ]}
                         onPress={() => {
                           const newDate = new Date(year, month, day);
@@ -391,25 +510,32 @@ export default function AdicionarDespesaScreen() {
                           setShowDatePicker(false);
                         }}
                       >
-                        <Text style={[
-                          styles.calendarDayText,
-                          { color: isSelected ? '#fff' : colors.text }
-                        ]}>
+                        <Text
+                          style={[
+                            styles.calendarDayText,
+                            { color: isSelected ? "#fff" : colors.text },
+                          ]}
+                        >
                           {day}
                         </Text>
-                      </TouchableOpacity>
+                      </TouchableOpacity>,
                     );
                   }
-                  
+
                   return days;
                 })()}
               </View>
 
               <TouchableOpacity
-                style={[styles.calendarCloseButton, { backgroundColor: colors.background }]}
+                style={[
+                  styles.calendarCloseButton,
+                  { backgroundColor: colors.background },
+                ]}
                 onPress={() => setShowDatePicker(false)}
               >
-                <Text style={[styles.calendarCloseText, { color: colors.text }]}>
+                <Text
+                  style={[styles.calendarCloseText, { color: colors.text }]}
+                >
                   Fechar
                 </Text>
               </TouchableOpacity>
@@ -426,9 +552,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
@@ -438,7 +564,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   placeholder: {
     width: 40,
@@ -450,8 +576,8 @@ const styles = StyleSheet.create({
     margin: 20,
     padding: 16,
     borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
   },
   infoText: {
     flex: 1,
@@ -470,11 +596,11 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 8,
   },
   required: {
-    color: '#F44336',
+    color: "#F44336",
   },
   input: {
     borderWidth: 1,
@@ -484,8 +610,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   valorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 16,
@@ -493,7 +619,7 @@ const styles = StyleSheet.create({
   },
   cifrao: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     marginRight: 8,
   },
   valorInput: {
@@ -509,13 +635,13 @@ const styles = StyleSheet.create({
     minHeight: 100,
   },
   categoriasContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 10,
   },
   categoriaButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
@@ -524,14 +650,14 @@ const styles = StyleSheet.create({
   },
   categoriaText: {
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   buttonContainer: {
     paddingHorizontal: 20,
   },
   dateButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 16,
@@ -544,41 +670,41 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   calendarModal: {
-    width: '100%',
+    width: "100%",
     maxWidth: 400,
     borderRadius: 16,
     padding: 20,
   },
   calendarTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    fontWeight: "bold",
+    textAlign: "center",
     marginBottom: 16,
-    textTransform: 'capitalize',
+    textTransform: "capitalize",
   },
   calendarGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     marginBottom: 16,
   },
   calendarWeekday: {
-    width: '14.28%',
-    textAlign: 'center',
+    width: "14.28%",
+    textAlign: "center",
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 8,
   },
   calendarDay: {
-    width: '14.28%',
+    width: "14.28%",
     aspectRatio: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 4,
   },
   calendarDayText: {
@@ -587,23 +713,23 @@ const styles = StyleSheet.create({
   calendarCloseButton: {
     padding: 12,
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   calendarCloseText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   saveButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 16,
     borderRadius: 12,
     gap: 8,
   },
   saveButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });

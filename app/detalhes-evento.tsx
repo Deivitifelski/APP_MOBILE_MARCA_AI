@@ -18,7 +18,7 @@ import {
     TextInput,
     TouchableOpacity,
     TouchableWithoutFeedback,
-    View
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import OptimizedImage from "../components/OptimizedImage";
@@ -842,6 +842,7 @@ export default function DetalhesEventoScreen() {
     (artistMemberRole === "vendedor" &&
       !!currentUserId &&
       event?.created_by === currentUserId);
+  const canManageOwnEventExpenses = canManageOwnEvent;
 
   const openRemoveParticipationModal = (c: ConviteParticipacaoEventoRow) => {
     if (!handleRestrictedAction("remover participação")) return;
@@ -924,7 +925,10 @@ export default function DetalhesEventoScreen() {
 
   const addOrReplaceContract = async () => {
     if (!event || !currentUserId) return;
-    if (!handleRestrictedAction("gerenciar contrato")) return;
+    if (!canManageOwnEvent) {
+      setShowPermissionModal(true);
+      return;
+    }
 
     try {
       const oldUrl = event.contract_url ?? null;
@@ -1005,7 +1009,10 @@ export default function DetalhesEventoScreen() {
 
   const removeContract = async () => {
     if (!event || !currentUserId || !event.contract_url) return;
-    if (!handleRestrictedAction("gerenciar contrato")) return;
+    if (!canManageOwnEvent) {
+      setShowPermissionModal(true);
+      return;
+    }
 
     Alert.alert("Remover contrato", "Deseja remover o contrato deste evento?", [
       { text: "Cancelar", style: "cancel" },
@@ -1069,7 +1076,10 @@ export default function DetalhesEventoScreen() {
   };
 
   const handleManageExpenses = () => {
-    if (!handleRestrictedAction("gerenciar despesas")) return;
+    if (!canManageOwnEventExpenses) {
+      setShowPermissionModal(true);
+      return;
+    }
     router.push({
       pathname: "/despesas-evento",
       params: {
@@ -1080,7 +1090,10 @@ export default function DetalhesEventoScreen() {
   };
 
   const handleAddExpense = () => {
-    if (!handleRestrictedAction("adicionar despesa")) return;
+    if (!canManageOwnEventExpenses) {
+      setShowPermissionModal(true);
+      return;
+    }
     router.push({
       pathname: "/adicionar-despesa",
       params: {
@@ -1534,7 +1547,7 @@ export default function DetalhesEventoScreen() {
                   )}
                 </TouchableOpacity>
 
-                {hasAccess ? (
+                {canManageOwnEvent ? (
                   <View style={styles.contractActionsRow}>
                     <TouchableOpacity
                       style={[
@@ -1610,7 +1623,7 @@ export default function DetalhesEventoScreen() {
                     </Text>
                   </View>
                 </View>
-                {hasAccess ? (
+                {canManageOwnEvent ? (
                   <TouchableOpacity
                     style={[
                       styles.contractActionBtn,
@@ -1897,7 +1910,7 @@ export default function DetalhesEventoScreen() {
             Resumo Financeiro
           </Text>
 
-          {hasAccess ? (
+          {canManageOwnEventExpenses ? (
             <>
               <View
                 style={[
@@ -2457,7 +2470,7 @@ export default function DetalhesEventoScreen() {
             <Text style={[styles.actionButtonText, { color: colors.text }]}>
               Gerenciar Despesas
             </Text>
-            {!hasAccess && (
+            {!canManageOwnEventExpenses && (
               <Ionicons
                 name="lock-closed"
                 size={16}
@@ -2479,7 +2492,7 @@ export default function DetalhesEventoScreen() {
             <Text style={[styles.actionButtonText, { color: colors.text }]}>
               Adicionar Despesa
             </Text>
-            {!hasAccess && (
+            {!canManageOwnEventExpenses && (
               <Ionicons
                 name="lock-closed"
                 size={16}
