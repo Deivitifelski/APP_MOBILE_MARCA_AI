@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -66,6 +67,10 @@ export default function SocialFeedScreen() {
   const [selectedMediaType, setSelectedMediaType] = useState<"image" | "video">(
     "image",
   );
+  const [mediaAspectRatios, setMediaAspectRatios] = useState<
+    Record<string, number>
+  >({});
+  const [previewAspectRatio, setPreviewAspectRatio] = useState(1);
   const [composerError, setComposerError] = useState("");
   const [isPublishing, setIsPublishing] = useState(false);
   const [uploadingPostIds, setUploadingPostIds] = useState<Set<string>>(
@@ -221,10 +226,13 @@ export default function SocialFeedScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        mediaTypes: ["images", "videos"],
         allowsEditing: false,
+        allowsMultipleSelection: false,
         quality: 0.8,
         videoMaxDuration: 60,
+        preferredAssetRepresentationMode:
+          ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
       });
 
       if (result.canceled || !result.assets?.length) {
@@ -236,7 +244,39 @@ export default function SocialFeedScreen() {
       setSelectedMediaUri(asset.uri);
       setComposerError("");
     } catch (error) {
-      Alert.alert("Erro", "Não foi possível selecionar a mídia.");
+      console.error("Erro ao selecionar mídia:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      if (
+        errorMessage.includes("PHPPhotosErrorDomain") ||
+        errorMessage.includes("3164")
+      ) {
+        try {
+          const fileResult = await DocumentPicker.getDocumentAsync({
+            type: "video/*",
+            copyToCacheDirectory: true,
+            multiple: false,
+          });
+          const file = fileResult.assets?.[0];
+          if (!fileResult.canceled && file) {
+            setSelectedMediaType("video");
+            setSelectedMediaUri(file.uri);
+            setComposerError("");
+            return;
+          }
+        } catch (fallbackError) {
+          console.error(
+            "Erro ao selecionar vídeo pelos Arquivos:",
+            fallbackError,
+          );
+        }
+      }
+
+      Alert.alert(
+        "Erro",
+        "Não foi possível acessar esse vídeo pelo Fotos. Tente selecioná-lo pelo app Arquivos.",
+      );
     }
   }, []);
 
@@ -442,11 +482,23 @@ export default function SocialFeedScreen() {
                 { backgroundColor: isDarkMode ? "#111827" : "#e5e7eb" },
               ]}
             >
-                <Image
-                  source={{ uri: item.mediaUrl }}
-                  style={styles.mediaImage}
-                  resizeMode="contain"
-                />
+              <Image
+                source={{ uri: item.mediaUrl }}
+                style={[
+                  styles.mediaImage,
+                  { aspectRatio: mediaAspectRatios[item.id] || 1 },
+                ]}
+                onLoad={(event) => {
+                  const { width, height } = event.nativeEvent.source;
+                  if (width && height) {
+                    setMediaAspectRatios((current) => ({
+                      ...current,
+                      [item.id]: width / height,
+                    }));
+                  }
+                }}
+                resizeMode="contain"
+              />
               <View style={styles.playButton}>
                 <Ionicons name="play" size={18} color="#ffffff" />
               </View>
@@ -454,7 +506,19 @@ export default function SocialFeedScreen() {
           ) : (
             <Image
               source={{ uri: item.mediaUrl }}
-              style={styles.mediaImage}
+              style={[
+                styles.mediaImage,
+                { aspectRatio: mediaAspectRatios[item.id] || 1 },
+              ]}
+              onLoad={(event) => {
+                const { width, height } = event.nativeEvent.source;
+                if (width && height) {
+                  setMediaAspectRatios((current) => ({
+                    ...current,
+                    [item.id]: width / height,
+                  }));
+                }
+              }}
               resizeMode="contain"
             />
           )}
@@ -637,7 +701,15 @@ export default function SocialFeedScreen() {
                   >
                     <Image
                       source={{ uri: selectedMediaUri }}
-                      style={styles.previewImage}
+                      style={[
+                        styles.previewImage,
+                        { aspectRatio: previewAspectRatio },
+                      ]}
+                      onLoad={(event) => {
+                        const { width, height } = event.nativeEvent.source;
+                        if (width && height)
+                          setPreviewAspectRatio(width / height);
+                      }}
                       resizeMode="contain"
                     />
                     {selectedMediaType === "video" && (
@@ -951,18 +1023,23 @@ const styles = StyleSheet.create({
   },
   mediaWrap: {
     marginTop: 12,
+    marginHorizontal: 4,
+    padding: 6,
     borderRadius: 18,
     overflow: "hidden",
     backgroundColor: "#eef0f4",
   },
   mediaImage: {
     width: "100%",
-    height: 260,
+    alignSelf: "center",
+    borderRadius: 12,
     backgroundColor: "#eef0f4",
   },
   mediaPlaceholder: {
     position: "relative",
-    borderRadius: 18,
+    width: "100%",
+    alignSelf: "center",
+    borderRadius: 12,
     overflow: "hidden",
   },
   playButton: {
@@ -1112,7 +1189,6 @@ const styles = StyleSheet.create({
   },
   previewImage: {
     width: "100%",
-    height: 220,
     backgroundColor: "#eef0f4",
   },
   playButtonSmall: {

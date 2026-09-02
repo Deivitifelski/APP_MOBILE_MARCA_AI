@@ -268,8 +268,15 @@ export async function uploadFeedMediaToStorage(
 
     const fileBuffer = await response.arrayBuffer();
     const extension = uri.split(".").pop()?.split("?")[0] || "jpg";
+    const normalizedExtension = extension.toLowerCase();
     const contentType =
-      extension.toLowerCase() === "mp4" ? "video/mp4" : "image/jpeg";
+      normalizedExtension === "mp4"
+        ? "video/mp4"
+        : normalizedExtension === "mov"
+          ? "video/quicktime"
+          : normalizedExtension === "m4v"
+            ? "video/x-m4v"
+            : "image/jpeg";
     const uniqueFileName = `${fileName}-${Date.now()}.${extension}`;
 
     const { data, error } = await supabase.storage
