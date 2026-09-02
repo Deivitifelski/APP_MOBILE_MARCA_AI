@@ -9,7 +9,8 @@
     "ios": "expo run:ios",
     "ios:app-store-screenshots": "bash scripts/ios-app-store-simulator.sh",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

@@ -1,14 +1,14 @@
-import messaging from '@react-native-firebase/messaging';
-import { Platform } from 'react-native';
+import messaging from "@react-native-firebase/messaging";
+import { Platform } from "react-native";
 
 /**
  * Configura todos os handlers de notificações push para iOS e Android
- * 
+ *
  * IMPORTANTE: Este serviço deve ser inicializado no início do app
  * (no app/index.tsx ou _layout.tsx)
  */
 export const setupPushNotificationHandlers = () => {
-  console.log('🔔 Configurando handlers de notificações push...');
+  console.log("🔔 Configurando handlers de notificações push...");
 
   // Verificar se o Firebase está disponível
   // Se não estiver, os handlers simplesmente não funcionarão, mas não causarão crash
@@ -21,12 +21,16 @@ export const setupPushNotificationHandlers = () => {
     }
   } catch (error) {
     firebaseAvailable = false;
-    console.warn('⚠️ Firebase não está configurado. Notificações push não estarão disponíveis.');
-    console.warn('💡 Para habilitar: Adicione o GoogleService-Info.plist ao projeto iOS.');
+    console.warn(
+      "⚠️ Firebase não está configurado. Notificações push não estarão disponíveis.",
+    );
+    console.warn(
+      "💡 Para habilitar: Adicione o GoogleService-Info.plist ao projeto iOS.",
+    );
     // Retornar função vazia de cleanup
     return () => {};
   }
-  
+
   if (!firebaseAvailable) {
     return () => {};
   }
@@ -35,15 +39,18 @@ export const setupPushNotificationHandlers = () => {
   // 1. HANDLER PARA NOTIFICAÇÕES EM FOREGROUND
   // ============================================
   // Quando o app está aberto e uma notificação chega
-  const unsubscribeForeground = messaging().onMessage(async remoteMessage => {
-    console.log('📬 Notificação recebida em FOREGROUND:', remoteMessage);
-    if (remoteMessage.notification) {
-      const { title, body } = remoteMessage.notification;
-      console.log('Foreground:', title, body);
+  const unsubscribeForeground = messaging().onMessage(async (remoteMessage) => {
+    console.log("📬 Notificação recebida em FOREGROUND:", remoteMessage);
+    const title = remoteMessage.notification?.title;
+    const body = remoteMessage.notification?.body;
+    const data = remoteMessage.data ?? {};
+
+    if (title || body) {
+      console.log("Foreground:", title, body, data);
     }
-    // App aberto: manter badge sempre zerado (usuário já está vendo)
+
     try {
-      const { setAppIconBadge } = await import('./appIconBadge');
+      const { setAppIconBadge } = await import("./appIconBadge");
       await setAppIconBadge(0);
     } catch {
       // ignora se falhar
@@ -55,19 +62,19 @@ export const setupPushNotificationHandlers = () => {
   // ============================================
   // Quando o usuário toca na notificação e o app é aberto
   const unsubscribeNotificationOpened = messaging().onNotificationOpenedApp(
-    remoteMessage => {
-      console.log('📱 App aberto via notificação:', remoteMessage);
+    (remoteMessage) => {
+      console.log("📱 App aberto via notificação:", remoteMessage);
 
-      if (remoteMessage.notification) {
-        const { title, body, data } = remoteMessage.notification;
-        console.log('Título:', title);
-        console.log('Corpo:', body);
-        console.log('Dados:', data);
+      const title = remoteMessage.notification?.title;
+      const body = remoteMessage.notification?.body;
+      const data = remoteMessage.data ?? {};
 
-        // Aqui você pode navegar para uma tela específica baseado nos dados
-        // Por exemplo: router.push('/notificacoes');
+      if (title || body || Object.keys(data).length > 0) {
+        console.log("Título:", title);
+        console.log("Corpo:", body);
+        console.log("Dados:", data);
       }
-    }
+    },
   );
 
   // ============================================
@@ -76,23 +83,23 @@ export const setupPushNotificationHandlers = () => {
   // Quando o app é aberto a partir de uma notificação (app estava fechado)
   messaging()
     .getInitialNotification()
-    .then(remoteMessage => {
+    .then((remoteMessage) => {
       if (remoteMessage) {
-        console.log('🚀 App aberto a partir de notificação:', remoteMessage);
+        console.log("🚀 App aberto a partir de notificação:", remoteMessage);
 
-        if (remoteMessage.notification) {
-          const { title, body, data } = remoteMessage.notification;
-          console.log('Título:', title);
-          console.log('Corpo:', body);
-          console.log('Dados:', data);
+        const title = remoteMessage.notification?.title;
+        const body = remoteMessage.notification?.body;
+        const data = remoteMessage.data ?? {};
 
-          // Navegar para a tela apropriada
-          // Por exemplo: router.push('/notificacoes');
+        if (title || body || Object.keys(data).length > 0) {
+          console.log("Título:", title);
+          console.log("Corpo:", body);
+          console.log("Dados:", data);
         }
       }
     })
-    .catch(error => {
-      console.error('Erro ao verificar notificação inicial:', error);
+    .catch((error) => {
+      console.error("Erro ao verificar notificação inicial:", error);
     });
 
   // ============================================
@@ -100,25 +107,29 @@ export const setupPushNotificationHandlers = () => {
   // ============================================
   // Quando o token FCM é atualizado (pode acontecer periodicamente)
   const unsubscribeTokenRefresh = messaging().onTokenRefresh(async (token) => {
-    console.log('🔄 Token FCM atualizado:', token);
+    console.log("🔄 Token FCM atualizado:", token);
     // Salvar o novo token no banco de dados automaticamente
     try {
-      const { getCurrentUser, saveFCMToken } = await import('./supabase/userService');
+      const { getCurrentUser } = await import("./supabase/authService");
+      const { saveFCMToken } = await import("./supabase/userService");
       const { user } = await getCurrentUser();
       if (user && token) {
         const result = await saveFCMToken(user.id, token);
         if (result.success) {
-          console.log('✅ Token FCM atualizado e salvo no banco de dados!');
+          console.log("✅ Token FCM atualizado e salvo no banco de dados!");
         } else {
-          console.error('❌ Erro ao salvar token FCM atualizado:', result.error);
+          console.error(
+            "❌ Erro ao salvar token FCM atualizado:",
+            result.error,
+          );
         }
       }
     } catch (error) {
-      console.error('❌ Erro ao salvar token FCM atualizado:', error);
+      console.error("❌ Erro ao salvar token FCM atualizado:", error);
     }
   });
 
-  console.log('✅ Handlers de notificações push configurados!');
+  console.log("✅ Handlers de notificações push configurados!");
 
   // Retornar função para limpar os listeners (opcional)
   return () => {
@@ -132,7 +143,7 @@ export const setupPushNotificationHandlers = () => {
  * Solicitar permissão de notificações (iOS)
  */
 export const requestNotificationPermission = async (): Promise<boolean> => {
-  if (Platform.OS !== 'ios') {
+  if (Platform.OS !== "ios") {
     // Android não precisa de permissão explícita
     return true;
   }
@@ -146,14 +157,14 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
       authStatus === messaging.AuthorizationStatus.PROVISIONAL;
 
     if (enabled) {
-      console.log('✅ Permissão de notificação concedida:', authStatus);
+      console.log("✅ Permissão de notificação concedida:", authStatus);
       return true;
     } else {
-      console.log('❌ Permissão de notificação negada:', authStatus);
+      console.log("❌ Permissão de notificação negada:", authStatus);
       return false;
     }
   } catch (error) {
-    console.error('Erro ao solicitar permissão:', error);
+    console.error("Erro ao solicitar permissão:", error);
     return false;
   }
 };
@@ -162,7 +173,7 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
  * Registrar dispositivo para mensagens remotas (iOS)
  */
 export const registerDeviceForRemoteMessages = async (): Promise<boolean> => {
-  if (Platform.OS !== 'ios') {
+  if (Platform.OS !== "ios") {
     return true;
   }
 
@@ -170,14 +181,14 @@ export const registerDeviceForRemoteMessages = async (): Promise<boolean> => {
     // Verificar se Firebase está disponível
     messaging();
     await messaging().registerDeviceForRemoteMessages();
-    console.log('✅ Dispositivo registrado para mensagens remotas');
+    console.log("✅ Dispositivo registrado para mensagens remotas");
     return true;
   } catch (error: any) {
-    if (error?.code === 'messaging/device-already-registered') {
-      console.log('✅ Dispositivo já estava registrado');
+    if (error?.code === "messaging/device-already-registered") {
+      console.log("✅ Dispositivo já estava registrado");
       return true;
     }
-    console.error('Erro ao registrar dispositivo:', error);
+    console.error("Erro ao registrar dispositivo:", error);
     return false;
   }
 };
@@ -190,12 +201,10 @@ export const getFCMToken = async (): Promise<string | null> => {
     // Verificar se Firebase está disponível
     messaging();
     const token = await messaging().getToken();
-    console.log('🔑 Token FCM obtido:', token);
+    console.log("🔑 Token FCM obtido:", token);
     return token;
   } catch (error) {
-    console.error('Erro ao obter token FCM:', error);
+    console.error("Erro ao obter token FCM:", error);
     return null;
   }
 };
-
-

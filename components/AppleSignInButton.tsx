@@ -1,14 +1,21 @@
-import type { User } from '@supabase/supabase-js';
-import * as AppleAuthentication from 'expo-apple-authentication';
-import React, { useState } from 'react';
-import { Alert, Platform, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
-import { supabase } from '../lib/supabase';
-import { createOrUpdateUserFromApple } from '../services/supabase/userService';
+import type { User } from "@supabase/supabase-js";
+import * as AppleAuthentication from "expo-apple-authentication";
+import React, { useState } from "react";
+import {
+    Alert,
+    Platform,
+    StyleProp,
+    StyleSheet,
+    TouchableOpacity,
+    ViewStyle,
+} from "react-native";
+import { supabase } from "../lib/supabase";
+import { createOrUpdateUserFromApple } from "../services/supabase/userService";
 
 const APPLE_CANCEL_CODES = [
-  'ERR_CANCELED',
-  'ERR_REQUEST_CANCELED',
-  'ERR_REQUEST_UNKNOWN',
+  "ERR_CANCELED",
+  "ERR_REQUEST_CANCELED",
+  "ERR_REQUEST_UNKNOWN",
 ];
 
 export interface AppleSignInResult {
@@ -20,7 +27,7 @@ export interface AppleSignInResult {
 
 interface AppleSignInButtonProps {
   disabled?: boolean;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   onSuccess?: (result: AppleSignInResult) => void;
   onError?: (error: Error) => void;
   iconOnly?: boolean;
@@ -37,7 +44,7 @@ export default function AppleSignInButton({
 }: AppleSignInButtonProps) {
   const [working, setWorking] = useState(false);
 
-  if (Platform.OS !== 'ios') {
+  if (Platform.OS !== "ios") {
     return null;
   }
 
@@ -47,25 +54,30 @@ export default function AppleSignInButton({
     }
     try {
       setWorking(true);
-      console.log('AppleSignInButton: iniciando fluxo de login');
+      console.log("AppleSignInButton: iniciando fluxo de login");
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
         ],
       });
-      console.log('AppleSignInButton: credential', JSON.stringify(credential, null, 2));
+      console.log(
+        "AppleSignInButton: credential",
+        JSON.stringify(credential, null, 2),
+      );
 
       if (!credential.identityToken) {
-        Alert.alert('Erro', 'Não foi possível obter seus dados junto a apple.');
-        throw new Error('Não foi possível obter o token de identidade da Apple.');
+        Alert.alert("Erro", "Não foi possível obter seus dados junto a apple.");
+        throw new Error(
+          "Não foi possível obter o token de identidade da Apple.",
+        );
       }
 
       const { error, data } = await supabase.auth.signInWithIdToken({
-        provider: 'apple',
+        provider: "apple",
         token: credential.identityToken,
       });
-      console.log('AppleSignInButton: supabase signInWithIdToken', {
+      console.log("AppleSignInButton: supabase signInWithIdToken", {
         user: data?.user,
         error,
       });
@@ -76,7 +88,7 @@ export default function AppleSignInButton({
 
       const user = data?.user;
       if (!user) {
-        throw new Error('Usuário não foi retornado após o login com Apple.');
+        throw new Error("Usuário não foi retornado após o login com Apple.");
       }
 
       const credentialEmail = credential.email || user.email || null;
@@ -87,12 +99,14 @@ export default function AppleSignInButton({
         credential.fullName?.familyName,
       ].filter(Boolean);
 
-      const fullName = nameParts.join(' ').trim() || null;
+      const fullName = nameParts.join(" ").trim() || null;
 
-      const emailToPersist = credentialEmail || '';
+      const emailToPersist = credentialEmail || "";
 
       if (!emailToPersist) {
-        throw new Error('O Apple ID precisa compartilhar um email para prosseguir.');
+        throw new Error(
+          "O Apple ID precisa compartilhar um email para prosseguir.",
+        );
       }
 
       const upsertResult = await createOrUpdateUserFromApple(user.id, {
@@ -104,7 +118,10 @@ export default function AppleSignInButton({
           undefined,
       });
 
-      console.log('AppleSignInButton: createOrUpdateUserFromApple retornou', upsertResult);
+      console.log(
+        "AppleSignInButton: createOrUpdateUserFromApple retornou",
+        upsertResult,
+      );
 
       onSuccess?.({
         user,
@@ -116,12 +133,15 @@ export default function AppleSignInButton({
       const isCanceled = APPLE_CANCEL_CODES.includes(error?.code);
 
       if (isCanceled) {
-        console.log('AppleSignInButton: login com Apple cancelado pelo usuário', error?.code);
+        console.log(
+          "AppleSignInButton: login com Apple cancelado pelo usuário",
+          error?.code,
+        );
         setWorking(false);
         return;
       }
 
-      console.error('AppleSignInButton: erro no login com Apple', error);
+      console.error("AppleSignInButton: erro no login com Apple", error);
       onError?.(error);
     } finally {
       setWorking(false);
@@ -153,15 +173,14 @@ export default function AppleSignInButton({
 
 const styles = StyleSheet.create({
   button: {
-    width: '100%',
+    width: "100%",
     height: 54,
   },
   iconButton: {
     width: 48,
     height: 48,
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
-

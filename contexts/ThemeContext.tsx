@@ -1,5 +1,11 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, {
+    createContext,
+    ReactNode,
+    useContext,
+    useEffect,
+    useState,
+} from "react";
 
 interface ThemeContextType {
   isDarkMode: boolean;
@@ -7,6 +13,7 @@ interface ThemeContextType {
   colors: {
     background: string;
     surface: string;
+    card: string;
     primary: string;
     secondary: string;
     text: string;
@@ -20,34 +27,38 @@ interface ThemeContextType {
 }
 
 const lightColors = {
-  background: '#f8f9fa',
-  surface: '#ffffff',
-  primary: '#667eea',
-  secondary: '#f0f0f0',
-  text: '#333333',
-  textSecondary: '#666666',
-  border: '#e9ecef',
-  shadow: '#000000',
-  error: '#F44336',
-  success: '#4CAF50',
-  warning: '#FF9800',
+  background: "#f8f9fa",
+  surface: "#ffffff",
+  card: "#ffffff",
+  primary: "#667eea",
+  secondary: "#f0f0f0",
+  text: "#333333",
+  textSecondary: "#666666",
+  border: "#e9ecef",
+  shadow: "#000000",
+  error: "#F44336",
+  success: "#4CAF50",
+  warning: "#FF9800",
 };
 
 const darkColors = {
-  background: '#1a1a1a',
-  surface: '#2d2d2d',
-  primary: '#667eea',
-  secondary: '#404040',
-  text: '#ffffff',
-  textSecondary: '#cccccc',
-  border: '#404040',
-  shadow: '#000000',
-  error: '#F44336',
-  success: '#4CAF50',
-  warning: '#FF9800',
+  background: "#1a1a1a",
+  surface: "#2d2d2d",
+  card: "#2d2d2d",
+  primary: "#667eea",
+  secondary: "#404040",
+  text: "#ffffff",
+  textSecondary: "#cccccc",
+  border: "#404040",
+  shadow: "#000000",
+  error: "#F44336",
+  success: "#4CAF50",
+  warning: "#FF9800",
 };
 
-export const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+export const ThemeContext = createContext<ThemeContextType | undefined>(
+  undefined,
+);
 
 interface ThemeProviderProps {
   children: ReactNode;
@@ -62,32 +73,40 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
   const loadDarkModePreference = async () => {
     try {
-      const savedDarkMode = await AsyncStorage.getItem('darkMode');
-      console.log('🌓 [Theme] Carregando preferência salva:', savedDarkMode);
-      
+      const savedDarkMode = await AsyncStorage.getItem("darkMode");
+      console.log("🌓 [Theme] Carregando preferência salva:", savedDarkMode);
+
       if (savedDarkMode !== null) {
         const isDark = JSON.parse(savedDarkMode);
-        console.log('✅ [Theme] Aplicando tema salvo:', isDark ? 'escuro' : 'claro');
+        console.log(
+          "✅ [Theme] Aplicando tema salvo:",
+          isDark ? "escuro" : "claro",
+        );
         setIsDarkMode(isDark);
       } else {
-        console.log('ℹ️ [Theme] Nenhuma preferência salva, usando padrão (claro)');
+        console.log(
+          "ℹ️ [Theme] Nenhuma preferência salva, usando padrão (claro)",
+        );
       }
     } catch (error) {
-      console.error('❌ [Theme] Erro ao carregar preferência:', error);
+      console.error("❌ [Theme] Erro ao carregar preferência:", error);
     }
   };
 
   const toggleDarkMode = async () => {
     try {
       const newDarkMode = !isDarkMode;
-      console.log('🌓 [Theme] Alternando tema para:', newDarkMode ? 'escuro' : 'claro');
-      
+      console.log(
+        "🌓 [Theme] Alternando tema para:",
+        newDarkMode ? "escuro" : "claro",
+      );
+
       setIsDarkMode(newDarkMode);
-      await AsyncStorage.setItem('darkMode', JSON.stringify(newDarkMode));
-      
-      console.log('✅ [Theme] Tema salvo com sucesso!');
+      await AsyncStorage.setItem("darkMode", JSON.stringify(newDarkMode));
+
+      console.log("✅ [Theme] Tema salvo com sucesso!");
     } catch (error) {
-      console.error('❌ [Theme] Erro ao salvar tema:', error);
+      console.error("❌ [Theme] Erro ao salvar tema:", error);
     }
   };
 
@@ -100,16 +119,14 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   };
 
   return (
-    <ThemeContext.Provider value={value}>
-      {children}
-    </ThemeContext.Provider>
+    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
   );
 };
 
 export const useTheme = (): ThemeContextType => {
   const context = useContext(ThemeContext);
   if (context === undefined) {
-    throw new Error('useTheme deve ser usado dentro de um ThemeProvider');
+    throw new Error("useTheme deve ser usado dentro de um ThemeProvider");
   }
   return context;
 };

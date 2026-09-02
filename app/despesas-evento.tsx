@@ -8,7 +8,7 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    View
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../contexts/ThemeContext";
@@ -30,9 +30,7 @@ import {
     type Expense,
 } from "../services/supabase/expenseService";
 import { useActiveArtist } from "../services/useActiveArtist";
-import {
-    extractNumericValueString
-} from "../utils/currencyBRLInput";
+import { extractNumericValueString } from "../utils/currencyBRLInput";
 
 export default function DespesasEventoScreen() {
   const { colors } = useTheme();
@@ -382,7 +380,9 @@ export default function DespesasEventoScreen() {
           </Text>
         </View>
         <TouchableOpacity
-          onPress={() => handleDeleteExpense(expense.id, expense.name)}
+          onPress={() =>
+            handleDeleteExpense(expense.id, expense.name || "Despesa")
+          }
           style={styles.deleteButton}
         >
           <Ionicons name="trash" size={20} color={colors.error} />

@@ -1,4 +1,4 @@
-import { supabase } from '../../lib/supabase';
+import { supabase } from "../../lib/supabase";
 
 export interface UserProfile {
   id: string;
@@ -20,21 +20,23 @@ export interface CreateUserProfileData {
   city?: string;
   state?: string;
   phone?: string;
-  profile_url?: string;
+  profile_url?: string | null;
   plan_is_active?: boolean;
 }
 
 // Verificar se o usuário existe na tabela users
-export const checkUserExists = async (userId: string): Promise<{ exists: boolean; error: string | null }> => {
+export const checkUserExists = async (
+  userId: string,
+): Promise<{ exists: boolean; error: string | null }> => {
   try {
     const { data, error } = await supabase
-      .from('users')
-      .select('id')
-      .eq('id', userId)
+      .from("users")
+      .select("id")
+      .eq("id", userId)
       .maybeSingle(); // Usar maybeSingle() para evitar erro quando não encontrar
 
     if (error) {
-      console.error('❌ checkUserExists: Erro na consulta:', error);
+      console.error("❌ checkUserExists: Erro na consulta:", error);
       return { exists: false, error: error.message };
     }
 
@@ -42,43 +44,46 @@ export const checkUserExists = async (userId: string): Promise<{ exists: boolean
     return { exists, error: null };
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
-    return { exists: false, error: msg.trim() || 'Erro de conexão' };
+    return { exists: false, error: msg.trim() || "Erro de conexão" };
   }
 };
 
 // Criar perfil do usuário
-export const createUserProfile = async (userData: CreateUserProfileData): Promise<{ success: boolean; error: string | null }> => {
+export const createUserProfile = async (
+  userData: CreateUserProfileData,
+): Promise<{ success: boolean; error: string | null }> => {
   try {
     // Buscar token FCM apenas ao criar novo usuário
     let tokenFCM: string | null = null;
     try {
-      const { getFCMToken } = await import('../pushNotificationHandler');
+      const { getFCMToken } = await import("../pushNotificationHandler");
       tokenFCM = await getFCMToken();
       if (tokenFCM) {
-        console.log('🔑 Token FCM obtido com sucesso!');
+        console.log("🔑 Token FCM obtido com sucesso!");
       } else {
-        console.log('⚠️ Token FCM não disponível ao criar usuário');
+        console.log("⚠️ Token FCM não disponível ao criar usuário");
       }
     } catch (tokenError) {
-      console.log('⚠️ Erro ao obter token FCM (continuando sem token):', tokenError);
+      console.log(
+        "⚠️ Erro ao obter token FCM (continuando sem token):",
+        tokenError,
+      );
       // Continua sem o token se houver erro
     }
 
-    const { error } = await supabase
-      .from('users')
-      .insert({
-        id: userData.id,
-        name: userData.name,
-        email: userData.email,
-        city: userData.city || null,
-        state: userData.state || null,
-        phone: userData.phone || null,
-        profile_url: userData.profile_url || null,
-        plan_is_active: userData.plan_is_active || false,
-        token_fcm: tokenFCM || null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      });
+    const { error } = await supabase.from("users").insert({
+      id: userData.id,
+      name: userData.name,
+      email: userData.email,
+      city: userData.city || null,
+      state: userData.state || null,
+      phone: userData.phone || null,
+      profile_url: userData.profile_url || null,
+      plan_is_active: userData.plan_is_active || false,
+      token_fcm: tokenFCM || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
 
     if (error) {
       return { success: false, error: error.message };
@@ -86,7 +91,7 @@ export const createUserProfile = async (userData: CreateUserProfileData): Promis
 
     return { success: true, error: null };
   } catch (error) {
-    return { success: false, error: 'Erro de conexão' };
+    return { success: false, error: "Erro de conexão" };
   }
 };
 
@@ -99,13 +104,13 @@ interface SocialUserData {
 
 const upsertSocialUserProfile = async (
   userId: string,
-  socialData: SocialUserData
+  socialData: SocialUserData,
 ): Promise<{ success: boolean; error: string | null; isNewUser?: boolean }> => {
   try {
     const { exists, error: checkError } = await checkUserExists(userId);
 
     if (checkError) {
-      console.error('❌ [Social User] Erro ao verificar usuário:', checkError);
+      console.error("❌ [Social User] Erro ao verificar usuário:", checkError);
       return { success: false, error: checkError };
     }
 
@@ -117,37 +122,38 @@ const upsertSocialUserProfile = async (
 
     let tokenFCM: string | null = null;
     try {
-      const { getFCMToken } = await import('../pushNotificationHandler');
+      const { getFCMToken } = await import("../pushNotificationHandler");
       tokenFCM = await getFCMToken();
       if (tokenFCM) {
-        console.log('🔑 Token FCM obtido ao criar usuário social:', tokenFCM);
+        console.log("🔑 Token FCM obtido ao criar usuário social:", tokenFCM);
       }
     } catch (tokenError) {
-      console.log('⚠️ Erro ao obter token FCM (continuando sem token):', tokenError);
+      console.log(
+        "⚠️ Erro ao obter token FCM (continuando sem token):",
+        tokenError,
+      );
     }
 
-    const { error: insertError } = await supabase
-      .from('users')
-      .insert({
-        id: userId,
-        name: socialData.name || 'Usuário',
-        email: socialData.email,
-        profile_url: socialData.photo || null,
-        plan_is_active: false,
-        token_fcm: tokenFCM || null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      });
+    const { error: insertError } = await supabase.from("users").insert({
+      id: userId,
+      name: socialData.name || "Usuário",
+      email: socialData.email,
+      profile_url: socialData.photo || null,
+      plan_is_active: false,
+      token_fcm: tokenFCM || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
 
     if (insertError) {
-      console.error('❌ [Social User] Erro ao criar usuário:', insertError);
+      console.error("❌ [Social User] Erro ao criar usuário:", insertError);
       return { success: false, error: insertError.message };
     }
 
     return { success: true, error: null, isNewUser: true };
   } catch (error) {
-    console.error('❌ [Social User] Erro inesperado:', error);
-    return { success: false, error: 'Erro de conexão' };
+    console.error("❌ [Social User] Erro inesperado:", error);
+    return { success: false, error: "Erro de conexão" };
   }
 };
 
@@ -157,12 +163,12 @@ export const createOrUpdateUserFromGoogle = async (
     name: string;
     email: string;
     photo?: string;
-  }
+  },
 ): Promise<{ success: boolean; error: string | null; isNewUser?: boolean }> => {
   return upsertSocialUserProfile(userId, {
     name: googleData.name,
     email: googleData.email,
-    photo: googleData.photo || null
+    photo: googleData.photo || null,
   });
 };
 
@@ -172,51 +178,56 @@ export const createOrUpdateUserFromApple = async (
     name?: string;
     email: string;
     photo?: string;
-  }
+  },
 ): Promise<{ success: boolean; error: string | null; isNewUser?: boolean }> => {
   return upsertSocialUserProfile(userId, {
     name: appleData.name,
     email: appleData.email,
-    photo: appleData.photo || null
+    photo: appleData.photo || null,
   });
 };
 
 // Buscar perfil do usuário
-export const getUserProfile = async (userId: string): Promise<{ profile: UserProfile | null; error: string | null }> => {
+export const getUserProfile = async (
+  userId: string,
+): Promise<{ profile: UserProfile | null; error: string | null }> => {
   try {
     const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', userId)
+      .from("users")
+      .select("*")
+      .eq("id", userId)
       .maybeSingle(); // Usar maybeSingle() ao invés de single() para evitar erro se não houver resultado
 
     if (error) {
-      console.error('❌ Erro ao buscar perfil:', error);
+      console.error("❌ Erro ao buscar perfil:", error);
       return { profile: null, error: error.message };
     }
 
     if (!data) {
-      return { profile: null, error: 'Perfil não encontrado' };
+      return { profile: null, error: "Perfil não encontrado" };
     }
 
-    console.log('✅ Perfil encontrado:', data);
+    console.log("✅ Perfil encontrado:", data);
     return { profile: data, error: null };
   } catch (error) {
-    console.error('💥 Erro de conexão ao buscar perfil:', error);
-    return { profile: null, error: 'Erro de conexão' };
+    console.error("💥 Erro de conexão ao buscar perfil:", error);
+    return { profile: null, error: "Erro de conexão" };
   }
 };
 
 // Atualizar perfil do usuário
-export const updateUserProfile = async (userId: string, userData: Partial<CreateUserProfileData>): Promise<{ success: boolean; error: string | null }> => {
+export const updateUserProfile = async (
+  userId: string,
+  userData: Partial<CreateUserProfileData>,
+): Promise<{ success: boolean; error: string | null }> => {
   try {
     const { error } = await supabase
-      .from('users')
+      .from("users")
       .update({
         ...userData,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
-      .eq('id', userId);
+      .eq("id", userId);
 
     if (error) {
       return { success: false, error: error.message };
@@ -224,7 +235,7 @@ export const updateUserProfile = async (userId: string, userData: Partial<Create
 
     return { success: true, error: null };
   } catch (error) {
-    return { success: false, error: 'Erro de conexão' };
+    return { success: false, error: "Erro de conexão" };
   }
 };
 
@@ -235,23 +246,24 @@ export const FREE_PLAN_MAX_OWNED_ARTIST_PROFILES = 1;
 export const FREE_PLAN_MAX_COLLABORATORS_PER_ARTIST = 2;
 
 /** Total de membros permitidos no artista no plano gratuito (criador + colaboradores). */
-export const FREE_PLAN_MAX_TEAM_MEMBERS_PER_ARTIST = 1 + FREE_PLAN_MAX_COLLABORATORS_PER_ARTIST;
+export const FREE_PLAN_MAX_TEAM_MEMBERS_PER_ARTIST =
+  1 + FREE_PLAN_MAX_COLLABORATORS_PER_ARTIST;
 
 const FREE_PLAN_TEAM_LIMIT_MESSAGE =
-  'No plano gratuito, cada artista pode ter no máximo 2 colaboradores (3 pessoas no time no total, incluindo o criador). Se algum administrador ou proprietário tiver Premium, o limite some.';
+  "No plano gratuito, cada artista pode ter no máximo 2 colaboradores (3 pessoas no time no total, incluindo o criador). Se algum administrador ou proprietário tiver Premium, o limite some.";
 
 /** Indica se o usuário tem assinatura vigente em `user_subscriptions` (status + expires_at). */
 export const userSubscriptionIsActive = async (
   userId: string,
 ): Promise<{ active: boolean; error: string | null }> => {
   try {
-    const { data, error } = await supabase.rpc('user_subscription_is_active', {
+    const { data, error } = await supabase.rpc("user_subscription_is_active", {
       p_user_id: userId,
     });
     if (error) return { active: false, error: error.message };
     return { active: data === true, error: null };
   } catch {
-    return { active: false, error: 'Erro de conexão' };
+    return { active: false, error: "Erro de conexão" };
   }
 };
 
@@ -262,8 +274,11 @@ export type UserSubscriptionTableCheck = {
 };
 
 function metadataAppleStoreConfirmed(metadata: unknown): boolean {
-  if (!metadata || typeof metadata !== 'object') return false;
-  return (metadata as { apple_store_confirmed?: unknown }).apple_store_confirmed === true;
+  if (!metadata || typeof metadata !== "object") return false;
+  return (
+    (metadata as { apple_store_confirmed?: unknown }).apple_store_confirmed ===
+    true
+  );
 }
 
 /**
@@ -275,10 +290,10 @@ export const checkUserSubscriptionFromTable = async (
 ): Promise<UserSubscriptionTableCheck> => {
   try {
     const { data: rows, error } = await supabase
-      .from('user_subscriptions')
-      .select('status, expires_at, metadata')
-      .eq('user_id', userId)
-      .in('status', ['active', 'grace_period', 'pending']);
+      .from("user_subscriptions")
+      .select("status, expires_at, metadata")
+      .eq("user_id", userId)
+      .in("status", ["active", "grace_period", "pending"]);
 
     if (error) {
       return { isActive: false, status: null, error: error.message };
@@ -295,27 +310,27 @@ export const checkUserSubscriptionFromTable = async (
       const expiresOk = exp == null || exp > now;
       if (!expiresOk) continue;
 
-      if (row.status === 'active' || row.status === 'grace_period') {
+      if (row.status === "active" || row.status === "grace_period") {
         return { isActive: true, status: row.status, error: null };
       }
       if (
-        row.status === 'pending' &&
+        row.status === "pending" &&
         row.expires_at &&
         exp != null &&
         exp > now &&
         !metadataAppleStoreConfirmed(row.metadata)
       ) {
-        bestStatus = 'pending';
+        bestStatus = "pending";
       }
     }
 
-    if (bestStatus === 'pending') {
-      return { isActive: true, status: 'pending', error: null };
+    if (bestStatus === "pending") {
+      return { isActive: true, status: "pending", error: null };
     }
 
     return { isActive: false, status: null, error: null };
   } catch {
-    return { isActive: false, status: null, error: 'Erro de conexão' };
+    return { isActive: false, status: null, error: "Erro de conexão" };
   }
 };
 
@@ -325,7 +340,7 @@ export const FREE_FINANCE_TRIAL_EXPORT_LIMIT = 3;
 /** Limite de aberturas da tela de detalhes financeiros no trial antes do Premium. */
 export const FREE_FINANCE_TRIAL_DETAIL_OPEN_LIMIT = 3;
 
-export type FinancialTrialKind = 'export' | 'detail_open';
+export type FinancialTrialKind = "export" | "detail_open";
 
 export type FinancialTrialStatus = {
   premium: boolean;
@@ -338,7 +353,9 @@ export type FinancialTrialStatus = {
   error: string | null;
 };
 
-const emptyFinancialTrialStatus = (error: string | null): FinancialTrialStatus => ({
+const emptyFinancialTrialStatus = (
+  error: string | null,
+): FinancialTrialStatus => ({
   premium: false,
   exportsUsed: 0,
   exportsLimit: FREE_FINANCE_TRIAL_EXPORT_LIMIT,
@@ -353,44 +370,46 @@ const emptyFinancialTrialStatus = (error: string | null): FinancialTrialStatus =
  * Lê contadores de trial em `users` + Premium em `user_subscriptions` (via RPC no Supabase).
  * Requer script `database/free_financial_trial.sql` aplicado no projeto.
  */
-export const getFinancialTrialStatus = async (): Promise<FinancialTrialStatus> => {
-  try {
-    const { data, error } = await supabase.rpc('get_financial_trial_status');
-    if (error) {
-      const msg = error.message || '';
-      const code = (error as { code?: string }).code;
-      if (
-        code === 'PGRST202' ||
-        code === '42883' ||
-        msg.includes('get_financial_trial_status') ||
-        msg.includes('does not exist') ||
-        msg.includes('42883')
-      ) {
-        return emptyFinancialTrialStatus('rpc_missing');
+export const getFinancialTrialStatus =
+  async (): Promise<FinancialTrialStatus> => {
+    try {
+      const { data, error } = await supabase.rpc("get_financial_trial_status");
+      if (error) {
+        const msg = error.message || "";
+        const code = (error as { code?: string }).code;
+        if (
+          code === "PGRST202" ||
+          code === "42883" ||
+          msg.includes("get_financial_trial_status") ||
+          msg.includes("does not exist") ||
+          msg.includes("42883")
+        ) {
+          return emptyFinancialTrialStatus("rpc_missing");
+        }
+        return emptyFinancialTrialStatus(msg);
       }
-      return emptyFinancialTrialStatus(msg);
+      if (!data || typeof data !== "object") {
+        return emptyFinancialTrialStatus("Resposta inválida do servidor");
+      }
+      const j = data as Record<string, unknown>;
+      if (j.error === "not_authed") {
+        return emptyFinancialTrialStatus("Sessão expirada");
+      }
+      return {
+        premium: j.premium === true,
+        exportsUsed: Number(j.exportsUsed) || 0,
+        exportsLimit: Number(j.exportsLimit) || FREE_FINANCE_TRIAL_EXPORT_LIMIT,
+        exportsRemaining: Number(j.exportsRemaining) || 0,
+        detailOpensUsed: Number(j.detailOpensUsed) || 0,
+        detailOpensLimit:
+          Number(j.detailOpensLimit) || FREE_FINANCE_TRIAL_DETAIL_OPEN_LIMIT,
+        detailOpensRemaining: Number(j.detailOpensRemaining) || 0,
+        error: null,
+      };
+    } catch {
+      return emptyFinancialTrialStatus("Erro de conexão");
     }
-    if (!data || typeof data !== 'object') {
-      return emptyFinancialTrialStatus('Resposta inválida do servidor');
-    }
-    const j = data as Record<string, unknown>;
-    if (j.error === 'not_authed') {
-      return emptyFinancialTrialStatus('Sessão expirada');
-    }
-    return {
-      premium: j.premium === true,
-      exportsUsed: Number(j.exportsUsed) || 0,
-      exportsLimit: Number(j.exportsLimit) || FREE_FINANCE_TRIAL_EXPORT_LIMIT,
-      exportsRemaining: Number(j.exportsRemaining) || 0,
-      detailOpensUsed: Number(j.detailOpensUsed) || 0,
-      detailOpensLimit: Number(j.detailOpensLimit) || FREE_FINANCE_TRIAL_DETAIL_OPEN_LIMIT,
-      detailOpensRemaining: Number(j.detailOpensRemaining) || 0,
-      error: null,
-    };
-  } catch {
-    return emptyFinancialTrialStatus('Erro de conexão');
-  }
-};
+  };
 
 export type ConsumeFinancialTrialResult = {
   ok: boolean;
@@ -404,34 +423,37 @@ export const consumeFinancialTrialAction = async (
   kind: FinancialTrialKind,
 ): Promise<ConsumeFinancialTrialResult> => {
   try {
-    const { data, error } = await supabase.rpc('consume_financial_trial_action', {
-      p_kind: kind,
-    });
+    const { data, error } = await supabase.rpc(
+      "consume_financial_trial_action",
+      {
+        p_kind: kind,
+      },
+    );
     if (error) {
-      const msg = error.message || '';
+      const msg = error.message || "";
       const code = (error as { code?: string }).code;
       if (
-        code === 'PGRST202' ||
-        code === '42883' ||
-        msg.includes('consume_financial_trial_action') ||
-        msg.includes('does not exist')
+        code === "PGRST202" ||
+        code === "42883" ||
+        msg.includes("consume_financial_trial_action") ||
+        msg.includes("does not exist")
       ) {
-        return { ok: false, error: 'rpc_missing' };
+        return { ok: false, error: "rpc_missing" };
       }
       return { ok: false, error: error.message };
     }
-    if (!data || typeof data !== 'object') {
-      return { ok: false, error: 'Resposta inválida' };
+    if (!data || typeof data !== "object") {
+      return { ok: false, error: "Resposta inválida" };
     }
     const j = data as Record<string, unknown>;
     return {
       ok: j.ok === true,
-      reason: typeof j.reason === 'string' ? j.reason : undefined,
-      remaining: typeof j.remaining === 'number' ? j.remaining : undefined,
+      reason: typeof j.reason === "string" ? j.reason : undefined,
+      remaining: typeof j.remaining === "number" ? j.remaining : undefined,
       error: null,
     };
   } catch {
-    return { ok: false, error: 'Erro de conexão' };
+    return { ok: false, error: "Erro de conexão" };
   }
 };
 
@@ -441,10 +463,10 @@ export const artistTeamHasPremiumQuota = async (
 ): Promise<{ premium: boolean; error: string | null }> => {
   try {
     const { data: leads, error } = await supabase
-      .from('artist_members')
-      .select('user_id')
-      .eq('artist_id', artistId)
-      .eq('role', 'admin');
+      .from("artist_members")
+      .select("user_id")
+      .eq("artist_id", artistId)
+      .eq("role", "admin");
 
     if (error) {
       return { premium: false, error: error.message };
@@ -454,9 +476,12 @@ export const artistTeamHasPremiumQuota = async (
     }
 
     const ids = [...new Set(leads.map((r) => r.user_id))];
-    const { data, error: rpcError } = await supabase.rpc('any_users_have_active_subscription', {
-      p_user_ids: ids,
-    });
+    const { data, error: rpcError } = await supabase.rpc(
+      "any_users_have_active_subscription",
+      {
+        p_user_ids: ids,
+      },
+    );
 
     if (rpcError) {
       return { premium: false, error: rpcError.message };
@@ -464,7 +489,7 @@ export const artistTeamHasPremiumQuota = async (
 
     return { premium: data === true, error: null };
   } catch {
-    return { premium: false, error: 'Erro de conexão' };
+    return { premium: false, error: "Erro de conexão" };
   }
 };
 
@@ -473,28 +498,30 @@ export const getArtistMemberCount = async (
 ): Promise<{ count: number; error: string | null }> => {
   try {
     const { count, error } = await supabase
-      .from('artist_members')
-      .select('*', { count: 'exact', head: true })
-      .eq('artist_id', artistId);
+      .from("artist_members")
+      .select("*", { count: "exact", head: true })
+      .eq("artist_id", artistId);
 
     if (error) {
       return { count: 0, error: error.message };
     }
     return { count: count ?? 0, error: null };
   } catch {
-    return { count: 0, error: 'Erro de conexão' };
+    return { count: 0, error: "Erro de conexão" };
   }
 };
 
 /** Convites pendentes que reservam vaga ao serem aceitos. */
-export const countPendingArtistInvites = async (artistId: string): Promise<{ count: number; error: string | null }> => {
+export const countPendingArtistInvites = async (
+  artistId: string,
+): Promise<{ count: number; error: string | null }> => {
   try {
     const { count, error } = await supabase
-      .from('notifications')
-      .select('*', { count: 'exact', head: true })
-      .eq('artist_id', artistId)
-      .eq('status', 'pending')
-      .in('type', ['invite', 'collaborator_invite']);
+      .from("notifications")
+      .select("*", { count: "exact", head: true })
+      .eq("artist_id", artistId)
+      .eq("status", "pending")
+      .in("type", ["invite", "collaborator_invite"]);
 
     if (error) {
       return { count: 0, error: error.message };
@@ -502,10 +529,10 @@ export const countPendingArtistInvites = async (artistId: string): Promise<{ cou
 
     // Convites por link (pra quem ainda não tem conta) também ocupam vaga no time.
     const { count: linkCount, error: linkError } = await supabase
-      .from('pending_collaborator_invites')
-      .select('*', { count: 'exact', head: true })
-      .eq('artist_id', artistId)
-      .is('consumed_at', null);
+      .from("pending_collaborator_invites")
+      .select("*", { count: "exact", head: true })
+      .eq("artist_id", artistId)
+      .is("consumed_at", null);
 
     if (linkError) {
       return { count: 0, error: linkError.message };
@@ -513,17 +540,21 @@ export const countPendingArtistInvites = async (artistId: string): Promise<{ cou
 
     return { count: (count ?? 0) + (linkCount ?? 0), error: null };
   } catch {
-    return { count: 0, error: 'Erro de conexão' };
+    return { count: 0, error: "Erro de conexão" };
   }
 };
 
-export type ArtistTeamSlotMode = 'send_invite' | 'add_member';
+export type ArtistTeamSlotMode = "send_invite" | "add_member";
 
 /** Valida limite de time no plano gratuito para um artista. */
 export const assertArtistTeamSlot = async (
   artistId: string,
   mode: ArtistTeamSlotMode,
-): Promise<{ ok: boolean; userMessage: string | null; error: string | null }> => {
+): Promise<{
+  ok: boolean;
+  userMessage: string | null;
+  error: string | null;
+}> => {
   try {
     const { premium, error: pErr } = await artistTeamHasPremiumQuota(artistId);
     if (pErr) {
@@ -533,29 +564,39 @@ export const assertArtistTeamSlot = async (
       return { ok: true, userMessage: null, error: null };
     }
 
-    const { count: memberCount, error: mErr } = await getArtistMemberCount(artistId);
+    const { count: memberCount, error: mErr } =
+      await getArtistMemberCount(artistId);
     if (mErr) {
       return { ok: false, userMessage: null, error: mErr };
     }
 
-    if (mode === 'add_member') {
+    if (mode === "add_member") {
       if (memberCount >= FREE_PLAN_MAX_TEAM_MEMBERS_PER_ARTIST) {
-        return { ok: false, userMessage: FREE_PLAN_TEAM_LIMIT_MESSAGE, error: null };
+        return {
+          ok: false,
+          userMessage: FREE_PLAN_TEAM_LIMIT_MESSAGE,
+          error: null,
+        };
       }
       return { ok: true, userMessage: null, error: null };
     }
 
-    const { count: pending, error: pendErr } = await countPendingArtistInvites(artistId);
+    const { count: pending, error: pendErr } =
+      await countPendingArtistInvites(artistId);
     if (pendErr) {
       return { ok: false, userMessage: null, error: pendErr };
     }
 
     if (memberCount + pending >= FREE_PLAN_MAX_TEAM_MEMBERS_PER_ARTIST) {
-      return { ok: false, userMessage: FREE_PLAN_TEAM_LIMIT_MESSAGE, error: null };
+      return {
+        ok: false,
+        userMessage: FREE_PLAN_TEAM_LIMIT_MESSAGE,
+        error: null,
+      };
     }
     return { ok: true, userMessage: null, error: null };
   } catch {
-    return { ok: false, userMessage: null, error: 'Erro de conexão' };
+    return { ok: false, userMessage: null, error: "Erro de conexão" };
   }
 };
 
@@ -567,22 +608,28 @@ export interface CanCreateArtistResult {
 }
 
 // Verificar se o usuário pode criar mais perfis de artista (como dono/admin)
-export const canCreateArtist = async (userId: string): Promise<CanCreateArtistResult> => {
+export const canCreateArtist = async (
+  userId: string,
+): Promise<CanCreateArtistResult> => {
   try {
     const { profile, error: profileError } = await getUserProfile(userId);
-    const { isActive: isPremium, error: subErr } = await checkUserSubscriptionFromTable(userId);
+    const { isActive: isPremium, error: subErr } =
+      await checkUserSubscriptionFromTable(userId);
     if (subErr) {
-      console.warn('⚠️ [canCreateArtist] user_subscriptions:', subErr);
+      console.warn("⚠️ [canCreateArtist] user_subscriptions:", subErr);
     }
 
     const { count, error: countError } = await supabase
-      .from('artist_members')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .eq('role', 'admin');
+      .from("artist_members")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("role", "admin");
 
     if (countError) {
-      console.error('❌ [canCreateArtist] Erro ao contar artistas:', countError);
+      console.error(
+        "❌ [canCreateArtist] Erro ao contar artistas:",
+        countError,
+      );
       return {
         canCreate: false,
         error: countError.message,
@@ -592,56 +639,99 @@ export const canCreateArtist = async (userId: string): Promise<CanCreateArtistRe
     }
 
     const ownedAsAdminCount = count ?? 0;
-    const canCreate = isPremium || ownedAsAdminCount < FREE_PLAN_MAX_OWNED_ARTIST_PROFILES;
+    const canCreate =
+      isPremium || ownedAsAdminCount < FREE_PLAN_MAX_OWNED_ARTIST_PROFILES;
 
     if (profileError && !profile) {
-      console.warn('⚠️ [canCreateArtist] Perfil users ausente; limite free aplicado:', profileError);
+      console.warn(
+        "⚠️ [canCreateArtist] Perfil users ausente; limite free aplicado:",
+        profileError,
+      );
     }
 
     return { canCreate, error: null, isPremium, ownedAsAdminCount };
   } catch (error) {
-    console.error('❌ [canCreateArtist] Erro de conexão:', error);
-    return { canCreate: false, error: 'Erro de conexão', isPremium: false, ownedAsAdminCount: 0 };
+    console.error("❌ [canCreateArtist] Erro de conexão:", error);
+    return {
+      canCreate: false,
+      error: "Erro de conexão",
+      isPremium: false,
+      ownedAsAdminCount: 0,
+    };
+  }
+};
+
+/** Retorna o plano efetivo do usuário para tela de verificação / logs. */
+export const getUserPlan = async (
+  userId: string,
+): Promise<{ plan: "free" | "trial" | "premium"; error: string | null }> => {
+  try {
+    const { isActive, error: subErr } =
+      await checkUserSubscriptionFromTable(userId);
+    if (subErr) return { plan: "free", error: subErr };
+    if (isActive) return { plan: "premium", error: null };
+
+    const trial = await getFinancialTrialStatus();
+    if (trial.error && trial.error !== "rpc_missing") {
+      return { plan: "free", error: trial.error };
+    }
+
+    if (trial.error === "rpc_missing") {
+      return { plan: "free", error: null };
+    }
+
+    return { plan: trial.exportsRemaining > 0 ? "trial" : "free", error: null };
+  } catch {
+    return { plan: "free", error: "Erro de conexão" };
   }
 };
 
 // Premium ou ainda com exportações trial (RPC get_financial_trial_status)
-export const canExportData = async (userId: string): Promise<{ canExport: boolean; error: string | null }> => {
-  const { isActive, error: subErr } = await checkUserSubscriptionFromTable(userId);
+export const canExportData = async (
+  userId: string,
+): Promise<{ canExport: boolean; error: string | null }> => {
+  const { isActive, error: subErr } =
+    await checkUserSubscriptionFromTable(userId);
   if (subErr) return { canExport: false, error: subErr };
   if (isActive) return { canExport: true, error: null };
   const trial = await getFinancialTrialStatus();
-  if (trial.error && trial.error !== 'rpc_missing') {
+  if (trial.error && trial.error !== "rpc_missing") {
     return { canExport: false, error: trial.error };
   }
-  if (trial.error === 'rpc_missing') {
-    return { canExport: false, error: 'Trial financeiro não configurado no servidor' };
+  if (trial.error === "rpc_missing") {
+    return {
+      canExport: false,
+      error: "Trial financeiro não configurado no servidor",
+    };
   }
   return { canExport: trial.exportsRemaining > 0, error: null };
 };
 
 // Salvar ou atualizar token FCM do usuário
-export const saveFCMToken = async (userId: string, token: string): Promise<{ success: boolean; error: string | null }> => {
+export const saveFCMToken = async (
+  userId: string,
+  token: string,
+): Promise<{ success: boolean; error: string | null }> => {
   try {
-    console.log('💾 [saveFCMToken] Salvando token FCM para usuário:', userId);
-    
+    console.log("💾 [saveFCMToken] Salvando token FCM para usuário:", userId);
+
     const { error } = await supabase
-      .from('users')
+      .from("users")
       .update({
         token_fcm: token,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
-      .eq('id', userId);
+      .eq("id", userId);
 
     if (error) {
-      console.error('❌ [saveFCMToken] Erro ao salvar token:', error);
+      console.error("❌ [saveFCMToken] Erro ao salvar token:", error);
       return { success: false, error: error.message };
     }
 
-    console.log('✅ [saveFCMToken] Token FCM salvo com sucesso!');
+    console.log("✅ [saveFCMToken] Token FCM salvo com sucesso!");
     return { success: true, error: null };
   } catch (error) {
-    console.error('❌ [saveFCMToken] Erro de conexão:', error);
-    return { success: false, error: 'Erro de conexão' };
+    console.error("❌ [saveFCMToken] Erro de conexão:", error);
+    return { success: false, error: "Erro de conexão" };
   }
 };
