@@ -6,6 +6,8 @@
 --   'demanda'    = Procurando (busca artista, músico, banda, serviço, parceria)
 --   NULL         = evento normal da agenda (não entra no feed)
 --
+-- Foto/vídeo no feed: use database/FEED_SOCIAL.sql (social_posts).
+--
 -- O cachê fica em events.value e NÃO é devolvido na listagem pública.
 -- Só aparece ao iniciar a negociação (convite_participacao_evento.cache_valor).
 --
@@ -27,18 +29,10 @@ $$;
 ALTER TABLE public.events
   ADD COLUMN IF NOT EXISTS feed_tipo TEXT;
 
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
-    WHERE conname = 'events_feed_tipo_check'
-  ) THEN
-    ALTER TABLE public.events
-      ADD CONSTRAINT events_feed_tipo_check
-      CHECK (feed_tipo IS NULL OR feed_tipo IN ('disponivel', 'demanda'));
-  END IF;
-END $$;
+ALTER TABLE public.events DROP CONSTRAINT IF EXISTS events_feed_tipo_check;
+ALTER TABLE public.events
+  ADD CONSTRAINT events_feed_tipo_check
+  CHECK (feed_tipo IS NULL OR feed_tipo IN ('disponivel', 'demanda'));
 
 CREATE INDEX IF NOT EXISTS idx_events_feed_publico
   ON public.events (event_date, feed_tipo)
@@ -254,20 +248,22 @@ AS $$
       WHERE c.status IN ('pendente', 'aceito')
         AND (c.grupo_disputa_id = e.id OR c.evento_origem_id = e.id)
     ),
-    (
-      SELECT COALESCE(array_agg(x.img), ARRAY[]::text[])
-      FROM (
-        SELECT NULLIF(trim(COALESCE(ar.profile_url, '')), '') AS img
-        FROM convite_participacao_evento c
-        INNER JOIN artists ar ON ar.id = CASE
-          WHEN e.feed_tipo = 'demanda' THEN c.artista_convidado_id
-          ELSE c.artista_que_convidou_id
-        END
-        WHERE c.status IN ('pendente', 'aceito')
-          AND (c.grupo_disputa_id = e.id OR c.evento_origem_id = e.id)
-        ORDER BY c.criado_em DESC
-        LIMIT 3
-      ) x
+    COALESCE(
+      (
+        SELECT ARRAY(
+          SELECT NULLIF(trim(COALESCE(ar.profile_url, '')), '')
+          FROM convite_participacao_evento c
+          INNER JOIN artists ar ON ar.id = CASE
+            WHEN e.feed_tipo = 'demanda' THEN c.artista_convidado_id
+            ELSE c.artista_que_convidou_id
+          END
+          WHERE c.status IN ('pendente', 'aceito')
+            AND (c.grupo_disputa_id = e.id OR c.evento_origem_id = e.id)
+          ORDER BY c.criado_em DESC
+          LIMIT 3
+        )
+      ),
+      ARRAY[]::text[]
     ),
     (
       p_artista_atual_id IS NOT NULL
@@ -299,6 +295,7 @@ AS $$
   INNER JOIN artists a ON a.id = e.artist_id
   WHERE COALESCE(e.ativo, true) = true
     AND e.feed_tipo IS NOT NULL
+    AND e.feed_tipo IN ('disponivel', 'demanda')
     AND e.event_date >= CURRENT_DATE
     AND (
       p_tipo IS NULL
@@ -326,7 +323,6 @@ AS $$
     )
   ORDER BY
     CASE WHEN p_artista_atual_id IS NOT NULL AND e.artist_id = p_artista_atual_id THEN 0 ELSE 1 END,
-    e.event_date ASC,
     e.created_at DESC
   LIMIT 120;
 $$;
@@ -577,7 +573,7 @@ BEGIN
     AND COALESCE(e.ativo, true) = true
   LIMIT 1;
 
-  IF v_event.id IS NULL OR v_event.feed_tipo IS NULL THEN
+  IF v_event.id IS NULL OR v_event.feed_tipo IS NULL OR COALESCE(v_event.ativo, true) = false THEN
     RETURN QUERY SELECT false, 'Anúncio não encontrado ou já encerrado.', NULL::UUID, NULL::NUMERIC, NULL::TEXT;
     RETURN;
   END IF;
@@ -735,6 +731,9 @@ GRANT EXECUTE ON FUNCTION public.rpc_app_iniciar_negociacao_feed(UUID, UUID, TEX
 -- =====================================================
 -- Desfazer proposta pendente (quem se candidatou / demonstrou interesse)
 -- =====================================================
+ALTER TABLE public.convite_participacao_evento
+  ADD COLUMN IF NOT EXISTS motivo_cancelamento TEXT;
+
 DROP FUNCTION IF EXISTS public.rpc_app_desfazer_proposta_feed(uuid, uuid);
 
 CREATE OR REPLACE FUNCTION public.rpc_app_desfazer_proposta_feed(

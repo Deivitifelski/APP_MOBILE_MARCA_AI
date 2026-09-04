@@ -4,6 +4,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import { AppState, LogBox } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppSplashScreen from '../components/AppSplashScreen';
@@ -127,7 +128,7 @@ function RootLayoutContent() {
         <Stack.Screen name="cadastro-artista" options={{ headerShown: false }} />
         <Stack.Screen name="adicionar-evento" options={{ headerShown: false }} />
         <Stack.Screen name="publicar-feed" options={{ headerShown: false }} />
-        <Stack.Screen name="publicar-midia-feed" options={{ headerShown: false }} />
+        <Stack.Screen name="feed/publicar-midia" options={{ headerShown: false }} />
         <Stack.Screen name="negociar-feed" options={{ headerShown: false }} />
         <Stack.Screen name="editar-evento" options={{ headerShown: false }} />
         <Stack.Screen name="detalhes-evento" options={{ headerShown: false }} />
@@ -161,17 +162,19 @@ function RootLayoutContent() {
 
 export default function RootLayout() {
   return (
-    <ErrorBoundary>
-      <SafeAreaProvider>
-        <ThemeProvider>
-          <ActiveArtistProvider>
-            <PermissionsProvider>
-              <ConnectionErrorModalHost />
-              <NavigationAndStack />
-            </PermissionsProvider>
-          </ActiveArtistProvider>
-        </ThemeProvider>
-      </SafeAreaProvider>
-    </ErrorBoundary>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ErrorBoundary>
+        <SafeAreaProvider>
+          <ThemeProvider>
+            <ActiveArtistProvider>
+              <PermissionsProvider>
+                <ConnectionErrorModalHost />
+                <NavigationAndStack />
+              </PermissionsProvider>
+            </ActiveArtistProvider>
+          </ThemeProvider>
+        </SafeAreaProvider>
+      </ErrorBoundary>
+    </GestureHandlerRootView>
   );
 }

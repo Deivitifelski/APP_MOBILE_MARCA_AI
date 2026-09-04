@@ -31,7 +31,9 @@
         "CFBundleURLTypes": [
           {
             "CFBundleURLName": "marcaai",
-            "CFBundleURLSchemes": ["marcaai"]
+            "CFBundleURLSchemes": [
+              "marcaai"
+            ]
           }
         ],
         "ITSAppUsesNonExemptEncryption": false
@@ -58,7 +60,10 @@
               "scheme": "marcaai"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },

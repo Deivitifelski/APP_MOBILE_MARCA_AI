@@ -17,6 +17,21 @@ export function formatCalendarDate(dateString: string | null | undefined): strin
   return `${pad(d)}/${pad(m)}/${y}`;
 }
 
+const WEEKDAYS_PT = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
+/** Dia da semana a partir de "YYYY-MM-DD", sem conversão de fuso. */
+export function weekdayFromCalendarDate(dateString: string | null | undefined): string {
+  if (dateString == null || !String(dateString).trim()) return '';
+  const part = String(dateString).trim().split('T')[0];
+  const bits = part.split('-');
+  if (bits.length < 3) return '';
+  const y = parseInt(bits[0], 10);
+  const m = parseInt(bits[1], 10);
+  const d = parseInt(bits[2], 10);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return '';
+  return WEEKDAYS_PT[new Date(Date.UTC(y, m - 1, d)).getUTCDay()] ?? '';
+}
+
 /**
  * Formata uma data ISO (UTC) para horário de Brasília (UTC-3).
  * Útil em React Native onde Intl timeZone pode não ser suportado.

@@ -61,7 +61,7 @@ function asBoolean(value: unknown): boolean {
 }
 
 function mapAnuncio(row: Record<string, unknown>): FeedAnuncio {
-  const tipo = row.feed_tipo === 'demanda' ? 'demanda' : 'disponivel';
+  const tipo: FeedTipo = row.feed_tipo === 'demanda' ? 'demanda' : 'disponivel';
   const cache = row.meu_cache_valor;
   return {
     id: String(row.id),
