@@ -25,6 +25,7 @@ import Animated, {
 import { useActiveArtistContext } from '../../../contexts/ActiveArtistContext';
 import { useTheme } from '../../../contexts/ThemeContext';
 import {
+  alternarCurtidaSocialComentario,
   comentarSocialPost,
   listarComentariosSocialPost,
   type SocialComment,
@@ -36,6 +37,24 @@ import SocialCommentItem from './SocialCommentItem';
 const SHEET_HEIGHT = Math.round(Dimensions.get('window').height * 0.75);
 const DISMISS_DRAG = 110;
 const DISMISS_VELOCITY = 900;
+
+function friendlySocialError(error: string | null | undefined, fallback: string): string {
+  if (!error) return fallback;
+  const text = error.toLowerCase();
+  if (
+    text.includes('does not exist') ||
+    text.includes('não existe') ||
+    text.includes('could not find the function') ||
+    text.includes('schema cache') ||
+    text.includes('pgrst202')
+  ) {
+    return 'Rode database/FEED_SOCIAL_PATCH_CURTIDAS.sql no Supabase (SQL Editor) e tente de novo.';
+  }
+  if (text.includes('sem permissão')) {
+    return 'Você precisa ser colaborador do artista ativo para curtir.';
+  }
+  return error;
+}
 
 type Props = {
   visible: boolean;
@@ -59,6 +78,7 @@ export default function SocialCommentsModal({
   const [comments, setComments] = useState<SocialComment[]>([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [likingCommentId, setLikingCommentId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -71,12 +91,15 @@ export default function SocialCommentsModal({
   const load = useCallback(async () => {
     if (!post?.id) return;
     setLoading(true);
-    const { comments: list, error: err } = await listarComentariosSocialPost(post.id);
+    const { comments: list, error: err } = await listarComentariosSocialPost(
+      post.id,
+      activeArtist?.id
+    );
     setComments(list);
     setError(err);
     setLoading(false);
     if (list.length > 0) scrollToEnd(false);
-  }, [post?.id, scrollToEnd]);
+  }, [post?.id, activeArtist?.id, scrollToEnd]);
 
   useEffect(() => {
     if (!visible || !post?.id) return;
@@ -172,6 +195,8 @@ export default function SocialCommentsModal({
       artist_image: activeArtist.profile_url ?? null,
       message: trimmed,
       created_at: new Date().toISOString(),
+      likes_count: 0,
+      liked_by_me: false,
     };
 
     const nextCount = comments.length + 1;
@@ -219,8 +244,65 @@ export default function SocialCommentsModal({
     }
   };
 
+  const handleLikeComment = useCallback(
+    async (comment: SocialComment) => {
+      if (!activeArtist?.id || likingCommentId) return;
+      if (comment.id.startsWith('temp-')) return;
+
+      const prevLiked = comment.liked_by_me;
+      const prevCount = comment.likes_count;
+      const nextLiked = !prevLiked;
+      const nextCount = nextLiked ? prevCount + 1 : Math.max(0, prevCount - 1);
+
+      setLikingCommentId(comment.id);
+      setComments((prev) =>
+        prev.map((item) =>
+          item.id === comment.id
+            ? { ...item, liked_by_me: nextLiked, likes_count: nextCount }
+            : item
+        )
+      );
+
+      const { success, error: err, liked, likesCount } = await alternarCurtidaSocialComentario({
+        commentId: comment.id,
+        artistaId: activeArtist.id,
+      });
+
+      setLikingCommentId(null);
+
+      if (!success) {
+        setComments((prev) =>
+          prev.map((item) =>
+            item.id === comment.id
+              ? { ...item, liked_by_me: prevLiked, likes_count: prevCount }
+              : item
+          )
+        );
+        Alert.alert('Curtir', friendlySocialError(err, 'Não foi possível curtir.'));
+        return;
+      }
+
+      setComments((prev) =>
+        prev.map((item) =>
+          item.id === comment.id
+            ? {
+                ...item,
+                liked_by_me: !!liked,
+                likes_count: likesCount ?? nextCount,
+              }
+            : item
+        )
+      );
+    },
+    [activeArtist?.id, likingCommentId]
+  );
+
   const renderItem = ({ item }: { item: SocialComment }) => (
-    <SocialCommentItem comment={item} />
+    <SocialCommentItem
+      comment={item}
+      onLike={(comment) => void handleLikeComment(comment)}
+      liking={likingCommentId === item.id}
+    />
   );
 
   return (

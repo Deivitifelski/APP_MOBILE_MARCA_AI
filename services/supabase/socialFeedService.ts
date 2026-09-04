@@ -27,6 +27,8 @@ export interface SocialComment {
   artist_image: string | null;
   message: string;
   created_at: string;
+  likes_count: number;
+  liked_by_me: boolean;
 }
 
 function pickRpcRow<T extends object>(data: T[] | T | null): T | null {
@@ -68,6 +70,8 @@ function mapComment(row: Record<string, unknown>): SocialComment {
     artist_image: row.artist_image != null ? String(row.artist_image) : null,
     message: String(row.message ?? ''),
     created_at: String(row.created_at ?? ''),
+    likes_count: Number(row.likes_count ?? 0) || 0,
+    liked_by_me: asBoolean(row.liked_by_me),
   };
 }
 
@@ -167,11 +171,13 @@ export async function alternarCurtidaSocialPost(input: {
 }
 
 export async function listarComentariosSocialPost(
-  postId: string
+  postId: string,
+  artistaAtualId?: string | null
 ): Promise<{ comments: SocialComment[]; error: string | null }> {
   try {
     const { data, error } = await supabase.rpc('listar_comentarios_social_post', {
       p_post_id: postId,
+      p_artista_atual_id: artistaAtualId ?? null,
     });
     if (error) return { comments: [], error: error.message };
     const rows = (data || []) as Record<string, unknown>[];
@@ -211,6 +217,40 @@ export async function comentarSocialPost(input: {
       error: null,
       commentId: row.comment_id ?? undefined,
       commentsCount: Number(row.comments_count ?? 0) || 0,
+    };
+  } catch {
+    return { success: false, error: 'Erro de conexão' };
+  }
+}
+
+export async function alternarCurtidaSocialComentario(input: {
+  commentId: string;
+  artistaId: string;
+}): Promise<{
+  success: boolean;
+  error: string | null;
+  liked?: boolean;
+  likesCount?: number;
+}> {
+  try {
+    const { data, error } = await supabase.rpc('rpc_app_alternar_curtida_social_comentario', {
+      p_comment_id: input.commentId,
+      p_artista_id: input.artistaId,
+    });
+    if (error) return { success: false, error: error.message };
+    const row = pickRpcRow<{
+      success: boolean;
+      error: string | null;
+      liked: boolean;
+      likes_count: number;
+    }>(data);
+    if (!row) return { success: false, error: 'Resposta inválida ao curtir.' };
+    if (!row.success) return { success: false, error: row.error || 'Não foi possível curtir.' };
+    return {
+      success: true,
+      error: null,
+      liked: row.liked,
+      likesCount: Number(row.likes_count ?? 0) || 0,
     };
   } catch {
     return { success: false, error: 'Erro de conexão' };

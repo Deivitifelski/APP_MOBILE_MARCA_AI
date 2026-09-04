@@ -178,11 +178,28 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.rpc_app_alternar_curtida_social_post(UUID, UUID) TO authenticated;
 
+-- Curtidas em comentários
+CREATE TABLE IF NOT EXISTS public.social_post_comment_likes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  comment_id uuid NOT NULL REFERENCES public.social_post_comments(id) ON DELETE CASCADE,
+  artist_id uuid NOT NULL REFERENCES public.artists(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (comment_id, artist_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_social_post_comment_likes_comment_id
+  ON public.social_post_comment_likes (comment_id);
+
+CREATE INDEX IF NOT EXISTS idx_social_post_comment_likes_artist_id
+  ON public.social_post_comment_likes (artist_id);
+
 -- Listar comentários
 DROP FUNCTION IF EXISTS public.listar_comentarios_social_post(uuid);
+DROP FUNCTION IF EXISTS public.listar_comentarios_social_post(uuid, uuid);
 
 CREATE OR REPLACE FUNCTION public.listar_comentarios_social_post(
-  p_post_id UUID
+  p_post_id UUID,
+  p_artista_atual_id UUID DEFAULT NULL
 )
 RETURNS TABLE (
   id UUID,
@@ -191,7 +208,9 @@ RETURNS TABLE (
   artist_name TEXT,
   artist_image TEXT,
   message TEXT,
-  created_at TIMESTAMPTZ
+  created_at TIMESTAMPTZ,
+  likes_count INTEGER,
+  liked_by_me BOOLEAN
 )
 LANGUAGE sql
 SECURITY DEFINER
@@ -205,7 +224,21 @@ AS $$
     a.name,
     NULLIF(trim(COALESCE(a.profile_url, '')), ''),
     spc.message,
-    spc.created_at
+    spc.created_at,
+    (
+      SELECT COUNT(*)::integer
+      FROM public.social_post_comment_likes spcl
+      WHERE spcl.comment_id = spc.id
+    ),
+    (
+      p_artista_atual_id IS NOT NULL
+      AND EXISTS (
+        SELECT 1
+        FROM public.social_post_comment_likes spcl_me
+        WHERE spcl_me.comment_id = spc.id
+          AND spcl_me.artist_id = p_artista_atual_id
+      )
+    )
   FROM public.social_post_comments spc
   INNER JOIN public.artists a ON a.id = spc.artist_id
   INNER JOIN public.social_posts sp ON sp.id = spc.post_id
@@ -215,8 +248,83 @@ AS $$
   LIMIT 200;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.listar_comentarios_social_post(UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.listar_comentarios_social_post(UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION public.listar_comentarios_social_post(UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.listar_comentarios_social_post(UUID, UUID) TO service_role;
+
+-- Curtir / descurtir comentário
+DROP FUNCTION IF EXISTS public.rpc_app_alternar_curtida_social_comentario(uuid, uuid);
+
+CREATE OR REPLACE FUNCTION public.rpc_app_alternar_curtida_social_comentario(
+  p_comment_id UUID,
+  p_artista_id UUID
+)
+RETURNS TABLE (
+  success BOOLEAN,
+  error TEXT,
+  liked BOOLEAN,
+  likes_count INTEGER
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_uid UUID := auth.uid();
+  v_comment public.social_post_comments%ROWTYPE;
+  v_liked BOOLEAN;
+  v_count INTEGER;
+BEGIN
+  IF v_uid IS NULL THEN
+    RETURN QUERY SELECT false, 'Usuário não autenticado.', false, 0;
+    RETURN;
+  END IF;
+
+  SELECT spc.* INTO v_comment
+  FROM public.social_post_comments spc
+  INNER JOIN public.social_posts sp ON sp.id = spc.post_id
+  WHERE spc.id = p_comment_id
+    AND sp.is_published = true
+  LIMIT 1;
+
+  IF v_comment.id IS NULL THEN
+    RETURN QUERY SELECT false, 'Comentário não encontrado.', false, 0;
+    RETURN;
+  END IF;
+
+  IF NOT public._is_member_of_artist(v_uid, p_artista_id, NULL) THEN
+    RETURN QUERY SELECT false, 'Sem permissão para curtir neste artista.', false, 0;
+    RETURN;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.social_post_comment_likes spcl
+    WHERE spcl.comment_id = p_comment_id
+      AND spcl.artist_id = p_artista_id
+  ) THEN
+    DELETE FROM public.social_post_comment_likes
+    WHERE comment_id = p_comment_id
+      AND artist_id = p_artista_id;
+    v_liked := false;
+  ELSE
+    INSERT INTO public.social_post_comment_likes (comment_id, artist_id)
+    VALUES (p_comment_id, p_artista_id)
+    ON CONFLICT (comment_id, artist_id) DO NOTHING;
+    v_liked := true;
+  END IF;
+
+  SELECT COUNT(*)::integer INTO v_count
+  FROM public.social_post_comment_likes
+  WHERE comment_id = p_comment_id;
+
+  RETURN QUERY SELECT true, NULL::TEXT, v_liked, v_count;
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN QUERY SELECT false, SQLERRM, false, 0;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.rpc_app_alternar_curtida_social_comentario(UUID, UUID) TO authenticated;
 
 -- Comentar
 DROP FUNCTION IF EXISTS public.rpc_app_comentar_social_post(uuid, uuid, text);
@@ -299,6 +407,7 @@ WHERE n.nspname = 'public'
     'listar_feed_social',
     'rpc_app_alternar_curtida_social_post',
     'listar_comentarios_social_post',
+    'rpc_app_alternar_curtida_social_comentario',
     'rpc_app_comentar_social_post'
   )
 ORDER BY 1;
