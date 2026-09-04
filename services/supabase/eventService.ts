@@ -70,8 +70,19 @@ export interface Event {
   contract_file_name?: string | null;
   /** Evento criado ao aceitar convite de participação */
   convite_participacao_id?: string | null;
+  /** Anúncio do feed (`disponivel` / `demanda`). NULL = evento normal da agenda. */
+  feed_tipo?: "disponivel" | "demanda" | null;
   created_at: string;
   updated_at: string;
+}
+
+function excludeFeedMarketplaceEvents<T extends { feed_tipo?: string | null }>(
+  events: T[] | null | undefined,
+): T[] {
+  return (events ?? []).filter((event) => {
+    const tipo = event.feed_tipo;
+    return tipo == null || String(tipo).trim() === "";
+  });
 }
 
 export interface EventExpense {
@@ -238,7 +249,7 @@ export const getEventsByArtist = async (
       return { success: false, error: error.message };
     }
 
-    return { success: true, error: null, events: data || [] };
+    return { success: true, error: null, events: excludeFeedMarketplaceEvents(data) };
   } catch {
     return { success: false, error: "Erro de conexão" };
   }
@@ -278,7 +289,7 @@ export const getEventsByMonth = async (
       return { success: false, error: error.message };
     }
 
-    return { success: true, error: null, events: data || [] };
+    return { success: true, error: null, events: excludeFeedMarketplaceEvents(data) };
   } catch {
     return { success: false, error: "Erro de conexão" };
   }
@@ -306,7 +317,7 @@ export const getEventsByYear = async (
       return { success: false, error: error.message };
     }
 
-    return { success: true, error: null, events: data || [] };
+    return { success: true, error: null, events: excludeFeedMarketplaceEvents(data) };
   } catch {
     return { success: false, error: "Erro de conexão" };
   }
@@ -332,7 +343,7 @@ export const getEventsByDateRange = async (
       return { success: false, error: error.message };
     }
 
-    return { success: true, error: null, events: data || [] };
+    return { success: true, error: null, events: excludeFeedMarketplaceEvents(data) };
   } catch {
     return { success: false, error: "Erro de conexão" };
   }
@@ -545,7 +556,7 @@ export const getEventsWithPermissions = async (
       return { events: null, error: error.message };
     }
 
-    return { events: data || [], error: null };
+    return { events: excludeFeedMarketplaceEvents(data as Event[]), error: null };
   } catch (error) {
     console.error("Erro ao buscar eventos:", error);
     return { events: null, error: "Erro ao buscar eventos" };
@@ -723,6 +734,7 @@ export interface EventWithRole {
   contractor_phone?: string;
   confirmed: boolean;
   tag: "ensaio" | "evento" | "reunião";
+  feed_tipo?: "disponivel" | "demanda" | null;
   created_at: string;
   updated_at: string;
   user_role?: string; // Role do usuário atual para este artista
@@ -756,7 +768,7 @@ export const getEventsByArtistWithRole = async (
     }
 
     console.log("✅ Eventos carregados com filtragem:", data?.length || 0);
-    return { events: data || [], error: null };
+    return { events: excludeFeedMarketplaceEvents(data as EventWithRole[]), error: null };
   } catch (error: any) {
     console.error("❌ Erro ao buscar eventos com role:", error);
     return {

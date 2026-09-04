@@ -1,0 +1,183 @@
+import { supabase } from '../../lib/supabase';
+
+export type FeedTipo = 'disponivel' | 'demanda';
+export type FeedFiltro = 'todos' | 'disponivel' | 'demanda' | 'meus';
+
+export interface FeedAnuncio {
+  id: string;
+  artist_id: string;
+  artist_name: string;
+  artist_image: string | null;
+  musical_style: string | null;
+  feed_tipo: FeedTipo;
+  event_date: string;
+  start_time: string;
+  end_time: string;
+  city: string | null;
+  state_uf: string | null;
+  description: string | null;
+  created_at: string;
+  is_mine: boolean;
+  meu_cache_valor: number | null;
+  tem_cache: boolean;
+}
+
+export interface PublicarFeedInput {
+  artistaId: string;
+  feedTipo: FeedTipo;
+  eventDate: string;
+  startTime: string;
+  endTime: string;
+  stateUf?: string | null;
+  cacheValor?: number | null;
+  city?: string | null;
+  observacao?: string | null;
+}
+
+function pickRpcRow<T extends object>(data: T[] | T | null): T | null {
+  if (!data) return null;
+  if (Array.isArray(data)) return data[0] ?? null;
+  return data;
+}
+
+function asBoolean(value: unknown): boolean {
+  return value === true || value === 't' || value === 'true' || value === 1 || value === '1';
+}
+
+function mapAnuncio(row: Record<string, unknown>): FeedAnuncio {
+  const tipo = row.feed_tipo === 'demanda' ? 'demanda' : 'disponivel';
+  const cache = row.meu_cache_valor;
+  return {
+    id: String(row.id),
+    artist_id: String(row.artist_id),
+    artist_name: String(row.artist_name ?? 'Artista'),
+    artist_image: row.artist_image != null ? String(row.artist_image) : null,
+    musical_style: row.musical_style != null ? String(row.musical_style) : null,
+    feed_tipo: tipo,
+    event_date: String(row.event_date ?? ''),
+    start_time: String(row.start_time ?? ''),
+    end_time: String(row.end_time ?? ''),
+    city: row.city != null ? String(row.city) : null,
+    state_uf: row.state_uf != null ? String(row.state_uf) : null,
+    description: row.description != null ? String(row.description) : null,
+    created_at: String(row.created_at ?? ''),
+    is_mine: asBoolean(row.is_mine),
+    meu_cache_valor:
+      cache == null || cache === '' ? null : Number(cache),
+    tem_cache: asBoolean(row.tem_cache),
+  };
+}
+
+export async function listarFeedMarketplace(params: {
+  filtro: FeedFiltro;
+  estadoUf?: string | null;
+  cidade?: string | null;
+  artistaAtualId?: string | null;
+}): Promise<{ anuncios: FeedAnuncio[]; error: string | null }> {
+  try {
+    const tipoRpc =
+      params.filtro === 'todos' ? null : params.filtro;
+    const { data, error } = await supabase.rpc('listar_feed_marketplace', {
+      p_tipo: tipoRpc,
+      p_estado: params.estadoUf?.trim() ? params.estadoUf.trim() : null,
+      p_cidade: params.cidade?.trim() ? params.cidade.trim() : null,
+      p_artista_atual_id: params.artistaAtualId ?? null,
+    });
+    if (error) return { anuncios: [], error: error.message };
+    const rows = (data || []) as Record<string, unknown>[];
+    return { anuncios: rows.map(mapAnuncio), error: null };
+  } catch {
+    return { anuncios: [], error: 'Erro de conexão' };
+  }
+}
+
+export async function publicarFeed(
+  input: PublicarFeedInput
+): Promise<{ success: boolean; error: string | null; eventoId?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('rpc_app_publicar_feed', {
+      p_artista_id: input.artistaId,
+      p_feed_tipo: input.feedTipo,
+      p_event_date: input.eventDate,
+      p_state_uf: input.stateUf?.trim() || null,
+      p_cache_valor: input.cacheValor && input.cacheValor > 0 ? input.cacheValor : 0,
+      p_city: input.city?.trim() || null,
+      p_start_time: input.startTime,
+      p_end_time: input.endTime,
+      p_observacao: input.observacao?.trim() || null,
+    });
+    if (error) return { success: false, error: error.message };
+    const row = pickRpcRow<{ success: boolean; error: string | null; evento_id: string | null }>(data);
+    if (!row) return { success: false, error: 'Resposta inválida ao publicar.' };
+    if (!row.success) return { success: false, error: row.error || 'Não foi possível publicar.' };
+    return { success: true, error: null, eventoId: row.evento_id ?? undefined };
+  } catch {
+    return { success: false, error: 'Erro de conexão' };
+  }
+}
+
+export async function encerrarAnuncioFeed(
+  eventoId: string
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const { data, error } = await supabase.rpc('rpc_app_encerrar_anuncio_feed', {
+      p_evento_id: eventoId,
+    });
+    if (error) return { success: false, error: error.message };
+    const row = pickRpcRow<{ success: boolean; error: string | null }>(data);
+    if (!row) return { success: false, error: 'Resposta inválida ao encerrar.' };
+    if (!row.success) return { success: false, error: row.error || 'Não foi possível encerrar.' };
+    return { success: true, error: null };
+  } catch {
+    return { success: false, error: 'Erro de conexão' };
+  }
+}
+
+export async function iniciarNegociacaoFeed(input: {
+  eventoId: string;
+  artistaInteressadoId: string;
+  funcaoParticipacao: string;
+  mensagem?: string | null;
+}): Promise<{
+  success: boolean;
+  error: string | null;
+  conviteId?: string;
+  cacheValor?: number | null;
+  feedTipo?: FeedTipo | null;
+}> {
+  try {
+    const { data, error } = await supabase.rpc('rpc_app_iniciar_negociacao_feed', {
+      p_evento_id: input.eventoId,
+      p_artista_interessado_id: input.artistaInteressadoId,
+      p_funcao_participacao: input.funcaoParticipacao.trim(),
+      p_mensagem: input.mensagem?.trim() || null,
+    });
+    if (error) return { success: false, error: error.message };
+    const row = pickRpcRow<{
+      success: boolean;
+      error: string | null;
+      convite_id: string | null;
+      cache_valor: number | null;
+      feed_tipo: string | null;
+    }>(data);
+    if (!row) return { success: false, error: 'Resposta inválida ao negociar.' };
+    if (!row.success) {
+      return { success: false, error: row.error || 'Não foi possível iniciar a negociação.' };
+    }
+    const conviteId = row.convite_id ?? undefined;
+    if (conviteId) {
+      void supabase.rpc('rpc_app_notificar_convite_participacao_evento', {
+        p_convite_id: conviteId,
+      });
+    }
+    return {
+      success: true,
+      error: null,
+      conviteId,
+      cacheValor: row.cache_valor == null ? null : Number(row.cache_valor),
+      feedTipo: row.feed_tipo === 'demanda' ? 'demanda' : row.feed_tipo === 'disponivel' ? 'disponivel' : null,
+    };
+  } catch {
+    return { success: false, error: 'Erro de conexão' };
+  }
+}

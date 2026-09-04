@@ -174,32 +174,61 @@ class ReactNativeDelegate: ExpoReactNativeFactoryDelegate {
     bridge.bundleURL ?? bundleURL()
   }
 
+  /// Host do Metro no Mac (Info.plist → MetroBundlerHost). Evita IP antigo gravado no device.
+  private func metroBundlerHost() -> String? {
+    let raw = (Bundle.main.object(forInfoDictionaryKey: "MetroBundlerHost") as? String)?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let raw, !raw.isEmpty else { return nil }
+    return raw.contains(":") ? raw : "\(raw):8081"
+  }
+
+  private func applyMetroHost(_ url: URL) -> URL {
+    guard let override = metroBundlerHost() else {
+      return replaceLocalhostWithIP(url) ?? url
+    }
+    var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+    let parts = override.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: true)
+    components?.host = String(parts[0])
+    if parts.count > 1, let port = Int(parts[1]) {
+      components?.port = port
+    }
+    return components?.url ?? url
+  }
+
   override func bundleURL() -> URL? {
 #if DEBUG
-    // Configurar RCTBundleURLProvider para usar IP da máquina
     let settings = RCTBundleURLProvider.sharedSettings()
-    
+    if let override = metroBundlerHost() {
+      settings.jsLocation = override
+    }
+
     // 1. Tentar obter URL do Metro bundler
     if let metroURL = settings.jsBundleURL(forBundleRoot: ".expo/.virtual-metro-entry") {
-      // Substituir localhost pelo IP se necessário
-      if let correctedURL = replaceLocalhostWithIP(metroURL) {
-        print("✅ Usando Metro bundler: \(correctedURL.absoluteString)")
-        return correctedURL
-      }
+      let correctedURL = applyMetroHost(metroURL)
+      print("✅ Usando Metro bundler: \(correctedURL.absoluteString)")
+      return correctedURL
     }
     
     // 2. Tentar Metro com diferentes configurações
     let bundleRoots = [".expo/.virtual-metro-entry", "index", "main"]
     for root in bundleRoots {
       if let url = settings.jsBundleURL(forBundleRoot: root) {
-        if let correctedURL = replaceLocalhostWithIP(url) {
-          print("✅ Usando Metro bundler (root: \(root)): \(correctedURL.absoluteString)")
-          return correctedURL
-        }
+        let correctedURL = applyMetroHost(url)
+        print("✅ Usando Metro bundler (root: \(root)): \(correctedURL.absoluteString)")
+        return correctedURL
       }
     }
-    
-    // 3. Tentar construir URL manualmente com IP da máquina
+
+    if let override = metroBundlerHost() {
+      let host = override
+      let bundleURLString = "http://\(host)/.expo/.virtual-metro-entry.bundle?platform=ios&dev=true"
+      if let manualURL = URL(string: bundleURLString) {
+        print("✅ Tentando Metro com host do Info.plist: \(bundleURLString)")
+        return manualURL
+      }
+    }
+
+    // 3. Fallback: IP da interface local (no device isso é o iPhone — só último recurso)
     if let ipAddress = getLocalIPAddress() {
       let bundleURLString = "http://\(ipAddress):8081/.expo/.virtual-metro-entry.bundle?platform=ios&dev=true"
       if let manualURL = URL(string: bundleURLString) {
