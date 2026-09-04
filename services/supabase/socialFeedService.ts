@@ -22,6 +22,16 @@ export type FeedPost = {
   location?: string;
 };
 
+export type SocialPostComment = {
+  id: string;
+  postId: string;
+  artistId: string;
+  artistName: string;
+  avatar: string;
+  message: string;
+  createdAt: string;
+};
+
 function formatRelativeTime(dateString: string): string {
   const diffMs = Date.now() - new Date(dateString).getTime();
   const diffMinutes = Math.max(1, Math.floor(diffMs / 60000));
@@ -209,6 +219,33 @@ export async function fetchSocialFeed(
   }
 }
 
+export function subscribeToSocialFeed(onChange: () => void) {
+  let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  const scheduleRefresh = () => {
+    if (refreshTimer) clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(onChange, 350);
+  };
+
+  const channel = supabase
+    .channel("social-feed-realtime")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "social_posts" },
+      scheduleRefresh,
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "social_post_media" },
+      scheduleRefresh,
+    )
+    .subscribe();
+
+  return () => {
+    if (refreshTimer) clearTimeout(refreshTimer);
+    void supabase.removeChannel(channel);
+  };
+}
+
 export async function fetchLikedPostIds(
   artistId: string,
   postIds: string[],
@@ -227,6 +264,57 @@ export async function fetchLikedPostIds(
     postIds: (data ?? []).map((item) => String(item.post_id)),
     error: error?.message ?? null,
   };
+}
+
+export async function fetchSocialPostComments(
+  postId: string,
+): Promise<{ comments: SocialPostComment[]; error: string | null }> {
+  const { data, error } = await supabase
+    .from("social_post_comments")
+    .select(
+      `id, post_id, artist_id, message, created_at, artists!artist_id (name, profile_url)`,
+    )
+    .eq("post_id", postId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    return { comments: [], error: error.message };
+  }
+
+  const comments = (data ?? []).map((item) => {
+    const artist = Array.isArray(item.artists) ? item.artists[0] : item.artists;
+    return {
+      id: String(item.id),
+      postId: String(item.post_id),
+      artistId: String(item.artist_id),
+      artistName: artist?.name || "Artista",
+      avatar:
+        artist?.profile_url ||
+        "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80",
+      message: String(item.message || ""),
+      createdAt: String(item.created_at),
+    };
+  });
+
+  return { comments, error: null };
+}
+
+export async function addSocialPostComment({
+  postId,
+  artistId,
+  message,
+}: {
+  postId: string;
+  artistId: string;
+  message: string;
+}): Promise<{ success: boolean; error: string | null }> {
+  const { error } = await supabase.from("social_post_comments").insert({
+    post_id: postId,
+    artist_id: artistId,
+    message: message.trim(),
+  });
+
+  return { success: !error, error: error?.message ?? null };
 }
 
 export async function toggleSocialPostLike({
@@ -357,6 +445,7 @@ export async function createSocialPost({
         .from("social_post_media")
         .insert(mediaRows);
       if (mediaError) {
+        await supabase.from("social_posts").delete().eq("id", postData.id);
         return { success: false, error: mediaError.message };
       }
     }
@@ -371,6 +460,7 @@ export async function createSocialPost({
         .from("social_post_tags")
         .insert(tagRows);
       if (tagError) {
+        await supabase.from("social_posts").delete().eq("id", postData.id);
         return { success: false, error: tagError.message };
       }
     }
@@ -385,6 +475,64 @@ export async function createSocialPost({
           : "Erro ao criar conteúdo do feed",
     };
   }
+}
+
+export async function deleteSocialPost({
+  postId,
+  artistId,
+}: {
+  postId: string;
+  artistId: string;
+}): Promise<{ success: boolean; error: string | null }> {
+  const { data: mediaRows, error: mediaQueryError } = await supabase
+    .from("social_post_media")
+    .select("media_url")
+    .eq("post_id", postId);
+
+  if (mediaQueryError) {
+    return { success: false, error: mediaQueryError.message };
+  }
+
+  const { data: deletedPost, error } = await supabase
+    .from("social_posts")
+    .delete()
+    .eq("id", postId)
+    .eq("artist_id", artistId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  if (!deletedPost) {
+    return {
+      success: false,
+      error: "A postagem não foi excluída. Verifique sua permissão de acesso.",
+    };
+  }
+
+  const storagePaths = (mediaRows ?? [])
+    .map((row) => {
+      const match = String(row.media_url).match(/\/feed\/(.+)$/);
+      const path = match?.[1]?.split(/[?#]/, 1)[0];
+      return path ? decodeURIComponent(path) : null;
+    })
+    .filter((path): path is string => Boolean(path));
+
+  if (storagePaths.length > 0) {
+    const { error: storageError } = await supabase.storage
+      .from("feed")
+      .remove(storagePaths);
+    if (storageError) {
+      console.warn(
+        "Post removido, mas a mídia não foi limpa do Storage:",
+        storageError,
+      );
+    }
+  }
+
+  return { success: true, error: null };
 }
 
 export async function addSocialPostMedia({

@@ -1,13 +1,17 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import React, { useCallback, useEffect, useState } from "react";
+import { useRouter } from "expo-router";
+import { VideoView, useVideoPlayer } from "expo-video";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
     FlatList,
     Image,
+    KeyboardAvoidingView,
     Modal,
+    Platform,
     ScrollView,
     Share,
     StyleSheet,
@@ -20,12 +24,16 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useActiveArtistContext } from "../../contexts/ActiveArtistContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import {
-    addSocialPostMedia,
+    addSocialPostComment,
     createSocialPost,
+    deleteSocialPost,
     fetchLikedPostIds,
     fetchSocialFeed,
+    fetchSocialPostComments,
+    subscribeToSocialFeed,
     toggleSocialPostLike,
     uploadFeedMediaToStorage,
+    type SocialPostComment,
 } from "../../services/supabase/socialFeedService";
 
 type Post = {
@@ -52,14 +60,86 @@ function formatCompact(value: number) {
   return `${value}`;
 }
 
+function FeedVideo({
+  uri,
+  aspectRatio,
+  composerVisible,
+}: {
+  uri: string;
+  aspectRatio: number;
+  composerVisible: boolean;
+}) {
+  const player = useVideoPlayer(uri, (videoPlayer) => {
+    videoPlayer.loop = true;
+    videoPlayer.muted = true;
+  });
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+
+  useEffect(() => {
+    if (composerVisible && !isMuted) {
+      player.muted = true;
+      setIsMuted(true);
+    }
+  }, [composerVisible, isMuted, player]);
+
+  return (
+    <View style={[styles.feedVideo, { aspectRatio: Math.max(aspectRatio, 1) }]}>
+      <TouchableOpacity
+        style={StyleSheet.absoluteFill}
+        activeOpacity={0.92}
+        onPress={() => {
+          if (isPlaying) {
+            player.pause();
+            setIsPlaying(false);
+          } else {
+            player.play();
+            setIsPlaying(true);
+          }
+        }}
+      >
+        <VideoView
+          player={player}
+          style={styles.feedVideoPlayer}
+          contentFit="cover"
+          nativeControls={false}
+        />
+      </TouchableOpacity>
+      {!isPlaying ? (
+        <View pointerEvents="none" style={styles.playButton}>
+          <Ionicons name="play" size={18} color="#ffffff" />
+        </View>
+      ) : null}
+      <TouchableOpacity
+        accessibilityLabel={isMuted ? "Ativar som do vídeo" : "Silenciar vídeo"}
+        style={styles.muteButton}
+        onPress={() => {
+          const nextMuted = !isMuted;
+          player.muted = nextMuted;
+          setIsMuted(nextMuted);
+        }}
+      >
+        <Ionicons
+          name={isMuted ? "volume-mute" : "volume-high"}
+          size={18}
+          color="#ffffff"
+        />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 export default function SocialFeedScreen() {
   const { colors, isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { activeArtist } = useActiveArtistContext();
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMorePosts, setHasMorePosts] = useState(true);
+  const loadingMoreRef = useRef(false);
   const [composerVisible, setComposerVisible] = useState(false);
   const [composerText, setComposerText] = useState("");
   const [composerLocation, setComposerLocation] = useState("");
@@ -73,13 +153,14 @@ export default function SocialFeedScreen() {
   const [previewAspectRatio, setPreviewAspectRatio] = useState(1);
   const [composerError, setComposerError] = useState("");
   const [isPublishing, setIsPublishing] = useState(false);
-  const [uploadingPostIds, setUploadingPostIds] = useState<Set<string>>(
-    new Set(),
-  );
+  const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
   const [commentsVisible, setCommentsVisible] = useState(false);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
+  const [postComments, setPostComments] = useState<SocialPostComment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentSending, setCommentSending] = useState(false);
 
   const resetComposer = useCallback(() => {
     setComposerText("");
@@ -95,6 +176,8 @@ export default function SocialFeedScreen() {
         if (reset) {
           setLoading(true);
         } else {
+          if (loadingMoreRef.current || !hasMorePosts) return;
+          loadingMoreRef.current = true;
           setLoadingMore(true);
         }
 
@@ -107,6 +190,7 @@ export default function SocialFeedScreen() {
         setPosts((currentPosts) =>
           reset ? nextPosts : [...currentPosts, ...nextPosts],
         );
+        setHasMorePosts(nextPosts.length === 20);
         if (reset && activeArtist) {
           const likedResult = await fetchLikedPostIds(
             activeArtist.id,
@@ -121,17 +205,47 @@ export default function SocialFeedScreen() {
       } finally {
         setLoading(false);
         setLoadingMore(false);
+        if (!reset) loadingMoreRef.current = false;
       }
     },
-    [activeArtist, posts.length],
+    [activeArtist, hasMorePosts, posts.length],
   );
 
   useEffect(() => {
     loadPosts(true);
   }, []);
 
+  const latestLoadPosts = useRef(loadPosts);
+  useEffect(() => {
+    latestLoadPosts.current = loadPosts;
+  }, [loadPosts]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToSocialFeed(() => {
+      latestLoadPosts.current(true);
+    });
+    return unsubscribe;
+  }, []);
+
+  const postIdsKey = posts.map((post) => post.id).join(",");
+
+  useEffect(() => {
+    if (!activeArtist || !postIdsKey) return;
+
+    let cancelled = false;
+    fetchLikedPostIds(activeArtist.id, postIdsKey.split(",")).then((result) => {
+      if (!cancelled && !result.error) {
+        setLikedPosts(new Set(result.postIds));
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeArtist, postIdsKey]);
+
   const loadMorePosts = useCallback(() => {
-    if (loadingMore || loading) {
+    if (loadingMore || loading || !hasMorePosts || loadingMoreRef.current) {
       return;
     }
     loadPosts(false);
@@ -199,19 +313,91 @@ export default function SocialFeedScreen() {
     }
   }, []);
 
-  const handleOpenComments = useCallback((postId: string) => {
-    setSelectedPostId(postId);
-    setCommentsVisible(true);
-  }, []);
+  const handleDeletePost = useCallback(
+    (post: Post) => {
+      if (!activeArtist || post.artistId !== activeArtist.id) return;
 
-  const handleAddComment = useCallback(() => {
-    if (!commentText.trim()) {
-      Alert.alert("Aviso", "Escreva um comentário antes de enviar.");
+      Alert.alert("Excluir postagem?", "Essa ação não pode ser desfeita.", [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: async () => {
+            setDeletingPostId(post.id);
+            const result = await deleteSocialPost({
+              postId: post.id,
+              artistId: activeArtist.id,
+            });
+            setDeletingPostId(null);
+
+            if (!result.success) {
+              Alert.alert(
+                "Erro ao excluir",
+                result.error || "Não foi possível excluir a postagem.",
+              );
+              return;
+            }
+
+            setPosts((current) =>
+              current.filter((item) => item.id !== post.id),
+            );
+          },
+        },
+      ]);
+    },
+    [activeArtist],
+  );
+
+  const handleOpenComments = useCallback(async (postId: string) => {
+    setSelectedPostId(postId);
+    setPostComments([]);
+    setCommentsVisible(true);
+    setCommentsLoading(true);
+    const result = await fetchSocialPostComments(postId);
+    setCommentsLoading(false);
+    if (result.error) {
+      Alert.alert("Erro", result.error);
       return;
     }
-    Alert.alert("Sucesso", "Comentário adicionado!");
+    setPostComments(result.comments);
+  }, []);
+
+  const handleAddComment = useCallback(async () => {
+    if (!activeArtist || !selectedPostId || !commentText.trim()) {
+      if (!commentText.trim()) {
+        Alert.alert("Aviso", "Escreva um comentário antes de enviar.");
+      }
+      return;
+    }
+
+    setCommentSending(true);
+    const result = await addSocialPostComment({
+      postId: selectedPostId,
+      artistId: activeArtist.id,
+      message: commentText,
+    });
+    setCommentSending(false);
+    if (!result.success) {
+      Alert.alert(
+        "Erro",
+        result.error || "Não foi possível enviar o comentário.",
+      );
+      return;
+    }
+
     setCommentText("");
-  }, [commentText]);
+    const refreshedComments = await fetchSocialPostComments(selectedPostId);
+    if (!refreshedComments.error) {
+      setPostComments(refreshedComments.comments);
+      setPosts((current) =>
+        current.map((post) =>
+          post.id === selectedPostId
+            ? { ...post, comments: post.comments + 1 }
+            : post,
+        ),
+      );
+    }
+  }, [activeArtist, commentText, selectedPostId]);
 
   const handlePickMedia = useCallback(async () => {
     try {
@@ -295,11 +481,32 @@ export default function SocialFeedScreen() {
     setIsPublishing(true);
 
     try {
+      let uploadedMediaUrl: string | undefined;
+      if (selectedMediaUri) {
+        const uploadResult = await uploadFeedMediaToStorage(
+          selectedMediaUri,
+          `${activeArtist.id}-feed`,
+        );
+        if (!uploadResult.success || !uploadResult.url) {
+          throw new Error(uploadResult.error || "Falha no envio da mídia.");
+        }
+        uploadedMediaUrl = uploadResult.url;
+      }
+
       const result = await createSocialPost({
         artistId: activeArtist.id,
         text: composerText.trim(),
         location: composerLocation.trim() || null,
-        media: [],
+        media: uploadedMediaUrl
+          ? [
+              {
+                media_type: selectedMediaType,
+                media_url: uploadedMediaUrl,
+                thumbnail_url:
+                  selectedMediaType === "video" ? uploadedMediaUrl : null,
+              },
+            ]
+          : [],
         tags: [],
       });
 
@@ -307,102 +514,16 @@ export default function SocialFeedScreen() {
         throw new Error(result.error || "Erro ao publicar o post.");
       }
 
-      const postId = result.postId;
-      const pendingMediaUri = selectedMediaUri;
-      const pendingMediaType = selectedMediaType;
-      const pendingText = composerText.trim();
-      const pendingLocation = composerLocation.trim() || undefined;
-
-      if (postId && pendingMediaUri) {
-        setUploadingPostIds((current) => new Set(current).add(postId));
-        setPosts((current) => [
-          {
-            id: postId,
-            artistId: activeArtist.id,
-            artistName: activeArtist.name,
-            avatar:
-              activeArtist.profile_url ||
-              "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80",
-            time: "agora",
-            text: pendingText,
-            mediaType: pendingMediaType,
-            mediaUrl: pendingMediaUri,
-            tags: [],
-            likes: 0,
-            comments: 0,
-            shares: 0,
-            location: pendingLocation,
-            isUploading: true,
-          },
-          ...current.filter((post) => post.id !== postId),
-        ]);
-      }
-
       resetComposer();
       setComposerVisible(false);
-      Alert.alert(
-        "Publicado",
-        pendingMediaUri
-          ? "Sua postagem apareceu no feed e a mídia está sendo enviada."
-          : "Seu post foi publicado no feed.",
-      );
-
-      if (postId && pendingMediaUri) {
-        void (async () => {
-          try {
-            const uploadResult = await uploadFeedMediaToStorage(
-              pendingMediaUri,
-              `${activeArtist.id}-${postId}`,
-            );
-            if (!uploadResult.success || !uploadResult.url) {
-              throw new Error(uploadResult.error || "Falha no envio da mídia.");
-            }
-
-            const mediaResult = await addSocialPostMedia({
-              postId,
-              media: [
-                {
-                  media_type: pendingMediaType,
-                  media_url: uploadResult.url,
-                  thumbnail_url:
-                    pendingMediaType === "video" ? uploadResult.url : null,
-                },
-              ],
-            });
-            if (!mediaResult.success)
-              throw new Error(
-                mediaResult.error || "Falha ao vincular a mídia.",
-              );
-            setUploadingPostIds((current) => {
-              const next = new Set(current);
-              next.delete(postId);
-              return next;
-            });
-            await loadPosts(true);
-          } catch (error) {
-            setUploadingPostIds((current) => {
-              const next = new Set(current);
-              next.delete(postId);
-              return next;
-            });
-            setPosts((current) => current.filter((post) => post.id !== postId));
-            Alert.alert(
-              "Falha no envio",
-              error instanceof Error
-                ? error.message
-                : "Não foi possível enviar a mídia.",
-            );
-          }
-        })();
-      } else {
-        await loadPosts(true);
-      }
+      await loadPosts(true);
     } catch (error) {
-      setComposerError(
+      const message =
         error instanceof Error
           ? error.message
-          : "Não foi possível publicar este post.",
-      );
+          : "Não foi possível publicar este post.";
+      setComposerError(message);
+      Alert.alert("Erro ao publicar", message);
     } finally {
       setIsPublishing(false);
     }
@@ -442,7 +563,24 @@ export default function SocialFeedScreen() {
           >
             <Text style={styles.followText}>Seguir</Text>
           </TouchableOpacity>
-        ) : null}
+        ) : (
+          <TouchableOpacity
+            accessibilityLabel="Opções da postagem"
+            disabled={deletingPostId === item.id}
+            style={styles.postMenuButton}
+            onPress={() => handleDeletePost(item)}
+          >
+            {deletingPostId === item.id ? (
+              <ActivityIndicator size="small" color={colors.textSecondary} />
+            ) : (
+              <Ionicons
+                name="ellipsis-horizontal"
+                size={22}
+                color={colors.textSecondary}
+              />
+            )}
+          </TouchableOpacity>
+        )}
       </View>
 
       {item.location ? (
@@ -482,26 +620,11 @@ export default function SocialFeedScreen() {
                 { backgroundColor: isDarkMode ? "#111827" : "#e5e7eb" },
               ]}
             >
-              <Image
-                source={{ uri: item.mediaUrl }}
-                style={[
-                  styles.mediaImage,
-                  { aspectRatio: mediaAspectRatios[item.id] || 1 },
-                ]}
-                onLoad={(event) => {
-                  const { width, height } = event.nativeEvent.source;
-                  if (width && height) {
-                    setMediaAspectRatios((current) => ({
-                      ...current,
-                      [item.id]: width / height,
-                    }));
-                  }
-                }}
-                resizeMode="contain"
+              <FeedVideo
+                uri={item.mediaUrl}
+                aspectRatio={mediaAspectRatios[item.id] || 1}
+                composerVisible={composerVisible}
               />
-              <View style={styles.playButton}>
-                <Ionicons name="play" size={18} color="#ffffff" />
-              </View>
             </View>
           ) : (
             <Image
@@ -522,12 +645,6 @@ export default function SocialFeedScreen() {
               resizeMode="contain"
             />
           )}
-          {uploadingPostIds.has(item.id) ? (
-            <View style={styles.uploadingOverlay}>
-              <ActivityIndicator size="small" color="#fff" />
-              <Text style={styles.uploadingText}>Enviando...</Text>
-            </View>
-          ) : null}
         </View>
       ) : null}
 
@@ -617,7 +734,7 @@ export default function SocialFeedScreen() {
 
         <TouchableOpacity
           style={[styles.createButton, { backgroundColor: colors.primary }]}
-          onPress={() => setComposerVisible(true)}
+          onPress={() => router.push("/adicionar-postagem")}
         >
           <Ionicons name="add" size={18} color="#fff" />
           <Text style={styles.createText}>Postar</Text>
@@ -655,88 +772,171 @@ export default function SocialFeedScreen() {
         onRequestClose={() => setComposerVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View
-            style={[
-              styles.composerSheet,
-              { backgroundColor: colors.surface, borderColor: colors.border },
-            ]}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={0}
+            style={styles.keyboardAvoiding}
           >
-            <View style={styles.composerHeader}>
-              <Text style={[styles.composerTitle, { color: colors.text }]}>
-                Novo post
-              </Text>
-              <TouchableOpacity onPress={() => setComposerVisible(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView
-              contentContainerStyle={styles.composerContent}
-              showsVerticalScrollIndicator={false}
+            <View
+              style={[
+                styles.composerSheet,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
             >
-              <View style={styles.composerArtistRow}>
-                <Image
-                  source={{
-                    uri:
-                      activeArtist?.profile_url ||
-                      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80",
-                  }}
-                  style={styles.composerAvatar}
-                />
-                <Text style={[styles.composerArtist, { color: colors.text }]}>
-                  {activeArtist?.name || "Selecione um artista"}
+              <View style={styles.composerHeader}>
+                <Text style={[styles.composerTitle, { color: colors.text }]}>
+                  Novo post
                 </Text>
+                <TouchableOpacity onPress={() => setComposerVisible(false)}>
+                  <Ionicons name="close" size={24} color={colors.text} />
+                </TouchableOpacity>
               </View>
 
-              {selectedMediaUri ? (
-                <View style={styles.previewWrap}>
-                  <View
+              <ScrollView
+                style={styles.composerScroll}
+                contentContainerStyle={styles.composerContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                automaticallyAdjustKeyboardInsets
+              >
+                <View style={styles.composerArtistRow}>
+                  <Image
+                    source={{
+                      uri:
+                        activeArtist?.profile_url ||
+                        "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80",
+                    }}
+                    style={styles.composerAvatar}
+                  />
+                  <Text style={[styles.composerArtist, { color: colors.text }]}>
+                    {activeArtist?.name || "Selecione um artista"}
+                  </Text>
+                </View>
+
+                {selectedMediaUri ? (
+                  <View style={styles.previewWrap}>
+                    <View
+                      style={[
+                        styles.previewContainer,
+                        {
+                          backgroundColor: colors.background,
+                          borderColor: colors.border,
+                        },
+                      ]}
+                    >
+                      <Image
+                        source={{ uri: selectedMediaUri }}
+                        style={[
+                          styles.previewImage,
+                          { aspectRatio: previewAspectRatio },
+                        ]}
+                        onLoad={(event) => {
+                          const { width, height } = event.nativeEvent.source;
+                          if (width && height)
+                            setPreviewAspectRatio(width / height);
+                        }}
+                        resizeMode="contain"
+                      />
+                      {selectedMediaType === "video" && (
+                        <View style={styles.playButtonSmall}>
+                          <Ionicons name="play" size={18} color="#fff" />
+                        </View>
+                      )}
+                      <TouchableOpacity
+                        style={styles.changeMediaButton}
+                        onPress={handlePickMedia}
+                      >
+                        <Ionicons
+                          name="images-outline"
+                          size={16}
+                          color="#fff"
+                        />
+                        <Text style={styles.changeMediaText}>Trocar</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.removeMediaButton}
+                      onPress={() => setSelectedMediaUri(null)}
+                    >
+                      <Ionicons name="close-circle" size={18} color="#ef4444" />
+                      <Text style={styles.removeMediaText}>Remover mídia</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
                     style={[
-                      styles.previewContainer,
+                      styles.mediaPicker,
                       {
                         backgroundColor: colors.background,
                         borderColor: colors.border,
                       },
                     ]}
+                    onPress={handlePickMedia}
                   >
-                    <Image
-                      source={{ uri: selectedMediaUri }}
-                      style={[
-                        styles.previewImage,
-                        { aspectRatio: previewAspectRatio },
-                      ]}
-                      onLoad={(event) => {
-                        const { width, height } = event.nativeEvent.source;
-                        if (width && height)
-                          setPreviewAspectRatio(width / height);
-                      }}
-                      resizeMode="contain"
-                    />
-                    {selectedMediaType === "video" && (
-                      <View style={styles.playButtonSmall}>
-                        <Ionicons name="play" size={18} color="#fff" />
-                      </View>
-                    )}
-                    <TouchableOpacity
-                      style={styles.changeMediaButton}
-                      onPress={handlePickMedia}
+                    <View style={styles.mediaPickerIcon}>
+                      <Ionicons
+                        name="images-outline"
+                        size={26}
+                        color={colors.primary}
+                      />
+                    </View>
+                    <Text
+                      style={[styles.mediaPickerTitle, { color: colors.text }]}
                     >
-                      <Ionicons name="images-outline" size={16} color="#fff" />
-                      <Text style={styles.changeMediaText}>Trocar</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.removeMediaButton}
-                    onPress={() => setSelectedMediaUri(null)}
-                  >
-                    <Ionicons name="close-circle" size={18} color="#ef4444" />
-                    <Text style={styles.removeMediaText}>Remover mídia</Text>
+                      Adicionar foto ou vídeo
+                    </Text>
+                    <Text
+                      style={[
+                        styles.mediaPickerSubtitle,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      Mostre seu trabalho para quem acompanha você
+                    </Text>
                   </TouchableOpacity>
-                </View>
-              ) : (
+                )}
+
+                <TextInput
+                  value={composerText}
+                  onChangeText={setComposerText}
+                  placeholder="Compartilhe uma novidade, show ou clipe..."
+                  placeholderTextColor={colors.textSecondary}
+                  multiline
+                  style={[
+                    styles.composerInput,
+                    {
+                      backgroundColor: colors.background,
+                      color: colors.text,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                />
+
+                <TextInput
+                  value={composerLocation}
+                  onChangeText={setComposerLocation}
+                  placeholder="Localização (opcional)"
+                  placeholderTextColor={colors.textSecondary}
+                  style={[
+                    styles.composerInputSmall,
+                    {
+                      backgroundColor: colors.background,
+                      color: colors.text,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                />
+
+                {composerError ? (
+                  <Text style={styles.errorText}>{composerError}</Text>
+                ) : null}
+              </ScrollView>
+
+              <View style={styles.composerActions}>
                 <TouchableOpacity
                   style={[
-                    styles.mediaPicker,
+                    styles.mediaButton,
                     {
                       backgroundColor: colors.background,
                       borderColor: colors.border,
@@ -744,102 +944,39 @@ export default function SocialFeedScreen() {
                   ]}
                   onPress={handlePickMedia}
                 >
-                  <View style={styles.mediaPickerIcon}>
-                    <Ionicons
-                      name="images-outline"
-                      size={26}
-                      color={colors.primary}
-                    />
-                  </View>
+                  <Ionicons
+                    name="image-outline"
+                    size={18}
+                    color={colors.text}
+                  />
                   <Text
-                    style={[styles.mediaPickerTitle, { color: colors.text }]}
+                    style={[styles.mediaButtonText, { color: colors.text }]}
                   >
-                    Adicionar foto ou vídeo
-                  </Text>
-                  <Text
-                    style={[
-                      styles.mediaPickerSubtitle,
-                      { color: colors.textSecondary },
-                    ]}
-                  >
-                    Mostre seu trabalho para quem acompanha você
+                    Alterar mídia
                   </Text>
                 </TouchableOpacity>
-              )}
 
-              <TextInput
-                value={composerText}
-                onChangeText={setComposerText}
-                placeholder="Compartilhe uma novidade, show ou clipe..."
-                placeholderTextColor={colors.textSecondary}
-                multiline
-                style={[
-                  styles.composerInput,
-                  {
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.border,
-                  },
-                ]}
-              />
-
-              <TextInput
-                value={composerLocation}
-                onChangeText={setComposerLocation}
-                placeholder="Localização (opcional)"
-                placeholderTextColor={colors.textSecondary}
-                style={[
-                  styles.composerInputSmall,
-                  {
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.border,
-                  },
-                ]}
-              />
-
-              {composerError ? (
-                <Text style={styles.errorText}>{composerError}</Text>
-              ) : null}
-            </ScrollView>
-
-            <View style={styles.composerActions}>
-              <TouchableOpacity
-                style={[
-                  styles.mediaButton,
-                  {
-                    backgroundColor: colors.background,
-                    borderColor: colors.border,
-                  },
-                ]}
-                onPress={handlePickMedia}
-              >
-                <Ionicons name="image-outline" size={18} color={colors.text} />
-                <Text style={[styles.mediaButtonText, { color: colors.text }]}>
-                  Alterar mídia
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                disabled={isPublishing || !activeArtist}
-                style={[
-                  styles.publishButton,
-                  {
-                    backgroundColor: activeArtist
-                      ? colors.primary
-                      : colors.border,
-                  },
-                ]}
-                onPress={handlePublish}
-              >
-                {isPublishing ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.publishButtonText}>Publicar</Text>
-                )}
-              </TouchableOpacity>
+                <TouchableOpacity
+                  disabled={isPublishing || !activeArtist}
+                  style={[
+                    styles.publishButton,
+                    {
+                      backgroundColor: activeArtist
+                        ? colors.primary
+                        : colors.border,
+                    },
+                  ]}
+                  onPress={handlePublish}
+                >
+                  {isPublishing ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.publishButtonText}>Publicar</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -850,65 +987,117 @@ export default function SocialFeedScreen() {
         onRequestClose={() => setCommentsVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View
-            style={[
-              styles.commentsSheet,
-              { backgroundColor: colors.surface, borderColor: colors.border },
-            ]}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={0}
+            style={styles.commentsKeyboardAvoiding}
           >
-            <View style={styles.commentsHeader}>
-              <Text style={[styles.commentsTitle, { color: colors.text }]}>
-                Comentários
-              </Text>
-              <TouchableOpacity onPress={() => setCommentsVisible(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.commentsListContainer}>
-              <View style={styles.commentPlaceholder}>
-                <Ionicons
-                  name="chatbubble-outline"
-                  size={40}
-                  color={colors.textSecondary}
-                />
-                <Text
-                  style={[
-                    styles.commentPlaceholderText,
-                    { color: colors.textSecondary },
-                  ]}
-                >
-                  Nenhum comentário ainda
+            <View
+              style={[
+                styles.commentsSheet,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
+              <View style={styles.commentsHeader}>
+                <Text style={[styles.commentsTitle, { color: colors.text }]}>
+                  Comentários
                 </Text>
+                <TouchableOpacity onPress={() => setCommentsVisible(false)}>
+                  <Ionicons name="close" size={24} color={colors.text} />
+                </TouchableOpacity>
               </View>
-            </ScrollView>
 
-            <View style={styles.commentInputContainer}>
-              <TextInput
-                value={commentText}
-                onChangeText={setCommentText}
-                placeholder="Escreva um comentário..."
-                placeholderTextColor={colors.textSecondary}
-                style={[
-                  styles.commentInput,
-                  {
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.border,
-                  },
-                ]}
-              />
-              <TouchableOpacity
-                style={[
-                  styles.sendCommentButton,
-                  { backgroundColor: colors.primary },
-                ]}
-                onPress={handleAddComment}
-              >
-                <Ionicons name="send" size={18} color="#fff" />
-              </TouchableOpacity>
+              {commentsLoading ? (
+                <View style={styles.commentPlaceholder}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                </View>
+              ) : (
+                <FlatList
+                  data={postComments}
+                  keyExtractor={(comment) => comment.id}
+                  style={styles.commentsListContainer}
+                  contentContainerStyle={styles.commentsList}
+                  keyboardShouldPersistTaps="handled"
+                  automaticallyAdjustKeyboardInsets
+                  ListEmptyComponent={
+                    <View style={styles.commentPlaceholder}>
+                      <Ionicons
+                        name="chatbubble-outline"
+                        size={40}
+                        color={colors.textSecondary}
+                      />
+                      <Text
+                        style={[
+                          styles.commentPlaceholderText,
+                          { color: colors.textSecondary },
+                        ]}
+                      >
+                        Nenhum comentário ainda
+                      </Text>
+                    </View>
+                  }
+                  renderItem={({ item: comment }) => (
+                    <View style={styles.commentItem}>
+                      <Image
+                        source={{ uri: comment.avatar }}
+                        style={styles.commentAvatar}
+                      />
+                      <View style={styles.commentBody}>
+                        <Text
+                          style={[styles.commentAuthor, { color: colors.text }]}
+                        >
+                          {comment.artistName}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.commentMessage,
+                            { color: colors.text },
+                          ]}
+                        >
+                          {comment.message}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                />
+              )}
+
+              <View style={styles.commentInputContainer}>
+                <TextInput
+                  value={commentText}
+                  onChangeText={setCommentText}
+                  placeholder="Escreva um comentário..."
+                  placeholderTextColor={colors.textSecondary}
+                  style={[
+                    styles.commentInput,
+                    {
+                      backgroundColor: colors.background,
+                      color: colors.text,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                />
+                <TouchableOpacity
+                  disabled={commentSending}
+                  style={[
+                    styles.sendCommentButton,
+                    {
+                      backgroundColor: commentSending
+                        ? colors.border
+                        : colors.primary,
+                    },
+                  ]}
+                  onPress={handleAddComment}
+                >
+                  {commentSending ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Ionicons name="send" size={18} color="#fff" />
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </View>
@@ -995,6 +1184,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
   },
+  postMenuButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   locationRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1042,6 +1237,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: "hidden",
   },
+  feedVideo: {
+    width: "100%",
+    alignSelf: "center",
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "#111827",
+  },
+  feedVideoPlayer: {
+    ...StyleSheet.absoluteFillObject,
+  },
   playButton: {
     position: "absolute",
     left: "50%",
@@ -1051,6 +1256,17 @@ const styles = StyleSheet.create({
     transform: [{ translateX: -26 }, { translateY: -26 }],
     borderRadius: 26,
     backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  muteButton: {
+    position: "absolute",
+    right: 10,
+    bottom: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.55)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1118,6 +1334,10 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     backgroundColor: "rgba(0,0,0,0.35)",
   },
+  keyboardAvoiding: {
+    width: "100%",
+    justifyContent: "flex-end",
+  },
   composerSheet: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
@@ -1127,7 +1347,10 @@ const styles = StyleSheet.create({
     maxHeight: "88%",
   },
   composerContent: {
-    paddingBottom: 4,
+    paddingBottom: 18,
+  },
+  composerScroll: {
+    flexShrink: 1,
   },
   composerHeader: {
     flexDirection: "row",
@@ -1309,6 +1532,10 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "column",
   },
+  commentsKeyboardAvoiding: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
   commentsHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -1322,6 +1549,33 @@ const styles = StyleSheet.create({
   commentsListContainer: {
     flex: 1,
     marginBottom: 12,
+  },
+  commentsList: {
+    paddingBottom: 12,
+    flexGrow: 1,
+  },
+  commentItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 16,
+  },
+  commentAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 10,
+  },
+  commentBody: {
+    flex: 1,
+  },
+  commentAuthor: {
+    fontSize: 14,
+    fontWeight: "800",
+    marginBottom: 3,
+  },
+  commentMessage: {
+    fontSize: 14,
+    lineHeight: 20,
   },
   commentPlaceholder: {
     flex: 1,

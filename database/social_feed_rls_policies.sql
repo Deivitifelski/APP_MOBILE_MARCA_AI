@@ -163,8 +163,39 @@ ALTER TABLE public.social_post_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.social_post_comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.social_post_saved ENABLE ROW LEVEL SECURITY;
 
+-- Permite que o cliente receba novas postagens e mídias em tempo real.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_publication_rel pr
+    JOIN pg_class c ON c.oid = pr.prrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    JOIN pg_publication p ON p.oid = pr.prpubid
+    WHERE p.pubname = 'supabase_realtime'
+      AND n.nspname = 'public'
+      AND c.relname = 'social_posts'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.social_posts;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_publication_rel pr
+    JOIN pg_class c ON c.oid = pr.prrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    JOIN pg_publication p ON p.oid = pr.pubid
+    WHERE p.pubname = 'supabase_realtime'
+      AND n.nspname = 'public'
+      AND c.relname = 'social_post_media'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.social_post_media;
+  END IF;
+END $$;
+
 DROP POLICY IF EXISTS social_posts_public_read ON public.social_posts;
 DROP POLICY IF EXISTS social_posts_member_insert ON public.social_posts;
+DROP POLICY IF EXISTS social_posts_member_delete ON public.social_posts;
 DROP POLICY IF EXISTS social_post_media_public_read ON public.social_post_media;
 DROP POLICY IF EXISTS social_post_media_member_insert ON public.social_post_media;
 DROP POLICY IF EXISTS social_post_tags_public_read ON public.social_post_tags;
@@ -182,6 +213,10 @@ CREATE POLICY social_posts_public_read
 CREATE POLICY social_posts_member_insert
   ON public.social_posts FOR INSERT
   WITH CHECK (user_has_access(auth.uid(), artist_id, ARRAY['editor', 'admin', 'owner']));
+
+CREATE POLICY social_posts_member_delete
+  ON public.social_posts FOR DELETE
+  USING (user_has_access(auth.uid(), artist_id, ARRAY['editor', 'admin', 'owner']));
 
 CREATE POLICY social_post_media_public_read
   ON public.social_post_media FOR SELECT
@@ -228,6 +263,7 @@ CREATE POLICY social_post_comments_member_insert
 -- O app envia arquivos para `feed` usando o nome do arquivo como caminho.
 DROP POLICY IF EXISTS social_feed_storage_public_read ON storage.objects;
 DROP POLICY IF EXISTS social_feed_storage_authenticated_insert ON storage.objects;
+DROP POLICY IF EXISTS social_feed_storage_authenticated_delete ON storage.objects;
 
 CREATE POLICY social_feed_storage_public_read
   ON storage.objects FOR SELECT
@@ -237,3 +273,16 @@ CREATE POLICY social_feed_storage_authenticated_insert
   ON storage.objects FOR INSERT
   TO authenticated
   WITH CHECK (bucket_id = 'feed');
+
+CREATE POLICY social_feed_storage_authenticated_delete
+  ON storage.objects FOR DELETE
+  TO authenticated
+  USING (
+    bucket_id = 'feed'
+    AND EXISTS (
+      SELECT 1
+      FROM public.artists a
+      WHERE storage.objects.name LIKE a.id::text || '%'
+        AND user_has_access(auth.uid(), a.id, ARRAY['editor', 'admin', 'owner'])
+    )
+  );

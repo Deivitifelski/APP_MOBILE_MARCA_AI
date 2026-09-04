@@ -31,7 +31,9 @@
         "CFBundleURLTypes": [
           {
             "CFBundleURLName": "marcaai",
-            "CFBundleURLSchemes": ["marcaai"]
+            "CFBundleURLSchemes": [
+              "marcaai"
+            ]
           }
         ],
         "ITSAppUsesNonExemptEncryption": false
@@ -58,7 +60,10 @@
               "scheme": "marcaai"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -94,7 +99,8 @@
           "cameraPermission": "Este app precisa acessar sua câmera para permitir que você tire uma foto para o perfil."
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true,
