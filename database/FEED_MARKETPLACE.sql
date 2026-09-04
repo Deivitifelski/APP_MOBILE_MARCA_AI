@@ -210,7 +210,11 @@ RETURNS TABLE (
   created_at TIMESTAMPTZ,
   is_mine BOOLEAN,
   meu_cache_valor NUMERIC,
-  tem_cache BOOLEAN
+  tem_cache BOOLEAN,
+  propostas_count INTEGER,
+  propostas_avatars TEXT[],
+  ja_proposei BOOLEAN,
+  pode_desfazer BOOLEAN
 )
 LANGUAGE sql
 SECURITY DEFINER
@@ -237,29 +241,60 @@ AS $$
     END,
     NULLIF(trim(COALESCE(e.description, '')), ''),
     e.created_at::timestamptz,
-    (
-      e.created_by = auth.uid()
-      OR (p_artista_atual_id IS NOT NULL AND e.artist_id = p_artista_atual_id)
-      OR EXISTS (
-        SELECT 1
-        FROM artist_members am
-        WHERE am.artist_id = e.artist_id
-          AND am.user_id = auth.uid()
-      )
-    ),
+    (p_artista_atual_id IS NOT NULL AND e.artist_id = p_artista_atual_id),
     CASE
-      WHEN e.created_by = auth.uid()
-        OR (p_artista_atual_id IS NOT NULL AND e.artist_id = p_artista_atual_id)
-        OR EXISTS (
-          SELECT 1
-          FROM artist_members am
-          WHERE am.artist_id = e.artist_id
-            AND am.user_id = auth.uid()
-        )
+      WHEN p_artista_atual_id IS NOT NULL AND e.artist_id = p_artista_atual_id
       THEN e.value
       ELSE NULL
     END,
-    (e.value IS NOT NULL AND e.value > 0)
+    (e.value IS NOT NULL AND e.value > 0),
+    (
+      SELECT COUNT(*)::integer
+      FROM convite_participacao_evento c
+      WHERE c.status IN ('pendente', 'aceito')
+        AND (c.grupo_disputa_id = e.id OR c.evento_origem_id = e.id)
+    ),
+    (
+      SELECT COALESCE(array_agg(x.img), ARRAY[]::text[])
+      FROM (
+        SELECT NULLIF(trim(COALESCE(ar.profile_url, '')), '') AS img
+        FROM convite_participacao_evento c
+        INNER JOIN artists ar ON ar.id = CASE
+          WHEN e.feed_tipo = 'demanda' THEN c.artista_convidado_id
+          ELSE c.artista_que_convidou_id
+        END
+        WHERE c.status IN ('pendente', 'aceito')
+          AND (c.grupo_disputa_id = e.id OR c.evento_origem_id = e.id)
+        ORDER BY c.criado_em DESC
+        LIMIT 3
+      ) x
+    ),
+    (
+      p_artista_atual_id IS NOT NULL
+      AND EXISTS (
+        SELECT 1
+        FROM convite_participacao_evento c
+        WHERE c.status IN ('pendente', 'aceito')
+          AND (c.grupo_disputa_id = e.id OR c.evento_origem_id = e.id)
+          AND (
+            (e.feed_tipo = 'demanda' AND c.artista_convidado_id = p_artista_atual_id)
+            OR (e.feed_tipo <> 'demanda' AND c.artista_que_convidou_id = p_artista_atual_id)
+          )
+      )
+    ),
+    (
+      p_artista_atual_id IS NOT NULL
+      AND EXISTS (
+        SELECT 1
+        FROM convite_participacao_evento c
+        WHERE c.status = 'pendente'
+          AND (c.grupo_disputa_id = e.id OR c.evento_origem_id = e.id)
+          AND (
+            (e.feed_tipo = 'demanda' AND c.artista_convidado_id = p_artista_atual_id)
+            OR (e.feed_tipo <> 'demanda' AND c.artista_que_convidou_id = p_artista_atual_id)
+          )
+      )
+    )
   FROM events e
   INNER JOIN artists a ON a.id = e.artist_id
   WHERE COALESCE(e.ativo, true) = true
@@ -526,10 +561,6 @@ BEGIN
   END IF;
 
   v_funcao := NULLIF(trim(coalesce(p_funcao_participacao, '')), '');
-  IF v_funcao IS NULL THEN
-    RETURN QUERY SELECT false, 'Informe a função da participação.', NULL::UUID, NULL::NUMERIC, NULL::TEXT;
-    RETURN;
-  END IF;
 
   IF NOT public._is_member_of_artist(
     v_uid,
@@ -551,26 +582,21 @@ BEGIN
     RETURN;
   END IF;
 
+  IF v_event.feed_tipo = 'demanda' AND v_funcao IS NULL THEN
+    RETURN QUERY SELECT false, 'Informe a função que você está oferecendo.', NULL::UUID, NULL::NUMERIC, NULL::TEXT;
+    RETURN;
+  END IF;
+  IF v_funcao IS NULL THEN
+    v_funcao := 'Interesse';
+  END IF;
+
   IF v_event.event_date < CURRENT_DATE THEN
     RETURN QUERY SELECT false, 'Esta data já passou.', NULL::UUID, NULL::NUMERIC, NULL::TEXT;
     RETURN;
   END IF;
 
-  IF v_event.artist_id = p_artista_interessado_id
-    OR v_event.created_by = v_uid
-    OR EXISTS (
-      SELECT 1
-      FROM artist_members am
-      WHERE am.artist_id = v_event.artist_id
-        AND am.user_id = v_uid
-    )
-  THEN
+  IF v_event.artist_id = p_artista_interessado_id THEN
     RETURN QUERY SELECT false, 'Você não pode negociar o próprio anúncio.', NULL::UUID, NULL::NUMERIC, NULL::TEXT;
-    RETURN;
-  END IF;
-
-  IF v_event.value IS NULL OR v_event.value <= 0 THEN
-    RETURN QUERY SELECT false, 'Este anúncio está sem cachê válido.', NULL::UUID, NULL::NUMERIC, NULL::TEXT;
     RETURN;
   END IF;
 
@@ -588,9 +614,9 @@ BEGIN
       FROM convite_participacao_evento c
       WHERE c.evento_origem_id = v_event.id
         AND c.artista_convidado_id = p_artista_interessado_id
-        AND c.status = 'pendente'
+        AND c.status IN ('pendente', 'aceito')
     ) THEN
-      RETURN QUERY SELECT false, 'Você já iniciou uma negociação neste anúncio.', NULL::UUID, NULL::NUMERIC, NULL::TEXT;
+      RETURN QUERY SELECT false, 'Você já enviou uma proposta neste anúncio.', NULL::UUID, NULL::NUMERIC, NULL::TEXT;
       RETURN;
     END IF;
   ELSE
@@ -601,9 +627,9 @@ BEGIN
       FROM convite_participacao_evento c
       WHERE c.grupo_disputa_id = v_event.id
         AND c.artista_que_convidou_id = p_artista_interessado_id
-        AND c.status = 'pendente'
+        AND c.status IN ('pendente', 'aceito')
     ) THEN
-      RETURN QUERY SELECT false, 'Você já iniciou uma negociação nesta data.', NULL::UUID, NULL::NUMERIC, NULL::TEXT;
+      RETURN QUERY SELECT false, 'Você já enviou uma proposta neste anúncio.', NULL::UUID, NULL::NUMERIC, NULL::TEXT;
       RETURN;
     END IF;
 
@@ -698,13 +724,124 @@ BEGIN
   RETURN QUERY SELECT true, NULL::TEXT, v_convite_id, v_event.value, v_event.feed_tipo;
 EXCEPTION
   WHEN unique_violation THEN
-    RETURN QUERY SELECT false, 'Já existe uma negociação pendente neste anúncio.', NULL::UUID, NULL::NUMERIC, NULL::TEXT;
+    RETURN QUERY SELECT false, 'Você já enviou uma proposta neste anúncio.', NULL::UUID, NULL::NUMERIC, NULL::TEXT;
   WHEN OTHERS THEN
     RETURN QUERY SELECT false, SQLERRM, NULL::UUID, NULL::NUMERIC, NULL::TEXT;
 END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.rpc_app_iniciar_negociacao_feed(UUID, UUID, TEXT, TEXT) TO authenticated;
+
+-- =====================================================
+-- Desfazer proposta pendente (quem se candidatou / demonstrou interesse)
+-- =====================================================
+DROP FUNCTION IF EXISTS public.rpc_app_desfazer_proposta_feed(uuid, uuid);
+
+CREATE OR REPLACE FUNCTION public.rpc_app_desfazer_proposta_feed(
+  p_evento_id UUID,
+  p_artista_interessado_id UUID
+)
+RETURNS TABLE (
+  success BOOLEAN,
+  error TEXT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_uid UUID := auth.uid();
+  v_event events%ROWTYPE;
+  v_convite convite_participacao_evento%ROWTYPE;
+BEGIN
+  IF v_uid IS NULL THEN
+    RETURN QUERY SELECT false, 'Usuário não autenticado.';
+    RETURN;
+  END IF;
+
+  IF NOT public._is_member_of_artist(
+    v_uid,
+    p_artista_interessado_id,
+    ARRAY['editor', 'vendedor', 'admin', 'owner']
+  ) THEN
+    RETURN QUERY SELECT false, 'Sem permissão para desfazer esta proposta.';
+    RETURN;
+  END IF;
+
+  SELECT * INTO v_event
+  FROM events e
+  WHERE e.id = p_evento_id
+    AND e.feed_tipo IS NOT NULL
+  LIMIT 1;
+
+  IF v_event.id IS NULL THEN
+    RETURN QUERY SELECT false, 'Anúncio não encontrado.';
+    RETURN;
+  END IF;
+
+  IF v_event.artist_id = p_artista_interessado_id THEN
+    RETURN QUERY SELECT false, 'Este anúncio é do seu artista.';
+    RETURN;
+  END IF;
+
+  SELECT * INTO v_convite
+  FROM convite_participacao_evento c
+  WHERE c.status IN ('pendente', 'aceito')
+    AND (c.grupo_disputa_id = v_event.id OR c.evento_origem_id = v_event.id)
+    AND (
+      (v_event.feed_tipo = 'demanda' AND c.artista_convidado_id = p_artista_interessado_id)
+      OR (v_event.feed_tipo <> 'demanda' AND c.artista_que_convidou_id = p_artista_interessado_id)
+    )
+  ORDER BY c.criado_em DESC
+  LIMIT 1;
+
+  IF v_convite.id IS NULL THEN
+    RETURN QUERY SELECT false, 'Nenhuma proposta sua foi encontrada neste anúncio.';
+    RETURN;
+  END IF;
+
+  IF v_convite.status = 'aceito' THEN
+    RETURN QUERY SELECT false, 'Esta proposta já foi aceita e não pode ser desfeita por aqui.';
+    RETURN;
+  END IF;
+
+  UPDATE convite_participacao_evento
+  SET
+    status = 'cancelado',
+    motivo_cancelamento = 'Proposta desfeita pelo interessado.',
+    respondido_em = NOW(),
+    atualizado_em = NOW()
+  WHERE id = v_convite.id
+    AND status = 'pendente';
+
+  IF v_event.feed_tipo = 'disponivel'
+    AND v_convite.evento_origem_id IS NOT NULL
+    AND v_convite.evento_origem_id IS DISTINCT FROM v_event.id
+  THEN
+    UPDATE events
+    SET
+      ativo = false,
+      update_ativo = NOW(),
+      updated_by = v_uid,
+      updated_at = NOW()
+    WHERE id = v_convite.evento_origem_id
+      AND artist_id = p_artista_interessado_id
+      AND feed_tipo IS NULL;
+  END IF;
+
+  UPDATE public.notifications n
+  SET
+    read = true,
+    title = 'Proposta retirada',
+    message = 'A proposta para "' || COALESCE(v_convite.nome_evento, v_event.name, 'este anúncio') ||
+      '" foi desfeita. Não é mais necessário responder.'
+  WHERE n.convite_participacao_evento_id = v_convite.id;
+
+  RETURN QUERY SELECT true, NULL::TEXT;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.rpc_app_desfazer_proposta_feed(UUID, UUID) TO authenticated;
 
 -- Ao aceitar a negociação: demanda vira evento real; disponibilidade sai do feed
 CREATE OR REPLACE FUNCTION public.trg_feed_apos_aceitar_convite()
@@ -745,6 +882,59 @@ CREATE TRIGGER trg_feed_apos_aceitar_convite
   FOR EACH ROW
   EXECUTE FUNCTION public.trg_feed_apos_aceitar_convite();
 
+-- Propostas nas minhas publicações (quem iniciou a negociação)
+DROP FUNCTION IF EXISTS public.listar_propostas_feed_marketplace(uuid);
+
+CREATE OR REPLACE FUNCTION public.listar_propostas_feed_marketplace(
+  p_artista_atual_id UUID
+)
+RETURNS TABLE (
+  evento_id UUID,
+  convite_id UUID,
+  artista_id UUID,
+  artista_nome TEXT,
+  artista_image TEXT,
+  funcao TEXT,
+  status TEXT,
+  mensagem TEXT,
+  criado_em TIMESTAMPTZ
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT
+    e.id,
+    c.id,
+    a.id,
+    a.name,
+    NULLIF(trim(COALESCE(a.profile_url, '')), ''),
+    NULLIF(trim(COALESCE(c.funcao_participacao, '')), ''),
+    c.status,
+    NULLIF(trim(COALESCE(c.mensagem, '')), ''),
+    c.criado_em
+  FROM events e
+  INNER JOIN convite_participacao_evento c
+    ON (
+      c.grupo_disputa_id = e.id
+      OR c.evento_origem_id = e.id
+    )
+  INNER JOIN artists a ON a.id = CASE
+    WHEN e.feed_tipo = 'demanda' THEN c.artista_convidado_id
+    ELSE c.artista_que_convidou_id
+  END
+  WHERE e.feed_tipo IS NOT NULL
+    AND COALESCE(e.ativo, true) = true
+    AND c.status IN ('pendente', 'aceito')
+    AND p_artista_atual_id IS NOT NULL
+    AND e.artist_id = p_artista_atual_id
+  ORDER BY c.criado_em DESC;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.listar_propostas_feed_marketplace(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.listar_propostas_feed_marketplace(UUID) TO service_role;
+
 NOTIFY pgrst, 'reload schema';
 
 SELECT
@@ -755,8 +945,10 @@ JOIN pg_namespace n ON n.oid = p.pronamespace
 WHERE n.nspname = 'public'
   AND p.proname IN (
     'listar_feed_marketplace',
+    'listar_propostas_feed_marketplace',
     'rpc_app_publicar_feed',
     'rpc_app_encerrar_anuncio_feed',
-    'rpc_app_iniciar_negociacao_feed'
+    'rpc_app_iniciar_negociacao_feed',
+    'rpc_app_desfazer_proposta_feed'
   )
 ORDER BY 1;

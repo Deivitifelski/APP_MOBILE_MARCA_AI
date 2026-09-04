@@ -14,18 +14,20 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import PropostaEnviadaModal from '../components/PropostaEnviadaModal';
 import { ARTIST_WORK_ROLE_PRESETS } from '../constants/artistProfileLists';
 import { usePermissions } from '../contexts/PermissionsContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { formatEventLocationSlash } from '../lib/brazilGeo';
 import { formatCalendarDate } from '../lib/dateUtils';
 import {
+  desfazerPropostaFeed,
   iniciarNegociacaoFeed,
+  isErroPropostaDuplicada,
   listarFeedMarketplace,
   type FeedAnuncio,
 } from '../services/supabase/feedMarketplaceService';
 import { useActiveArtist } from '../services/useActiveArtist';
-import { formatCurrencyBRLFromAmount } from '../utils/currencyBRLInput';
 
 function formatTime(t: string) {
   if (!t) return '';
@@ -42,7 +44,8 @@ export default function NegociarFeedScreen() {
   const [funcao, setFuncao] = useState('');
   const [mensagem, setMensagem] = useState('');
   const [sending, setSending] = useState(false);
-  const [revealedCache, setRevealedCache] = useState<number | null>(null);
+  const [showPropostaEnviada, setShowPropostaEnviada] = useState(false);
+  const [desfazendoProposta, setDesfazendoProposta] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,13 +73,15 @@ export default function NegociarFeedScreen() {
         ]);
         return;
       }
-      const proprio =
-        found.is_mine ||
-        (!!activeArtist?.id && found.artist_id === activeArtist.id);
+      const proprio = !!activeArtist?.id && found.artist_id === activeArtist.id;
       if (proprio) {
         Alert.alert('Seu anúncio', 'Você não pode iniciar negociação na sua própria publicação.', [
           { text: 'OK', onPress: () => router.back() },
         ]);
+        return;
+      }
+      if (found.ja_proposei) {
+        setShowPropostaEnviada(true);
       }
     })();
     return () => {
@@ -94,7 +99,7 @@ export default function NegociarFeedScreen() {
 
   const submit = async () => {
     if (!anuncio || !activeArtist?.id) return;
-    if (anuncio.is_mine || anuncio.artist_id === activeArtist.id) {
+    if (anuncio.artist_id === activeArtist.id) {
       Alert.alert('Seu anúncio', 'Você não pode negociar a própria publicação.');
       return;
     }
@@ -102,41 +107,49 @@ export default function NegociarFeedScreen() {
       Alert.alert('Sem permissão', 'Somente admin ou vendedor pode iniciar negociação.');
       return;
     }
-    if (!funcao.trim()) {
-      Alert.alert('Função', 'Informe a função da participação (ex.: Vocalista).');
+    const estaOferecendo = anuncio.feed_tipo === 'demanda';
+    if (estaOferecendo && !funcao.trim()) {
+      Alert.alert('Função', 'Informe a função que você está oferecendo (ex.: Vocalista).');
       return;
     }
     setSending(true);
     const result = await iniciarNegociacaoFeed({
       eventoId: anuncio.id,
       artistaInteressadoId: activeArtist.id,
-      funcaoParticipacao: funcao,
+      funcaoParticipacao: estaOferecendo ? funcao : 'Interesse',
       mensagem,
     });
     setSending(false);
     if (!result.success) {
-      Alert.alert('Erro', result.error || 'Não foi possível iniciar a negociação.');
+      if (isErroPropostaDuplicada(result.error)) {
+        setShowPropostaEnviada(true);
+        return;
+      }
+      Alert.alert('Erro', result.error || 'Não foi possível enviar o interesse.');
       return;
     }
-    setRevealedCache(result.cacheValor ?? null);
-    const cacheTxt =
-      result.cacheValor != null
-        ? formatCurrencyBRLFromAmount(result.cacheValor)
-        : 'definido no convite';
-    const waitingOther = result.feedTipo === 'disponivel';
-    Alert.alert(
-      'Negociação iniciada',
-      waitingOther
-        ? `O cachê desta oferta é ${cacheTxt}. Quem publicou recebe o convite e precisa aceitar.`
-        : `O cachê desta publicação é ${cacheTxt}. Confirme a proposta em Convites de participação para fechar.`,
-      [
-        {
-          text: 'Ver convites',
-          onPress: () => router.replace('/convites-participacao-evento'),
-        },
-        { text: 'OK', onPress: () => router.back() },
-      ]
-    );
+    router.back();
+  };
+
+  const fecharPropostaEnviada = () => {
+    setShowPropostaEnviada(false);
+    router.back();
+  };
+
+  const handleDesfazerProposta = async () => {
+    if (!anuncio || !activeArtist?.id || desfazendoProposta) return;
+    setDesfazendoProposta(true);
+    const { success, error } = await desfazerPropostaFeed({
+      eventoId: anuncio.id,
+      artistaInteressadoId: activeArtist.id,
+    });
+    setDesfazendoProposta(false);
+    if (!success) {
+      Alert.alert('Desfazer', error || 'Não foi possível desfazer a proposta.');
+      return;
+    }
+    setShowPropostaEnviada(false);
+    router.back();
   };
 
   return (
@@ -179,52 +192,64 @@ export default function NegociarFeedScreen() {
                 <Text style={[styles.notes, { color: colors.text }]}>{anuncio.description}</Text>
               ) : null}
               <View style={[styles.lockRow, { backgroundColor: `${colors.primary}12` }]}>
-                <Ionicons
-                  name={revealedCache != null ? 'lock-open' : 'lock-closed'}
-                  size={16}
-                  color={colors.primary}
-                />
+                <Ionicons name="lock-closed" size={16} color={colors.primary} />
                 <Text style={[styles.lockText, { color: colors.textSecondary }]}>
-                  {revealedCache != null
-                    ? `Cachê da negociação: ${formatCurrencyBRLFromAmount(revealedCache)}`
-                    : 'O cachê será revelado ao confirmar abaixo.'}
+                  {anuncio.tem_cache
+                    ? 'O cachê não aparece agora. Ele vai no convite e só fica visível depois que a outra parte responder.'
+                    : 'Cachê a combinar.'}
                 </Text>
               </View>
             </View>
 
-            <Text style={[styles.label, { color: colors.text }]}>Função da participação</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.roles}>
-              {ARTIST_WORK_ROLE_PRESETS.map((role) => {
-                const active = funcao === role;
-                return (
-                  <TouchableOpacity
-                    key={role}
-                    style={[
-                      styles.roleChip,
-                      {
-                        backgroundColor: active ? colors.primary : colors.surface,
-                        borderColor: active ? colors.primary : colors.border,
-                      },
-                    ]}
-                    onPress={() => setFuncao(role)}
-                  >
-                    <Text style={{ color: active ? '#fff' : colors.text, fontWeight: '700', fontSize: 13 }}>
-                      {role}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-            <TextInput
-              value={funcao}
-              onChangeText={setFuncao}
-              placeholder="Ou escreva outra função"
-              placeholderTextColor={colors.textSecondary}
-              style={[
-                styles.input,
-                { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
-              ]}
-            />
+            {anuncio.feed_tipo === 'demanda' ? (
+              <>
+                <Text style={[styles.label, { color: colors.text }]}>
+                  Função que você está oferecendo
+                </Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.roles}
+                >
+                  {ARTIST_WORK_ROLE_PRESETS.map((role) => {
+                    const active = funcao === role;
+                    return (
+                      <TouchableOpacity
+                        key={role}
+                        style={[
+                          styles.roleChip,
+                          {
+                            backgroundColor: active ? colors.primary : colors.surface,
+                            borderColor: active ? colors.primary : colors.border,
+                          },
+                        ]}
+                        onPress={() => setFuncao(role)}
+                      >
+                        <Text
+                          style={{
+                            color: active ? '#fff' : colors.text,
+                            fontWeight: '700',
+                            fontSize: 13,
+                          }}
+                        >
+                          {role}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+                <TextInput
+                  value={funcao}
+                  onChangeText={setFuncao}
+                  placeholder="Ou escreva outra função"
+                  placeholderTextColor={colors.textSecondary}
+                  style={[
+                    styles.input,
+                    { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+                  ]}
+                />
+              </>
+            ) : null}
 
             <Text style={[styles.label, { color: colors.text }]}>Mensagem (opcional)</Text>
             <TextInput
@@ -248,12 +273,24 @@ export default function NegociarFeedScreen() {
               {sending ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.submitText}>Iniciar negociação e ver cachê</Text>
+                <Text style={styles.submitText}>Confirmar interesse</Text>
               )}
             </TouchableOpacity>
           </ScrollView>
         </KeyboardAvoidingView>
       )}
+      <PropostaEnviadaModal
+        visible={showPropostaEnviada}
+        isDemanda={anuncio?.feed_tipo === 'demanda'}
+        podeDesfazer={!!anuncio?.pode_desfazer || anuncio?.ja_proposei}
+        desfazendo={desfazendoProposta}
+        onClose={fecharPropostaEnviada}
+        onVerConvites={() => {
+          setShowPropostaEnviada(false);
+          router.replace('/convites-participacao-evento');
+        }}
+        onDesfazer={() => void handleDesfazerProposta()}
+      />
     </SafeAreaView>
   );
 }

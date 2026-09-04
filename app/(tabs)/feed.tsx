@@ -17,16 +17,20 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import OptimizedImage from '../../components/OptimizedImage';
 import PermissionModal from '../../components/PermissionModal';
+import PropostaEnviadaModal from '../../components/PropostaEnviadaModal';
 import BrazilStatePickerModal from '../../components/BrazilStatePickerModal';
 import { usePermissions } from '../../contexts/PermissionsContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { formatEventLocationSlash } from '../../lib/brazilGeo';
 import { formatCalendarDate } from '../../lib/dateUtils';
 import {
+  desfazerPropostaFeed,
   encerrarAnuncioFeed,
   listarFeedMarketplace,
+  listarPropostasFeedMarketplace,
   type FeedAnuncio,
   type FeedFiltro,
+  type FeedProposta,
 } from '../../services/supabase/feedMarketplaceService';
 import { useActiveArtist } from '../../services/useActiveArtist';
 
@@ -54,28 +58,52 @@ export default function FeedScreen() {
   const { activeArtist } = useActiveArtist();
   const { canCreateEvents } = usePermissions();
   const [filtro, setFiltro] = useState<FeedFiltro>('todos');
+  const [verMinhas, setVerMinhas] = useState(false);
   const [estadoUf, setEstadoUf] = useState('');
   const [cidade, setCidade] = useState('');
   const [showEstados, setShowEstados] = useState(false);
   const [anuncios, setAnuncios] = useState<FeedAnuncio[]>([]);
+  const [propostasPorEvento, setPropostasPorEvento] = useState<Record<string, FeedProposta[]>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [showPublicarOpcoes, setShowPublicarOpcoes] = useState(false);
+  const [showPropostaEnviada, setShowPropostaEnviada] = useState(false);
+  const [anuncioProposta, setAnuncioProposta] = useState<FeedAnuncio | null>(null);
+  const [desfazendoProposta, setDesfazendoProposta] = useState(false);
 
   const load = useCallback(async () => {
     const { anuncios: list, error: err } = await listarFeedMarketplace({
-      filtro,
-      estadoUf,
-      cidade,
+      filtro: verMinhas ? 'meus' : filtro,
+      estadoUf: verMinhas ? '' : estadoUf,
+      cidade: verMinhas ? '' : cidade,
       artistaAtualId: activeArtist?.id ?? null,
     });
-    setAnuncios(list);
+    const visiveis =
+      verMinhas && activeArtist?.id
+        ? list.filter((item) => item.artist_id === activeArtist.id)
+        : list;
+    setAnuncios(visiveis);
     setError(err);
+    if (activeArtist?.id) {
+      const { propostas } = await listarPropostasFeedMarketplace(activeArtist.id);
+      const meusIds = new Set(
+        visiveis.filter((item) => item.artist_id === activeArtist.id).map((item) => item.id)
+      );
+      const grouped: Record<string, FeedProposta[]> = {};
+      propostas.forEach((proposta) => {
+        if (!meusIds.has(proposta.evento_id)) return;
+        if (!grouped[proposta.evento_id]) grouped[proposta.evento_id] = [];
+        grouped[proposta.evento_id].push(proposta);
+      });
+      setPropostasPorEvento(grouped);
+    } else {
+      setPropostasPorEvento({});
+    }
     setLoading(false);
     setRefreshing(false);
-  }, [filtro, estadoUf, cidade, activeArtist?.id]);
+  }, [filtro, verMinhas, estadoUf, cidade, activeArtist?.id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -91,8 +119,11 @@ export default function FeedScreen() {
     if (filtro === 'demanda') {
       return 'Ninguém está procurando neste filtro.';
     }
+    if (verMinhas) {
+      return 'Você ainda não publicou no feed.';
+    }
     return 'Ainda não há publicações no feed.';
-  }, [filtro]);
+  }, [filtro, verMinhas]);
 
   const handlePublicar = () => {
     if (!activeArtist) {
@@ -120,11 +151,16 @@ export default function FeedScreen() {
   };
 
   const isMeuAnuncio = (item: FeedAnuncio) =>
-    item.is_mine || (!!activeArtist?.id && item.artist_id === activeArtist.id);
+    !!activeArtist?.id && item.artist_id === activeArtist.id;
 
   const handleNegociar = (item: FeedAnuncio) => {
     if (isMeuAnuncio(item)) {
       Alert.alert('Seu anúncio', 'Você não pode iniciar negociação na sua própria publicação.');
+      return;
+    }
+    if (item.ja_proposei) {
+      setAnuncioProposta(item);
+      setShowPropostaEnviada(true);
       return;
     }
     if (!activeArtist) {
@@ -165,7 +201,7 @@ export default function FeedScreen() {
   const renderItem = ({ item }: { item: FeedAnuncio }) => {
     const isDemanda = item.feed_tipo === 'demanda';
     const meuAnuncio = isMeuAnuncio(item);
-    const badgeColor = isDemanda ? '#C2410C' : '#0F766E';
+    const badgeColor = isDemanda ? '#4F46E5' : '#0F766E';
     const location = formatEventLocationSlash({
       city: item.city,
       state_uf: item.state_uf,
@@ -177,22 +213,72 @@ export default function FeedScreen() {
             currency: 'BRL',
           })
         : null;
+    const propostas = meuAnuncio ? propostasPorEvento[item.id] || [] : [];
+    const avatarUrls = (
+      item.propostas_avatars.length
+        ? item.propostas_avatars
+        : propostas.map((proposta) => proposta.artista_image).filter((url): url is string => !!url)
+    ).slice(0, 3);
     return (
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.cardTop}>
           <View style={[styles.badge, { backgroundColor: `${badgeColor}18` }]}>
             <Ionicons
-              name={isDemanda ? 'search' : 'calendar-outline'}
-              size={14}
+              name={isDemanda ? 'search' : 'briefcase-outline'}
+              size={13}
               color={badgeColor}
             />
             <Text style={[styles.badgeText, { color: badgeColor }]}>
               {isDemanda ? 'Procurando' : 'Oferta'}
             </Text>
           </View>
-          {meuAnuncio ? (
-            <Text style={[styles.mineTag, { color: colors.primary }]}>Seu anúncio</Text>
-          ) : null}
+          <View style={styles.propostasResumo} pointerEvents="none">
+            <View style={styles.avatarStack}>
+              {avatarUrls.length
+                ? avatarUrls.map((url, index) => (
+                    <View
+                      key={`${url}-${index}`}
+                      style={[
+                        styles.stackAvatar,
+                        {
+                          marginLeft: index === 0 ? 0 : -8,
+                          zIndex: 10 - index,
+                          backgroundColor: colors.secondary,
+                          borderColor: colors.surface,
+                        },
+                      ]}
+                    >
+                      <OptimizedImage
+                        imageUrl={url}
+                        style={styles.stackAvatarImg}
+                        fallbackIcon="person"
+                        fallbackIconSize={10}
+                      />
+                    </View>
+                  ))
+                : item.propostas_count > 0
+                  ? Array.from({ length: Math.min(item.propostas_count, 3) }).map((_, index) => (
+                      <View
+                        key={`ph-${index}`}
+                        style={[
+                          styles.stackAvatar,
+                          {
+                            marginLeft: index === 0 ? 0 : -8,
+                            zIndex: 10 - index,
+                            backgroundColor: colors.secondary,
+                            borderColor: colors.surface,
+                          },
+                        ]}
+                      >
+                        <Ionicons name="person" size={10} color={colors.primary} />
+                      </View>
+                    ))
+                  : null}
+            </View>
+            <Text style={[styles.countPillText, { color: colors.textSecondary }]}>
+              Propostas {item.propostas_count}
+            </Text>
+          </View>
         </View>
 
         <View style={styles.artistRow}>
@@ -202,68 +288,112 @@ export default function FeedScreen() {
                 imageUrl={item.artist_image}
                 style={styles.avatar}
                 fallbackIcon="person"
-                fallbackIconSize={22}
+                fallbackIconSize={20}
               />
             ) : (
-              <Ionicons name="person" size={22} color={colors.primary} />
+              <Ionicons name="person" size={20} color={colors.primary} />
             )}
           </View>
           <View style={styles.artistInfo}>
             <Text style={[styles.artistName, { color: colors.text }]} numberOfLines={1}>
-              {item.artist_name}
+              {meuAnuncio ? 'Sua publicação' : item.artist_name}
             </Text>
-            {item.musical_style ? (
-              <Text style={[styles.meta, { color: colors.textSecondary }]} numberOfLines={1}>
-                {item.musical_style}
-              </Text>
-            ) : null}
+            <Text style={[styles.meta, { color: colors.textSecondary }]} numberOfLines={1}>
+              {formatCalendarDate(item.event_date)}
+              {item.start_time ? ` · ${formatTime(item.start_time)}–${formatTime(item.end_time)}` : ''}
+              {location ? ` · ${location}` : ''}
+            </Text>
           </View>
         </View>
 
-        <Text style={[styles.dateText, { color: colors.text }]}>
-          {formatCalendarDate(item.event_date)}
-          {item.start_time ? ` · ${formatTime(item.start_time)}–${formatTime(item.end_time)}` : ''}
-        </Text>
-        {location ? (
-          <Text style={[styles.meta, { color: colors.textSecondary }]}>{location}</Text>
-        ) : null}
         {item.description ? (
-          <Text style={[styles.notes, { color: colors.text }]} numberOfLines={3}>
+          <Text style={[styles.notes, { color: colors.text }]} numberOfLines={2}>
             {item.description}
           </Text>
         ) : null}
 
-        <View style={[styles.lockRow, { backgroundColor: `${colors.primary}10` }]}>
-          <Ionicons
-            name={meuAnuncio && cacheTxt ? 'eye-outline' : item.tem_cache ? 'lock-closed' : 'chatbubble-ellipses-outline'}
-            size={14}
-            color={colors.primary}
-          />
-          <Text style={[styles.lockText, { color: colors.textSecondary }]}>
-            {meuAnuncio
-              ? cacheTxt
-                ? `Seu cachê (só você vê): ${cacheTxt}`
-                : 'Você não informou cachê. Para os outros aparece “a combinar”.'
-              : item.tem_cache
-                ? 'Cachê oculto. Aparece quando alguém iniciar a conversa.'
-                : 'Cachê a combinar'}
-          </Text>
-        </View>
+        <Text style={[styles.cacheLine, { color: colors.textSecondary }]}>
+          {meuAnuncio
+            ? cacheTxt
+              ? `Cachê (só você): ${cacheTxt}`
+              : 'Cachê a combinar'
+            : item.tem_cache
+              ? 'Cachê oculto'
+              : 'Cachê a combinar'}
+        </Text>
+
+        {meuAnuncio ? (
+          <View style={[styles.propostasBox, { borderColor: colors.border }]}>
+            {propostas.length === 0 ? (
+              <Text style={[styles.propostasEmpty, { color: colors.textSecondary }]}>
+                Nenhuma proposta ainda
+              </Text>
+            ) : (
+              propostas.map((proposta) => (
+                <TouchableOpacity
+                  key={proposta.convite_id}
+                  style={styles.propostaRow}
+                  onPress={() => router.push('/convites-participacao-evento')}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.propostaAvatar, { backgroundColor: colors.secondary }]}>
+                    {proposta.artista_image ? (
+                      <OptimizedImage
+                        imageUrl={proposta.artista_image}
+                        style={styles.propostaAvatarImg}
+                        fallbackIcon="person"
+                        fallbackIconSize={16}
+                      />
+                    ) : (
+                      <Ionicons name="person" size={16} color={colors.primary} />
+                    )}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.propostaNome, { color: colors.text }]} numberOfLines={1}>
+                      {proposta.artista_nome}
+                    </Text>
+                    <Text style={[styles.propostaMeta, { color: colors.textSecondary }]} numberOfLines={1}>
+                      {proposta.status === 'aceito' ? 'Aceita' : 'Pendente'}
+                      {proposta.funcao && proposta.funcao !== 'Interesse'
+                        ? ` · ${proposta.funcao}`
+                        : ''}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+                </TouchableOpacity>
+              ))
+            )}
+          </View>
+        ) : null}
 
         {meuAnuncio ? (
           <TouchableOpacity
             style={[styles.btnOutline, { borderColor: colors.error }]}
             onPress={() => handleEncerrar(item)}
           >
-            <Text style={[styles.btnOutlineText, { color: colors.error }]}>Encerrar anúncio</Text>
+            <Text style={[styles.btnOutlineText, { color: colors.error }]}>Encerrar</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
-            style={[styles.btnPrimary, { backgroundColor: colors.primary }]}
+            style={
+              item.ja_proposei
+                ? [styles.btnOutline, { borderColor: colors.primary }]
+                : [styles.btnPrimary, { backgroundColor: colors.primary }]
+            }
             onPress={() => handleNegociar(item)}
           >
-            <Text style={styles.btnPrimaryText}>
-              {isDemanda ? 'Quero me candidatar' : 'Tenho interesse'}
+            <Text
+              style={
+                item.ja_proposei
+                  ? [styles.btnOutlineText, { color: colors.primary }]
+                  : styles.btnPrimaryText
+              }
+            >
+              {item.ja_proposei
+                ? 'Proposta enviada'
+                : isDemanda
+                  ? 'Quero me candidatar'
+                  : 'Tenho interesse'}
             </Text>
           </TouchableOpacity>
         )}
@@ -276,19 +406,21 @@ export default function FeedScreen() {
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>Feed</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          {FILTROS.find((item) => item.id === filtro)?.descricao}
+          {verMinhas
+            ? 'Suas publicações e as propostas recebidas'
+            : FILTROS.find((item) => item.id === filtro)?.descricao}
         </Text>
       </View>
 
       <View style={styles.filters}>
         <FlatList
           horizontal
-          data={FILTROS}
+          data={[{ id: 'perfil' as const, label: 'Perfil' }, ...FILTROS]}
           keyExtractor={(item) => item.id}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.chips}
           renderItem={({ item }) => {
-            const active = filtro === item.id;
+            const active = item.id === 'perfil' ? verMinhas : !verMinhas && filtro === item.id;
             return (
               <TouchableOpacity
                 style={[
@@ -298,7 +430,14 @@ export default function FeedScreen() {
                     borderColor: active ? colors.primary : colors.border,
                   },
                 ]}
-                onPress={() => setFiltro(item.id)}
+                onPress={() => {
+                  if (item.id === 'perfil') {
+                    setVerMinhas(true);
+                    return;
+                  }
+                  setVerMinhas(false);
+                  setFiltro(item.id);
+                }}
               >
                 <Text style={[styles.chipText, { color: active ? '#fff' : colors.text }]}>
                   {item.label}
@@ -307,6 +446,7 @@ export default function FeedScreen() {
             );
           }}
         />
+        {!verMinhas ? (
         <View style={styles.geoBlock}>
           <View style={styles.geoRow}>
             <View style={styles.geoCol}>
@@ -377,6 +517,7 @@ export default function FeedScreen() {
             </TouchableOpacity>
           ) : null}
         </View>
+        ) : null}
       </View>
 
       {!activeArtist ? (
@@ -451,6 +592,39 @@ export default function FeedScreen() {
         title="Sem permissão"
         message="Somente admin ou vendedor pode publicar e iniciar negociação no feed."
       />
+      <PropostaEnviadaModal
+        visible={showPropostaEnviada}
+        isDemanda={anuncioProposta?.feed_tipo === 'demanda'}
+        podeDesfazer={!!anuncioProposta?.pode_desfazer}
+        desfazendo={desfazendoProposta}
+        onClose={() => {
+          setShowPropostaEnviada(false);
+          setAnuncioProposta(null);
+        }}
+        onVerConvites={() => {
+          setShowPropostaEnviada(false);
+          setAnuncioProposta(null);
+          router.push('/convites-participacao-evento');
+        }}
+        onDesfazer={() => {
+          if (!anuncioProposta || !activeArtist?.id || desfazendoProposta) return;
+          void (async () => {
+            setDesfazendoProposta(true);
+            const { success, error: err } = await desfazerPropostaFeed({
+              eventoId: anuncioProposta.id,
+              artistaInteressadoId: activeArtist.id,
+            });
+            setDesfazendoProposta(false);
+            if (!success) {
+              Alert.alert('Desfazer', err || 'Não foi possível desfazer a proposta.');
+              return;
+            }
+            setShowPropostaEnviada(false);
+            setAnuncioProposta(null);
+            void load();
+          })();
+        }}
+      />
       <Modal
         visible={showPublicarOpcoes}
         transparent
@@ -507,8 +681,8 @@ export default function FeedScreen() {
               onPress={() => handleEscolherPublicacao('/publicar-feed', 'demanda')}
               activeOpacity={0.85}
             >
-              <View style={[styles.optionIcon, { backgroundColor: '#C2410C18' }]}>
-                <Ionicons name="search" size={22} color="#C2410C" />
+              <View style={[styles.optionIcon, { backgroundColor: '#4F46E518' }]}>
+                <Ionicons name="search" size={22} color="#4F46E5" />
               </View>
               <View style={styles.optionCopy}>
                 <Text style={[styles.optionTitle, { color: colors.text }]}>Procurar</Text>
@@ -533,7 +707,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 },
   title: { fontSize: 26, fontWeight: '800' },
-  subtitle: { fontSize: 14, marginTop: 4, lineHeight: 20 },
+  subtitle: { fontSize: 13, marginTop: 6, lineHeight: 18 },
   filters: { paddingBottom: 8 },
   chips: { paddingHorizontal: 16, gap: 8 },
   chip: {
@@ -545,7 +719,7 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 13, fontWeight: '700' },
   geoBlock: {
     paddingHorizontal: 16,
-    marginTop: 12,
+    marginTop: 10,
     gap: 8,
   },
   geoRow: {
@@ -598,48 +772,76 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 14,
     marginBottom: 12,
-    gap: 8,
+    gap: 10,
   },
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
   badgeText: { fontSize: 12, fontWeight: '800' },
-  mineTag: { fontSize: 12, fontWeight: '700' },
-  artistRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  avatarWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+  propostasResumo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  avatarStack: { flexDirection: 'row', alignItems: 'center' },
+  stackAvatar: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  avatar: { width: 42, height: 42, borderRadius: 21 },
+  stackAvatarImg: { width: 22, height: 22, borderRadius: 11 },
+  countPillText: { fontSize: 12, fontWeight: '700' },
+  artistRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  avatarWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatar: { width: 40, height: 40, borderRadius: 20 },
   artistInfo: { flex: 1 },
   artistName: { fontSize: 16, fontWeight: '700' },
-  dateText: { fontSize: 15, fontWeight: '700' },
-  meta: { fontSize: 13 },
+  meta: { fontSize: 12, marginTop: 2 },
   notes: { fontSize: 14, lineHeight: 20 },
-  lockRow: {
+  cacheLine: { fontSize: 12, fontWeight: '600' },
+  propostasBox: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 8,
+    gap: 8,
+  },
+  propostasEmpty: { fontSize: 13 },
+  propostaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    gap: 10,
   },
-  lockText: { flex: 1, fontSize: 12, lineHeight: 16 },
+  propostaAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  propostaAvatarImg: { width: 34, height: 34, borderRadius: 17 },
+  propostaNome: { fontSize: 14, fontWeight: '700' },
+  propostaMeta: { fontSize: 12, marginTop: 1 },
   btnPrimary: {
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: 'center',
-    marginTop: 4,
   },
   btnPrimaryText: { color: '#fff', fontWeight: '800', fontSize: 15 },
   btnOutline: {
@@ -647,7 +849,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 11,
     alignItems: 'center',
-    marginTop: 4,
   },
   btnOutlineText: { fontWeight: '800', fontSize: 14 },
   fab: {

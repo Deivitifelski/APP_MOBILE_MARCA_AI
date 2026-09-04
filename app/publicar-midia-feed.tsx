@@ -71,13 +71,7 @@ export default function PublicarMidiaFeedScreen() {
 
     setSaving(true);
     try {
-      Alert.alert(
-        'Pronto para publicar',
-        midia.tipo === 'video'
-          ? 'Seu vídeo foi selecionado. A publicação no feed será concluída na próxima etapa do banco.'
-          : 'Sua foto foi selecionada. A publicação no feed será concluída na próxima etapa do banco.',
-        [{ text: 'OK', onPress: () => router.back() }]
-      );
+      router.back();
     } finally {
       setSaving(false);
     }

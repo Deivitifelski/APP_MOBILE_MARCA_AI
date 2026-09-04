@@ -20,6 +20,22 @@ export interface FeedAnuncio {
   is_mine: boolean;
   meu_cache_valor: number | null;
   tem_cache: boolean;
+  propostas_count: number;
+  propostas_avatars: string[];
+  ja_proposei: boolean;
+  pode_desfazer: boolean;
+}
+
+export interface FeedProposta {
+  evento_id: string;
+  convite_id: string;
+  artista_id: string;
+  artista_nome: string;
+  artista_image: string | null;
+  funcao: string | null;
+  status: string;
+  mensagem: string | null;
+  criado_em: string;
 }
 
 export interface PublicarFeedInput {
@@ -65,7 +81,24 @@ function mapAnuncio(row: Record<string, unknown>): FeedAnuncio {
     meu_cache_valor:
       cache == null || cache === '' ? null : Number(cache),
     tem_cache: asBoolean(row.tem_cache),
+    propostas_count: Number(row.propostas_count ?? 0) || 0,
+    propostas_avatars: Array.isArray(row.propostas_avatars)
+      ? (row.propostas_avatars as unknown[]).map((url) => String(url)).filter(Boolean)
+      : [],
+    ja_proposei: asBoolean(row.ja_proposei),
+    pode_desfazer:
+      row.pode_desfazer == null ? asBoolean(row.ja_proposei) : asBoolean(row.pode_desfazer),
   };
+}
+
+export function isErroPropostaDuplicada(error?: string | null): boolean {
+  if (!error) return false;
+  const texto = error.toLowerCase();
+  return (
+    texto.includes('já enviou uma proposta') ||
+    texto.includes('já iniciou uma negociação') ||
+    texto.includes('já existe uma negociação')
+  );
 }
 
 export async function listarFeedMarketplace(params: {
@@ -88,6 +121,34 @@ export async function listarFeedMarketplace(params: {
     return { anuncios: rows.map(mapAnuncio), error: null };
   } catch {
     return { anuncios: [], error: 'Erro de conexão' };
+  }
+}
+
+export async function listarPropostasFeedMarketplace(
+  artistaAtualId: string
+): Promise<{ propostas: FeedProposta[]; error: string | null }> {
+  try {
+    const { data, error } = await supabase.rpc('listar_propostas_feed_marketplace', {
+      p_artista_atual_id: artistaAtualId,
+    });
+    if (error) return { propostas: [], error: error.message };
+    const rows = (data || []) as Record<string, unknown>[];
+    return {
+      propostas: rows.map((row) => ({
+        evento_id: String(row.evento_id),
+        convite_id: String(row.convite_id),
+        artista_id: String(row.artista_id),
+        artista_nome: String(row.artista_nome ?? 'Artista'),
+        artista_image: row.artista_image != null ? String(row.artista_image) : null,
+        funcao: row.funcao != null ? String(row.funcao) : null,
+        status: String(row.status ?? 'pendente'),
+        mensagem: row.mensagem != null ? String(row.mensagem) : null,
+        criado_em: String(row.criado_em ?? ''),
+      })),
+      error: null,
+    };
+  } catch {
+    return { propostas: [], error: 'Erro de conexão' };
   }
 }
 
@@ -177,6 +238,25 @@ export async function iniciarNegociacaoFeed(input: {
       cacheValor: row.cache_valor == null ? null : Number(row.cache_valor),
       feedTipo: row.feed_tipo === 'demanda' ? 'demanda' : row.feed_tipo === 'disponivel' ? 'disponivel' : null,
     };
+  } catch {
+    return { success: false, error: 'Erro de conexão' };
+  }
+}
+
+export async function desfazerPropostaFeed(input: {
+  eventoId: string;
+  artistaInteressadoId: string;
+}): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const { data, error } = await supabase.rpc('rpc_app_desfazer_proposta_feed', {
+      p_evento_id: input.eventoId,
+      p_artista_interessado_id: input.artistaInteressadoId,
+    });
+    if (error) return { success: false, error: error.message };
+    const row = pickRpcRow<{ success: boolean; error: string | null }>(data);
+    if (!row) return { success: false, error: 'Resposta inválida ao desfazer a proposta.' };
+    if (!row.success) return { success: false, error: row.error || 'Não foi possível desfazer.' };
+    return { success: true, error: null };
   } catch {
     return { success: false, error: 'Erro de conexão' };
   }

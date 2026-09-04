@@ -232,13 +232,7 @@ export default function PublicarFeedScreen() {
       Alert.alert('Erro', error || 'Não foi possível publicar.');
       return;
     }
-    Alert.alert(
-      'Anúncio publicado',
-      cacheNumber > 0
-        ? 'O cachê fica oculto no feed e só aparece quando a negociação começar.'
-        : 'Publicação enviada ao feed.',
-      [{ text: 'OK', onPress: () => router.back() }]
-    );
+    router.back();
   };
 
   return (
@@ -265,13 +259,13 @@ export default function PublicarFeedScreen() {
           <View
             style={[
               styles.tipoHint,
-              { backgroundColor: `${isProcurar ? '#C2410C' : '#0F766E'}14` },
+              { backgroundColor: `${isProcurar ? '#4F46E5' : '#0F766E'}14` },
             ]}
           >
             <Ionicons
               name={isProcurar ? 'search' : 'briefcase-outline'}
               size={18}
-              color={isProcurar ? '#C2410C' : '#0F766E'}
+              color={isProcurar ? '#4F46E5' : '#0F766E'}
             />
             <Text style={[styles.tipoHintText, { color: colors.text }]}>
               {isProcurar
@@ -523,7 +517,8 @@ export default function PublicarFeedScreen() {
           <View style={[styles.lockHint, { backgroundColor: `${colors.primary}12` }]}>
             <Ionicons name="lock-closed" size={16} color={colors.primary} />
             <Text style={[styles.lockHintText, { color: colors.textSecondary }]}>
-              Se informar o cachê, ele só aparece quando a negociação começar.
+              Ninguém vê no feed. O valor só aparece quando alguém demonstrar interesse.
+              Sem valor, fica “a combinar”.
             </Text>
           </View>
 
