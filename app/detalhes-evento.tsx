@@ -42,7 +42,7 @@ import {
     obterConvitePorId,
     obterNomeArtista,
     removerParticipacaoAceitaPeloOrganizador,
-    salvarAvaliacaoParticipacaoEvento,
+    confirmarShowEAvaliar,
     type ConviteParticipacaoEventoRow,
 } from "../services/supabase/conviteParticipacaoEventoService";
 import {
@@ -335,6 +335,7 @@ export default function DetalhesEventoScreen() {
   const [rateGeral, setRateGeral] = useState(5);
   const [rateComentarioPublico, setRateComentarioPublico] = useState("");
   const [rateObservacaoPrivada, setRateObservacaoPrivada] = useState("");
+  const [rateConfirmouShow, setRateConfirmouShow] = useState(false);
   const [savingParticipantRate, setSavingParticipantRate] = useState(false);
 
   // Obter usuário atual
@@ -865,29 +866,39 @@ export default function DetalhesEventoScreen() {
     setRateGeral(existing?.nota_geral ?? 5);
     setRateComentarioPublico(existing?.comentario_publico ?? "");
     setRateObservacaoPrivada(existing?.observacao_privada ?? "");
+    setRateConfirmouShow(!!c.show_confirmado || !!existing);
     setShowRateParticipantModal(true);
   };
 
   const submitRateParticipant = async () => {
     if (!rateParticipantTargetInvite || !event) return;
+    const jaConfirmado = !!rateParticipantTargetInvite.show_confirmado;
+    if (!jaConfirmado && !rateConfirmouShow) {
+      Alert.alert(
+        "Confirmação obrigatória",
+        "Marque que o show aconteceu para registrar a avaliação.",
+      );
+      return;
+    }
     setSavingParticipantRate(true);
-    const { success, error } = await salvarAvaliacaoParticipacaoEvento({
+    const { success, error } = await confirmarShowEAvaliar({
       conviteId: rateParticipantTargetInvite.id,
       notaGeral: rateGeral,
+      confirmarShow: jaConfirmado || rateConfirmouShow,
       comentarioPublico: rateComentarioPublico,
       observacaoPrivada: rateObservacaoPrivada,
     });
     setSavingParticipantRate(false);
     if (!success) {
-      Alert.alert("Erro", error || "Não foi possível salvar a avaliação.");
+      Alert.alert("Erro", error || "Não foi possível confirmar o show.");
       return;
     }
     setShowRateParticipantModal(false);
     setRateParticipantTargetInvite(null);
     await loadParticipationInvites(event.id);
     Alert.alert(
-      "Avaliação salva",
-      "A avaliação deste artista foi registrada com sucesso.",
+      "Show confirmado",
+      "A realização do show e a avaliação foram registradas.",
     );
   };
 
@@ -2346,8 +2357,8 @@ export default function DetalhesEventoScreen() {
                                     }}
                                   >
                                     {participationRatingsByInviteId[c.id]
-                                      ? "Editar avaliação"
-                                      : "Avaliar artista"}
+                                      ? "Editar confirmação"
+                                      : "Confirmar show e avaliar"}
                                   </Text>
                                 </TouchableOpacity>
                               ) : (
@@ -2357,7 +2368,7 @@ export default function DetalhesEventoScreen() {
                                     fontSize: 12,
                                   }}
                                 >
-                                  Avaliação disponível após conclusão
+                                  Avaliação disponível após a data do show
                                 </Text>
                               )}
                             </View>
@@ -2369,7 +2380,7 @@ export default function DetalhesEventoScreen() {
                                 { color: colors.primary },
                               ]}
                             >
-                              Avaliação registrada:{" "}
+                              {c.show_confirmado ? "Show confirmado" : "Avaliação pendente"}:{" "}
                               {participationRatingsByInviteId[c.id].nota_geral}
                               /5
                             </Text>
@@ -2663,8 +2674,39 @@ export default function DetalhesEventoScreen() {
                     { color: colors.text },
                   ]}
                 >
-                  Avaliar artista
+                  Confirmar show e avaliar
                 </Text>
+
+                {!rateParticipantTargetInvite?.show_confirmado ? (
+                  <TouchableOpacity
+                    style={[
+                      styles.confirmShowRow,
+                      {
+                        borderColor: colors.border,
+                        backgroundColor: colors.background,
+                      },
+                    ]}
+                    onPress={() =>
+                      !savingParticipantRate &&
+                      setRateConfirmouShow((prev) => !prev)
+                    }
+                    disabled={savingParticipantRate}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name={rateConfirmouShow ? "checkbox" : "square-outline"}
+                      size={22}
+                      color={rateConfirmouShow ? colors.primary : colors.textSecondary}
+                    />
+                    <Text style={[styles.confirmShowText, { color: colors.text }]}>
+                      Confirmo que o show aconteceu como combinado
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <Text style={[styles.rateHint, { color: colors.primary, marginBottom: 8 }]}>
+                    Show já confirmado. Você pode atualizar a avaliação.
+                  </Text>
+                )}
 
                 <View
                   style={[
@@ -2800,7 +2842,7 @@ export default function DetalhesEventoScreen() {
                       <ActivityIndicator color="#fff" />
                     ) : (
                       <Text style={styles.participationInviteModalBtnPriText}>
-                        Salvar avaliação
+                        Confirmar e salvar
                       </Text>
                     )}
                   </TouchableOpacity>
@@ -3551,6 +3593,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
     marginBottom: 4,
+  },
+  confirmShowRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 10,
+  },
+  confirmShowText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "600",
   },
   ratingHeroCard: {
     borderWidth: 1,

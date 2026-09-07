@@ -18,6 +18,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import OptimizedImage from '../../components/OptimizedImage';
+import ArtistReputationBadge from '../../components/ArtistReputationBadge';
+import ArtistReviewsModal from '../../components/ArtistReviewsModal';
 import PermissionModal from '../../components/PermissionModal';
 import PropostaEnviadaModal from '../../components/PropostaEnviadaModal';
 import BrazilStatePickerModal from '../../components/BrazilStatePickerModal';
@@ -82,6 +84,11 @@ export default function FeedScreen() {
   const [showPropostaEnviada, setShowPropostaEnviada] = useState(false);
   const [anuncioProposta, setAnuncioProposta] = useState<FeedAnuncio | null>(null);
   const [desfazendoProposta, setDesfazendoProposta] = useState(false);
+  const [reviewsArtist, setReviewsArtist] = useState<{
+    id: string;
+    name: string;
+    image: string | null;
+  } | null>(null);
 
   const loadGenerationRef = useRef(0);
 
@@ -318,6 +325,27 @@ export default function FeedScreen() {
               {artistLabel}
             </Text>
           </View>
+
+          {!meuAnuncio ? (
+            <ArtistReputationBadge
+              compact
+              reputation={{
+                mediaNota: item.artist_media_nota,
+                totalAvaliacoes: item.artist_total_avaliacoes,
+                showsRealizados: item.artist_shows_realizados,
+              }}
+              onPressReviews={
+                item.artist_total_avaliacoes > 0
+                  ? () =>
+                      setReviewsArtist({
+                        id: item.artist_id,
+                        name: item.artist_name,
+                        image: item.artist_image,
+                      })
+                  : undefined
+              }
+            />
+          ) : null}
 
           <View style={styles.cardDateRow}>
             <Text style={[styles.cardDateText, { color: colors.text }]}>
@@ -747,6 +775,13 @@ export default function FeedScreen() {
         options={funcaoFilterOptions}
         selectedFuncao={filtroFuncao}
         onSelect={setFiltroFuncao}
+      />
+      <ArtistReviewsModal
+        visible={!!reviewsArtist}
+        artistId={reviewsArtist?.id ?? null}
+        artistName={reviewsArtist?.name ?? 'Artista'}
+        artistImage={reviewsArtist?.image}
+        onClose={() => setReviewsArtist(null)}
       />
       <PermissionModal
         visible={showPermissionModal}

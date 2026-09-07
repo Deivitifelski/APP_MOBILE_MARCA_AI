@@ -27,6 +27,9 @@ export interface FeedAnuncio {
   propostas_avatars: string[];
   ja_proposei: boolean;
   pode_desfazer: boolean;
+  artist_media_nota: number | null;
+  artist_total_avaliacoes: number;
+  artist_shows_realizados: number;
 }
 
 export interface FeedProposta {
@@ -80,6 +83,15 @@ function asBoolean(value: unknown): boolean {
   return value === true || value === 't' || value === 'true' || value === 1 || value === '1';
 }
 
+/** Data do anúncio ainda é hoje ou futura (parte YYYY-MM-DD, fuso local do aparelho). */
+function isAnuncioFeedAtivo(eventDate: string): boolean {
+  const part = String(eventDate ?? '').trim().split('T')[0];
+  if (!part || part.length < 10) return false;
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  return part >= today;
+}
+
 function mapAnuncio(row: Record<string, unknown>): FeedAnuncio {
   const tipo: FeedTipo = row.feed_tipo === 'demanda' ? 'demanda' : 'disponivel';
   const cache = row.cache_valor ?? row.meu_cache_valor;
@@ -113,6 +125,14 @@ function mapAnuncio(row: Record<string, unknown>): FeedAnuncio {
     ja_proposei: asBoolean(row.ja_proposei),
     pode_desfazer:
       row.pode_desfazer == null ? asBoolean(row.ja_proposei) : asBoolean(row.pode_desfazer),
+    artist_media_nota:
+      row.artist_media_nota == null || row.artist_media_nota === ''
+        ? null
+        : Number.isFinite(Number(row.artist_media_nota))
+          ? Number(row.artist_media_nota)
+          : null,
+    artist_total_avaliacoes: Number(row.artist_total_avaliacoes ?? 0) || 0,
+    artist_shows_realizados: Number(row.artist_shows_realizados ?? 0) || 0,
   };
 }
 
@@ -147,7 +167,8 @@ export async function listarFeedMarketplace(params: {
     });
     if (error) return { anuncios: [], error: error.message };
     const rows = (data || []) as Record<string, unknown>[];
-    return { anuncios: rows.map(mapAnuncio), error: null };
+    const anuncios = rows.map(mapAnuncio).filter((item) => isAnuncioFeedAtivo(item.event_date));
+    return { anuncios, error: null };
   } catch {
     return { anuncios: [], error: 'Erro de conexão' };
   }

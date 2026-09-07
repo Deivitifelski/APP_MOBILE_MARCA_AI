@@ -190,6 +190,151 @@ END;
 $$;
 
 -- =====================================================
+-- Reputação (shows confirmados + avaliados)
+-- =====================================================
+ALTER TABLE public.convite_participacao_evento
+  ADD COLUMN IF NOT EXISTS show_confirmado BOOLEAN NOT NULL DEFAULT false;
+
+ALTER TABLE public.convite_participacao_evento
+  ADD COLUMN IF NOT EXISTS show_confirmado_em TIMESTAMPTZ;
+
+ALTER TABLE public.convite_participacao_evento
+  ADD COLUMN IF NOT EXISTS show_confirmado_por UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+
+CREATE OR REPLACE FUNCTION public.rpc_app_resumo_reputacao_artistas(
+  p_artista_ids UUID[]
+)
+RETURNS TABLE (
+  artista_id UUID,
+  media_nota_geral NUMERIC(4,2),
+  total_avaliacoes INT,
+  shows_realizados INT,
+  anuncios_feed_ativos INT,
+  negociacoes_aceitas INT
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  WITH ids AS (
+    SELECT DISTINCT unnest(p_artista_ids) AS artist_id
+  ),
+  avaliacoes_confirmadas AS (
+    SELECT
+      a.artista_avaliado_id,
+      a.nota_geral
+    FROM public.participacao_evento_avaliacoes a
+    INNER JOIN public.convite_participacao_evento c
+      ON c.id = a.convite_participacao_evento_id
+    INNER JOIN ids i ON i.artist_id = a.artista_avaliado_id
+    WHERE c.show_confirmado = true
+      AND c.status = 'aceito'
+  ),
+  stats_avaliacao AS (
+    SELECT
+      ac.artista_avaliado_id,
+      ROUND(AVG(ac.nota_geral)::numeric, 2) AS media_nota_geral,
+      COUNT(*)::int AS total_avaliacoes,
+      COUNT(*)::int AS shows_realizados
+    FROM avaliacoes_confirmadas ac
+    GROUP BY ac.artista_avaliado_id
+  ),
+  anuncios AS (
+    SELECT
+      e.artist_id,
+      COUNT(*)::int AS anuncios_feed_ativos
+    FROM public.events e
+    INNER JOIN ids i ON i.artist_id = e.artist_id
+    WHERE COALESCE(e.ativo, true) = true
+      AND e.feed_tipo IS NOT NULL
+      AND e.feed_tipo IN ('disponivel', 'demanda')
+    GROUP BY e.artist_id
+  ),
+  negociacoes AS (
+    SELECT
+      i.artist_id,
+      COUNT(*)::int AS negociacoes_aceitas
+    FROM ids i
+    INNER JOIN public.convite_participacao_evento c
+      ON c.status = 'aceito'
+      AND (
+        c.artista_convidado_id = i.artist_id
+        OR c.artista_que_convidou_id = i.artist_id
+      )
+    GROUP BY i.artist_id
+  )
+  SELECT
+    i.artist_id,
+    s.media_nota_geral,
+    COALESCE(s.total_avaliacoes, 0) AS total_avaliacoes,
+    COALESCE(s.shows_realizados, 0) AS shows_realizados,
+    COALESCE(a.anuncios_feed_ativos, 0) AS anuncios_feed_ativos,
+    COALESCE(n.negociacoes_aceitas, 0) AS negociacoes_aceitas
+  FROM ids i
+  LEFT JOIN stats_avaliacao s ON s.artista_avaliado_id = i.artist_id
+  LEFT JOIN anuncios a ON a.artist_id = i.artist_id
+  LEFT JOIN negociacoes n ON n.artist_id = i.artist_id;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.rpc_app_resumo_reputacao_artistas(UUID[]) TO authenticated;
+
+-- Data de hoje no fuso de Brasília (evita anúncio "vencido" aparecer por UTC)
+CREATE OR REPLACE FUNCTION public.feed_data_hoje_brasil()
+RETURNS DATE
+LANGUAGE sql
+STABLE
+SET search_path = public
+AS $$
+  SELECT (NOW() AT TIME ZONE 'America/Sao_Paulo')::date;
+$$;
+
+-- Encerra automaticamente anúncios cuja data do show já passou
+CREATE OR REPLACE FUNCTION public.encerrar_anuncios_feed_vencidos()
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_hoje DATE := public.feed_data_hoje_brasil();
+  v_count INTEGER := 0;
+BEGIN
+  UPDATE public.convite_participacao_evento c
+  SET
+    status = 'cancelado',
+    motivo_cancelamento = 'Anúncio encerrado automaticamente: data do show já passou.',
+    respondido_em = NOW(),
+    atualizado_em = NOW()
+  FROM public.events e
+  WHERE COALESCE(e.ativo, true) = true
+    AND e.feed_tipo IS NOT NULL
+    AND e.feed_tipo IN ('disponivel', 'demanda')
+    AND e.event_date < v_hoje
+    AND (
+      c.grupo_disputa_id = e.id
+      OR c.evento_origem_id = e.id
+    )
+    AND c.status = 'pendente';
+
+  UPDATE public.events
+  SET
+    ativo = false,
+    update_ativo = NOW(),
+    updated_at = NOW()
+  WHERE COALESCE(ativo, true) = true
+    AND feed_tipo IS NOT NULL
+    AND feed_tipo IN ('disponivel', 'demanda')
+    AND event_date < v_hoje;
+
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.encerrar_anuncios_feed_vencidos() TO authenticated;
+
+-- =====================================================
 -- Listagem pública (sem cachê; WhatsApp vem de artists.whatsapp)
 -- =====================================================
 DROP FUNCTION IF EXISTS public.listar_feed_marketplace(text, text, text, uuid);
@@ -227,13 +372,19 @@ RETURNS TABLE (
   propostas_count INTEGER,
   propostas_avatars TEXT[],
   ja_proposei BOOLEAN,
-  pode_desfazer BOOLEAN
+  pode_desfazer BOOLEAN,
+  artist_media_nota NUMERIC,
+  artist_total_avaliacoes INT,
+  artist_shows_realizados INT
 )
-LANGUAGE sql
+LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-STABLE
 AS $$
+BEGIN
+  PERFORM public.encerrar_anuncios_feed_vencidos();
+
+  RETURN QUERY
   SELECT
     e.id,
     e.artist_id,
@@ -324,13 +475,25 @@ AS $$
             OR (e.feed_tipo <> 'demanda' AND c.artista_que_convidou_id = p_artista_atual_id)
           )
       )
-    )
+    ),
+    rep.media_nota_geral,
+    COALESCE(rep.total_avaliacoes, 0),
+    COALESCE(rep.shows_realizados, 0)
   FROM events e
   INNER JOIN artists a ON a.id = e.artist_id
+  LEFT JOIN LATERAL (
+    SELECT
+      s.media_nota_geral,
+      s.total_avaliacoes,
+      s.shows_realizados
+    FROM public.rpc_app_resumo_reputacao_artistas(ARRAY[e.artist_id]) s
+    WHERE s.artista_id = e.artist_id
+    LIMIT 1
+  ) rep ON true
   WHERE COALESCE(e.ativo, true) = true
     AND e.feed_tipo IS NOT NULL
     AND e.feed_tipo IN ('disponivel', 'demanda')
-    AND e.event_date >= CURRENT_DATE
+    AND e.event_date >= public.feed_data_hoje_brasil()
     AND (
       p_tipo IS NULL
       OR trim(p_tipo) = ''
@@ -372,6 +535,7 @@ AS $$
     CASE WHEN p_artista_atual_id IS NOT NULL AND e.artist_id = p_artista_atual_id THEN 0 ELSE 1 END,
     e.created_at DESC
   LIMIT 120;
+END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.listar_feed_marketplace(TEXT, TEXT, TEXT, UUID, TEXT, UUID) TO authenticated;
@@ -430,7 +594,7 @@ BEGIN
     RETURN;
   END IF;
 
-  IF p_event_date IS NULL OR p_event_date < CURRENT_DATE THEN
+  IF p_event_date IS NULL OR p_event_date < public.feed_data_hoje_brasil() THEN
     RETURN QUERY SELECT false, 'Informe uma data de hoje em diante.', NULL::UUID;
     RETURN;
   END IF;
@@ -615,7 +779,7 @@ BEGIN
     RETURN;
   END IF;
 
-  IF p_event_date IS NULL OR p_event_date < CURRENT_DATE THEN
+  IF p_event_date IS NULL OR p_event_date < public.feed_data_hoje_brasil() THEN
     RETURN QUERY SELECT false, 'Informe uma data de hoje em diante.';
     RETURN;
   END IF;
@@ -841,7 +1005,7 @@ BEGIN
     v_funcao := 'Interesse';
   END IF;
 
-  IF v_event.event_date < CURRENT_DATE THEN
+  IF v_event.event_date < public.feed_data_hoje_brasil() THEN
     RETURN QUERY SELECT false, 'Esta data já passou.', NULL::UUID, NULL::NUMERIC, NULL::TEXT;
     RETURN;
   END IF;
@@ -1153,11 +1317,14 @@ RETURNS TABLE (
   mensagem TEXT,
   criado_em TIMESTAMPTZ
 )
-LANGUAGE sql
+LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-STABLE
 AS $$
+BEGIN
+  PERFORM public.encerrar_anuncios_feed_vencidos();
+
+  RETURN QUERY
   SELECT
     e.id,
     c.id,
@@ -1180,10 +1347,12 @@ AS $$
   END
   WHERE e.feed_tipo IS NOT NULL
     AND COALESCE(e.ativo, true) = true
+    AND e.event_date >= public.feed_data_hoje_brasil()
     AND c.status IN ('pendente', 'aceito')
     AND p_artista_atual_id IS NOT NULL
     AND e.artist_id = p_artista_atual_id
   ORDER BY c.criado_em DESC;
+END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.listar_propostas_feed_marketplace(UUID) TO authenticated;

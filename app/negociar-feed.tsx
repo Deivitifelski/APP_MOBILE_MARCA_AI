@@ -15,6 +15,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import PropostaEnviadaModal from '../components/PropostaEnviadaModal';
+import ArtistReputationBadge from '../components/ArtistReputationBadge';
+import ArtistReviewsModal from '../components/ArtistReviewsModal';
 import { ARTIST_WORK_ROLE_PRESETS } from '../constants/artistProfileLists';
 import { usePermissions } from '../contexts/PermissionsContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -47,6 +49,7 @@ export default function NegociarFeedScreen() {
   const [sending, setSending] = useState(false);
   const [showPropostaEnviada, setShowPropostaEnviada] = useState(false);
   const [desfazendoProposta, setDesfazendoProposta] = useState(false);
+  const [showReviews, setShowReviews] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,7 +73,7 @@ export default function NegociarFeedScreen() {
       setAnuncio(found);
       setLoading(false);
       if (!found) {
-        Alert.alert('Anúncio', 'Este anúncio não está mais no feed.', [
+        Alert.alert('Anúncio encerrado', 'A data deste show já passou. O anúncio não está mais disponível.', [
           { text: 'OK', onPress: () => router.back() },
         ]);
         return;
@@ -188,6 +191,16 @@ export default function NegociarFeedScreen() {
                 {anuncio.feed_tipo === 'demanda' ? 'Procurando' : 'Oferta'}
               </Text>
               <Text style={[styles.name, { color: colors.text }]}>{anuncio.artist_name}</Text>
+              <ArtistReputationBadge
+                reputation={{
+                  mediaNota: anuncio.artist_media_nota,
+                  totalAvaliacoes: anuncio.artist_total_avaliacoes,
+                  showsRealizados: anuncio.artist_shows_realizados,
+                }}
+                onPressReviews={
+                  anuncio.artist_total_avaliacoes > 0 ? () => setShowReviews(true) : undefined
+                }
+              />
               <Text style={[styles.meta, { color: colors.text }]}>
                 {formatCalendarDate(anuncio.event_date)} · {formatTime(anuncio.start_time)}–
                 {formatTime(anuncio.end_time)}
@@ -322,6 +335,13 @@ export default function NegociarFeedScreen() {
           router.replace('/convites-participacao-evento');
         }}
         onDesfazer={() => void handleDesfazerProposta()}
+      />
+      <ArtistReviewsModal
+        visible={showReviews}
+        artistId={anuncio?.artist_id ?? null}
+        artistName={anuncio?.artist_name ?? 'Artista'}
+        artistImage={anuncio?.artist_image}
+        onClose={() => setShowReviews(false)}
       />
     </SafeAreaView>
   );

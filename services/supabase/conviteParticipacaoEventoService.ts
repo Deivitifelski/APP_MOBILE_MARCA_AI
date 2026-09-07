@@ -26,6 +26,8 @@ export interface ConviteParticipacaoEventoRow {
   respondido_em: string | null;
   criado_em: string;
   atualizado_em: string;
+  show_confirmado?: boolean;
+  show_confirmado_em?: string | null;
 }
 
 export interface AvaliacaoParticipacaoEventoRow {
@@ -711,10 +713,24 @@ export interface SalvarAvaliacaoParticipacaoInput {
 export async function salvarAvaliacaoParticipacaoEvento(
   input: SalvarAvaliacaoParticipacaoInput
 ): Promise<{ success: boolean; error: string | null; avaliacaoId?: string }> {
+  return confirmarShowEAvaliar({
+    ...input,
+    confirmarShow: true,
+  });
+}
+
+export interface ConfirmarShowEAvaliarInput extends SalvarAvaliacaoParticipacaoInput {
+  confirmarShow: boolean;
+}
+
+export async function confirmarShowEAvaliar(
+  input: ConfirmarShowEAvaliarInput
+): Promise<{ success: boolean; error: string | null; avaliacaoId?: string }> {
   try {
-    const { data, error } = await supabase.rpc('rpc_app_salvar_avaliacao_participacao_evento', {
+    const { data, error } = await supabase.rpc('rpc_app_confirmar_show_e_avaliar', {
       p_convite_id: input.conviteId,
       p_nota_geral: Number(input.notaGeral),
+      p_confirmar_show: input.confirmarShow,
       p_nota_pontualidade: input.notaPontualidade != null ? Number(input.notaPontualidade) : null,
       p_nota_profissionalismo: input.notaProfissionalismo != null ? Number(input.notaProfissionalismo) : null,
       p_nota_qualidade_tecnica: input.notaQualidadeTecnica != null ? Number(input.notaQualidadeTecnica) : null,
@@ -725,7 +741,7 @@ export async function salvarAvaliacaoParticipacaoEvento(
 
     if (error) return { success: false, error: error.message };
     const row = pickRpcRow<{ success: boolean; error: string | null; avaliacao_id: string | null }>(data);
-    if (!row) return { success: false, error: 'Resposta inválida ao salvar avaliação.' };
+    if (!row) return { success: false, error: 'Resposta inválida ao confirmar show.' };
     return {
       success: row.success,
       error: row.error,
@@ -733,6 +749,44 @@ export async function salvarAvaliacaoParticipacaoEvento(
     };
   } catch {
     return { success: false, error: 'Erro de conexão' };
+  }
+}
+
+export interface ResumoReputacaoArtista {
+  artista_id: string;
+  media_nota_geral: number | null;
+  total_avaliacoes: number;
+  shows_realizados: number;
+  anuncios_feed_ativos: number;
+  negociacoes_aceitas: number;
+}
+
+export async function listarResumoReputacaoArtistas(
+  artistaIds: string[]
+): Promise<{ resumo: ResumoReputacaoArtista[]; error: string | null }> {
+  try {
+    const ids = [...new Set((artistaIds || []).map((x) => x?.trim()).filter(Boolean))];
+    if (ids.length === 0) return { resumo: [], error: null };
+    const { data, error } = await supabase.rpc('rpc_app_resumo_reputacao_artistas', {
+      p_artista_ids: ids,
+    });
+    if (error) return { resumo: [], error: error.message };
+    const rows = ((data as Record<string, unknown>[]) || []).map((row) => {
+      const mediaRaw = row.media_nota_geral;
+      const media =
+        mediaRaw == null || mediaRaw === '' ? null : Number.isFinite(Number(mediaRaw)) ? Number(mediaRaw) : null;
+      return {
+        artista_id: String(row.artista_id),
+        media_nota_geral: media,
+        total_avaliacoes: Number(row.total_avaliacoes ?? 0) || 0,
+        shows_realizados: Number(row.shows_realizados ?? 0) || 0,
+        anuncios_feed_ativos: Number(row.anuncios_feed_ativos ?? 0) || 0,
+        negociacoes_aceitas: Number(row.negociacoes_aceitas ?? 0) || 0,
+      } as ResumoReputacaoArtista;
+    });
+    return { resumo: rows, error: null };
+  } catch {
+    return { resumo: [], error: 'Erro de conexão' };
   }
 }
 
