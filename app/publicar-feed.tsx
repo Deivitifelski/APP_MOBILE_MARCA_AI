@@ -13,6 +13,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -44,11 +45,12 @@ import {
   getEventsByMonthWithRole,
   type EventWithRole,
 } from '../services/supabase/eventService';
-import { publicarFeed, type FeedTipo } from '../services/supabase/feedMarketplaceService';
+import { publicarFeed, editarAnuncioFeed, listarFeedMarketplace, type FeedTipo } from '../services/supabase/feedMarketplaceService';
 import { getArtistById } from '../services/supabase/artistService';
 import { useActiveArtist } from '../services/useActiveArtist';
 import {
   extractNumericValueString,
+  formatCurrencyBRLFromAmount,
   formatCurrencyBRLInput,
 } from '../utils/currencyBRLInput';
 import {
@@ -97,12 +99,28 @@ function formatTime(t?: string | null) {
   return String(t).slice(0, 5);
 }
 
+function hmToDate(hm: string): Date {
+  const d = new Date();
+  const parts = String(hm || '').split(':');
+  const h = Number(parts[0]) || 0;
+  const m = Number(parts[1]) || 0;
+  d.setHours(h, m, 0, 0);
+  return d;
+}
+
 export default function PublicarFeedScreen() {
   const { colors, isDarkMode } = useTheme();
   const { activeArtist } = useActiveArtist();
   const { canCreateEvents } = usePermissions();
-  const { tipo: tipoParam } = useLocalSearchParams<{ tipo?: string }>();
-  const tipo: FeedTipo = tipoParam === 'demanda' ? 'demanda' : 'disponivel';
+  const { tipo: tipoParam, eventId: eventIdParam } = useLocalSearchParams<{
+    tipo?: string;
+    eventId?: string;
+  }>();
+  const eventId = typeof eventIdParam === 'string' ? eventIdParam : undefined;
+  const isEditMode = !!eventId;
+  const [editTipo, setEditTipo] = useState<FeedTipo | null>(null);
+  const tipo: FeedTipo =
+    editTipo ?? (tipoParam === 'demanda' ? 'demanda' : 'disponivel');
   const isProcurar = tipo === 'demanda';
 
   const [viewDate, setViewDate] = useState(() => new Date());
@@ -132,6 +150,8 @@ export default function PublicarFeedScreen() {
   const [funcaoDraft, setFuncaoDraft] = useState('');
   const [artistWorkRoles, setArtistWorkRoles] = useState<string[]>([]);
   const [whatsappDraft, setWhatsappDraft] = useState('');
+  const [mostrarCache, setMostrarCache] = useState(false);
+  const [loadingEdit, setLoadingEdit] = useState(isEditMode);
   const [saving, setSaving] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const dayOffsetRef = useRef(0);
@@ -264,15 +284,20 @@ export default function PublicarFeedScreen() {
     setFuncaoDraft('');
   };
 
+  const eventsForCalendar = useMemo(() => {
+    if (!isEditMode || !eventId) return events;
+    return events.filter((event) => event.id !== eventId);
+  }, [events, eventId, isEditMode]);
+
   const eventsByDate = useMemo(() => {
     const map: Record<string, EventWithRole[]> = {};
-    events.forEach((event) => {
+    eventsForCalendar.forEach((event) => {
       if (!event.event_date) return;
       if (!map[event.event_date]) map[event.event_date] = [];
       map[event.event_date].push(event);
     });
     return map;
-  }, [events]);
+  }, [eventsForCalendar]);
 
   const calendarMatrix = useMemo(() => {
     const firstWeekDay = new Date(viewYear, viewMonth, 1).getDay();
@@ -301,7 +326,7 @@ export default function PublicarFeedScreen() {
   useEffect(() => {
     if (!activeArtist?.id) {
       setArtistWorkRoles([]);
-      setWhatsappDraft('');
+      if (!isEditMode) setWhatsappDraft('');
       return;
     }
 
@@ -309,13 +334,62 @@ export default function PublicarFeedScreen() {
     void getArtistById(activeArtist.id).then(({ artist }) => {
       if (cancelled) return;
       setArtistWorkRoles(parseArtistStringArrayFromJson(artist?.work_roles));
-      setWhatsappDraft(maskBrazilMobile(artist?.whatsapp || ''));
+      if (!isEditMode) {
+        setWhatsappDraft(maskBrazilMobile(artist?.whatsapp || ''));
+      }
     });
 
     return () => {
       cancelled = true;
     };
-  }, [activeArtist?.id]);
+  }, [activeArtist?.id, isEditMode]);
+
+  useEffect(() => {
+    if (!eventId || !activeArtist?.id) {
+      setLoadingEdit(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingEdit(true);
+    void listarFeedMarketplace({
+      filtro: 'meus',
+      artistaAtualId: activeArtist.id,
+    }).then(({ anuncios, error }) => {
+      if (cancelled) return;
+      if (error) {
+        Alert.alert('Erro', error);
+        setLoadingEdit(false);
+        return;
+      }
+      const found = anuncios.find((item) => item.id === eventId) ?? null;
+      if (!found) {
+        Alert.alert('Anúncio', 'Este anúncio não está mais no feed.', [
+          { text: 'OK', onPress: () => router.back() },
+        ]);
+        setLoadingEdit(false);
+        return;
+      }
+
+      setEditTipo(found.feed_tipo);
+      setSelectedYmd(found.event_date);
+      setViewDate(new Date(`${found.event_date}T12:00:00`));
+      setInicio(hmToDate(found.start_time));
+      setFim(hmToDate(found.end_time));
+      setEstadoUf(found.state_uf || '');
+      setCidade(found.city || '');
+      setObservacao(found.description || '');
+      setSelectedFuncoes([...found.feed_funcoes]);
+      setCacheDraft(formatCurrencyBRLFromAmount(found.cache_valor ?? 0));
+      setMostrarCache(found.feed_mostrar_cache);
+      setWhatsappDraft(maskBrazilMobile(found.artist_whatsapp || ''));
+      setLoadingEdit(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, activeArtist?.id]);
 
   useEffect(() => {
     if (!activeArtist?.id) {
@@ -387,10 +461,15 @@ export default function PublicarFeedScreen() {
       );
       return;
     }
+    if (cacheNumber <= 0) {
+      Alert.alert(
+        'Cachê',
+        'Informe o valor do cachê. Ao aceitar a negociação, esse valor entra como despesa na agenda.'
+      );
+      return;
+    }
     setSaving(true);
-    const { success, error } = await publicarFeed({
-      artistaId: activeArtist.id,
-      feedTipo: tipo,
+    const payload = {
       eventDate: selectedYmd,
       stateUf: estadoUf,
       cacheValor: cacheNumber,
@@ -400,14 +479,33 @@ export default function PublicarFeedScreen() {
       observacao,
       feedFuncoes: selectedFuncoes,
       whatsapp: whatsappDraft.trim(),
-    });
+      mostrarCache,
+    };
+
+    const result = isEditMode && eventId
+      ? await editarAnuncioFeed({ eventoId: eventId, ...payload })
+      : await publicarFeed({
+          artistaId: activeArtist.id,
+          feedTipo: tipo,
+          ...payload,
+        });
     setSaving(false);
-    if (!success) {
-      Alert.alert('Erro', error || 'Não foi possível publicar.');
+    if (!result.success) {
+      Alert.alert('Erro', result.error || (isEditMode ? 'Não foi possível salvar.' : 'Não foi possível publicar.'));
       return;
     }
     router.back();
   };
+
+  if (loadingEdit) {
+    return (
+      <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
+        <View style={styles.loadingEdit}>
+          <ActivityIndicator color={colors.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
@@ -416,7 +514,7 @@ export default function PublicarFeedScreen() {
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>
-          {isProcurar ? 'Procurar' : 'Oferecer'}
+          {isEditMode ? 'Editar anúncio' : isProcurar ? 'Procurar' : 'Oferecer'}
         </Text>
         <View style={{ width: 40 }} />
       </View>
@@ -684,10 +782,16 @@ export default function PublicarFeedScreen() {
             Quem ver seu anúncio poderá entrar em contato por este número. Se o artista já tem WhatsApp salvo, ele aparece aqui.
           </Text>
 
-          <Text style={[styles.label, { color: colors.text }]}>Cachê (opcional)</Text>
+          <Text style={[styles.label, { color: colors.text }]}>Cachê *</Text>
           <TextInput
             value={cacheDraft}
-            onChangeText={(t) => setCacheDraft(formatCurrencyBRLInput(t))}
+            onChangeText={(t) => {
+              const masked = formatCurrencyBRLInput(t);
+              setCacheDraft(masked);
+              if (!extractNumericValueString(masked)) {
+                setMostrarCache(false);
+              }
+            }}
             keyboardType="number-pad"
             placeholder="R$ 0,00"
             placeholderTextColor={colors.textSecondary}
@@ -696,13 +800,34 @@ export default function PublicarFeedScreen() {
               { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
             ]}
           />
-          <View style={[styles.lockHint, { backgroundColor: `${colors.primary}12` }]}>
-            <Ionicons name="lock-closed" size={16} color={colors.primary} />
-            <Text style={[styles.lockHintText, { color: colors.textSecondary }]}>
-              Ninguém vê no feed. O valor só aparece quando alguém demonstrar interesse.
-              Sem valor, fica “a combinar”.
-            </Text>
+          <Text style={[styles.rolesHint, { color: colors.textSecondary }]}>
+            Obrigatório. Ao fechar a negociação, esse valor entra como despesa na agenda.
+          </Text>
+          <View style={[styles.switchRow, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+            <View style={styles.switchCopy}>
+              <Text style={[styles.switchTitle, { color: colors.text }]}>Mostrar cachê no feed</Text>
+              <Text style={[styles.rolesHint, { color: colors.textSecondary, marginTop: 2 }]}>
+                {mostrarCache
+                  ? 'Todos verão o valor no card.'
+                  : 'O valor só aparece quando alguém demonstrar interesse.'}
+              </Text>
+            </View>
+            <Switch
+              value={mostrarCache}
+              onValueChange={setMostrarCache}
+              disabled={cacheNumber <= 0}
+              trackColor={{ false: colors.border, true: `${colors.primary}66` }}
+              thumbColor={Platform.OS === 'android' ? (mostrarCache ? colors.primary : '#f4f3f4') : undefined}
+            />
           </View>
+          {!mostrarCache ? (
+            <View style={[styles.lockHint, { backgroundColor: `${colors.primary}12` }]}>
+              <Ionicons name="lock-closed" size={16} color={colors.primary} />
+              <Text style={[styles.lockHintText, { color: colors.textSecondary }]}>
+                Com a opção desligada, o cachê fica oculto no feed e só é revelado na negociação.
+              </Text>
+            </View>
+          ) : null}
 
           <Text style={[styles.label, { color: colors.text }]}>Estado (opcional)</Text>
           <BrazilStateFieldButton
@@ -745,7 +870,9 @@ export default function PublicarFeedScreen() {
             {saving ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.submitText}>Publicar anúncio</Text>
+              <Text style={styles.submitText}>
+                {isEditMode ? 'Salvar alterações' : 'Publicar anúncio'}
+              </Text>
             )}
           </TouchableOpacity>
         </ScrollView>
@@ -870,6 +997,7 @@ export default function PublicarFeedScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  loadingEdit: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -986,6 +1114,18 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   lockHintText: { flex: 1, fontSize: 13, lineHeight: 18 },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  switchCopy: { flex: 1 },
+  switchTitle: { fontSize: 14, fontWeight: '700' },
   okPicker: {
     alignSelf: 'flex-end',
     borderRadius: 10,

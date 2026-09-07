@@ -32,6 +32,12 @@ ALTER TABLE public.events
 ALTER TABLE public.events
   ADD COLUMN IF NOT EXISTS feed_funcoes TEXT[] NOT NULL DEFAULT '{}';
 
+ALTER TABLE public.events
+  ADD COLUMN IF NOT EXISTS feed_mostrar_cache BOOLEAN NOT NULL DEFAULT false;
+
+COMMENT ON COLUMN public.events.feed_mostrar_cache IS
+  'Se true, o cachê (events.value) aparece publicamente no card do feed.';
+
 CREATE INDEX IF NOT EXISTS idx_events_feed_funcoes
   ON public.events USING GIN (feed_funcoes);
 
@@ -188,13 +194,15 @@ $$;
 -- =====================================================
 DROP FUNCTION IF EXISTS public.listar_feed_marketplace(text, text, text, uuid);
 DROP FUNCTION IF EXISTS public.listar_feed_marketplace(text, text, text, uuid, text);
+DROP FUNCTION IF EXISTS public.listar_feed_marketplace(text, text, text, uuid, text, uuid);
 
 CREATE OR REPLACE FUNCTION public.listar_feed_marketplace(
   p_tipo TEXT DEFAULT NULL,
   p_estado TEXT DEFAULT NULL,
   p_cidade TEXT DEFAULT NULL,
   p_artista_atual_id UUID DEFAULT NULL,
-  p_funcao TEXT DEFAULT NULL
+  p_funcao TEXT DEFAULT NULL,
+  p_evento_detalhe UUID DEFAULT NULL
 )
 RETURNS TABLE (
   id UUID,
@@ -213,7 +221,8 @@ RETURNS TABLE (
   artist_whatsapp TEXT,
   created_at TIMESTAMPTZ,
   is_mine BOOLEAN,
-  meu_cache_valor NUMERIC,
+  cache_valor NUMERIC,
+  feed_mostrar_cache BOOLEAN,
   tem_cache BOOLEAN,
   propostas_count INTEGER,
   propostas_avatars TEXT[],
@@ -249,9 +258,22 @@ AS $$
     e.created_at::timestamptz,
     (p_artista_atual_id IS NOT NULL AND e.artist_id = p_artista_atual_id),
     CASE
-      WHEN p_artista_atual_id IS NOT NULL AND e.artist_id = p_artista_atual_id
+      WHEN p_artista_atual_id IS NOT NULL AND e.artist_id = p_artista_atual_id THEN e.value
+      WHEN COALESCE(e.feed_mostrar_cache, false) = true
+        AND e.value IS NOT NULL
+        AND e.value > 0
+      THEN e.value
+      WHEN p_evento_detalhe IS NOT NULL
+        AND e.id = p_evento_detalhe
+        AND e.value IS NOT NULL
+        AND e.value > 0
       THEN e.value
       ELSE NULL
+    END,
+    CASE
+      WHEN p_artista_atual_id IS NOT NULL AND e.artist_id = p_artista_atual_id
+      THEN COALESCE(e.feed_mostrar_cache, false)
+      ELSE false
     END,
     (e.value IS NOT NULL AND e.value > 0),
     (
@@ -342,14 +364,18 @@ AS $$
           = public.normalize_pt_search(p_funcao)
       )
     )
+    AND (
+      p_evento_detalhe IS NULL
+      OR e.id = p_evento_detalhe
+    )
   ORDER BY
     CASE WHEN p_artista_atual_id IS NOT NULL AND e.artist_id = p_artista_atual_id THEN 0 ELSE 1 END,
     e.created_at DESC
   LIMIT 120;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.listar_feed_marketplace(TEXT, TEXT, TEXT, UUID, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.listar_feed_marketplace(TEXT, TEXT, TEXT, UUID, TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION public.listar_feed_marketplace(TEXT, TEXT, TEXT, UUID, TEXT, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.listar_feed_marketplace(TEXT, TEXT, TEXT, UUID, TEXT, UUID) TO service_role;
 
 -- =====================================================
 -- Publicar anúncio
@@ -357,6 +383,7 @@ GRANT EXECUTE ON FUNCTION public.listar_feed_marketplace(TEXT, TEXT, TEXT, UUID,
 DROP FUNCTION IF EXISTS public.rpc_app_publicar_feed(UUID, TEXT, DATE, TEXT, NUMERIC, TEXT, TIME, TIME, TEXT);
 DROP FUNCTION IF EXISTS public.rpc_app_publicar_feed(UUID, TEXT, DATE, TEXT, NUMERIC, TEXT, TIME, TIME, TEXT, TEXT[]);
 DROP FUNCTION IF EXISTS public.rpc_app_publicar_feed(UUID, TEXT, DATE, TEXT, NUMERIC, TEXT, TIME, TIME, TEXT, TEXT[], TEXT);
+DROP FUNCTION IF EXISTS public.rpc_app_publicar_feed(UUID, TEXT, DATE, TEXT, NUMERIC, TEXT, TIME, TIME, TEXT, TEXT[], TEXT, BOOLEAN);
 
 CREATE OR REPLACE FUNCTION public.rpc_app_publicar_feed(
   p_artista_id UUID,
@@ -369,7 +396,8 @@ CREATE OR REPLACE FUNCTION public.rpc_app_publicar_feed(
   p_end_time TIME DEFAULT TIME '23:00',
   p_observacao TEXT DEFAULT NULL,
   p_feed_funcoes TEXT[] DEFAULT ARRAY[]::text[],
-  p_whatsapp TEXT DEFAULT NULL
+  p_whatsapp TEXT DEFAULT NULL,
+  p_feed_mostrar_cache BOOLEAN DEFAULT false
 )
 RETURNS TABLE (
   success BOOLEAN,
@@ -428,8 +456,8 @@ BEGIN
     v_uf := NULL;
   END IF;
 
-  IF p_cache_valor IS NOT NULL AND p_cache_valor < 0 THEN
-    RETURN QUERY SELECT false, 'Cachê inválido.', NULL::UUID;
+  IF p_cache_valor IS NULL OR p_cache_valor <= 0 THEN
+    RETURN QUERY SELECT false, 'Informe um cachê maior que zero.', NULL::UUID;
     RETURN;
   END IF;
 
@@ -498,6 +526,7 @@ BEGIN
     tag,
     feed_tipo,
     feed_funcoes,
+    feed_mostrar_cache,
     ativo,
     created_at,
     updated_at
@@ -510,13 +539,14 @@ BEGIN
     p_event_date,
     v_start,
     v_end,
-    NULLIF(p_cache_valor, 0),
+    p_cache_valor,
     v_city,
     v_uf,
     false,
     'evento',
     p_feed_tipo,
     v_funcoes,
+    COALESCE(p_feed_mostrar_cache, false),
     true,
     NOW(),
     NOW()
@@ -530,7 +560,165 @@ EXCEPTION
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.rpc_app_publicar_feed(UUID, TEXT, DATE, TEXT, NUMERIC, TEXT, TIME, TIME, TEXT, TEXT[], TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_app_publicar_feed(UUID, TEXT, DATE, TEXT, NUMERIC, TEXT, TIME, TIME, TEXT, TEXT[], TEXT, BOOLEAN) TO authenticated;
+
+-- =====================================================
+-- Editar anúncio publicado
+-- =====================================================
+DROP FUNCTION IF EXISTS public.rpc_app_editar_anuncio_feed(uuid, date, text, numeric, text, time, time, text, text[], text, boolean);
+
+CREATE OR REPLACE FUNCTION public.rpc_app_editar_anuncio_feed(
+  p_evento_id UUID,
+  p_event_date DATE,
+  p_state_uf TEXT,
+  p_cache_valor NUMERIC,
+  p_city TEXT DEFAULT NULL,
+  p_start_time TIME DEFAULT TIME '20:00',
+  p_end_time TIME DEFAULT TIME '23:00',
+  p_observacao TEXT DEFAULT NULL,
+  p_feed_funcoes TEXT[] DEFAULT ARRAY[]::text[],
+  p_whatsapp TEXT DEFAULT NULL,
+  p_feed_mostrar_cache BOOLEAN DEFAULT false
+)
+RETURNS TABLE (
+  success BOOLEAN,
+  error TEXT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_uid UUID := auth.uid();
+  v_event events%ROWTYPE;
+  v_uf TEXT;
+  v_city TEXT;
+  v_name TEXT;
+  v_start TIME;
+  v_end TIME;
+  v_funcoes TEXT[];
+  v_whatsapp_digits TEXT;
+  v_whatsapp_save TEXT;
+BEGIN
+  IF v_uid IS NULL THEN
+    RETURN QUERY SELECT false, 'Usuário não autenticado.';
+    RETURN;
+  END IF;
+
+  SELECT * INTO v_event
+  FROM events e
+  WHERE e.id = p_evento_id
+  LIMIT 1;
+
+  IF v_event.id IS NULL OR v_event.feed_tipo IS NULL OR COALESCE(v_event.ativo, true) = false THEN
+    RETURN QUERY SELECT false, 'Anúncio não encontrado ou já encerrado.';
+    RETURN;
+  END IF;
+
+  IF p_event_date IS NULL OR p_event_date < CURRENT_DATE THEN
+    RETURN QUERY SELECT false, 'Informe uma data de hoje em diante.';
+    RETURN;
+  END IF;
+
+  IF NOT public._is_member_of_artist(
+    v_uid,
+    v_event.artist_id,
+    ARRAY['editor', 'vendedor', 'admin', 'owner']
+  ) THEN
+    RETURN QUERY SELECT false, 'Sem permissão para editar este anúncio.';
+    RETURN;
+  END IF;
+
+  v_funcoes := ARRAY(
+    SELECT DISTINCT trim(f)
+    FROM unnest(COALESCE(p_feed_funcoes, ARRAY[]::text[])) AS f
+    WHERE length(trim(f)) > 0
+  );
+
+  IF COALESCE(array_length(v_funcoes, 1), 0) = 0 THEN
+    RETURN QUERY SELECT false, 'Selecione pelo menos uma função (ex.: Vocalista, Guitarrista).';
+    RETURN;
+  END IF;
+
+  IF array_length(v_funcoes, 1) > 8 THEN
+    RETURN QUERY SELECT false, 'Selecione no máximo 8 funções.';
+    RETURN;
+  END IF;
+
+  v_uf := upper(trim(coalesce(p_state_uf, '')));
+  IF length(v_uf) <> 2 THEN
+    v_uf := NULL;
+  END IF;
+
+  IF p_cache_valor IS NULL OR p_cache_valor <= 0 THEN
+    RETURN QUERY SELECT false, 'Informe um cachê maior que zero.';
+    RETURN;
+  END IF;
+
+  v_whatsapp_digits := regexp_replace(trim(coalesce(p_whatsapp, '')), '\D', '', 'g');
+  IF length(v_whatsapp_digits) = 11 THEN
+    v_whatsapp_save := NULLIF(trim(coalesce(p_whatsapp, '')), '');
+    UPDATE public.artists
+    SET whatsapp = v_whatsapp_save,
+        updated_at = NOW()
+    WHERE id = v_event.artist_id;
+  ELSE
+    SELECT regexp_replace(trim(coalesce(a.whatsapp, '')), '\D', '', 'g')
+    INTO v_whatsapp_digits
+    FROM public.artists a
+    WHERE a.id = v_event.artist_id;
+  END IF;
+
+  IF length(v_whatsapp_digits) <> 11 THEN
+    RETURN QUERY SELECT false, 'Informe um WhatsApp válido para contato (DDD + número).';
+    RETURN;
+  END IF;
+
+  v_city := NULLIF(trim(coalesce(p_city, '')), '');
+  IF p_start_time IS NULL OR p_end_time IS NULL THEN
+    RETURN QUERY SELECT false, 'Informe o horário de início e de fim.';
+    RETURN;
+  END IF;
+  v_start := p_start_time;
+  v_end := p_end_time;
+  IF v_end <= v_start THEN
+    RETURN QUERY SELECT false, 'O horário final precisa ser depois do início.';
+    RETURN;
+  END IF;
+
+  v_name := CASE
+    WHEN v_event.feed_tipo = 'disponivel' THEN 'Oferta'
+    ELSE 'Procurando'
+  END
+  || ' · '
+  || COALESCE(NULLIF(COALESCE(v_city || '/', '') || COALESCE(v_uf, ''), ''), 'Sem local')
+  || ' · '
+  || to_char(p_event_date, 'DD/MM/YYYY');
+
+  UPDATE events
+  SET
+    name = v_name,
+    description = NULLIF(trim(coalesce(p_observacao, '')), ''),
+    event_date = p_event_date,
+    start_time = v_start,
+    end_time = v_end,
+    value = p_cache_valor,
+    city = v_city,
+    state_uf = v_uf,
+    feed_funcoes = v_funcoes,
+    feed_mostrar_cache = COALESCE(p_feed_mostrar_cache, false),
+    updated_by = v_uid,
+    updated_at = NOW()
+  WHERE id = p_evento_id;
+
+  RETURN QUERY SELECT true, NULL::TEXT;
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN QUERY SELECT false, SQLERRM;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.rpc_app_editar_anuncio_feed(UUID, DATE, TEXT, NUMERIC, TEXT, TIME, TIME, TEXT, TEXT[], TEXT, BOOLEAN) TO authenticated;
 
 -- =====================================================
 -- Encerrar anúncio
@@ -1013,6 +1201,7 @@ WHERE n.nspname = 'public'
     'listar_feed_marketplace',
     'listar_propostas_feed_marketplace',
     'rpc_app_publicar_feed',
+    'rpc_app_editar_anuncio_feed',
     'rpc_app_encerrar_anuncio_feed',
     'rpc_app_iniciar_negociacao_feed',
     'rpc_app_desfazer_proposta_feed'

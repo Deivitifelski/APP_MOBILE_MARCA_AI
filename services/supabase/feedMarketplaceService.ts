@@ -20,7 +20,8 @@ export interface FeedAnuncio {
   artist_whatsapp: string | null;
   created_at: string;
   is_mine: boolean;
-  meu_cache_valor: number | null;
+  cache_valor: number | null;
+  feed_mostrar_cache: boolean;
   tem_cache: boolean;
   propostas_count: number;
   propostas_avatars: string[];
@@ -52,6 +53,21 @@ export interface PublicarFeedInput {
   observacao?: string | null;
   feedFuncoes: string[];
   whatsapp?: string | null;
+  mostrarCache?: boolean;
+}
+
+export interface EditarFeedInput {
+  eventoId: string;
+  eventDate: string;
+  startTime: string;
+  endTime: string;
+  stateUf?: string | null;
+  cacheValor?: number | null;
+  city?: string | null;
+  observacao?: string | null;
+  feedFuncoes: string[];
+  whatsapp?: string | null;
+  mostrarCache?: boolean;
 }
 
 function pickRpcRow<T extends object>(data: T[] | T | null): T | null {
@@ -66,7 +82,7 @@ function asBoolean(value: unknown): boolean {
 
 function mapAnuncio(row: Record<string, unknown>): FeedAnuncio {
   const tipo: FeedTipo = row.feed_tipo === 'demanda' ? 'demanda' : 'disponivel';
-  const cache = row.meu_cache_valor;
+  const cache = row.cache_valor ?? row.meu_cache_valor;
   return {
     id: String(row.id),
     artist_id: String(row.artist_id),
@@ -86,8 +102,9 @@ function mapAnuncio(row: Record<string, unknown>): FeedAnuncio {
     artist_whatsapp: row.artist_whatsapp != null ? String(row.artist_whatsapp) : null,
     created_at: String(row.created_at ?? ''),
     is_mine: asBoolean(row.is_mine),
-    meu_cache_valor:
+    cache_valor:
       cache == null || cache === '' ? null : Number(cache),
+    feed_mostrar_cache: asBoolean(row.feed_mostrar_cache),
     tem_cache: asBoolean(row.tem_cache),
     propostas_count: Number(row.propostas_count ?? 0) || 0,
     propostas_avatars: Array.isArray(row.propostas_avatars)
@@ -115,6 +132,7 @@ export async function listarFeedMarketplace(params: {
   cidade?: string | null;
   funcao?: string | null;
   artistaAtualId?: string | null;
+  eventoDetalheId?: string | null;
 }): Promise<{ anuncios: FeedAnuncio[]; error: string | null }> {
   try {
     const tipoRpc =
@@ -125,6 +143,7 @@ export async function listarFeedMarketplace(params: {
       p_cidade: params.cidade?.trim() ? params.cidade.trim() : null,
       p_artista_atual_id: params.artistaAtualId ?? null,
       p_funcao: params.funcao?.trim() ? params.funcao.trim() : null,
+      p_evento_detalhe: params.eventoDetalheId ?? null,
     });
     if (error) return { anuncios: [], error: error.message };
     const rows = (data || []) as Record<string, unknown>[];
@@ -171,19 +190,47 @@ export async function publicarFeed(
       p_feed_tipo: input.feedTipo,
       p_event_date: input.eventDate,
       p_state_uf: input.stateUf?.trim() || null,
-      p_cache_valor: input.cacheValor && input.cacheValor > 0 ? input.cacheValor : 0,
+      p_cache_valor: input.cacheValor,
       p_city: input.city?.trim() || null,
       p_start_time: input.startTime,
       p_end_time: input.endTime,
       p_observacao: input.observacao?.trim() || null,
       p_feed_funcoes: input.feedFuncoes,
       p_whatsapp: input.whatsapp?.trim() || null,
+      p_feed_mostrar_cache: input.mostrarCache === true,
     });
     if (error) return { success: false, error: error.message };
     const row = pickRpcRow<{ success: boolean; error: string | null; evento_id: string | null }>(data);
     if (!row) return { success: false, error: 'Resposta inválida ao publicar.' };
     if (!row.success) return { success: false, error: row.error || 'Não foi possível publicar.' };
     return { success: true, error: null, eventoId: row.evento_id ?? undefined };
+  } catch {
+    return { success: false, error: 'Erro de conexão' };
+  }
+}
+
+export async function editarAnuncioFeed(
+  input: EditarFeedInput
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const { data, error } = await supabase.rpc('rpc_app_editar_anuncio_feed', {
+      p_evento_id: input.eventoId,
+      p_event_date: input.eventDate,
+      p_state_uf: input.stateUf?.trim() || null,
+      p_cache_valor: input.cacheValor,
+      p_city: input.city?.trim() || null,
+      p_start_time: input.startTime,
+      p_end_time: input.endTime,
+      p_observacao: input.observacao?.trim() || null,
+      p_feed_funcoes: input.feedFuncoes,
+      p_whatsapp: input.whatsapp?.trim() || null,
+      p_feed_mostrar_cache: input.mostrarCache === true,
+    });
+    if (error) return { success: false, error: error.message };
+    const row = pickRpcRow<{ success: boolean; error: string | null }>(data);
+    if (!row) return { success: false, error: 'Resposta inválida ao editar.' };
+    if (!row.success) return { success: false, error: row.error || 'Não foi possível editar.' };
+    return { success: true, error: null };
   } catch {
     return { success: false, error: 'Erro de conexão' };
   }

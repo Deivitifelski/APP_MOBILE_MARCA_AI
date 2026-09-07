@@ -28,6 +28,7 @@ import {
   type FeedAnuncio,
 } from '../services/supabase/feedMarketplaceService';
 import { useActiveArtist } from '../services/useActiveArtist';
+import { buildWhatsAppUrl, openWhatsAppConversation } from '../utils/brazilPhone';
 
 function formatTime(t: string) {
   if (!t) return '';
@@ -57,6 +58,7 @@ export default function NegociarFeedScreen() {
       const { anuncios, error } = await listarFeedMarketplace({
         filtro: 'todos',
         artistaAtualId: activeArtist?.id ?? null,
+        eventoDetalheId: eventId,
       });
       if (cancelled) return;
       if (error) {
@@ -95,6 +97,11 @@ export default function NegociarFeedScreen() {
         ? formatEventLocationSlash({ city: anuncio.city, state_uf: anuncio.state_uf })
         : '',
     [anuncio]
+  );
+
+  const whatsappUrl = useMemo(
+    () => buildWhatsAppUrl(anuncio?.artist_whatsapp),
+    [anuncio?.artist_whatsapp]
   );
 
   const submit = async () => {
@@ -204,13 +211,26 @@ export default function NegociarFeedScreen() {
                 <Text style={[styles.notes, { color: colors.text }]}>{anuncio.description}</Text>
               ) : null}
               <View style={[styles.lockRow, { backgroundColor: `${colors.primary}12` }]}>
-                <Ionicons name="lock-closed" size={16} color={colors.primary} />
+                <Ionicons name="cash-outline" size={16} color={colors.primary} />
                 <Text style={[styles.lockText, { color: colors.textSecondary }]}>
-                  {anuncio.tem_cache
-                    ? 'O cachê não aparece agora. Ele vai no convite e só fica visível depois que a outra parte responder.'
-                    : 'Cachê a combinar.'}
+                  Cachê:{' '}
+                  {Number(anuncio.cache_valor ?? 0).toLocaleString('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL',
+                  })}
+                  . Ao aceitar, entra como despesa na agenda.
                 </Text>
               </View>
+              {whatsappUrl ? (
+                <TouchableOpacity
+                  style={[styles.whatsappBtn, { borderColor: '#16A34A', backgroundColor: '#16A34A10' }]}
+                  onPress={() => void openWhatsAppConversation(anuncio.artist_whatsapp)}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="logo-whatsapp" size={18} color="#16A34A" />
+                  <Text style={styles.whatsappBtnText}>Chamar no WhatsApp</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
 
             {anuncio.feed_tipo === 'demanda' ? (
@@ -343,6 +363,17 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   lockText: { flex: 1, fontSize: 13, lineHeight: 18 },
+  whatsappBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    marginTop: 6,
+  },
+  whatsappBtnText: { color: '#16A34A', fontWeight: '800', fontSize: 14 },
   label: { fontSize: 14, fontWeight: '700', marginTop: 12 },
   roles: { gap: 8, paddingVertical: 4 },
   roleChip: {

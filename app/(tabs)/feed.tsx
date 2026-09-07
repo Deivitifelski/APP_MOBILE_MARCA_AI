@@ -41,7 +41,6 @@ import {
   type FeedFiltro,
   type FeedProposta,
 } from '../../services/supabase/feedMarketplaceService';
-import { buildWhatsAppUrl, openWhatsAppConversation } from '../../utils/brazilPhone';
 
 function formatTime(t: string) {
   if (!t) return '';
@@ -224,6 +223,13 @@ export default function FeedScreen() {
     router.push({ pathname: '/negociar-feed', params: { eventId: item.id } });
   };
 
+  const handleEditar = (item: FeedAnuncio) => {
+    router.push({
+      pathname: '/publicar-feed',
+      params: { eventId: item.id, tipo: item.feed_tipo },
+    });
+  };
+
   const handleEncerrar = (item: FeedAnuncio) => {
     Alert.alert(
       'Encerrar anúncio',
@@ -258,8 +264,8 @@ export default function FeedScreen() {
     });
     const weekday = weekdayFromCalendarDate(item.event_date);
     const cacheTxt =
-      item.meu_cache_valor != null
-        ? Number(item.meu_cache_valor).toLocaleString('pt-BR', {
+      item.cache_valor != null
+        ? Number(item.cache_valor).toLocaleString('pt-BR', {
             style: 'currency',
             currency: 'BRL',
           })
@@ -270,14 +276,8 @@ export default function FeedScreen() {
         ? item.propostas_avatars
         : propostas.map((proposta) => proposta.artista_image).filter((url): url is string => !!url)
     ).slice(0, 3);
-    const funcoesVisiveis = item.feed_funcoes.slice(0, 4);
+    const funcoesVisiveis = item.feed_funcoes.slice(0, 3);
     const funcoesExtras = Math.max(0, item.feed_funcoes.length - funcoesVisiveis.length);
-    const funcoesResumo =
-      item.feed_funcoes.length > 0
-        ? `${item.feed_funcoes.slice(0, 2).join(' · ')}${item.feed_funcoes.length > 2 ? ` +${item.feed_funcoes.length - 2}` : ''}`
-        : isDemanda
-          ? 'Artista, músico ou serviço'
-          : 'Show ou disponibilidade';
     const timeLabel = item.start_time
       ? `${formatTime(item.start_time)}–${formatTime(item.end_time)}`
       : 'Horário a combinar';
@@ -287,7 +287,7 @@ export default function FeedScreen() {
     const artistLabel = meuAnuncio ? 'Você' : item.artist_name;
     const artistAvatarUrl = item.artist_image?.trim() || '';
     const artistInitial = artistDisplayName.trim().charAt(0).toUpperCase() || '?';
-    const whatsappUrl = buildWhatsAppUrl(item.artist_whatsapp);
+    const tipoLabel = isDemanda ? 'Procurando' : 'Oferta';
 
     return (
       <View
@@ -299,71 +299,49 @@ export default function FeedScreen() {
           },
         ]}
       >
-        <View style={[styles.cardAccentHeader, { backgroundColor: colors.secondary, borderBottomColor: colors.border }]}>
-          <View style={styles.cardAccentMain}>
-            <View style={[styles.cardAccentIcon, { backgroundColor: `${badgeColor}18` }]}>
-              <Ionicons name={isDemanda ? 'search' : 'briefcase'} size={18} color={badgeColor} />
-            </View>
-            <View style={styles.cardAccentCopy}>
-              <View style={styles.cardTypeRow}>
-                <View style={[styles.typePill, { backgroundColor: `${badgeColor}16` }]}>
-                  <Text style={[styles.typePillText, { color: badgeColor }]}>
-                    {isDemanda ? 'Procurando' : 'Oferta'}
-                  </Text>
-                </View>
-              </View>
-              <Text style={[styles.cardAccentSub, { color: colors.textSecondary }]} numberOfLines={1}>
-                {isDemanda ? `Busca ${funcoesResumo}` : `Oferece ${funcoesResumo}`}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.cardAccentArtist}>
-            <View style={[styles.cardAccentAvatar, { backgroundColor: colors.background, borderColor: colors.border }]}>
+        <View style={styles.cardBody}>
+          <View style={styles.cardTopRow}>
+            <View style={[styles.cardAvatar, { backgroundColor: colors.background, borderColor: colors.border }]}>
               {artistAvatarUrl ? (
                 <OptimizedImage
                   imageUrl={artistAvatarUrl}
-                  style={styles.cardAccentAvatarImg}
+                  style={styles.cardAvatarImg}
                   fallbackText={artistInitial}
-                  fallbackIconSize={14}
+                  fallbackIconSize={12}
                   showLoadingIndicator={false}
                 />
               ) : (
-                <Text style={[styles.cardAccentAvatarInitial, { color: colors.primary }]}>
-                  {artistInitial}
-                </Text>
+                <Text style={[styles.cardAvatarInitial, { color: colors.primary }]}>{artistInitial}</Text>
               )}
             </View>
-            <Text style={[styles.cardAccentArtistName, { color: colors.textSecondary }]} numberOfLines={1}>
+            <Text style={[styles.cardArtistName, { color: colors.text }]} numberOfLines={1}>
               {artistLabel}
             </Text>
           </View>
-        </View>
 
-        <View style={styles.cardBody}>
-          <View style={[styles.dateHero, { backgroundColor: colors.background, borderColor: colors.border }]}>
-            <View style={styles.dateHeroTop}>
-              <Ionicons name="calendar-outline" size={15} color={colors.textSecondary} />
-              <Text style={[styles.dateHeroWeekday, { color: colors.textSecondary }]} numberOfLines={1}>
-                {weekday || 'Data'}
-              </Text>
-            </View>
-            <Text style={[styles.dateHeroDate, { color: colors.text }]}>
+          <View style={styles.cardDateRow}>
+            <Text style={[styles.cardDateText, { color: colors.text }]}>
+              {weekday ? `${weekday} · ` : ''}
               {formatCalendarDate(item.event_date)}
             </Text>
-            <View style={styles.dateHeroMetaRow}>
-              <View style={styles.dateHeroMetaItem}>
-                <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
-                <Text style={[styles.dateHeroMetaText, { color: colors.text }]}>{timeLabel}</Text>
-              </View>
-              {location ? (
-                <View style={styles.dateHeroMetaItem}>
-                  <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
-                  <Text style={[styles.dateHeroMetaText, { color: colors.text }]} numberOfLines={1}>
-                    {location}
-                  </Text>
-                </View>
-              ) : null}
+            <View style={[styles.typePill, { backgroundColor: `${badgeColor}14` }]}>
+              <Text style={[styles.typePillText, { color: badgeColor }]}>{tipoLabel}</Text>
             </View>
+          </View>
+
+          <View style={styles.cardMetaRow}>
+            <View style={styles.cardMetaItem}>
+              <Ionicons name="time-outline" size={13} color={colors.textSecondary} />
+              <Text style={[styles.cardMetaText, { color: colors.textSecondary }]}>{timeLabel}</Text>
+            </View>
+            {location ? (
+              <View style={styles.cardMetaItem}>
+                <Ionicons name="location-outline" size={13} color={colors.textSecondary} />
+                <Text style={[styles.cardMetaText, { color: colors.textSecondary }]} numberOfLines={1}>
+                  {location}
+                </Text>
+              </View>
+            ) : null}
           </View>
 
           {funcoesVisiveis.length > 0 ? (
@@ -371,7 +349,7 @@ export default function FeedScreen() {
               {funcoesVisiveis.map((funcao) => (
                 <View
                   key={`${item.id}-${funcao}`}
-                  style={[styles.funcaoChip, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+                  style={[styles.funcaoChip, { backgroundColor: colors.background, borderColor: colors.border }]}
                 >
                   <Text style={[styles.funcaoChipText, { color: colors.text }]} numberOfLines={1}>
                     {funcao}
@@ -379,7 +357,7 @@ export default function FeedScreen() {
                 </View>
               ))}
               {funcoesExtras > 0 ? (
-                <View style={[styles.funcaoChip, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+                <View style={[styles.funcaoChip, { backgroundColor: colors.background, borderColor: colors.border }]}>
                   <Text style={[styles.funcaoChipText, { color: colors.textSecondary }]}>+{funcoesExtras}</Text>
                 </View>
               ) : null}
@@ -394,10 +372,16 @@ export default function FeedScreen() {
 
           {meuAnuncio ? (
             <View style={[styles.cachePill, { backgroundColor: `${colors.primary}10` }]}>
-              <Ionicons name="cash-outline" size={14} color={colors.primary} />
+              <Ionicons name="cash-outline" size={13} color={colors.primary} />
               <Text style={[styles.cachePillText, { color: colors.text }]}>
-                {cacheTxt ? `Seu cachê: ${cacheTxt}` : 'Cachê a combinar'}
+                {cacheTxt ? `Cachê: ${cacheTxt}` : ''}
+                {!item.feed_mostrar_cache ? ' · oculto no feed' : ''}
               </Text>
+            </View>
+          ) : cacheTxt ? (
+            <View style={[styles.cachePill, { backgroundColor: `${colors.primary}10` }]}>
+              <Ionicons name="cash-outline" size={13} color={colors.primary} />
+              <Text style={[styles.cachePillText, { color: colors.text }]}>Cachê: {cacheTxt}</Text>
             </View>
           ) : null}
 
@@ -411,7 +395,7 @@ export default function FeedScreen() {
                       style={[
                         styles.stackAvatar,
                         {
-                          marginLeft: index === 0 ? 0 : -7,
+                          marginLeft: index === 0 ? 0 : -6,
                           zIndex: 10 - index,
                           backgroundColor: colors.secondary,
                           borderColor: colors.surface,
@@ -422,7 +406,7 @@ export default function FeedScreen() {
                         imageUrl={url}
                         style={styles.stackAvatarImg}
                         fallbackIcon="person"
-                        fallbackIconSize={10}
+                        fallbackIconSize={9}
                       />
                     </View>
                   ))
@@ -433,14 +417,14 @@ export default function FeedScreen() {
                         style={[
                           styles.stackAvatar,
                           {
-                            marginLeft: index === 0 ? 0 : -7,
+                            marginLeft: index === 0 ? 0 : -6,
                             zIndex: 10 - index,
                             backgroundColor: colors.secondary,
                             borderColor: colors.surface,
                           },
                         ]}
                       >
-                        <Ionicons name="person" size={10} color={colors.primary} />
+                        <Ionicons name="person" size={9} color={colors.primary} />
                       </View>
                     ))
                   : null}
@@ -470,10 +454,10 @@ export default function FeedScreen() {
                       imageUrl={proposta.artista_image}
                       style={styles.propostaAvatarImg}
                       fallbackIcon="person"
-                      fallbackIconSize={16}
+                      fallbackIconSize={14}
                     />
                   ) : (
-                    <Ionicons name="person" size={16} color={colors.primary} />
+                    <Ionicons name="person" size={14} color={colors.primary} />
                   )}
                 </View>
                 <View style={{ flex: 1 }}>
@@ -487,54 +471,50 @@ export default function FeedScreen() {
                       : ''}
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+                <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
               </TouchableOpacity>
             ))}
           </View>
         ) : null}
 
         {meuAnuncio ? (
-          <TouchableOpacity
-            style={[styles.btnOutline, { borderColor: colors.border }]}
-            onPress={() => handleEncerrar(item)}
-          >
-            <Text style={[styles.btnOutlineText, { color: colors.textSecondary }]}>Encerrar</Text>
-          </TouchableOpacity>
-        ) : (
-          <>
-            {whatsappUrl ? (
-              <TouchableOpacity
-                style={[styles.btnWhatsapp, { borderColor: '#16A34A', backgroundColor: '#16A34A10' }]}
-                onPress={() => void openWhatsAppConversation(item.artist_whatsapp)}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="logo-whatsapp" size={18} color="#16A34A" />
-                <Text style={[styles.btnWhatsappText, { color: '#16A34A' }]}>WhatsApp</Text>
-              </TouchableOpacity>
-            ) : null}
+          <View style={styles.cardActions}>
             <TouchableOpacity
+              style={[styles.btnOutline, styles.cardActionMain, { borderColor: colors.primary }]}
+              onPress={() => handleEditar(item)}
+            >
+              <Text style={[styles.btnOutlineText, { color: colors.primary }]}>Editar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.btnOutline, styles.cardActionMain, { borderColor: colors.border }]}
+              onPress={() => handleEncerrar(item)}
+            >
+              <Text style={[styles.btnOutlineText, { color: colors.textSecondary }]}>Encerrar</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={
+              item.ja_proposei
+                ? [styles.btnOutline, { borderColor: colors.primary }]
+                : [styles.btnPrimary, { backgroundColor: colors.primary }]
+            }
+            onPress={() => handleNegociar(item)}
+          >
+            <Text
               style={
                 item.ja_proposei
-                  ? [styles.btnOutline, { borderColor: colors.primary }]
-                  : [styles.btnPrimary, { backgroundColor: colors.primary }]
+                  ? [styles.btnOutlineText, { color: colors.primary }]
+                  : styles.btnPrimaryText
               }
-              onPress={() => handleNegociar(item)}
             >
-              <Text
-                style={
-                  item.ja_proposei
-                    ? [styles.btnOutlineText, { color: colors.primary }]
-                    : styles.btnPrimaryText
-                }
-              >
-                {item.ja_proposei
-                  ? 'Proposta enviada'
-                  : isDemanda
-                    ? 'Quero me candidatar'
-                    : 'Tenho interesse'}
-              </Text>
-            </TouchableOpacity>
-          </>
+              {item.ja_proposei
+                ? 'Proposta enviada'
+                : isDemanda
+                  ? 'Candidatar'
+                  : 'Tenho interesse'}
+            </Text>
+          </TouchableOpacity>
         )}
         </View>
       </View>
@@ -955,164 +935,118 @@ const styles = StyleSheet.create({
   emptySub: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
   card: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 18,
-    marginBottom: 14,
+    borderRadius: 14,
+    marginBottom: 10,
     overflow: 'hidden',
   },
-  cardAccentHeader: {
+  cardBody: {
+    padding: 12,
+    gap: 8,
+  },
+  cardTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 8,
   },
-  cardAccentMain: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    minWidth: 0,
-  },
-  cardAccentIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardAccentCopy: { flex: 1, minWidth: 0 },
-  cardTypeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  typePill: {
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  typePillText: {
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-  },
-  cardAccentSub: {
-    fontSize: 13,
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  cardAccentArtist: {
-    alignItems: 'center',
-    maxWidth: 72,
-  },
-  cardAccentAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+  cardAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
     borderWidth: 1,
   },
-  cardAccentAvatarImg: { width: 34, height: 34, borderRadius: 17 },
-  cardAccentAvatarInitial: {
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  cardAccentArtistName: {
-    fontSize: 10,
-    fontWeight: '700',
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  cardBody: {
-    padding: 14,
-    gap: 12,
-  },
-  dateHero: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 14,
-    padding: 12,
-    gap: 4,
-  },
-  dateHeroTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  dateHeroWeekday: {
+  cardAvatarImg: { width: 28, height: 28, borderRadius: 14 },
+  cardAvatarInitial: {
     fontSize: 12,
     fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
   },
-  dateHeroDate: {
-    fontSize: 20,
-    fontWeight: '900',
-    lineHeight: 26,
+  cardArtistName: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
   },
-  dateHeroMetaRow: {
+  cardDateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  cardDateText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  typePill: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  typePillText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  cardMetaRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
-    marginTop: 4,
   },
-  dateHeroMetaItem: {
+  cardMetaItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 4,
     maxWidth: '100%',
   },
-  dateHeroMetaText: {
-    fontSize: 13,
-    fontWeight: '700',
+  cardMetaText: {
+    fontSize: 12,
+    fontWeight: '600',
     flexShrink: 1,
   },
   cachePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    gap: 6,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
   },
   cachePillText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
   },
   propostasResumo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   avatarStack: { flexDirection: 'row', alignItems: 'center' },
   stackAvatar: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  stackAvatarImg: { width: 20, height: 20, borderRadius: 10 },
-  countPillText: { fontSize: 12, fontWeight: '600' },
-  notes: { fontSize: 14, lineHeight: 20 },
+  stackAvatarImg: { width: 18, height: 18, borderRadius: 9 },
+  countPillText: { fontSize: 11, fontWeight: '600' },
+  notes: { fontSize: 13, lineHeight: 18 },
   funcoesWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
+    gap: 5,
   },
   funcaoChip: {
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 999,
-    paddingHorizontal: 11,
-    paddingVertical: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     maxWidth: '100%',
   },
   funcaoChipText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
   },
   mediaKind: { fontSize: 12, fontWeight: '600', marginTop: 2 },
@@ -1141,40 +1075,37 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   propostaAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  propostaAvatarImg: { width: 32, height: 32, borderRadius: 16 },
-  propostaNome: { fontSize: 14, fontWeight: '700' },
-  propostaMeta: { fontSize: 12, marginTop: 1 },
+  propostaAvatarImg: { width: 28, height: 28, borderRadius: 14 },
+  propostaNome: { fontSize: 13, fontWeight: '700' },
+  propostaMeta: { fontSize: 11, marginTop: 1 },
+  cardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  cardActionMain: {
+    flex: 1,
+  },
   btnPrimary: {
-    borderRadius: 12,
-    paddingVertical: 12,
+    borderRadius: 10,
+    paddingVertical: 10,
     alignItems: 'center',
   },
-  btnPrimaryText: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  btnPrimaryText: { color: '#fff', fontWeight: '800', fontSize: 14 },
   btnOutline: {
     borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 11,
+    borderRadius: 10,
+    paddingVertical: 9,
     alignItems: 'center',
   },
-  btnOutlineText: { fontWeight: '800', fontSize: 14 },
-  btnWhatsapp: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 8,
-  },
-  btnWhatsappText: { fontWeight: '800', fontSize: 14 },
+  btnOutlineText: { fontWeight: '800', fontSize: 13 },
   fab: {
     position: 'absolute',
     right: 20,
