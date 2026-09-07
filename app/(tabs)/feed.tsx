@@ -114,8 +114,11 @@ export default function FeedScreen() {
   );
   const loadGenerationRef = useRef(0);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     const generation = ++loadGenerationRef.current;
+    if (!silent) {
+      setLoading(true);
+    }
     const artistId = activeArtist?.id ?? null;
     const includeSocial = verMinhas || filtro === 'todos';
     const [marketplaceRes, socialRes] = await Promise.all([
@@ -168,39 +171,51 @@ export default function FeedScreen() {
         ? marketplaceErr || socialErr
         : marketplaceErr
     );
-    if (artistId) {
-      const { propostas } = await listarPropostasFeedMarketplace(artistId);
-      if (generation !== loadGenerationRef.current) return;
+    setLoading(false);
+    setRefreshing(false);
 
-      const meusIds = new Set(
-        visiveis.filter((item) => item.artist_id === artistId).map((item) => item.id)
-      );
-      const grouped: Record<string, FeedProposta[]> = {};
-      propostas.forEach((proposta) => {
-        if (!meusIds.has(proposta.evento_id)) return;
-        if (!grouped[proposta.evento_id]) grouped[proposta.evento_id] = [];
-        grouped[proposta.evento_id].push(proposta);
-      });
-      setPropostasPorEvento(grouped);
+    if (artistId) {
+      void (async () => {
+        const { propostas } = await listarPropostasFeedMarketplace(artistId);
+        if (generation !== loadGenerationRef.current) return;
+
+        const meusIds = new Set(
+          visiveis.filter((item) => item.artist_id === artistId).map((item) => item.id)
+        );
+        const grouped: Record<string, FeedProposta[]> = {};
+        propostas.forEach((proposta) => {
+          if (!meusIds.has(proposta.evento_id)) return;
+          if (!grouped[proposta.evento_id]) grouped[proposta.evento_id] = [];
+          grouped[proposta.evento_id].push(proposta);
+        });
+        setPropostasPorEvento(grouped);
+      })();
     } else {
       setPropostasPorEvento({});
     }
-    setLoading(false);
-    setRefreshing(false);
   }, [filtro, verMinhas, estadoUf, cidade, activeArtist?.id]);
+
+  const skipNextFocusLoadRef = useRef(true);
 
   useEffect(() => {
     setEntries([]);
     setPropostasPorEvento({});
     setActiveSocialPostId(null);
-    setLoading(true);
-    void load();
-  }, [activeArtist?.id, load]);
+    skipNextFocusLoadRef.current = true;
+  }, [activeArtist?.id]);
+
+  useEffect(() => {
+    if (!activeArtist?.id) return;
+    void load(false);
+  }, [filtro, verMinhas, activeArtist?.id, load]);
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
-      void load();
+      if (skipNextFocusLoadRef.current) {
+        skipNextFocusLoadRef.current = false;
+        return;
+      }
+      void load(true);
     }, [load])
   );
 
@@ -735,6 +750,10 @@ export default function FeedScreen() {
           renderItem={renderItem}
           onViewableItemsChanged={onViewableItemsChanged.current}
           viewabilityConfig={viewabilityConfig}
+          initialNumToRender={5}
+          maxToRenderPerBatch={4}
+          windowSize={7}
+          removeClippedSubviews
           contentContainerStyle={entries.length === 0 ? styles.emptyList : styles.list}
           refreshControl={
             <RefreshControl

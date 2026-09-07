@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
@@ -170,13 +171,30 @@ export default function SocialPostCard({
       {post.media_url ? (
         <View style={styles.media}>
           {isVideo ? (
-            <FeedVideoPlayer uri={post.media_url} isActive={isMediaActive} />
+            isMediaActive ? (
+              <FeedVideoPlayer uri={post.media_url} isActive />
+            ) : (
+              <View style={styles.videoPlaceholder}>
+                {post.thumbnail_url ? (
+                  <Image
+                    source={{ uri: post.thumbnail_url }}
+                    style={styles.image}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                  />
+                ) : null}
+                <View style={styles.playBadge}>
+                  <Ionicons name="play" size={22} color="#fff" />
+                </View>
+              </View>
+            )
           ) : (
-            <OptimizedImage
-              imageUrl={post.media_url}
+            <Image
+              source={{ uri: post.media_url }}
               style={styles.image}
-              fallbackIcon="image"
-              fallbackIconSize={28}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={200}
             />
           )}
         </View>
@@ -270,6 +288,23 @@ const styles = StyleSheet.create({
   location: { fontSize: 12, marginTop: 1 },
   media: { width: '100%', backgroundColor: '#000' },
   image: { width: '100%', aspectRatio: 1 },
+  videoPlaceholder: {
+    width: '100%',
+    aspectRatio: 1,
+    backgroundColor: '#000',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playBadge: {
+    position: 'absolute',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingLeft: 3,
+  },
   footer: {
     paddingHorizontal: 12,
     paddingTop: 10,
