@@ -1,12 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   KeyboardAvoidingView,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -16,12 +18,26 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import BrazilStatePickerModal, {
   BrazilStateFieldButton,
 } from '../components/BrazilStatePickerModal';
+import { ChipMultiSelectField } from '../components/ChipMultiSelectField';
 import { usePermissions } from '../contexts/PermissionsContext';
 import { useTheme } from '../contexts/ThemeContext';
+import {
+  ARTIST_WORK_ROLE_PRESETS,
+  buildOrderedOptionsForPicker,
+  parseArtistStringArrayFromJson,
+} from '../constants/artistProfileLists';
 import { formatEventLocationSlash } from '../lib/brazilGeo';
 import { formatCalendarDate } from '../lib/dateUtils';
 import {
@@ -29,11 +45,16 @@ import {
   type EventWithRole,
 } from '../services/supabase/eventService';
 import { publicarFeed, type FeedTipo } from '../services/supabase/feedMarketplaceService';
+import { getArtistById } from '../services/supabase/artistService';
 import { useActiveArtist } from '../services/useActiveArtist';
 import {
   extractNumericValueString,
   formatCurrencyBRLInput,
 } from '../utils/currencyBRLInput';
+import {
+  isCompleteBrazilMobile,
+  maskBrazilMobile,
+} from '../utils/brazilPhone';
 
 const MONTHS = [
   'Janeiro',
@@ -50,6 +71,9 @@ const MONTHS = [
   'Dezembro',
 ];
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const DAY_MODAL_DISMISS_DRAG = 90;
+const DAY_MODAL_DISMISS_VELOCITY = 900;
+const DAY_MODAL_DISMISS_DISTANCE = Math.round(Dimensions.get('window').height * 0.45);
 
 function toYmd(d: Date): string {
   const y = d.getFullYear();
@@ -104,9 +128,91 @@ export default function PublicarFeedScreen() {
   const [showEstados, setShowEstados] = useState(false);
   const [cacheDraft, setCacheDraft] = useState('');
   const [observacao, setObservacao] = useState('');
+  const [selectedFuncoes, setSelectedFuncoes] = useState<string[]>([]);
+  const [funcaoDraft, setFuncaoDraft] = useState('');
+  const [artistWorkRoles, setArtistWorkRoles] = useState<string[]>([]);
+  const [whatsappDraft, setWhatsappDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const dayOffsetRef = useRef(0);
+  const dayModalTranslateY = useSharedValue(0);
+
+  const closeDayModal = useCallback(() => {
+    setDayModalEvents(null);
+  }, []);
+
+  const finishDayModalDismiss = useCallback(
+    (dy: number, vy: number) => {
+      const shouldDismiss = dy > DAY_MODAL_DISMISS_DRAG || vy > DAY_MODAL_DISMISS_VELOCITY;
+
+      if (shouldDismiss) {
+        dayModalTranslateY.value = withTiming(
+          DAY_MODAL_DISMISS_DISTANCE,
+          { duration: 220 },
+          (finished) => {
+            if (finished) {
+              runOnJS(closeDayModal)();
+            }
+          }
+        );
+        return;
+      }
+
+      dayModalTranslateY.value = withSpring(0, { damping: 22, stiffness: 220 });
+    },
+    [closeDayModal, dayModalTranslateY]
+  );
+
+  const dayModalPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: (_, gesture) =>
+          gesture.dy > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+        onPanResponderMove: (_, gesture) => {
+          if (gesture.dy > 0) {
+            dayModalTranslateY.value = gesture.dy;
+          }
+        },
+        onPanResponderRelease: (_, gesture) => {
+          finishDayModalDismiss(gesture.dy, gesture.vy);
+        },
+        onPanResponderTerminate: () => {
+          dayModalTranslateY.value = withSpring(0, { damping: 22, stiffness: 220 });
+        },
+      }),
+    [dayModalTranslateY, finishDayModalDismiss]
+  );
+
+  const dayModalHandlePanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: (_, gesture) =>
+          gesture.dy > 2 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+        onPanResponderMove: (_, gesture) => {
+          if (gesture.dy > 0) {
+            dayModalTranslateY.value = gesture.dy;
+          }
+        },
+        onPanResponderRelease: (_, gesture) => {
+          finishDayModalDismiss(gesture.dy, gesture.vy);
+        },
+        onPanResponderTerminate: () => {
+          dayModalTranslateY.value = withSpring(0, { damping: 22, stiffness: 220 });
+        },
+      }),
+    [dayModalTranslateY, finishDayModalDismiss]
+  );
+
+  const dayModalAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: dayModalTranslateY.value }],
+  }));
+
+  useEffect(() => {
+    if (!dayModalEvents) return;
+    dayModalTranslateY.value = 0;
+  }, [dayModalEvents, dayModalDate, dayModalTranslateY]);
 
   const scrollAteODia = (delay = 50) => {
     setTimeout(() => {
@@ -126,6 +232,37 @@ export default function PublicarFeedScreen() {
     const n = Number(raw);
     return Number.isFinite(n) ? n : 0;
   }, [cacheDraft]);
+
+  const funcaoPresets = useMemo(
+    () => (artistWorkRoles.length > 0 ? artistWorkRoles : [...ARTIST_WORK_ROLE_PRESETS]),
+    [artistWorkRoles]
+  );
+
+  const funcaoOptions = useMemo(
+    () => buildOrderedOptionsForPicker(funcaoPresets, selectedFuncoes),
+    [funcaoPresets, selectedFuncoes]
+  );
+
+  const toggleFuncao = (label: string) => {
+    setSelectedFuncoes((prev) =>
+      prev.includes(label) ? prev.filter((item) => item !== label) : [...prev, label]
+    );
+  };
+
+  const addCustomFuncao = () => {
+    const trimmed = funcaoDraft.trim();
+    if (!trimmed) return;
+    if (selectedFuncoes.some((item) => item.toLowerCase() === trimmed.toLowerCase())) {
+      Alert.alert('Atenção', 'Esta função já está selecionada.');
+      return;
+    }
+    if (selectedFuncoes.length >= 8) {
+      Alert.alert('Funções', 'Selecione no máximo 8 funções.');
+      return;
+    }
+    setSelectedFuncoes((prev) => [...prev, trimmed]);
+    setFuncaoDraft('');
+  };
 
   const eventsByDate = useMemo(() => {
     const map: Record<string, EventWithRole[]> = {};
@@ -160,6 +297,25 @@ export default function PublicarFeedScreen() {
     }
     return weeks;
   }, [viewMonth, viewYear]);
+
+  useEffect(() => {
+    if (!activeArtist?.id) {
+      setArtistWorkRoles([]);
+      setWhatsappDraft('');
+      return;
+    }
+
+    let cancelled = false;
+    void getArtistById(activeArtist.id).then(({ artist }) => {
+      if (cancelled) return;
+      setArtistWorkRoles(parseArtistStringArrayFromJson(artist?.work_roles));
+      setWhatsappDraft(maskBrazilMobile(artist?.whatsapp || ''));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeArtist?.id]);
 
   useEffect(() => {
     if (!activeArtist?.id) {
@@ -215,6 +371,22 @@ export default function PublicarFeedScreen() {
       Alert.alert('Horário', 'O horário final precisa ser depois do início.');
       return;
     }
+    if (selectedFuncoes.length === 0) {
+      Alert.alert(
+        'Funções',
+        isProcurar
+          ? 'Selecione o que você está procurando (ex.: Vocalista, Guitarrista).'
+          : 'Selecione o que você está oferecendo (ex.: Vocalista, Banda completa).'
+      );
+      return;
+    }
+    if (!isCompleteBrazilMobile(whatsappDraft)) {
+      Alert.alert(
+        'WhatsApp',
+        'Informe um WhatsApp válido para contato (DDD + número). Usamos o número salvo no perfil do artista, se já existir.'
+      );
+      return;
+    }
     setSaving(true);
     const { success, error } = await publicarFeed({
       artistaId: activeArtist.id,
@@ -226,6 +398,8 @@ export default function PublicarFeedScreen() {
       startTime: toHm(inicio),
       endTime: toHm(fim),
       observacao,
+      feedFuncoes: selectedFuncoes,
+      whatsapp: whatsappDraft.trim(),
     });
     setSaving(false);
     if (!success) {
@@ -350,9 +524,13 @@ export default function PublicarFeedScreen() {
                         key={day.dateString}
                         style={[
                           styles.dayCell,
-                          isToday && { borderColor: colors.primary, borderWidth: 1.5 },
-                          fechado && { backgroundColor: colors.secondary },
-                          isSelected && { backgroundColor: `${colors.primary}28` },
+                          fechado && !isSelected && { backgroundColor: colors.secondary },
+                          isToday && !isSelected && { borderColor: colors.primary, borderWidth: 1.5 },
+                          isSelected && {
+                            backgroundColor: colors.primary,
+                            borderColor: colors.primary,
+                            borderWidth: 1.5,
+                          },
                         ]}
                         onPress={() => handleDayPress(day.dateString)}
                         activeOpacity={0.7}
@@ -361,18 +539,27 @@ export default function PublicarFeedScreen() {
                           style={[
                             styles.dayText,
                             {
-                              color: isPast
-                                ? colors.border
-                                : fechado || isSelected
-                                  ? colors.text
-                                  : colors.textSecondary,
+                              color: isSelected
+                                ? '#fff'
+                                : isPast
+                                  ? colors.border
+                                  : fechado || isToday
+                                    ? colors.text
+                                    : colors.textSecondary,
                             },
                           ]}
                         >
                           {day.dayNumber}
                         </Text>
                         {fechado ? (
-                          <View style={[styles.eventDot, { backgroundColor: colors.error }]} />
+                          <View
+                            style={[
+                              styles.eventDot,
+                              {
+                                backgroundColor: isSelected ? '#fff' : colors.error,
+                              },
+                            ]}
+                          />
                         ) : null}
                       </TouchableOpacity>
                     );
@@ -388,49 +575,9 @@ export default function PublicarFeedScreen() {
                   </Text>
                 </View>
                 <Text style={[styles.legendText, { color: colors.textSecondary }]}>
-                  Toque no dia para selecionar ou ver os shows
+                  Toque no dia para selecionar ou ver os detalhes
                 </Text>
               </View>
-
-              {events.length > 0 ? (
-                <View style={styles.monthEvents}>
-                  <Text style={[styles.monthEventsTitle, { color: colors.text }]}>
-                    Eventos deste mês
-                  </Text>
-                  {events.map((event) => (
-                    <View
-                      key={event.id}
-                      style={[styles.eventRow, { borderColor: colors.border }]}
-                    >
-                      <Ionicons name="lock-closed" size={14} color={colors.error} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.eventName, { color: colors.text }]} numberOfLines={1}>
-                          {event.name}
-                        </Text>
-                        <Text style={[styles.eventMeta, { color: colors.textSecondary }]}>
-                          {formatCalendarDate(event.event_date)}
-                          {formatTime(event.start_time)
-                            ? ` · ${formatTime(event.start_time)}–${formatTime(event.end_time)}`
-                            : ''}
-                          {formatEventLocationSlash({
-                            city: event.city,
-                            state_uf: event.state_uf,
-                          })
-                            ? ` · ${formatEventLocationSlash({
-                                city: event.city,
-                                state_uf: event.state_uf,
-                              })}`
-                            : ''}
-                        </Text>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              ) : !loadingEvents ? (
-                <Text style={[styles.emptyMonth, { color: colors.textSecondary }]}>
-                  Nenhum evento fechado neste mês.
-                </Text>
-              ) : null}
             </View>
           ) : null}
 
@@ -501,6 +648,41 @@ export default function PublicarFeedScreen() {
               ) : null}
             </View>
           ) : null}
+
+          <ChipMultiSelectField
+            title={isProcurar ? 'O que você está procurando?' : 'O que você está oferecendo?'}
+            options={funcaoOptions}
+            selected={selectedFuncoes}
+            onToggle={toggleFuncao}
+            draft={funcaoDraft}
+            onDraftChange={setFuncaoDraft}
+            onAddCustom={addCustomFuncao}
+            addSectionLabel="Incluir outra função"
+            addPlaceholder="Digite e toque em Adicionar"
+            presetStrip={funcaoPresets}
+          />
+          {artistWorkRoles.length > 0 ? (
+            <Text style={[styles.rolesHint, { color: colors.textSecondary }]}>
+              Sugestões do perfil do artista. Você pode incluir outra função abaixo, se precisar.
+            </Text>
+          ) : null}
+
+          <Text style={[styles.label, { color: colors.text }]}>WhatsApp para contato *</Text>
+          <View style={[styles.field, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Ionicons name="logo-whatsapp" size={18} color="#16A34A" />
+            <TextInput
+              value={whatsappDraft}
+              onChangeText={(text) => setWhatsappDraft(maskBrazilMobile(text))}
+              placeholder="(XX) XXXXX-XXXX"
+              placeholderTextColor={colors.textSecondary}
+              keyboardType="phone-pad"
+              style={[styles.whatsappInput, { color: colors.text }]}
+              maxLength={15}
+            />
+          </View>
+          <Text style={[styles.rolesHint, { color: colors.textSecondary }]}>
+            Quem ver seu anúncio poderá entrar em contato por este número. Se o artista já tem WhatsApp salvo, ele aparece aqui.
+          </Text>
 
           <Text style={[styles.label, { color: colors.text }]}>Cachê (opcional)</Text>
           <TextInput
@@ -580,47 +762,107 @@ export default function PublicarFeedScreen() {
         visible={!!dayModalEvents}
         transparent
         animationType="fade"
-        onRequestClose={() => setDayModalEvents(null)}
+        onRequestClose={closeDayModal}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setDayModalEvents(null)}>
-          <Pressable
-            style={[styles.modalCard, { backgroundColor: colors.surface }]}
-            onPress={(e) => e.stopPropagation()}
+        <GestureHandlerRootView style={styles.modalRoot}>
+          <Pressable style={styles.modalOverlay} onPress={closeDayModal} />
+
+          <Animated.View
+            style={[
+              styles.modalCard,
+              dayModalAnimatedStyle,
+              { backgroundColor: colors.surface },
+            ]}
           >
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              {dayModalDate ? formatCalendarDate(dayModalDate) : 'Data fechada'}
-            </Text>
-            <Text style={[styles.modalSub, { color: colors.textSecondary }]}>
-              Já existe show neste dia. Você pode adicionar outro.
-            </Text>
-            {(dayModalEvents || []).map((event) => (
-              <View key={event.id} style={[styles.modalEvent, { borderColor: colors.border }]}>
-                <Text style={[styles.eventName, { color: colors.text }]}>{event.name}</Text>
-                <Text style={[styles.eventMeta, { color: colors.textSecondary }]}>
-                  {formatTime(event.start_time)
-                    ? `${formatTime(event.start_time)}–${formatTime(event.end_time)}`
-                    : 'Horário não definido'}
+            <View {...dayModalHandlePanResponder.panHandlers} style={styles.modalHandleTouch}>
+              <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+            </View>
+
+            <View {...dayModalPanResponder.panHandlers}>
+            <View style={styles.modalHeader}>
+              <View style={[styles.modalIconWrap, { backgroundColor: `${colors.primary}18` }]}>
+                <Ionicons name="calendar" size={22} color={colors.primary} />
+              </View>
+              <View style={styles.modalHeaderCopy}>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>
+                  {dayModalDate ? formatCalendarDate(dayModalDate) : 'Data fechada'}
+                </Text>
+                <Text style={[styles.modalSub, { color: colors.textSecondary }]}>
+                  {dayModalEvents?.length === 1
+                    ? '1 show neste dia'
+                    : `${dayModalEvents?.length ?? 0} shows neste dia`}
                 </Text>
               </View>
-            ))}
-            <TouchableOpacity
-              style={[styles.modalAdd, { backgroundColor: colors.primary }]}
-              onPress={() => {
-                if (!dayModalDate) return;
-                if (selecionarDia(dayModalDate, 280)) {
-                  setDayModalEvents(null);
-                  setDayModalDate(null);
-                }
-              }}
-            >
-              <Ionicons name="add" size={18} color="#fff" />
-              <Text style={styles.okPickerText}>Adicionar novo show</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.modalClose} onPress={() => setDayModalEvents(null)}>
-              <Text style={[styles.modalCloseText, { color: colors.textSecondary }]}>Fechar</Text>
-            </TouchableOpacity>
-          </Pressable>
-        </Pressable>
+            </View>
+
+            <Text style={[styles.modalHint, { color: colors.textSecondary }]}>
+              Você pode publicar outro anúncio na mesma data.
+            </Text>
+
+            <View style={styles.modalEventsList}>
+              {(dayModalEvents || []).map((event) => {
+                const location = formatEventLocationSlash({
+                  city: event.city,
+                  state_uf: event.state_uf,
+                });
+                return (
+                  <View
+                    key={event.id}
+                    style={[styles.modalEvent, { borderColor: colors.border, backgroundColor: colors.background }]}
+                  >
+                    <View style={[styles.modalEventIcon, { backgroundColor: `${colors.error}18` }]}>
+                      <Ionicons name="lock-closed" size={14} color={colors.error} />
+                    </View>
+                    <View style={styles.modalEventBody}>
+                      <Text style={[styles.eventName, { color: colors.text }]} numberOfLines={2}>
+                        {event.name}
+                      </Text>
+                      <Text style={[styles.eventMeta, { color: colors.textSecondary }]}>
+                        {formatTime(event.start_time)
+                          ? `${formatTime(event.start_time)}–${formatTime(event.end_time)}`
+                          : 'Horário não definido'}
+                      </Text>
+                      {location ? (
+                        <View style={styles.modalEventLocationRow}>
+                          <Ionicons name="location-outline" size={13} color={colors.textSecondary} />
+                          <Text style={[styles.modalEventLocation, { color: colors.textSecondary }]}>
+                            {location}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalBtnOutline, { borderColor: colors.border, backgroundColor: colors.background }]}
+                onPress={closeDayModal}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.modalBtnOutlineText, { color: colors.text }]}>Fechar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalBtnPrimary, { backgroundColor: colors.primary }]}
+                onPress={() => {
+                  if (!dayModalDate) return;
+                  if (selecionarDia(dayModalDate, 280)) {
+                    closeDayModal();
+                    setDayModalDate(null);
+                  }
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="add-circle-outline" size={18} color="#fff" />
+                <Text style={styles.modalBtnPrimaryText}>Adicionar show</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </GestureHandlerRootView>
       </Modal>
     </SafeAreaView>
   );
@@ -649,6 +891,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   tipoHintText: { flex: 1, fontSize: 14, lineHeight: 20, fontWeight: '600' },
+  rolesHint: { fontSize: 12, lineHeight: 17, marginTop: -4, marginBottom: 4 },
   calendarToggle: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -707,19 +950,8 @@ const styles = StyleSheet.create({
   },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendText: { fontSize: 12 },
-  monthEvents: { marginTop: 12, gap: 8 },
-  monthEventsTitle: { fontSize: 14, fontWeight: '800' },
-  eventRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 10,
-    padding: 10,
-  },
   eventName: { fontSize: 14, fontWeight: '700' },
   eventMeta: { fontSize: 12, marginTop: 2 },
-  emptyMonth: { fontSize: 13, textAlign: 'center', marginTop: 8 },
   field: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -730,6 +962,13 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   fieldText: { fontSize: 16, fontWeight: '600', flex: 1 },
+  whatsappInput: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    paddingVertical: 0,
+    minWidth: 0,
+  },
   timeRow: { flexDirection: 'row', gap: 10 },
   input: {
     borderWidth: StyleSheet.hairlineWidth,
@@ -762,36 +1001,113 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   submitText: { color: '#fff', fontWeight: '800', fontSize: 16 },
-  modalOverlay: {
+  modalRoot: {
     flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalOverlay: {
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center',
-    padding: 24,
   },
   modalCard: {
-    borderRadius: 16,
-    padding: 16,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: 10,
+    maxHeight: '82%',
   },
-  modalTitle: { fontSize: 17, fontWeight: '800' },
-  modalSub: { fontSize: 13, marginTop: 4, marginBottom: 12 },
-  modalEvent: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 10,
-    padding: 10,
+  modalHandleTouch: {
+    alignItems: 'center',
+    paddingTop: 4,
+    paddingBottom: 12,
+  },
+  modalHandle: {
+    width: 40,
+    height: 5,
+    borderRadius: 3,
+    alignSelf: 'center',
+    marginBottom: 14,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     marginBottom: 8,
   },
-  modalAdd: {
+  modalIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalHeaderCopy: { flex: 1, minWidth: 0 },
+  modalTitle: { fontSize: 18, fontWeight: '800' },
+  modalSub: { fontSize: 13, marginTop: 2, fontWeight: '600' },
+  modalHint: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  modalEventsList: {
+    gap: 8,
+    marginBottom: 16,
+  },
+  modalEvent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 14,
+    padding: 12,
+  },
+  modalEventIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  modalEventBody: { flex: 1, minWidth: 0, gap: 3 },
+  modalEventLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  modalEventLocation: { fontSize: 12, fontWeight: '600', flex: 1 },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  modalBtnOutline: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  modalBtnOutlineText: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  modalBtnPrimary: {
+    flex: 1.35,
+    minHeight: 48,
+    borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    borderRadius: 12,
-    paddingVertical: 12,
-    marginTop: 6,
+    gap: 6,
+    paddingHorizontal: 12,
   },
-  modalClose: {
-    alignItems: 'center',
-    paddingVertical: 10,
+  modalBtnPrimaryText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '800',
   },
-  modalCloseText: { fontSize: 15, fontWeight: '700' },
 });

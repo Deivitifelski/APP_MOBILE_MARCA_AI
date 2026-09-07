@@ -15,20 +15,23 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  type ViewToken,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import SocialPostCard from '../../components/feed/social/SocialPostCard';
-import SocialCommentsModal from '../../components/feed/social/SocialCommentsModal';
 import OptimizedImage from '../../components/OptimizedImage';
 import PermissionModal from '../../components/PermissionModal';
 import PropostaEnviadaModal from '../../components/PropostaEnviadaModal';
 import BrazilStatePickerModal from '../../components/BrazilStatePickerModal';
+import FeedFuncaoPickerModal, { FeedFuncaoFieldButton } from '../../components/FeedFuncaoPickerModal';
 import { usePermissions } from '../../contexts/PermissionsContext';
 import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { formatEventLocationSlash } from '../../lib/brazilGeo';
 import { formatCalendarDate, weekdayFromCalendarDate } from '../../lib/dateUtils';
+import {
+  ARTIST_WORK_ROLE_PRESETS,
+  buildOrderedOptionsForPicker,
+  parseArtistStringArrayFromJson,
+} from '../../constants/artistProfileLists';
 import {
   desfazerPropostaFeed,
   encerrarAnuncioFeed,
@@ -38,14 +41,7 @@ import {
   type FeedFiltro,
   type FeedProposta,
 } from '../../services/supabase/feedMarketplaceService';
-import {
-  listarFeedSocial,
-  type SocialPost,
-} from '../../services/supabase/socialFeedService';
-
-type FeedEntry =
-  | { kind: 'marketplace'; created_at: string; data: FeedAnuncio }
-  | { kind: 'social'; created_at: string; data: SocialPost };
+import { buildWhatsAppUrl, openWhatsAppConversation } from '../../utils/brazilPhone';
 
 function formatTime(t: string) {
   if (!t) return '';
@@ -72,10 +68,12 @@ export default function FeedScreen() {
   const { canCreateEvents } = usePermissions();
   const [filtro, setFiltro] = useState<FeedFiltro>('todos');
   const [verMinhas, setVerMinhas] = useState(false);
+  const [filtroFuncao, setFiltroFuncao] = useState('');
   const [estadoUf, setEstadoUf] = useState('');
   const [cidade, setCidade] = useState('');
   const [showEstados, setShowEstados] = useState(false);
-  const [entries, setEntries] = useState<FeedEntry[]>([]);
+  const [showFuncaoPicker, setShowFuncaoPicker] = useState(false);
+  const [anuncios, setAnuncios] = useState<FeedAnuncio[]>([]);
   const [propostasPorEvento, setPropostasPorEvento] = useState<Record<string, FeedProposta[]>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -85,34 +83,16 @@ export default function FeedScreen() {
   const [showPropostaEnviada, setShowPropostaEnviada] = useState(false);
   const [anuncioProposta, setAnuncioProposta] = useState<FeedAnuncio | null>(null);
   const [desfazendoProposta, setDesfazendoProposta] = useState(false);
-  const [activeSocialPostId, setActiveSocialPostId] = useState<string | null>(null);
-  const [commentsPost, setCommentsPost] = useState<SocialPost | null>(null);
 
-  const viewabilityConfig = useMemo(
-    () => ({ itemVisiblePercentThreshold: 65 }),
-    []
-  );
-
-  const onViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-      const socialVisible = viewableItems.find(
-        (token) =>
-          token.isViewable &&
-          token.item &&
-          typeof token.item === 'object' &&
-          'kind' in (token.item as FeedEntry) &&
-          (token.item as FeedEntry).kind === 'social'
-      );
-      const nextId =
-        socialVisible && socialVisible.item && typeof socialVisible.item === 'object'
-          ? (socialVisible.item as FeedEntry).kind === 'social'
-            ? (socialVisible.item as Extract<FeedEntry, { kind: 'social' }>).data.id
-            : null
-          : null;
-      setActiveSocialPostId(nextId);
-    }
-  );
   const loadGenerationRef = useRef(0);
+
+  const funcaoFilterOptions = useMemo(() => {
+    const artistRoles = parseArtistStringArrayFromJson(activeArtist?.work_roles);
+    if (artistRoles.length > 0) {
+      return buildOrderedOptionsForPicker(ARTIST_WORK_ROLE_PRESETS, artistRoles);
+    }
+    return [...ARTIST_WORK_ROLE_PRESETS];
+  }, [activeArtist?.work_roles]);
 
   const load = useCallback(async (silent = false) => {
     const generation = ++loadGenerationRef.current;
@@ -120,26 +100,15 @@ export default function FeedScreen() {
       setLoading(true);
     }
     const artistId = activeArtist?.id ?? null;
-    const includeSocial = verMinhas || filtro === 'todos';
-    const [marketplaceRes, socialRes] = await Promise.all([
-      listarFeedMarketplace({
-        filtro: verMinhas ? 'meus' : filtro,
-        estadoUf: verMinhas ? '' : estadoUf,
-        cidade: verMinhas ? '' : cidade,
-        artistaAtualId: artistId,
-      }),
-      includeSocial
-        ? listarFeedSocial({
-            artistaAtualId: artistId,
-            somenteMeus: verMinhas,
-          })
-        : Promise.resolve({ posts: [] as SocialPost[], error: null as string | null }),
-    ]);
+    const marketplaceRes = await listarFeedMarketplace({
+      filtro: verMinhas ? 'meus' : filtro,
+      estadoUf: verMinhas ? '' : estadoUf,
+      cidade: verMinhas ? '' : cidade,
+      funcao: verMinhas ? '' : filtroFuncao,
+      artistaAtualId: artistId,
+    });
 
     if (generation !== loadGenerationRef.current) return;
-
-    const marketplaceErr = marketplaceRes.error;
-    const socialErr = includeSocial ? socialRes.error : null;
 
     const visiveis =
       !marketplaceRes.error && verMinhas && artistId
@@ -148,29 +117,8 @@ export default function FeedScreen() {
           ? marketplaceRes.anuncios
           : [];
 
-    const merged: FeedEntry[] = [
-      ...visiveis.map((item) => ({
-        kind: 'marketplace' as const,
-        created_at: item.created_at,
-        data: item,
-      })),
-      ...(includeSocial && !socialRes.error
-        ? socialRes.posts.map((post) => ({
-            kind: 'social' as const,
-            created_at: post.created_at,
-            data: post,
-          }))
-        : []),
-    ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-    if (generation !== loadGenerationRef.current) return;
-
-    setEntries(merged);
-    setError(
-      merged.length === 0
-        ? marketplaceErr || socialErr
-        : marketplaceErr
-    );
+    setAnuncios(visiveis);
+    setError(visiveis.length === 0 ? marketplaceRes.error : marketplaceRes.error);
     setLoading(false);
     setRefreshing(false);
 
@@ -193,21 +141,20 @@ export default function FeedScreen() {
     } else {
       setPropostasPorEvento({});
     }
-  }, [filtro, verMinhas, estadoUf, cidade, activeArtist?.id]);
+  }, [filtro, verMinhas, estadoUf, cidade, filtroFuncao, activeArtist?.id]);
 
   const skipNextFocusLoadRef = useRef(true);
 
   useEffect(() => {
-    setEntries([]);
+    setAnuncios([]);
     setPropostasPorEvento({});
-    setActiveSocialPostId(null);
     skipNextFocusLoadRef.current = true;
   }, [activeArtist?.id]);
 
   useEffect(() => {
     if (!activeArtist?.id) return;
     void load(false);
-  }, [filtro, verMinhas, activeArtist?.id, load]);
+  }, [filtro, verMinhas, filtroFuncao, activeArtist?.id, load]);
 
   useFocusEffect(
     useCallback(() => {
@@ -220,6 +167,9 @@ export default function FeedScreen() {
   );
 
   const emptyCopy = useMemo(() => {
+    if (filtroFuncao) {
+      return `Nenhuma publicação com a função "${filtroFuncao}" neste filtro.`;
+    }
     if (filtro === 'disponivel') {
       return 'Nenhuma oferta neste filtro.';
     }
@@ -230,7 +180,7 @@ export default function FeedScreen() {
       return 'Você ainda não publicou no feed.';
     }
     return 'Ainda não há publicações no feed.';
-  }, [filtro, verMinhas]);
+  }, [filtro, verMinhas, filtroFuncao]);
 
   const handlePublicar = () => {
     if (!activeArtist) {
@@ -240,21 +190,14 @@ export default function FeedScreen() {
     setShowPublicarOpcoes(true);
   };
 
-  const handleEscolherPublicacao = (
-    destino: '/feed/publicar-midia' | '/publicar-feed',
-    tipo?: 'disponivel' | 'demanda'
-  ) => {
+  const handleEscolherPublicacao = (tipo: 'disponivel' | 'demanda') => {
     if (!canCreateEvents) {
       setShowPublicarOpcoes(false);
       setShowPermissionModal(true);
       return;
     }
     setShowPublicarOpcoes(false);
-    if (destino === '/publicar-feed') {
-      router.push({ pathname: '/publicar-feed', params: { tipo: tipo ?? 'disponivel' } });
-      return;
-    }
-    router.push('/feed/publicar-midia');
+    router.push({ pathname: '/publicar-feed', params: { tipo } });
   };
 
   const isMeuAnuncio = (item: FeedAnuncio) =>
@@ -305,35 +248,6 @@ export default function FeedScreen() {
     );
   };
 
-  const handlePostRemoved = (postId: string) => {
-    setEntries((prev) =>
-      prev.filter((entry) => !(entry.kind === 'social' && entry.data.id === postId))
-    );
-  };
-
-  const handleOpenComments = (post: SocialPost) => {
-    setCommentsPost(post);
-  };
-
-  const handleCommentsCountChange = (postId: string, count: number) => {
-    setEntries((prev) =>
-      prev.map((entry) =>
-        entry.kind === 'social' && entry.data.id === postId
-          ? {
-              ...entry,
-              data: {
-                ...entry.data,
-                comments_count: count,
-              },
-            }
-          : entry
-      )
-    );
-    setCommentsPost((current) =>
-      current?.id === postId ? { ...current, comments_count: count } : current
-    );
-  };
-
   const renderMarketplaceItem = (item: FeedAnuncio) => {
     const meuAnuncio = isMeuAnuncio(item);
     const isDemanda = item.feed_tipo === 'demanda';
@@ -343,9 +257,6 @@ export default function FeedScreen() {
       state_uf: item.state_uf,
     });
     const weekday = weekdayFromCalendarDate(item.event_date);
-    const dateLabel = weekday
-      ? `${weekday}, ${formatCalendarDate(item.event_date)}`
-      : formatCalendarDate(item.event_date);
     const cacheTxt =
       item.meu_cache_valor != null
         ? Number(item.meu_cache_valor).toLocaleString('pt-BR', {
@@ -359,88 +270,138 @@ export default function FeedScreen() {
         ? item.propostas_avatars
         : propostas.map((proposta) => proposta.artista_image).filter((url): url is string => !!url)
     ).slice(0, 3);
+    const funcoesVisiveis = item.feed_funcoes.slice(0, 4);
+    const funcoesExtras = Math.max(0, item.feed_funcoes.length - funcoesVisiveis.length);
+    const funcoesResumo =
+      item.feed_funcoes.length > 0
+        ? `${item.feed_funcoes.slice(0, 2).join(' · ')}${item.feed_funcoes.length > 2 ? ` +${item.feed_funcoes.length - 2}` : ''}`
+        : isDemanda
+          ? 'Artista, músico ou serviço'
+          : 'Show ou disponibilidade';
+    const timeLabel = item.start_time
+      ? `${formatTime(item.start_time)}–${formatTime(item.end_time)}`
+      : 'Horário a combinar';
+    const artistDisplayName = meuAnuncio
+      ? activeArtist?.name || item.artist_name
+      : item.artist_name;
+    const artistLabel = meuAnuncio ? 'Você' : item.artist_name;
+    const artistAvatarUrl = item.artist_image?.trim() || '';
+    const artistInitial = artistDisplayName.trim().charAt(0).toUpperCase() || '?';
+    const whatsappUrl = buildWhatsAppUrl(item.artist_whatsapp);
+
     return (
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <View style={[styles.typeBanner, { backgroundColor: `${badgeColor}12` }]}>
-          <View style={[styles.typeIconWrap, { backgroundColor: `${badgeColor}22` }]}>
-            <Ionicons
-              name={isDemanda ? 'search' : 'briefcase'}
-              size={16}
-              color={badgeColor}
-            />
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.border,
+          },
+        ]}
+      >
+        <View style={[styles.cardAccentHeader, { backgroundColor: colors.secondary, borderBottomColor: colors.border }]}>
+          <View style={styles.cardAccentMain}>
+            <View style={[styles.cardAccentIcon, { backgroundColor: `${badgeColor}18` }]}>
+              <Ionicons name={isDemanda ? 'search' : 'briefcase'} size={18} color={badgeColor} />
+            </View>
+            <View style={styles.cardAccentCopy}>
+              <View style={styles.cardTypeRow}>
+                <View style={[styles.typePill, { backgroundColor: `${badgeColor}16` }]}>
+                  <Text style={[styles.typePillText, { color: badgeColor }]}>
+                    {isDemanda ? 'Procurando' : 'Oferta'}
+                  </Text>
+                </View>
+              </View>
+              <Text style={[styles.cardAccentSub, { color: colors.textSecondary }]} numberOfLines={1}>
+                {isDemanda ? `Busca ${funcoesResumo}` : `Oferece ${funcoesResumo}`}
+              </Text>
+            </View>
           </View>
-          <View style={styles.typeCopy}>
-            <Text style={[styles.typeTitle, { color: badgeColor }]}>
-              {isDemanda ? 'Procurando' : 'Oferta'}
-            </Text>
-            <Text style={[styles.typeDesc, { color: colors.textSecondary }]} numberOfLines={2}>
-              {isDemanda
-                ? 'Quem publicou está buscando artista, músico ou serviço nesta data'
-                : 'Quem publicou está oferecendo data, show ou disponibilidade'}
+          <View style={styles.cardAccentArtist}>
+            <View style={[styles.cardAccentAvatar, { backgroundColor: colors.background, borderColor: colors.border }]}>
+              {artistAvatarUrl ? (
+                <OptimizedImage
+                  imageUrl={artistAvatarUrl}
+                  style={styles.cardAccentAvatarImg}
+                  fallbackText={artistInitial}
+                  fallbackIconSize={14}
+                  showLoadingIndicator={false}
+                />
+              ) : (
+                <Text style={[styles.cardAccentAvatarInitial, { color: colors.primary }]}>
+                  {artistInitial}
+                </Text>
+              )}
+            </View>
+            <Text style={[styles.cardAccentArtistName, { color: colors.textSecondary }]} numberOfLines={1}>
+              {artistLabel}
             </Text>
           </View>
         </View>
 
-        <View style={styles.artistRow}>
-          <View style={[styles.avatarWrap, { backgroundColor: colors.secondary }]}>
-            {item.artist_image ? (
-              <OptimizedImage
-                imageUrl={item.artist_image}
-                style={styles.avatar}
-                fallbackIcon="person"
-                fallbackIconSize={20}
-              />
-            ) : (
-              <Ionicons name="person" size={20} color={colors.primary} />
-            )}
-          </View>
-          <View style={styles.artistInfo}>
-            <Text style={[styles.artistName, { color: colors.text }]} numberOfLines={1}>
-              {meuAnuncio ? 'Sua publicação' : item.artist_name}
+        <View style={styles.cardBody}>
+          <View style={[styles.dateHero, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <View style={styles.dateHeroTop}>
+              <Ionicons name="calendar-outline" size={15} color={colors.textSecondary} />
+              <Text style={[styles.dateHeroWeekday, { color: colors.textSecondary }]} numberOfLines={1}>
+                {weekday || 'Data'}
+              </Text>
+            </View>
+            <Text style={[styles.dateHeroDate, { color: colors.text }]}>
+              {formatCalendarDate(item.event_date)}
             </Text>
+            <View style={styles.dateHeroMetaRow}>
+              <View style={styles.dateHeroMetaItem}>
+                <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
+                <Text style={[styles.dateHeroMetaText, { color: colors.text }]}>{timeLabel}</Text>
+              </View>
+              {location ? (
+                <View style={styles.dateHeroMetaItem}>
+                  <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
+                  <Text style={[styles.dateHeroMetaText, { color: colors.text }]} numberOfLines={1}>
+                    {location}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
           </View>
-        </View>
 
-        <View style={styles.metaBlock}>
-          <View style={styles.metaRow}>
-            <Ionicons name="calendar-outline" size={14} color={colors.textSecondary} />
-            <Text style={[styles.meta, { color: colors.text }]} numberOfLines={1}>
-              {dateLabel}
+          {funcoesVisiveis.length > 0 ? (
+            <View style={styles.funcoesWrap}>
+              {funcoesVisiveis.map((funcao) => (
+                <View
+                  key={`${item.id}-${funcao}`}
+                  style={[styles.funcaoChip, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+                >
+                  <Text style={[styles.funcaoChipText, { color: colors.text }]} numberOfLines={1}>
+                    {funcao}
+                  </Text>
+                </View>
+              ))}
+              {funcoesExtras > 0 ? (
+                <View style={[styles.funcaoChip, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+                  <Text style={[styles.funcaoChipText, { color: colors.textSecondary }]}>+{funcoesExtras}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
+          {item.description ? (
+            <Text style={[styles.notes, { color: colors.textSecondary }]} numberOfLines={2}>
+              {item.description}
             </Text>
-          </View>
-          {item.start_time ? (
-            <View style={styles.metaRow}>
-              <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
-              <Text style={[styles.meta, { color: colors.text }]} numberOfLines={1}>
-                {formatTime(item.start_time)}–{formatTime(item.end_time)}
-              </Text>
-            </View>
           ) : null}
-          {location ? (
-            <View style={styles.metaRow}>
-              <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
-              <Text style={[styles.meta, { color: colors.text }]} numberOfLines={1}>
-                {location}
-              </Text>
-            </View>
-          ) : null}
+
           {meuAnuncio ? (
-            <View style={styles.metaRow}>
-              <Ionicons name="cash-outline" size={14} color={colors.textSecondary} />
-              <Text style={[styles.meta, { color: colors.textSecondary }]} numberOfLines={1}>
-                {cacheTxt ? `Cachê ${cacheTxt}` : 'Cachê a combinar'}
+            <View style={[styles.cachePill, { backgroundColor: `${colors.primary}10` }]}>
+              <Ionicons name="cash-outline" size={14} color={colors.primary} />
+              <Text style={[styles.cachePillText, { color: colors.text }]}>
+                {cacheTxt ? `Seu cachê: ${cacheTxt}` : 'Cachê a combinar'}
               </Text>
             </View>
           ) : null}
-        </View>
 
-        {item.description ? (
-          <Text style={[styles.notes, { color: colors.text }]} numberOfLines={2}>
-            {item.description}
-          </Text>
-        ) : null}
-
-        {item.propostas_count > 0 || meuAnuncio ? (
+          {item.propostas_count > 0 || meuAnuncio ? (
           <View style={styles.propostasResumo}>
             <View style={styles.avatarStack}>
               {avatarUrls.length
@@ -540,47 +501,47 @@ export default function FeedScreen() {
             <Text style={[styles.btnOutlineText, { color: colors.textSecondary }]}>Encerrar</Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity
-            style={
-              item.ja_proposei
-                ? [styles.btnOutline, { borderColor: colors.primary }]
-                : [styles.btnPrimary, { backgroundColor: colors.primary }]
-            }
-            onPress={() => handleNegociar(item)}
-          >
-            <Text
+          <>
+            {whatsappUrl ? (
+              <TouchableOpacity
+                style={[styles.btnWhatsapp, { borderColor: '#16A34A', backgroundColor: '#16A34A10' }]}
+                onPress={() => void openWhatsAppConversation(item.artist_whatsapp)}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="logo-whatsapp" size={18} color="#16A34A" />
+                <Text style={[styles.btnWhatsappText, { color: '#16A34A' }]}>WhatsApp</Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity
               style={
                 item.ja_proposei
-                  ? [styles.btnOutlineText, { color: colors.primary }]
-                  : styles.btnPrimaryText
+                  ? [styles.btnOutline, { borderColor: colors.primary }]
+                  : [styles.btnPrimary, { backgroundColor: colors.primary }]
               }
+              onPress={() => handleNegociar(item)}
             >
-              {item.ja_proposei
-                ? 'Proposta enviada'
-                : isDemanda
-                  ? 'Quero me candidatar'
-                  : 'Tenho interesse'}
-            </Text>
-          </TouchableOpacity>
+              <Text
+                style={
+                  item.ja_proposei
+                    ? [styles.btnOutlineText, { color: colors.primary }]
+                    : styles.btnPrimaryText
+                }
+              >
+                {item.ja_proposei
+                  ? 'Proposta enviada'
+                  : isDemanda
+                    ? 'Quero me candidatar'
+                    : 'Tenho interesse'}
+              </Text>
+            </TouchableOpacity>
+          </>
         )}
+        </View>
       </View>
     );
   };
 
-  const renderItem = ({ item: entry }: { item: FeedEntry }) => {
-    if (entry.kind === 'social') {
-      return (
-        <SocialPostCard
-          post={entry.data}
-          activeArtistId={activeArtist?.id ?? null}
-          isMediaActive={activeSocialPostId === entry.data.id}
-          onOpenComments={handleOpenComments}
-          onPostRemoved={handlePostRemoved}
-        />
-      );
-    }
-    return renderMarketplaceItem(entry.data);
-  };
+  const renderItem = ({ item }: { item: FeedAnuncio }) => renderMarketplaceItem(item);
 
   const artistAvatarUrl = activeArtist?.profile_url?.trim() || '';
   const artistInitial = activeArtist?.name?.trim().charAt(0).toUpperCase() || '?';
@@ -664,54 +625,63 @@ export default function FeedScreen() {
           })}
         </ScrollView>
         {!verMinhas ? (
-          <View style={styles.geoRow}>
-            <TouchableOpacity
-              style={[
-                styles.geoField,
-                styles.geoUf,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: estadoUf ? colors.primary : colors.border,
-                },
-              ]}
-              onPress={() => setShowEstados(true)}
-              activeOpacity={0.85}
-            >
-              <Text
-                style={[styles.geoFieldText, { color: estadoUf ? colors.text : colors.textSecondary }]}
-                numberOfLines={1}
+          <>
+            <View style={styles.geoRow}>
+              <TouchableOpacity
+                style={[
+                  styles.geoField,
+                  styles.geoUf,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: estadoUf ? colors.primary : colors.border,
+                  },
+                ]}
+                onPress={() => setShowEstados(true)}
+                activeOpacity={0.85}
               >
-                {estadoUf || 'UF'}
-              </Text>
-              <Ionicons name="chevron-down" size={14} color={colors.textSecondary} />
-            </TouchableOpacity>
-            <View
-              style={[
-                styles.geoField,
-                styles.geoCity,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: cidade.trim() ? colors.primary : colors.border,
-                },
-              ]}
-            >
-              <Ionicons name="location-outline" size={15} color={colors.textSecondary} />
-              <TextInput
-                value={cidade}
-                onChangeText={setCidade}
-                placeholder="Cidade"
-                placeholderTextColor={colors.textSecondary}
-                style={[styles.geoInput, { color: colors.text }]}
-                returnKeyType="search"
-                autoCorrect={false}
-              />
-              {cidade.trim() ? (
-                <TouchableOpacity onPress={() => setCidade('')} hitSlop={10}>
-                  <Ionicons name="close-circle" size={15} color={colors.textSecondary} />
-                </TouchableOpacity>
-              ) : null}
+                <Text
+                  style={[styles.geoFieldText, { color: estadoUf ? colors.text : colors.textSecondary }]}
+                  numberOfLines={1}
+                >
+                  {estadoUf || 'UF'}
+                </Text>
+                <Ionicons name="chevron-down" size={14} color={colors.textSecondary} />
+              </TouchableOpacity>
+              <View
+                style={[
+                  styles.geoField,
+                  styles.geoCity,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: cidade.trim() ? colors.primary : colors.border,
+                  },
+                ]}
+              >
+                <Ionicons name="location-outline" size={15} color={colors.textSecondary} />
+                <TextInput
+                  value={cidade}
+                  onChangeText={setCidade}
+                  placeholder="Cidade"
+                  placeholderTextColor={colors.textSecondary}
+                  style={[styles.geoInput, { color: colors.text }]}
+                  returnKeyType="search"
+                  autoCorrect={false}
+                />
+                {cidade.trim() ? (
+                  <TouchableOpacity onPress={() => setCidade('')} hitSlop={10}>
+                    <Ionicons name="close-circle" size={15} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
             </View>
-          </View>
+            <View style={styles.funcaoRow}>
+              <FeedFuncaoFieldButton
+                selectedFuncao={filtroFuncao}
+                onPress={() => setShowFuncaoPicker(true)}
+                colors={colors}
+              />
+            </View>
+          </>
         ) : null}
       </View>
 
@@ -736,25 +706,21 @@ export default function FeedScreen() {
             O feed usa o artista ativo nas Configurações.
           </Text>
         </View>
-      ) : loading && entries.length === 0 ? (
+      ) : loading && anuncios.length === 0 ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.primary} />
         </View>
       ) : (
         <FlatList
           key={activeArtist?.id ?? 'sem-artista'}
-          data={entries}
-          keyExtractor={(entry) =>
-            entry.kind === 'social' ? `social-${entry.data.id}` : entry.data.id
-          }
+          data={anuncios}
+          keyExtractor={(item) => item.id}
           renderItem={renderItem}
-          onViewableItemsChanged={onViewableItemsChanged.current}
-          viewabilityConfig={viewabilityConfig}
           initialNumToRender={5}
           maxToRenderPerBatch={4}
           windowSize={7}
           removeClippedSubviews
-          contentContainerStyle={entries.length === 0 ? styles.emptyList : styles.list}
+          contentContainerStyle={anuncios.length === 0 ? styles.emptyList : styles.list}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -794,6 +760,13 @@ export default function FeedScreen() {
         onClose={() => setShowEstados(false)}
         selectedUf={estadoUf}
         onSelect={(uf) => setEstadoUf(uf || '')}
+      />
+      <FeedFuncaoPickerModal
+        visible={showFuncaoPicker}
+        onClose={() => setShowFuncaoPicker(false)}
+        options={funcaoFilterOptions}
+        selectedFuncao={filtroFuncao}
+        onSelect={setFiltroFuncao}
       />
       <PermissionModal
         visible={showPermissionModal}
@@ -848,29 +821,12 @@ export default function FeedScreen() {
             <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.sheetTitle, { color: colors.text }]}>Publicar no feed</Text>
             <Text style={[styles.sheetSub, { color: colors.textSecondary }]}>
-              Escolha o tipo de publicação
+              Escolha o tipo de publicação de show
             </Text>
 
             <TouchableOpacity
               style={[styles.optionCard, { borderColor: colors.border, backgroundColor: colors.background }]}
-              onPress={() => handleEscolherPublicacao('/feed/publicar-midia')}
-              activeOpacity={0.85}
-            >
-              <View style={[styles.optionIcon, { backgroundColor: `${colors.primary}18` }]}>
-                <Ionicons name="images-outline" size={22} color={colors.primary} />
-              </View>
-              <View style={styles.optionCopy}>
-                <Text style={[styles.optionTitle, { color: colors.text }]}>Foto ou vídeo</Text>
-                <Text style={[styles.optionDesc, { color: colors.textSecondary }]}>
-                  Publique uma foto ou um vídeo normal no feed.
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.optionCard, { borderColor: colors.border, backgroundColor: colors.background }]}
-              onPress={() => handleEscolherPublicacao('/publicar-feed', 'disponivel')}
+              onPress={() => handleEscolherPublicacao('disponivel')}
               activeOpacity={0.85}
             >
               <View style={[styles.optionIcon, { backgroundColor: '#0F766E18' }]}>
@@ -887,7 +843,7 @@ export default function FeedScreen() {
 
             <TouchableOpacity
               style={[styles.optionCard, { borderColor: colors.border, backgroundColor: colors.background }]}
-              onPress={() => handleEscolherPublicacao('/publicar-feed', 'demanda')}
+              onPress={() => handleEscolherPublicacao('demanda')}
               activeOpacity={0.85}
             >
               <View style={[styles.optionIcon, { backgroundColor: '#4F46E518' }]}>
@@ -908,13 +864,6 @@ export default function FeedScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-
-      <SocialCommentsModal
-        visible={!!commentsPost}
-        post={commentsPost}
-        onClose={() => setCommentsPost(null)}
-        onCommentsCountChange={handleCommentsCountChange}
-      />
     </SafeAreaView>
   );
 }
@@ -984,6 +933,10 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     minWidth: 0,
   },
+  funcaoRow: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
   errorBanner: {
     marginHorizontal: 16,
     marginBottom: 8,
@@ -1002,30 +955,132 @@ const styles = StyleSheet.create({
   emptySub: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
   card: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 10,
-    gap: 10,
+    borderRadius: 18,
+    marginBottom: 14,
     overflow: 'hidden',
   },
-  typeBanner: {
+  cardAccentHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 10,
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 2,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  typeIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
+  cardAccentMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minWidth: 0,
+  },
+  cardAccentIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  typeCopy: { flex: 1, minWidth: 0 },
-  typeTitle: { fontSize: 15, fontWeight: '800', letterSpacing: 0.2 },
-  typeDesc: { fontSize: 12, lineHeight: 17, marginTop: 2 },
+  cardAccentCopy: { flex: 1, minWidth: 0 },
+  cardTypeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  typePill: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  typePillText: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  cardAccentSub: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  cardAccentArtist: {
+    alignItems: 'center',
+    maxWidth: 72,
+  },
+  cardAccentAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    borderWidth: 1,
+  },
+  cardAccentAvatarImg: { width: 34, height: 34, borderRadius: 17 },
+  cardAccentAvatarInitial: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  cardAccentArtistName: {
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  cardBody: {
+    padding: 14,
+    gap: 12,
+  },
+  dateHero: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 14,
+    padding: 12,
+    gap: 4,
+  },
+  dateHeroTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  dateHeroWeekday: {
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  dateHeroDate: {
+    fontSize: 20,
+    fontWeight: '900',
+    lineHeight: 26,
+  },
+  dateHeroMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 4,
+  },
+  dateHeroMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    maxWidth: '100%',
+  },
+  dateHeroMetaText: {
+    fontSize: 13,
+    fontWeight: '700',
+    flexShrink: 1,
+  },
+  cachePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  cachePillText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
   propostasResumo: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1043,22 +1098,23 @@ const styles = StyleSheet.create({
   },
   stackAvatarImg: { width: 20, height: 20, borderRadius: 10 },
   countPillText: { fontSize: 12, fontWeight: '600' },
-  artistRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  avatarWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  avatar: { width: 42, height: 42, borderRadius: 21 },
-  artistInfo: { flex: 1, minWidth: 0 },
-  artistName: { fontSize: 16, fontWeight: '800' },
-  metaBlock: { gap: 5 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  meta: { flex: 1, fontSize: 13, fontWeight: '600' },
   notes: { fontSize: 14, lineHeight: 20 },
+  funcoesWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  funcaoChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    maxWidth: '100%',
+  },
+  funcaoChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
   mediaKind: { fontSize: 12, fontWeight: '600', marginTop: 2 },
   mediaPreview: {
     borderRadius: 12,
@@ -1108,6 +1164,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   btnOutlineText: { fontWeight: '800', fontSize: 14 },
+  btnWhatsapp: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  btnWhatsappText: { fontWeight: '800', fontSize: 14 },
   fab: {
     position: 'absolute',
     right: 20,

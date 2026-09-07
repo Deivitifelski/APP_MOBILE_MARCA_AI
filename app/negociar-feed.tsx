@@ -188,6 +188,18 @@ export default function NegociarFeedScreen() {
               {location ? (
                 <Text style={[styles.meta, { color: colors.textSecondary }]}>{location}</Text>
               ) : null}
+              {anuncio.feed_funcoes.length > 0 ? (
+                <View style={styles.funcoesWrap}>
+                  {anuncio.feed_funcoes.map((funcao) => (
+                    <View
+                      key={funcao}
+                      style={[styles.funcaoChip, { backgroundColor: `${colors.primary}14`, borderColor: `${colors.primary}33` }]}
+                    >
+                      <Text style={[styles.funcaoChipText, { color: colors.primary }]}>{funcao}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
               {anuncio.description ? (
                 <Text style={[styles.notes, { color: colors.text }]}>{anuncio.description}</Text>
               ) : null}
@@ -314,6 +326,14 @@ const styles = StyleSheet.create({
   name: { fontSize: 20, fontWeight: '800' },
   meta: { fontSize: 14 },
   notes: { fontSize: 14, lineHeight: 20, marginTop: 4 },
+  funcoesWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+  funcaoChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  funcaoChipText: { fontSize: 12, fontWeight: '700' },
   lockRow: {
     flexDirection: 'row',
     gap: 8,

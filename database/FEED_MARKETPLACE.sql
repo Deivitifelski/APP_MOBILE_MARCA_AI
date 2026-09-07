@@ -29,6 +29,12 @@ $$;
 ALTER TABLE public.events
   ADD COLUMN IF NOT EXISTS feed_tipo TEXT;
 
+ALTER TABLE public.events
+  ADD COLUMN IF NOT EXISTS feed_funcoes TEXT[] NOT NULL DEFAULT '{}';
+
+CREATE INDEX IF NOT EXISTS idx_events_feed_funcoes
+  ON public.events USING GIN (feed_funcoes);
+
 ALTER TABLE public.events DROP CONSTRAINT IF EXISTS events_feed_tipo_check;
 ALTER TABLE public.events
   ADD CONSTRAINT events_feed_tipo_check
@@ -178,15 +184,17 @@ END;
 $$;
 
 -- =====================================================
--- Listagem pública (sem cachê, sem telefone)
+-- Listagem pública (sem cachê; WhatsApp vem de artists.whatsapp)
 -- =====================================================
 DROP FUNCTION IF EXISTS public.listar_feed_marketplace(text, text, text, uuid);
+DROP FUNCTION IF EXISTS public.listar_feed_marketplace(text, text, text, uuid, text);
 
 CREATE OR REPLACE FUNCTION public.listar_feed_marketplace(
   p_tipo TEXT DEFAULT NULL,
   p_estado TEXT DEFAULT NULL,
   p_cidade TEXT DEFAULT NULL,
-  p_artista_atual_id UUID DEFAULT NULL
+  p_artista_atual_id UUID DEFAULT NULL,
+  p_funcao TEXT DEFAULT NULL
 )
 RETURNS TABLE (
   id UUID,
@@ -201,6 +209,8 @@ RETURNS TABLE (
   city TEXT,
   state_uf TEXT,
   description TEXT,
+  feed_funcoes TEXT[],
+  artist_whatsapp TEXT,
   created_at TIMESTAMPTZ,
   is_mine BOOLEAN,
   meu_cache_valor NUMERIC,
@@ -234,6 +244,8 @@ AS $$
       ELSE upper(trim(e.state_uf))
     END,
     NULLIF(trim(COALESCE(e.description, '')), ''),
+    COALESCE(e.feed_funcoes, ARRAY[]::text[]),
+    NULLIF(trim(COALESCE(a.whatsapp, '')), ''),
     e.created_at::timestamptz,
     (p_artista_atual_id IS NOT NULL AND e.artist_id = p_artista_atual_id),
     CASE
@@ -321,18 +333,31 @@ AS $$
         ) > 0
       )
     )
+    AND (
+      length(trim(coalesce(p_funcao, ''))) < 2
+      OR EXISTS (
+        SELECT 1
+        FROM unnest(COALESCE(e.feed_funcoes, ARRAY[]::text[])) AS funcao_item(funcao)
+        WHERE public.normalize_pt_search(funcao_item.funcao)
+          = public.normalize_pt_search(p_funcao)
+      )
+    )
   ORDER BY
     CASE WHEN p_artista_atual_id IS NOT NULL AND e.artist_id = p_artista_atual_id THEN 0 ELSE 1 END,
     e.created_at DESC
   LIMIT 120;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.listar_feed_marketplace(TEXT, TEXT, TEXT, UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.listar_feed_marketplace(TEXT, TEXT, TEXT, UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION public.listar_feed_marketplace(TEXT, TEXT, TEXT, UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.listar_feed_marketplace(TEXT, TEXT, TEXT, UUID, TEXT) TO service_role;
 
 -- =====================================================
 -- Publicar anúncio
 -- =====================================================
+DROP FUNCTION IF EXISTS public.rpc_app_publicar_feed(UUID, TEXT, DATE, TEXT, NUMERIC, TEXT, TIME, TIME, TEXT);
+DROP FUNCTION IF EXISTS public.rpc_app_publicar_feed(UUID, TEXT, DATE, TEXT, NUMERIC, TEXT, TIME, TIME, TEXT, TEXT[]);
+DROP FUNCTION IF EXISTS public.rpc_app_publicar_feed(UUID, TEXT, DATE, TEXT, NUMERIC, TEXT, TIME, TIME, TEXT, TEXT[], TEXT);
+
 CREATE OR REPLACE FUNCTION public.rpc_app_publicar_feed(
   p_artista_id UUID,
   p_feed_tipo TEXT,
@@ -342,7 +367,9 @@ CREATE OR REPLACE FUNCTION public.rpc_app_publicar_feed(
   p_city TEXT DEFAULT NULL,
   p_start_time TIME DEFAULT TIME '20:00',
   p_end_time TIME DEFAULT TIME '23:00',
-  p_observacao TEXT DEFAULT NULL
+  p_observacao TEXT DEFAULT NULL,
+  p_feed_funcoes TEXT[] DEFAULT ARRAY[]::text[],
+  p_whatsapp TEXT DEFAULT NULL
 )
 RETURNS TABLE (
   success BOOLEAN,
@@ -361,6 +388,9 @@ DECLARE
   v_id UUID;
   v_start TIME;
   v_end TIME;
+  v_funcoes TEXT[];
+  v_whatsapp_digits TEXT;
+  v_whatsapp_save TEXT;
 BEGIN
   IF v_uid IS NULL THEN
     RETURN QUERY SELECT false, 'Usuário não autenticado.', NULL::UUID;
@@ -374,6 +404,22 @@ BEGIN
 
   IF p_event_date IS NULL OR p_event_date < CURRENT_DATE THEN
     RETURN QUERY SELECT false, 'Informe uma data de hoje em diante.', NULL::UUID;
+    RETURN;
+  END IF;
+
+  v_funcoes := ARRAY(
+    SELECT DISTINCT trim(f)
+    FROM unnest(COALESCE(p_feed_funcoes, ARRAY[]::text[])) AS f
+    WHERE length(trim(f)) > 0
+  );
+
+  IF COALESCE(array_length(v_funcoes, 1), 0) = 0 THEN
+    RETURN QUERY SELECT false, 'Selecione pelo menos uma função (ex.: Vocalista, Guitarrista).', NULL::UUID;
+    RETURN;
+  END IF;
+
+  IF array_length(v_funcoes, 1) > 8 THEN
+    RETURN QUERY SELECT false, 'Selecione no máximo 8 funções.', NULL::UUID;
     RETURN;
   END IF;
 
@@ -393,6 +439,25 @@ BEGIN
     ARRAY['editor', 'vendedor', 'admin', 'owner']
   ) THEN
     RETURN QUERY SELECT false, 'Sem permissão para publicar no feed deste artista.', NULL::UUID;
+    RETURN;
+  END IF;
+
+  v_whatsapp_digits := regexp_replace(trim(coalesce(p_whatsapp, '')), '\D', '', 'g');
+  IF length(v_whatsapp_digits) = 11 THEN
+    v_whatsapp_save := NULLIF(trim(coalesce(p_whatsapp, '')), '');
+    UPDATE public.artists
+    SET whatsapp = v_whatsapp_save,
+        updated_at = NOW()
+    WHERE id = p_artista_id;
+  ELSE
+    SELECT regexp_replace(trim(coalesce(a.whatsapp, '')), '\D', '', 'g')
+    INTO v_whatsapp_digits
+    FROM public.artists a
+    WHERE a.id = p_artista_id;
+  END IF;
+
+  IF length(v_whatsapp_digits) <> 11 THEN
+    RETURN QUERY SELECT false, 'Informe um WhatsApp válido para contato (DDD + número).', NULL::UUID;
     RETURN;
   END IF;
 
@@ -432,6 +497,7 @@ BEGIN
     confirmed,
     tag,
     feed_tipo,
+    feed_funcoes,
     ativo,
     created_at,
     updated_at
@@ -450,6 +516,7 @@ BEGIN
     false,
     'evento',
     p_feed_tipo,
+    v_funcoes,
     true,
     NOW(),
     NOW()
@@ -463,7 +530,7 @@ EXCEPTION
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.rpc_app_publicar_feed(UUID, TEXT, DATE, TEXT, NUMERIC, TEXT, TIME, TIME, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_app_publicar_feed(UUID, TEXT, DATE, TEXT, NUMERIC, TEXT, TIME, TIME, TEXT, TEXT[], TEXT) TO authenticated;
 
 -- =====================================================
 -- Encerrar anúncio

@@ -16,6 +16,8 @@ export interface FeedAnuncio {
   city: string | null;
   state_uf: string | null;
   description: string | null;
+  feed_funcoes: string[];
+  artist_whatsapp: string | null;
   created_at: string;
   is_mine: boolean;
   meu_cache_valor: number | null;
@@ -48,6 +50,8 @@ export interface PublicarFeedInput {
   cacheValor?: number | null;
   city?: string | null;
   observacao?: string | null;
+  feedFuncoes: string[];
+  whatsapp?: string | null;
 }
 
 function pickRpcRow<T extends object>(data: T[] | T | null): T | null {
@@ -76,6 +80,10 @@ function mapAnuncio(row: Record<string, unknown>): FeedAnuncio {
     city: row.city != null ? String(row.city) : null,
     state_uf: row.state_uf != null ? String(row.state_uf) : null,
     description: row.description != null ? String(row.description) : null,
+    feed_funcoes: Array.isArray(row.feed_funcoes)
+      ? (row.feed_funcoes as unknown[]).map((item) => String(item)).filter(Boolean)
+      : [],
+    artist_whatsapp: row.artist_whatsapp != null ? String(row.artist_whatsapp) : null,
     created_at: String(row.created_at ?? ''),
     is_mine: asBoolean(row.is_mine),
     meu_cache_valor:
@@ -105,6 +113,7 @@ export async function listarFeedMarketplace(params: {
   filtro: FeedFiltro;
   estadoUf?: string | null;
   cidade?: string | null;
+  funcao?: string | null;
   artistaAtualId?: string | null;
 }): Promise<{ anuncios: FeedAnuncio[]; error: string | null }> {
   try {
@@ -115,6 +124,7 @@ export async function listarFeedMarketplace(params: {
       p_estado: params.estadoUf?.trim() ? params.estadoUf.trim() : null,
       p_cidade: params.cidade?.trim() ? params.cidade.trim() : null,
       p_artista_atual_id: params.artistaAtualId ?? null,
+      p_funcao: params.funcao?.trim() ? params.funcao.trim() : null,
     });
     if (error) return { anuncios: [], error: error.message };
     const rows = (data || []) as Record<string, unknown>[];
@@ -166,6 +176,8 @@ export async function publicarFeed(
       p_start_time: input.startTime,
       p_end_time: input.endTime,
       p_observacao: input.observacao?.trim() || null,
+      p_feed_funcoes: input.feedFuncoes,
+      p_whatsapp: input.whatsapp?.trim() || null,
     });
     if (error) return { success: false, error: error.message };
     const row = pickRpcRow<{ success: boolean; error: string | null; evento_id: string | null }>(data);
