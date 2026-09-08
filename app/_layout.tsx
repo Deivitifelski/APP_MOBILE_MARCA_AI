@@ -129,6 +129,9 @@ function RootLayoutContent() {
         <Stack.Screen name="adicionar-evento" options={{ headerShown: false }} />
         <Stack.Screen name="publicar-feed" options={{ headerShown: false }} />
         <Stack.Screen name="negociar-feed" options={{ headerShown: false }} />
+        <Stack.Screen name="feed" options={{ headerShown: false }} />
+        <Stack.Screen name="feed/index" options={{ headerShown: false, title: 'Feed' }} />
+        <Stack.Screen name="feed/publicar-midia" options={{ headerShown: false }} />
         <Stack.Screen name="editar-evento" options={{ headerShown: false }} />
         <Stack.Screen name="detalhes-evento" options={{ headerShown: false }} />
         <Stack.Screen name="adicionar-despesa" options={{ headerShown: false }} />

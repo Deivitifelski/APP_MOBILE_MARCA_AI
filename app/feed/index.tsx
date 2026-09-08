@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { router, useFocusEffect } from 'expo-router';
+import { Stack, router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -562,9 +562,21 @@ export default function FeedScreen() {
   const artistInitial = activeArtist?.name?.trim().charAt(0).toUpperCase() || '?';
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
+    <>
+      <Stack.Screen options={{ headerShown: false, title: 'Feed' }} />
+      <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>Feed</Text>
+        <View style={styles.titleRow}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            hitSlop={10}
+            style={styles.backBtn}
+            accessibilityLabel="Voltar"
+          >
+            <Ionicons name="chevron-back" size={26} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={[styles.title, { color: colors.text }]}>Feed</Text>
+        </View>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -996,13 +1008,27 @@ export default function FeedScreen() {
         </Pressable>
       </Modal>
     </SafeAreaView>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   header: { paddingTop: 8, paddingBottom: 10 },
-  title: { fontSize: 26, fontWeight: '800', paddingHorizontal: 16, marginBottom: 10 },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    marginBottom: 10,
+    gap: 4,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: { flex: 1, fontSize: 26, fontWeight: '800' },
   chips: { paddingHorizontal: 16, gap: 8, paddingBottom: 10 },
   chip: {
     flexDirection: 'row',

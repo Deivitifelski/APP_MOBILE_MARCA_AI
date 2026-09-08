@@ -243,6 +243,7 @@ export const getEventsByArtist = async (
       .select("*")
       .eq("artist_id", artistId)
       .eq("ativo", true)
+      .is("feed_tipo", null)
       .order("event_date", { ascending: true });
 
     if (error) {
@@ -279,6 +280,7 @@ export const getEventsByMonth = async (
       .select("*")
       .eq("artist_id", artistId)
       .eq("ativo", true)
+      .is("feed_tipo", null)
       .gte("event_date", startDate)
       .lte("event_date", endDate)
       .order("event_date", { ascending: true });
@@ -309,6 +311,7 @@ export const getEventsByYear = async (
       .select("*")
       .eq("artist_id", artistId)
       .eq("ativo", true)
+      .is("feed_tipo", null)
       .gte("event_date", startDate)
       .lte("event_date", endDate)
       .order("event_date", { ascending: true });
@@ -335,6 +338,7 @@ export const getEventsByDateRange = async (
       .select("*")
       .eq("artist_id", artistId)
       .eq("ativo", true)
+      .is("feed_tipo", null)
       .gte("event_date", startDate)
       .lte("event_date", endDate)
       .order("event_date", { ascending: true });
@@ -359,6 +363,7 @@ export const getEventById = async (
       .select("*")
       .eq("id", eventId)
       .eq("ativo", true)
+      .is("feed_tipo", null)
       .maybeSingle();
 
     if (error) {

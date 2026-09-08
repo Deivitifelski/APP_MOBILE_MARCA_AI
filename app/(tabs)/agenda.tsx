@@ -1776,6 +1776,18 @@ export default function AgendaScreen() {
                         />
                       </TouchableOpacity>
                     ) : null}
+                    <TouchableOpacity
+                      style={styles.notificationButton}
+                      onPress={() => router.push("/feed")}
+                      accessibilityLabel="Feed"
+                      accessibilityRole="button"
+                    >
+                      <Ionicons
+                        name="newspaper-outline"
+                        size={24}
+                        color={colors.primary}
+                      />
+                    </TouchableOpacity>
                     {/* Ícone de Notificações */}
                     <TouchableOpacity
                       style={styles.notificationButton}
@@ -1814,10 +1826,23 @@ export default function AgendaScreen() {
             <Text style={[styles.title, { color: colors.text }]}>
               Agenda de Shows
             </Text>
-            <TouchableOpacity
-              style={styles.notificationButton}
-              onPress={() => router.push("/notificacoes")}
-            >
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={styles.notificationButton}
+                onPress={() => router.push("/feed")}
+                accessibilityLabel="Feed"
+                accessibilityRole="button"
+              >
+                <Ionicons
+                  name="newspaper-outline"
+                  size={24}
+                  color={colors.primary}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.notificationButton}
+                onPress={() => router.push("/notificacoes")}
+              >
               <Ionicons
                 name="notifications-outline"
                 size={24}
@@ -1831,6 +1856,7 @@ export default function AgendaScreen() {
                 </View>
               )}
             </TouchableOpacity>
+            </View>
           </View>
         )}
 

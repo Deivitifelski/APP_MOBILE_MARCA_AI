@@ -1085,7 +1085,7 @@ BEGIN
       false,
       'evento',
       NULL,
-      true,
+      false,
       NOW(),
       NOW()
     )
@@ -1270,15 +1270,28 @@ SET search_path = public
 AS $$
 BEGIN
   IF NEW.status = 'aceito' AND OLD.status IS DISTINCT FROM 'aceito' THEN
+    -- Procurando: o anúncio do publicador vira evento real da agenda.
     UPDATE events
     SET
       feed_tipo = NULL,
       confirmed = true,
+      ativo = true,
       updated_at = NOW()
     WHERE id = NEW.evento_origem_id
       AND feed_tipo = 'demanda'
       AND COALESCE(ativo, true) = true;
 
+    -- Oferecendo: rascunho de quem se interessou entra na agenda.
+    UPDATE events
+    SET
+      ativo = true,
+      confirmed = true,
+      updated_at = NOW()
+    WHERE id = NEW.evento_origem_id
+      AND feed_tipo IS NULL
+      AND artist_id = NEW.artista_que_convidou_id;
+
+    -- Oferecendo: anúncio original sai do feed.
     UPDATE events
     SET
       ativo = false,

@@ -65,6 +65,7 @@ BEGIN
   FROM events e
   WHERE e.artist_id = p_artist_id
     AND e.ativo IS TRUE
+    AND e.feed_tipo IS NULL
   ORDER BY e.event_date DESC, e.start_time DESC;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
