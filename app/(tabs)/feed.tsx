@@ -49,6 +49,13 @@ function formatTime(t: string) {
   return String(t).slice(0, 5);
 }
 
+function splitCalendarDate(dateString: string) {
+  const formatted = formatCalendarDate(dateString);
+  const parts = formatted.split('/');
+  if (parts.length < 3) return { day: formatted, monthYear: '' };
+  return { day: parts[0], monthYear: `${parts[1]}/${parts[2]}` };
+}
+
 const FILTROS: { id: FeedFiltro; label: string; descricao: string }[] = [
   { id: 'todos', label: 'Todos', descricao: 'Todas as publicações' },
   {
@@ -270,6 +277,7 @@ export default function FeedScreen() {
       state_uf: item.state_uf,
     });
     const weekday = weekdayFromCalendarDate(item.event_date);
+    const { day, monthYear } = splitCalendarDate(item.event_date);
     const cacheTxt =
       item.cache_valor != null
         ? Number(item.cache_valor).toLocaleString('pt-BR', {
@@ -277,24 +285,39 @@ export default function FeedScreen() {
             currency: 'BRL',
           })
         : null;
+    const cacheDisplay = meuAnuncio
+      ? cacheTxt
+        ? item.feed_mostrar_cache
+          ? cacheTxt
+          : `${cacheTxt} · oculto no feed`
+        : item.feed_mostrar_cache
+          ? 'Não informado'
+          : 'Oculto no feed'
+      : cacheTxt;
     const propostas = meuAnuncio ? propostasPorEvento[item.id] || [] : [];
     const avatarUrls = (
       item.propostas_avatars.length
         ? item.propostas_avatars
         : propostas.map((proposta) => proposta.artista_image).filter((url): url is string => !!url)
     ).slice(0, 3);
-    const funcoesVisiveis = item.feed_funcoes.slice(0, 3);
-    const funcoesExtras = Math.max(0, item.feed_funcoes.length - funcoesVisiveis.length);
     const timeLabel = item.start_time
-      ? `${formatTime(item.start_time)}–${formatTime(item.end_time)}`
-      : 'Horário a combinar';
+      ? `${formatTime(item.start_time)} – ${formatTime(item.end_time)}`
+      : 'A combinar';
     const artistDisplayName = meuAnuncio
       ? activeArtist?.name || item.artist_name
       : item.artist_name;
     const artistLabel = meuAnuncio ? 'Você' : item.artist_name;
     const artistAvatarUrl = item.artist_image?.trim() || '';
     const artistInitial = artistDisplayName.trim().charAt(0).toUpperCase() || '?';
-    const tipoLabel = isDemanda ? 'Procurando' : 'Oferta';
+    const tipoLabel = isDemanda ? 'Procurando' : 'Oferecendo';
+    const funcoesTxt = item.feed_funcoes.length > 0 ? item.feed_funcoes.join(' · ') : '';
+    const offerLine = isDemanda
+      ? funcoesTxt
+        ? `Procura ${funcoesTxt}`
+        : 'Procura artista, músico ou serviço'
+      : funcoesTxt
+        ? `Oferece ${funcoesTxt}`
+        : 'Oferece disponibilidade nesta data';
 
     return (
       <View
@@ -306,65 +329,38 @@ export default function FeedScreen() {
           },
         ]}
       >
+        <View style={[styles.typeBanner, { backgroundColor: badgeColor }]}>
+          <Ionicons
+            name={isDemanda ? 'search-outline' : 'megaphone-outline'}
+            size={15}
+            color="#fff"
+          />
+          <Text style={styles.typeBannerText}>{tipoLabel}</Text>
+        </View>
+
         <View style={styles.cardBody}>
-          <View style={styles.cardTopRow}>
-            <View style={[styles.cardAvatar, { backgroundColor: colors.background, borderColor: colors.border }]}>
-              {artistAvatarUrl ? (
-                <OptimizedImage
-                  imageUrl={artistAvatarUrl}
-                  style={styles.cardAvatarImg}
-                  fallbackText={artistInitial}
-                  fallbackIconSize={12}
-                  showLoadingIndicator={false}
-                />
-              ) : (
-                <Text style={[styles.cardAvatarInitial, { color: colors.primary }]}>{artistInitial}</Text>
-              )}
-            </View>
-            <Text style={[styles.cardArtistName, { color: colors.text }]} numberOfLines={1}>
-              {artistLabel}
-            </Text>
-          </View>
-
-          {!meuAnuncio ? (
-            <ArtistReputationBadge
-              compact
-              reputation={{
-                mediaNota: item.artist_media_nota,
-                totalAvaliacoes: item.artist_total_avaliacoes,
-                showsRealizados: item.artist_shows_realizados,
-              }}
-              onPressReviews={
-                item.artist_total_avaliacoes > 0
-                  ? () =>
-                      setReviewsArtist({
-                        id: item.artist_id,
-                        name: item.artist_name,
-                        image: item.artist_image,
-                      })
-                  : undefined
-              }
-            />
+          {weekday ? (
+            <Text style={[styles.cardWeekday, { color: badgeColor }]}>{weekday}</Text>
           ) : null}
-
-          <View style={styles.cardDateRow}>
-            <Text style={[styles.cardDateText, { color: colors.text }]}>
-              {weekday ? `${weekday} · ` : ''}
-              {formatCalendarDate(item.event_date)}
-            </Text>
-            <View style={[styles.typePill, { backgroundColor: `${badgeColor}14` }]}>
-              <Text style={[styles.typePillText, { color: badgeColor }]}>{tipoLabel}</Text>
-            </View>
+          <View style={styles.cardDateHero}>
+            <Text style={[styles.cardDayNumber, { color: colors.text }]}>{day}</Text>
+            {monthYear ? (
+              <Text style={[styles.cardMonthYear, { color: colors.text }]}>{monthYear}</Text>
+            ) : null}
           </View>
+
+          <Text style={[styles.cardOfferLine, { color: colors.text }]} numberOfLines={2}>
+            {offerLine}
+          </Text>
 
           <View style={styles.cardMetaRow}>
             <View style={styles.cardMetaItem}>
-              <Ionicons name="time-outline" size={13} color={colors.textSecondary} />
+              <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
               <Text style={[styles.cardMetaText, { color: colors.textSecondary }]}>{timeLabel}</Text>
             </View>
             {location ? (
               <View style={styles.cardMetaItem}>
-                <Ionicons name="location-outline" size={13} color={colors.textSecondary} />
+                <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
                 <Text style={[styles.cardMetaText, { color: colors.textSecondary }]} numberOfLines={1}>
                   {location}
                 </Text>
@@ -372,23 +368,10 @@ export default function FeedScreen() {
             ) : null}
           </View>
 
-          {funcoesVisiveis.length > 0 ? (
-            <View style={styles.funcoesWrap}>
-              {funcoesVisiveis.map((funcao) => (
-                <View
-                  key={`${item.id}-${funcao}`}
-                  style={[styles.funcaoChip, { backgroundColor: colors.background, borderColor: colors.border }]}
-                >
-                  <Text style={[styles.funcaoChipText, { color: colors.text }]} numberOfLines={1}>
-                    {funcao}
-                  </Text>
-                </View>
-              ))}
-              {funcoesExtras > 0 ? (
-                <View style={[styles.funcaoChip, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                  <Text style={[styles.funcaoChipText, { color: colors.textSecondary }]}>+{funcoesExtras}</Text>
-                </View>
-              ) : null}
+          {cacheDisplay ? (
+            <View style={[styles.cachePill, { backgroundColor: `${colors.primary}10` }]}>
+              <Ionicons name="cash-outline" size={14} color={colors.primary} />
+              <Text style={[styles.cachePillText, { color: colors.text }]}>Cachê {cacheDisplay}</Text>
             </View>
           ) : null}
 
@@ -398,20 +381,47 @@ export default function FeedScreen() {
             </Text>
           ) : null}
 
-          {meuAnuncio ? (
-            <View style={[styles.cachePill, { backgroundColor: `${colors.primary}10` }]}>
-              <Ionicons name="cash-outline" size={13} color={colors.primary} />
-              <Text style={[styles.cachePillText, { color: colors.text }]}>
-                {cacheTxt ? `Cachê: ${cacheTxt}` : ''}
-                {!item.feed_mostrar_cache ? ' · oculto no feed' : ''}
+          <View style={styles.cardArtistBlock}>
+            <View style={styles.cardTopRow}>
+              <View style={[styles.cardAvatar, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                {artistAvatarUrl ? (
+                  <OptimizedImage
+                    imageUrl={artistAvatarUrl}
+                    style={styles.cardAvatarImg}
+                    fallbackText={artistInitial}
+                    fallbackIconSize={12}
+                    showLoadingIndicator={false}
+                  />
+                ) : (
+                  <Text style={[styles.cardAvatarInitial, { color: colors.primary }]}>{artistInitial}</Text>
+                )}
+              </View>
+              <Text style={[styles.cardArtistName, { color: colors.text }]} numberOfLines={1}>
+                {artistLabel}
               </Text>
             </View>
-          ) : cacheTxt ? (
-            <View style={[styles.cachePill, { backgroundColor: `${colors.primary}10` }]}>
-              <Ionicons name="cash-outline" size={13} color={colors.primary} />
-              <Text style={[styles.cachePillText, { color: colors.text }]}>Cachê: {cacheTxt}</Text>
-            </View>
-          ) : null}
+
+            {!meuAnuncio ? (
+              <ArtistReputationBadge
+                compact
+                reputation={{
+                  mediaNota: item.artist_media_nota,
+                  totalAvaliacoes: item.artist_total_avaliacoes,
+                  showsRealizados: item.artist_shows_realizados,
+                }}
+                onPressReviews={
+                  item.artist_total_avaliacoes > 0
+                    ? () =>
+                        setReviewsArtist({
+                          id: item.artist_id,
+                          name: item.artist_name,
+                          image: item.artist_image,
+                        })
+                    : undefined
+                }
+              />
+            ) : null}
+          </View>
 
           {item.propostas_count > 0 || meuAnuncio ? (
           <View style={styles.propostasResumo}>
@@ -971,12 +981,88 @@ const styles = StyleSheet.create({
   card: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 14,
-    marginBottom: 10,
+    marginBottom: 12,
     overflow: 'hidden',
   },
+  typeBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  typeBannerText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
   cardBody: {
-    padding: 12,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 14,
     gap: 8,
+  },
+  cardWeekday: {
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  cardDateHero: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+    marginTop: -4,
+  },
+  cardDayNumber: {
+    fontSize: 36,
+    fontWeight: '800',
+    lineHeight: 40,
+    letterSpacing: -0.8,
+  },
+  cardMonthYear: {
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  cardOfferLine: {
+    fontSize: 16,
+    fontWeight: '800',
+    lineHeight: 22,
+  },
+  cardMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  cardMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    maxWidth: '100%',
+  },
+  cardMetaText: {
+    fontSize: 13,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  cachePill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  cachePillText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  notes: { fontSize: 13, lineHeight: 18 },
+  cardArtistBlock: {
+    gap: 4,
   },
   cardTopRow: {
     flexDirection: 'row',
@@ -1002,54 +1088,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  cardDateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  cardDateText: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  typePill: {
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  typePillText: {
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  cardMetaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  cardMetaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    maxWidth: '100%',
-  },
-  cardMetaText: {
-    fontSize: 12,
-    fontWeight: '600',
-    flexShrink: 1,
-  },
-  cachePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-  },
-  cachePillText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
   propostasResumo: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1067,38 +1105,6 @@ const styles = StyleSheet.create({
   },
   stackAvatarImg: { width: 18, height: 18, borderRadius: 9 },
   countPillText: { fontSize: 11, fontWeight: '600' },
-  notes: { fontSize: 13, lineHeight: 18 },
-  funcoesWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 5,
-  },
-  funcaoChip: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    maxWidth: '100%',
-  },
-  funcaoChipText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  mediaKind: { fontSize: 12, fontWeight: '600', marginTop: 2 },
-  mediaPreview: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    minHeight: 220,
-  },
-  mediaImage: { width: '100%', height: 280 },
-  mediaVideoBox: {
-    minHeight: 220,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 48,
-  },
-  mediaVideoText: { fontSize: 15, fontWeight: '700' },
   propostasBox: {
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingTop: 8,
