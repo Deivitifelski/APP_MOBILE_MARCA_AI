@@ -28,7 +28,7 @@ import { usePermissions } from '../../contexts/PermissionsContext';
 import { useActiveArtistContext } from '../../contexts/ActiveArtistContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { formatEventLocationSlash } from '../../lib/brazilGeo';
-import { formatCalendarDate, weekdayFromCalendarDate } from '../../lib/dateUtils';
+import { formatCalendarDate, formatCalendarDateLongParts, weekdayFromCalendarDate } from '../../lib/dateUtils';
 import {
   ARTIST_WORK_ROLE_PRESETS,
   buildOrderedOptionsForPicker,
@@ -47,13 +47,6 @@ import {
 function formatTime(t: string) {
   if (!t) return '';
   return String(t).slice(0, 5);
-}
-
-function splitCalendarDate(dateString: string) {
-  const formatted = formatCalendarDate(dateString);
-  const parts = formatted.split('/');
-  if (parts.length < 3) return { day: formatted, monthYear: '' };
-  return { day: parts[0], monthYear: `${parts[1]}/${parts[2]}` };
 }
 
 const FILTROS: { id: FeedFiltro; label: string; descricao: string }[] = [
@@ -96,6 +89,7 @@ export default function FeedScreen() {
     name: string;
     image: string | null;
   } | null>(null);
+  const [anuncioMenu, setAnuncioMenu] = useState<FeedAnuncio | null>(null);
 
   const loadGenerationRef = useRef(0);
 
@@ -277,7 +271,7 @@ export default function FeedScreen() {
       state_uf: item.state_uf,
     });
     const weekday = weekdayFromCalendarDate(item.event_date);
-    const { day, monthYear } = splitCalendarDate(item.event_date);
+    const dateParts = formatCalendarDateLongParts(item.event_date);
     const cacheTxt =
       item.cache_valor != null
         ? Number(item.cache_valor).toLocaleString('pt-BR', {
@@ -330,22 +324,82 @@ export default function FeedScreen() {
         ]}
       >
         <View style={[styles.typeBanner, { backgroundColor: badgeColor }]}>
-          <Ionicons
-            name={isDemanda ? 'search-outline' : 'megaphone-outline'}
-            size={15}
-            color="#fff"
-          />
-          <Text style={styles.typeBannerText}>{tipoLabel}</Text>
+          <View style={styles.typeBannerLeft}>
+            <Ionicons
+              name={isDemanda ? 'search-outline' : 'megaphone-outline'}
+              size={15}
+              color="#fff"
+            />
+            <Text style={styles.typeBannerText}>{tipoLabel}</Text>
+          </View>
+          <View style={styles.moreBtn}>
+            {meuAnuncio ? (
+              <TouchableOpacity
+                onPress={() => setAnuncioMenu(item)}
+                hitSlop={10}
+                accessibilityLabel="Mais opções"
+              >
+                <Ionicons name="ellipsis-horizontal" size={20} color="#fff" />
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
 
         <View style={styles.cardBody}>
           {weekday ? (
             <Text style={[styles.cardWeekday, { color: badgeColor }]}>{weekday}</Text>
           ) : null}
-          <View style={styles.cardDateHero}>
-            <Text style={[styles.cardDayNumber, { color: colors.text }]}>{day}</Text>
-            {monthYear ? (
-              <Text style={[styles.cardMonthYear, { color: colors.text }]}>{monthYear}</Text>
+          {dateParts ? (
+            <View style={styles.cardDateHero}>
+              <Text style={[styles.cardDayNumber, { color: colors.text }]}>{dateParts.day}</Text>
+              <Text style={[styles.cardDateRest, { color: colors.text }]}>{dateParts.rest}</Text>
+            </View>
+          ) : null}
+
+          <View style={styles.cardArtistBlock}>
+            <View style={styles.cardTopRow}>
+              <View style={[styles.cardAvatar, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                {artistAvatarUrl ? (
+                  <OptimizedImage
+                    imageUrl={artistAvatarUrl}
+                    style={styles.cardAvatarImg}
+                    fallbackText={artistInitial}
+                    fallbackIconSize={16}
+                    showLoadingIndicator={false}
+                  />
+                ) : (
+                  <Text style={[styles.cardAvatarInitial, { color: colors.primary }]}>{artistInitial}</Text>
+                )}
+              </View>
+              <View style={styles.cardArtistMeta}>
+                <Text style={[styles.cardArtistKicker, { color: colors.textSecondary }]}>
+                  Publicado por
+                </Text>
+                <Text style={[styles.cardArtistName, { color: colors.text }]} numberOfLines={1}>
+                  {artistLabel}
+                </Text>
+              </View>
+            </View>
+
+            {!meuAnuncio ? (
+              <ArtistReputationBadge
+                compact
+                reputation={{
+                  mediaNota: item.artist_media_nota,
+                  totalAvaliacoes: item.artist_total_avaliacoes,
+                  showsRealizados: item.artist_shows_realizados,
+                }}
+                onPressReviews={
+                  item.artist_total_avaliacoes > 0
+                    ? () =>
+                        setReviewsArtist({
+                          id: item.artist_id,
+                          name: item.artist_name,
+                          image: item.artist_image,
+                        })
+                    : undefined
+                }
+              />
             ) : null}
           </View>
 
@@ -380,48 +434,6 @@ export default function FeedScreen() {
               {item.description}
             </Text>
           ) : null}
-
-          <View style={styles.cardArtistBlock}>
-            <View style={styles.cardTopRow}>
-              <View style={[styles.cardAvatar, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                {artistAvatarUrl ? (
-                  <OptimizedImage
-                    imageUrl={artistAvatarUrl}
-                    style={styles.cardAvatarImg}
-                    fallbackText={artistInitial}
-                    fallbackIconSize={12}
-                    showLoadingIndicator={false}
-                  />
-                ) : (
-                  <Text style={[styles.cardAvatarInitial, { color: colors.primary }]}>{artistInitial}</Text>
-                )}
-              </View>
-              <Text style={[styles.cardArtistName, { color: colors.text }]} numberOfLines={1}>
-                {artistLabel}
-              </Text>
-            </View>
-
-            {!meuAnuncio ? (
-              <ArtistReputationBadge
-                compact
-                reputation={{
-                  mediaNota: item.artist_media_nota,
-                  totalAvaliacoes: item.artist_total_avaliacoes,
-                  showsRealizados: item.artist_shows_realizados,
-                }}
-                onPressReviews={
-                  item.artist_total_avaliacoes > 0
-                    ? () =>
-                        setReviewsArtist({
-                          id: item.artist_id,
-                          name: item.artist_name,
-                          image: item.artist_image,
-                        })
-                    : undefined
-                }
-              />
-            ) : null}
-          </View>
 
           {item.propostas_count > 0 || meuAnuncio ? (
           <View style={styles.propostasResumo}>
@@ -515,22 +527,7 @@ export default function FeedScreen() {
           </View>
         ) : null}
 
-        {meuAnuncio ? (
-          <View style={styles.cardActions}>
-            <TouchableOpacity
-              style={[styles.btnOutline, styles.cardActionMain, { borderColor: colors.primary }]}
-              onPress={() => handleEditar(item)}
-            >
-              <Text style={[styles.btnOutlineText, { color: colors.primary }]}>Editar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.btnOutline, styles.cardActionMain, { borderColor: colors.border }]}
-              onPress={() => handleEncerrar(item)}
-            >
-              <Text style={[styles.btnOutlineText, { color: colors.textSecondary }]}>Encerrar</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
+        {!meuAnuncio ? (
           <TouchableOpacity
             style={
               item.ja_proposei
@@ -553,7 +550,7 @@ export default function FeedScreen() {
                   : 'Tenho interesse'}
             </Text>
           </TouchableOpacity>
-        )}
+        ) : null}
         </View>
       </View>
     );
@@ -889,6 +886,115 @@ export default function FeedScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+      <Modal
+        visible={!!anuncioMenu}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setAnuncioMenu(null)}
+      >
+        <Pressable style={styles.sheetOverlay} onPress={() => setAnuncioMenu(null)}>
+          <Pressable
+            style={[styles.sheet, { backgroundColor: colors.surface }]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+            {anuncioMenu ? (
+              <View
+                style={[
+                  styles.menuSummary,
+                  {
+                    backgroundColor: colors.background,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.menuSummaryTipo,
+                    { color: anuncioMenu.feed_tipo === 'demanda' ? '#4F46E5' : '#0F766E' },
+                  ]}
+                >
+                  {anuncioMenu.feed_tipo === 'demanda' ? 'Procurando' : 'Oferecendo'}
+                </Text>
+                <Text style={[styles.menuSummaryDate, { color: colors.text }]}>
+                  {[
+                    weekdayFromCalendarDate(anuncioMenu.event_date),
+                    formatCalendarDate(anuncioMenu.event_date),
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </Text>
+                <Text style={[styles.menuSummaryFuncoes, { color: colors.textSecondary }]} numberOfLines={1}>
+                  {anuncioMenu.feed_funcoes.length > 0
+                    ? anuncioMenu.feed_funcoes.join(' · ')
+                    : anuncioMenu.feed_tipo === 'demanda'
+                      ? 'Artista, músico ou serviço'
+                      : 'Disponibilidade nesta data'}
+                </Text>
+              </View>
+            ) : null}
+
+            <View style={[styles.menuGroup, { borderColor: colors.border }]}>
+              <TouchableOpacity
+                style={styles.menuRow}
+                onPress={() => {
+                  if (!anuncioMenu) return;
+                  const item = anuncioMenu;
+                  setAnuncioMenu(null);
+                  handleEditar(item);
+                }}
+                activeOpacity={0.75}
+              >
+                <Ionicons name="create-outline" size={20} color={colors.text} />
+                <Text style={[styles.menuRowText, { color: colors.text }]}>Editar anúncio</Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+              </TouchableOpacity>
+
+              {anuncioMenu && anuncioMenu.propostas_count > 0 ? (
+                <>
+                  <View style={[styles.menuDivider, { backgroundColor: colors.border }]} />
+                  <TouchableOpacity
+                    style={styles.menuRow}
+                    onPress={() => {
+                      setAnuncioMenu(null);
+                      router.push('/convites-participacao-evento');
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    <Ionicons name="people-outline" size={20} color={colors.text} />
+                    <Text style={[styles.menuRowText, { color: colors.text }]}>
+                      {anuncioMenu.propostas_count === 1
+                        ? 'Ver 1 proposta'
+                        : `Ver ${anuncioMenu.propostas_count} propostas`}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </>
+              ) : null}
+            </View>
+
+            <View style={[styles.menuGroup, { borderColor: colors.border }]}>
+              <TouchableOpacity
+                style={styles.menuRow}
+                onPress={() => {
+                  if (!anuncioMenu) return;
+                  const item = anuncioMenu;
+                  setAnuncioMenu(null);
+                  handleEncerrar(item);
+                }}
+                activeOpacity={0.75}
+              >
+                <Ionicons name="close-circle-outline" size={20} color="#DC2626" />
+                <Text style={[styles.menuRowText, { color: '#DC2626' }]}>Encerrar anúncio</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={styles.sheetCancel} onPress={() => setAnuncioMenu(null)}>
+              <Text style={[styles.sheetCancelText, { color: colors.textSecondary }]}>Cancelar</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -987,9 +1093,16 @@ const styles = StyleSheet.create({
   typeBanner: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingLeft: 14,
+    paddingRight: 6,
+    paddingVertical: 6,
+  },
+  typeBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    flex: 1,
   },
   typeBannerText: {
     color: '#fff',
@@ -998,6 +1111,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     textTransform: 'uppercase',
   },
+  moreBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   cardBody: {
     paddingHorizontal: 14,
     paddingTop: 12,
@@ -1005,31 +1124,32 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cardWeekday: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '800',
     letterSpacing: 0.3,
   },
   cardDateHero: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 8,
-    marginTop: -4,
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: -2,
   },
   cardDayNumber: {
-    fontSize: 36,
+    fontSize: 28,
     fontWeight: '800',
-    lineHeight: 40,
-    letterSpacing: -0.8,
+    lineHeight: 32,
+    letterSpacing: -0.6,
   },
-  cardMonthYear: {
-    fontSize: 20,
-    fontWeight: '800',
-    letterSpacing: -0.3,
+  cardDateRest: {
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 20,
   },
   cardOfferLine: {
-    fontSize: 16,
-    fontWeight: '800',
-    lineHeight: 22,
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 20,
   },
   cardMetaRow: {
     flexDirection: 'row',
@@ -1067,26 +1187,33 @@ const styles = StyleSheet.create({
   cardTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
   cardAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
     borderWidth: 1,
   },
-  cardAvatarImg: { width: 28, height: 28, borderRadius: 14 },
+  cardAvatarImg: { width: 42, height: 42, borderRadius: 21 },
   cardAvatarInitial: {
-    fontSize: 12,
+    fontSize: 16,
     fontWeight: '800',
   },
-  cardArtistName: {
+  cardArtistMeta: {
     flex: 1,
-    fontSize: 14,
-    fontWeight: '700',
+    minWidth: 0,
+  },
+  cardArtistKicker: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  cardArtistName: {
+    fontSize: 17,
+    fontWeight: '800',
   },
   propostasResumo: {
     flexDirection: 'row',
@@ -1126,14 +1253,6 @@ const styles = StyleSheet.create({
   propostaAvatarImg: { width: 28, height: 28, borderRadius: 14 },
   propostaNome: { fontSize: 13, fontWeight: '700' },
   propostaMeta: { fontSize: 11, marginTop: 1 },
-  cardActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  cardActionMain: {
-    flex: 1,
-  },
   btnPrimary: {
     borderRadius: 10,
     paddingVertical: 10,
@@ -1183,6 +1302,51 @@ const styles = StyleSheet.create({
   },
   sheetTitle: { fontSize: 20, fontWeight: '800' },
   sheetSub: { fontSize: 14, marginTop: 4, marginBottom: 16 },
+  menuSummary: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+    gap: 2,
+  },
+  menuSummaryTipo: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  menuSummaryDate: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  menuSummaryFuncoes: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  menuGroup: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  menuRowText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  menuDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 46,
+  },
   optionCard: {
     flexDirection: 'row',
     alignItems: 'center',

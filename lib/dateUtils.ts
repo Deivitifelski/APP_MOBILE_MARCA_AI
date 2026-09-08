@@ -17,6 +17,44 @@ export function formatCalendarDate(dateString: string | null | undefined): strin
   return `${pad(d)}/${pad(m)}/${y}`;
 }
 
+const MONTHS_PT = [
+  'janeiro',
+  'fevereiro',
+  'março',
+  'abril',
+  'maio',
+  'junho',
+  'julho',
+  'agosto',
+  'setembro',
+  'outubro',
+  'novembro',
+  'dezembro',
+];
+
+/** Data por extenso (ex.: 19 de setembro de 2026). */
+export function formatCalendarDateLong(dateString: string | null | undefined): string {
+  const parts = formatCalendarDateLongParts(dateString);
+  if (!parts) return dateString == null ? '' : String(dateString).trim();
+  return `${parts.day} ${parts.rest}`;
+}
+
+export function formatCalendarDateLongParts(
+  dateString: string | null | undefined
+): { day: string; rest: string } | null {
+  if (dateString == null || !String(dateString).trim()) return null;
+  const part = String(dateString).trim().split('T')[0];
+  const bits = part.split('-');
+  if (bits.length < 3) return null;
+  const y = parseInt(bits[0], 10);
+  const m = parseInt(bits[1], 10);
+  const d = parseInt(bits[2], 10);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d) || m < 1 || m > 12) {
+    return null;
+  }
+  return { day: String(d), rest: `de ${MONTHS_PT[m - 1]} de ${y}` };
+}
+
 const WEEKDAYS_PT = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 /** Dia da semana a partir de "YYYY-MM-DD", sem conversão de fuso. */
