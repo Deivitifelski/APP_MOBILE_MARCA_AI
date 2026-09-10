@@ -38,6 +38,25 @@ WHERE grupo_disputa_id IS NULL;
 ALTER TABLE convite_participacao_evento
   ALTER COLUMN grupo_disputa_id SET NOT NULL;
 
+CREATE OR REPLACE FUNCTION public.feed_funcoes_para_despesa(p_funcoes TEXT[])
+RETURNS TEXT
+LANGUAGE sql
+IMMUTABLE
+PARALLEL SAFE
+AS $$
+  SELECT NULLIF(
+    array_to_string(
+      ARRAY(
+        SELECT NULLIF(trim(f), '')
+        FROM unnest(COALESCE(p_funcoes, ARRAY[]::text[])) AS f
+        WHERE NULLIF(trim(f), '') IS NOT NULL
+      ),
+      ' · '
+    ),
+    ''
+  );
+$$;
+
 ALTER TABLE convite_participacao_evento
   ALTER COLUMN grupo_disputa_id SET DEFAULT gen_random_uuid();
 
@@ -423,6 +442,17 @@ DECLARE
   v_convite convite_participacao_evento%ROWTYPE;
   v_nome_artista_convidado TEXT;
   v_nome_despesa TEXT;
+  v_funcao_despesa TEXT;
+  v_nome_evento TEXT;
+  v_cache NUMERIC;
+  v_data DATE;
+  v_start TIME;
+  v_end TIME;
+  v_city TEXT;
+  v_uf TEXT;
+  v_origem events%ROWTYPE;
+  v_listing events%ROWTYPE;
+  v_pode_aceitar BOOLEAN := false;
 BEGIN
   IF v_uid IS NULL THEN
     RETURN QUERY SELECT false, 'Usuário não autenticado.', NULL::UUID, NULL::UUID;
@@ -451,15 +481,92 @@ BEGIN
     RETURN;
   END IF;
 
-  -- Usuário precisa ter papel de edição no artista convidado.
-  IF NOT public._is_member_of_artist(v_uid, v_convite.artista_convidado_id, ARRAY['editor', 'admin', 'owner']) THEN
+  v_pode_aceitar := public._is_member_of_artist(
+    v_uid,
+    v_convite.artista_convidado_id,
+    ARRAY['editor', 'admin', 'owner']
+  );
+
+  -- Procurando no feed: o anunciante também pode aceitar o candidato.
+  IF NOT v_pode_aceitar THEN
+    SELECT * INTO v_origem
+    FROM events e
+    WHERE e.id = v_convite.evento_origem_id
+    LIMIT 1;
+
+    IF v_origem.feed_tipo = 'demanda'
+      AND public._is_member_of_artist(
+        v_uid,
+        v_convite.artista_que_convidou_id,
+        ARRAY['editor', 'vendedor', 'admin', 'owner']
+      )
+    THEN
+      v_pode_aceitar := true;
+    END IF;
+  END IF;
+
+  IF NOT v_pode_aceitar THEN
     RETURN QUERY SELECT false, 'Sem permissão para aceitar este convite.', NULL::UUID, NULL::UUID;
     RETURN;
   END IF;
 
-  IF v_convite.cache_valor IS NULL OR v_convite.cache_valor <= 0 THEN
+  SELECT * INTO v_origem
+  FROM events e
+  WHERE e.id = v_convite.evento_origem_id
+  LIMIT 1;
+
+  SELECT * INTO v_listing
+  FROM events e
+  WHERE e.id = v_convite.grupo_disputa_id
+  LIMIT 1;
+
+  v_cache := v_convite.cache_valor;
+  IF v_cache IS NULL OR v_cache <= 0 THEN
+    v_cache := COALESCE(v_origem.value, v_listing.value);
+  END IF;
+  IF v_cache IS NULL OR v_cache <= 0 THEN
     RETURN QUERY SELECT false, 'Convite sem cachê válido para lançar despesa.', NULL::UUID, NULL::UUID;
     RETURN;
+  END IF;
+
+  v_data := COALESCE(v_convite.data_evento, v_origem.event_date, v_listing.event_date);
+  v_start := COALESCE(v_convite.hora_inicio, v_origem.start_time, v_listing.start_time);
+  v_end := COALESCE(v_convite.hora_fim, v_origem.end_time, v_listing.end_time);
+  v_city := COALESCE(NULLIF(trim(v_convite.cidade), ''), NULLIF(trim(v_origem.city), ''), NULLIF(trim(v_listing.city), ''));
+  v_uf := upper(trim(coalesce(
+    NULLIF(trim(coalesce(v_convite.estado_uf, '')), ''),
+    NULLIF(trim(coalesce(v_origem.state_uf, '')), ''),
+    NULLIF(trim(coalesce(v_listing.state_uf, '')), '')
+  )));
+  IF length(v_uf) <> 2 THEN
+    v_uf := NULL;
+  END IF;
+
+  IF v_data IS NULL OR v_start IS NULL OR v_end IS NULL THEN
+    RETURN QUERY SELECT false, 'Convite incompleto (data ou horário). Não foi possível aceitar.', NULL::UUID, NULL::UUID;
+    RETURN;
+  END IF;
+  -- 00:00–00:00 = horário não definido (igual à agenda).
+  -- Fim <= início também cobre evento overnight (ex.: 22:00–02:00).
+  -- O app permite criar o evento origem assim; o aceite não pode bloquear.
+
+  v_nome_evento := NULLIF(trim(v_convite.nome_evento), '');
+  IF v_nome_evento IS NULL
+    OR v_nome_evento IN ('Oferta', 'Procurando')
+    OR v_nome_evento ~* '^(Oferta|Procurando)\s*[·\-–]'
+  THEN
+    v_nome_evento := NULLIF(trim(v_origem.name), '');
+    IF v_nome_evento IS NULL
+      OR v_nome_evento IN ('Oferta', 'Procurando')
+      OR v_nome_evento ~* '^(Oferta|Procurando)\s*[·\-–]'
+    THEN
+      v_nome_evento := COALESCE(NULLIF(trim(v_listing.name), ''), 'Evento');
+      IF v_nome_evento IN ('Oferta', 'Procurando')
+        OR v_nome_evento ~* '^(Oferta|Procurando)\s*[·\-–]'
+      THEN
+        v_nome_evento := 'Evento';
+      END IF;
+    END IF;
   END IF;
 
   SELECT a.name INTO v_nome_artista_convidado
@@ -467,8 +574,18 @@ BEGIN
   WHERE a.id = v_convite.artista_convidado_id
   LIMIT 1;
 
-  v_nome_despesa := COALESCE(v_nome_artista_convidado, 'Artista') || ' - ' ||
-                    COALESCE(NULLIF(TRIM(v_convite.funcao_participacao), ''), 'Participação');
+  v_funcao_despesa := NULLIF(trim(coalesce(v_convite.funcao_participacao, '')), '');
+  IF v_funcao_despesa IS NULL OR lower(v_funcao_despesa) = 'interesse' THEN
+    v_funcao_despesa := COALESCE(
+      public.feed_funcoes_para_despesa(v_listing.feed_funcoes),
+      public.feed_funcoes_para_despesa(v_origem.feed_funcoes),
+      'Participação'
+    );
+  END IF;
+
+  v_nome_despesa := COALESCE(NULLIF(trim(v_nome_artista_convidado), ''), 'Artista')
+    || ' - '
+    || v_funcao_despesa;
 
   BEGIN
     -- Trava convites pendentes do mesmo grupo (ORDER BY id evita deadlock).
@@ -520,18 +637,15 @@ BEGIN
       v_convite.artista_convidado_id,
       v_uid,
       v_uid,
-      v_convite.nome_evento,
+      v_nome_evento,
       -- Só mensagem do convite; nunca copiar descricao (observações do evento do organizador).
       NULLIF(TRIM(v_convite.mensagem), ''),
-      v_convite.data_evento,
-      v_convite.hora_inicio,
-      v_convite.hora_fim,
-      v_convite.cache_valor,
-      v_convite.cidade,
-      CASE
-        WHEN v_convite.estado_uf IS NULL OR trim(v_convite.estado_uf) = '' THEN NULL
-        ELSE upper(trim(v_convite.estado_uf))
-      END,
+      v_data,
+      v_start,
+      v_end,
+      v_cache,
+      v_city,
+      v_uf,
       v_convite.telefone_contratante,
       true,
       'evento',
@@ -542,7 +656,7 @@ BEGIN
     )
     RETURNING id INTO evento_id;
 
-    -- 2) Criar despesa no evento de origem
+    -- 2) Criar despesa no evento de origem (nome = artista contratado + função)
     INSERT INTO event_expenses (
       event_id,
       name,
@@ -553,7 +667,7 @@ BEGIN
     ) VALUES (
       v_convite.evento_origem_id,
       v_nome_despesa,
-      v_convite.cache_valor,
+      v_cache,
       NULL,
       NOW(),
       NOW()
@@ -566,6 +680,14 @@ BEGIN
       status = 'aceito',
       evento_criado_convidado_id = evento_id,
       despesa_origem_id = despesa_id,
+      funcao_participacao = v_funcao_despesa,
+      cache_valor = v_cache,
+      nome_evento = v_nome_evento,
+      data_evento = v_data,
+      hora_inicio = v_start,
+      hora_fim = v_end,
+      cidade = v_city,
+      estado_uf = v_uf,
       respondido_em = NOW(),
       atualizado_em = NOW()
     WHERE id = v_convite.id
@@ -607,6 +729,12 @@ BEGIN
 
     RETURN QUERY SELECT true, NULL::TEXT, evento_id, despesa_id;
   EXCEPTION
+    WHEN unique_violation THEN
+      RETURN QUERY SELECT false, 'Este convite já gerou um evento na agenda.', NULL::UUID, NULL::UUID;
+    WHEN not_null_violation THEN
+      RETURN QUERY SELECT false, 'Faltam dados obrigatórios para criar o evento. Tente novamente.', NULL::UUID, NULL::UUID;
+    WHEN check_violation THEN
+      RETURN QUERY SELECT false, 'Dados inválidos do evento (horário ou local). Não foi possível aceitar.', NULL::UUID, NULL::UUID;
     WHEN OTHERS THEN
       RETURN QUERY SELECT false, SQLERRM, NULL::UUID, NULL::UUID;
   END;

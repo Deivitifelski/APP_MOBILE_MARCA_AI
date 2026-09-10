@@ -45,8 +45,9 @@ import {
   getEventsByMonthWithRole,
   type EventWithRole,
 } from '../services/supabase/eventService';
-import { publicarFeed, editarAnuncioFeed, listarFeedMarketplace, type FeedTipo } from '../services/supabase/feedMarketplaceService';
+import { publicarFeed, editarAnuncioFeed, listarFeedMarketplace, isNomeAutomaticoFeed, type FeedTipo } from '../services/supabase/feedMarketplaceService';
 import { getArtistById } from '../services/supabase/artistService';
+import { supabase } from '../lib/supabase';
 import { useActiveArtist } from '../services/useActiveArtist';
 import {
   extractNumericValueString,
@@ -146,6 +147,7 @@ export default function PublicarFeedScreen() {
   const [showEstados, setShowEstados] = useState(false);
   const [cacheDraft, setCacheDraft] = useState('');
   const [observacao, setObservacao] = useState('');
+  const [nomeEvento, setNomeEvento] = useState('');
   const [selectedFuncoes, setSelectedFuncoes] = useState<string[]>([]);
   const [funcaoDraft, setFuncaoDraft] = useState('');
   const [artistWorkRoles, setArtistWorkRoles] = useState<string[]>([]);
@@ -253,10 +255,12 @@ export default function PublicarFeedScreen() {
     return Number.isFinite(n) ? n : 0;
   }, [cacheDraft]);
 
-  const funcaoPresets = useMemo(
-    () => (artistWorkRoles.length > 0 ? artistWorkRoles : [...ARTIST_WORK_ROLE_PRESETS]),
-    [artistWorkRoles]
-  );
+  const funcaoPresets = useMemo(() => {
+    if (isProcurar) {
+      return [...ARTIST_WORK_ROLE_PRESETS];
+    }
+    return artistWorkRoles.length > 0 ? artistWorkRoles : [...ARTIST_WORK_ROLE_PRESETS];
+  }, [isProcurar, artistWorkRoles]);
 
   const funcaoOptions = useMemo(
     () => buildOrderedOptionsForPicker(funcaoPresets, selectedFuncoes),
@@ -355,7 +359,7 @@ export default function PublicarFeedScreen() {
     void listarFeedMarketplace({
       filtro: 'meus',
       artistaAtualId: activeArtist.id,
-    }).then(({ anuncios, error }) => {
+    }).then(async ({ anuncios, error }) => {
       if (cancelled) return;
       if (error) {
         Alert.alert('Erro', error);
@@ -370,6 +374,15 @@ export default function PublicarFeedScreen() {
         setLoadingEdit(false);
         return;
       }
+      if (found.propostas_count > 0) {
+        Alert.alert(
+          'Não é possível editar',
+          'Este anúncio já tem candidatos. Para mudar a data ou outros dados, encerre e publique novamente.',
+          [{ text: 'OK', onPress: () => router.back() }]
+        );
+        setLoadingEdit(false);
+        return;
+      }
 
       setEditTipo(found.feed_tipo);
       setSelectedYmd(found.event_date);
@@ -379,6 +392,21 @@ export default function PublicarFeedScreen() {
       setEstadoUf(found.state_uf || '');
       setCidade(found.city || '');
       setObservacao(found.description || '');
+      {
+        const currentName = String(found.evento_nome ?? '').trim();
+        if (currentName) {
+          setNomeEvento(currentName);
+        } else {
+          const { data: eventRow } = await supabase
+            .from('events')
+            .select('name')
+            .eq('id', eventId)
+            .maybeSingle();
+          if (cancelled) return;
+          const fromDb = String(eventRow?.name ?? '').trim();
+          setNomeEvento(isNomeAutomaticoFeed(fromDb) ? '' : fromDb);
+        }
+      }
       setSelectedFuncoes([...found.feed_funcoes]);
       setCacheDraft(formatCurrencyBRLFromAmount(found.cache_valor ?? 0));
       setMostrarCache(found.feed_mostrar_cache);
@@ -441,6 +469,10 @@ export default function PublicarFeedScreen() {
       Alert.alert('Dia', 'Escolha um dia no calendário.');
       return;
     }
+    if (isProcurar && !nomeEvento.trim()) {
+      Alert.alert('Nome do evento', 'Informe o nome do evento.');
+      return;
+    }
     if (toHm(fim) <= toHm(inicio)) {
       Alert.alert('Horário', 'O horário final precisa ser depois do início.');
       return;
@@ -480,6 +512,7 @@ export default function PublicarFeedScreen() {
       feedFuncoes: selectedFuncoes,
       whatsapp: whatsappDraft.trim(),
       mostrarCache,
+      nome: isProcurar ? nomeEvento.trim() : null,
     };
 
     const result = isEditMode && eventId
@@ -541,8 +574,8 @@ export default function PublicarFeedScreen() {
             />
             <Text style={[styles.tipoHintText, { color: colors.text }]}>
               {isProcurar
-                ? 'Veja as datas já fechadas e publique o dia em que está procurando.'
-                : 'Veja as datas já fechadas e ofereça um dia aberto.'}
+                ? 'Publique o evento em que você está procurando. Inclua nome, data, horário e local.'
+                : 'Informe o que você oferece e quando está disponível. Quem se interessar cria o evento na hora de contratar.'}
             </Text>
           </View>
 
@@ -684,7 +717,9 @@ export default function PublicarFeedScreen() {
               dayOffsetRef.current = e.nativeEvent.layout.y;
             }}
           >
-          <Text style={[styles.label, { color: colors.text }]}>Dia (obrigatório)</Text>
+          <Text style={[styles.label, { color: colors.text }]}>
+            {isProcurar ? 'Dia do evento (obrigatório)' : 'Dia disponível (obrigatório)'}
+          </Text>
           <View style={[styles.field, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Ionicons name="calendar" size={18} color={colors.primary} />
             <Text
@@ -697,6 +732,23 @@ export default function PublicarFeedScreen() {
             </Text>
           </View>
           </View>
+
+          {isProcurar ? (
+            <>
+              <Text style={[styles.label, { color: colors.text }]}>Nome do evento (obrigatório)</Text>
+              <TextInput
+                value={nomeEvento}
+                onChangeText={setNomeEvento}
+                placeholder="Ex.: Show no Bar do Zé"
+                placeholderTextColor={colors.textSecondary}
+                maxLength={80}
+                style={[
+                  styles.input,
+                  { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+                ]}
+              />
+            </>
+          ) : null}
 
           <View style={styles.timeRow}>
             <View style={{ flex: 1 }}>
@@ -759,9 +811,13 @@ export default function PublicarFeedScreen() {
             addPlaceholder="Digite e toque em Adicionar"
             presetStrip={funcaoPresets}
           />
-          {artistWorkRoles.length > 0 ? (
+          {isProcurar ? (
             <Text style={[styles.rolesHint, { color: colors.textSecondary }]}>
-              Sugestões do perfil do artista. Você pode incluir outra função abaixo, se precisar.
+              Lista completa de funções. Marque o que você está procurando; pode incluir outra abaixo.
+            </Text>
+          ) : artistWorkRoles.length > 0 ? (
+            <Text style={[styles.rolesHint, { color: colors.textSecondary }]}>
+              Funções do perfil do artista. Você pode incluir outra abaixo, se precisar.
             </Text>
           ) : null}
 
@@ -829,14 +885,18 @@ export default function PublicarFeedScreen() {
             </View>
           ) : null}
 
-          <Text style={[styles.label, { color: colors.text }]}>Estado (opcional)</Text>
+          <Text style={[styles.label, { color: colors.text }]}>
+            {isProcurar ? 'Estado do evento (opcional)' : 'Estado em que você pode atender (opcional)'}
+          </Text>
           <BrazilStateFieldButton
             selectedUf={estadoUf}
             onPress={() => setShowEstados(true)}
             colors={colors}
           />
 
-          <Text style={[styles.label, { color: colors.text }]}>Cidade (opcional)</Text>
+          <Text style={[styles.label, { color: colors.text }]}>
+            {isProcurar ? 'Cidade do evento (opcional)' : 'Cidade em que você pode atender (opcional)'}
+          </Text>
           <TextInput
             value={cidade}
             onChangeText={setCidade}

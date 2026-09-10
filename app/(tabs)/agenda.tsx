@@ -1691,6 +1691,16 @@ export default function AgendaScreen() {
       </TouchableOpacity>
     );
   };
+  const openAddEventForDateString = (dateString: string) => {
+    const [year, month, day] = dateString.split("-").map(Number);
+    const selectedDate = new Date(year, month - 1, day);
+    void openAddEventScreen({
+      selectedMonth: month - 1,
+      selectedYear: year,
+      selectedDate: selectedDate.toISOString(),
+    });
+  };
+
   const handleDayPress = async (dateString: string | null) => {
     if (!dateString) return;
     const dayEvents = eventsByDate[dateString];
@@ -1704,13 +1714,14 @@ export default function AgendaScreen() {
     }
 
     // Se não houver eventos, navegar para criar evento com a data setada
-    const [year, month, day] = dateString.split("-").map(Number);
-    const selectedDate = new Date(year, month - 1, day);
-    void openAddEventScreen({
-      selectedMonth: month - 1,
-      selectedYear: year,
-      selectedDate: selectedDate.toISOString(),
-    });
+    openAddEventForDateString(dateString);
+  };
+
+  const handleAddEventOnSelectedDay = () => {
+    if (!selectedDay) return;
+    const dateString = selectedDay;
+    closeDayModal();
+    openAddEventForDateString(dateString);
   };
 
   return (
@@ -1752,10 +1763,13 @@ export default function AgendaScreen() {
               </TouchableOpacity>
               <View style={styles.artistDetails}>
                 <View style={styles.artistNameRow}>
-                  <Text style={[styles.artistName, { color: colors.text }]}>
+                  <Text
+                    style={[styles.artistName, { color: colors.text }]}
+                    numberOfLines={2}
+                  >
                     {activeArtist.name}
                   </Text>
-                  <View style={styles.headerActions}>
+                  <View style={styles.artistHeaderActions}>
                     {canToggleEventValues ? (
                       <TouchableOpacity
                         style={styles.notificationButton}
@@ -1771,7 +1785,7 @@ export default function AgendaScreen() {
                           name={
                             showEventValues ? "eye-outline" : "eye-off-outline"
                           }
-                          size={24}
+                          size={22}
                           color={colors.primary}
                         />
                       </TouchableOpacity>
@@ -1784,18 +1798,17 @@ export default function AgendaScreen() {
                     >
                       <Ionicons
                         name="newspaper-outline"
-                        size={24}
+                        size={22}
                         color={colors.primary}
                       />
                     </TouchableOpacity>
-                    {/* Ícone de Notificações */}
                     <TouchableOpacity
                       style={styles.notificationButton}
                       onPress={() => router.push("/notificacoes")}
                     >
                       <Ionicons
                         name="notifications-outline"
-                        size={24}
+                        size={22}
                         color={colors.primary}
                       />
                       {unreadCount > 0 && (
@@ -2230,72 +2243,105 @@ export default function AgendaScreen() {
               {formatDisplayDate(selectedDay)}
             </Text>
 
-            {selectedDayEvents.map((event) => (
-              <TouchableOpacity
-                key={event.id}
-                style={[styles.dayEventCard, { borderColor: colors.border }]}
-                activeOpacity={0.8}
-                onPress={() => {
-                  closeDayModal();
-                  handleEventPress(event.id);
-                }}
-              >
-                <View style={styles.dayEventHeader}>
-                  <Ionicons
-                    name="musical-notes"
-                    size={18}
-                    color={colors.primary}
-                  />
-                  <Text style={[styles.dayEventName, { color: colors.text }]}>
-                    {event.name}
-                  </Text>
-                </View>
-                <View style={styles.dayEventMeta}>
-                  {hasDefinedTime(event.start_time, event.end_time) ? (
-                    <>
-                      <Ionicons
-                        name="time-outline"
-                        size={16}
-                        color={colors.textSecondary}
-                      />
-                      <Text
-                        style={[
-                          styles.dayEventTime,
-                          { color: colors.textSecondary },
-                        ]}
-                      >
-                        {toHHMM(event.start_time)}
-                        {toHHMM(event.end_time) &&
-                        toHHMM(event.end_time) !== toHHMM(event.start_time)
-                          ? ` - ${toHHMM(event.end_time)}`
-                          : ""}
-                      </Text>
-                    </>
+            <ScrollView
+              style={styles.dayModalEventsScroll}
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+            >
+              {selectedDayEvents.map((event) => (
+                <TouchableOpacity
+                  key={event.id}
+                  style={[styles.dayEventCard, { borderColor: colors.border }]}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    closeDayModal();
+                    handleEventPress(event.id);
+                  }}
+                >
+                  <View style={styles.dayEventHeader}>
+                    <Ionicons
+                      name="musical-notes"
+                      size={18}
+                      color={colors.primary}
+                    />
+                    <Text style={[styles.dayEventName, { color: colors.text }]}>
+                      {event.name}
+                    </Text>
+                  </View>
+                  <View style={styles.dayEventMeta}>
+                    {hasDefinedTime(event.start_time, event.end_time) ? (
+                      <>
+                        <Ionicons
+                          name="time-outline"
+                          size={16}
+                          color={colors.textSecondary}
+                        />
+                        <Text
+                          style={[
+                            styles.dayEventTime,
+                            { color: colors.textSecondary },
+                          ]}
+                        >
+                          {toHHMM(event.start_time)}
+                          {toHHMM(event.end_time) &&
+                          toHHMM(event.end_time) !== toHHMM(event.start_time)
+                            ? ` - ${toHHMM(event.end_time)}`
+                            : ""}
+                        </Text>
+                      </>
+                    ) : null}
+                  </View>
+                  {currentUserRole === "viewer" && event.viewer_description ? (
+                    <Text
+                      style={[
+                        styles.dayEventViewerDescription,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      {event.viewer_description}
+                    </Text>
                   ) : null}
-                </View>
-                {currentUserRole === "viewer" && event.viewer_description ? (
-                  <Text
-                    style={[
-                      styles.dayEventViewerDescription,
-                      { color: colors.textSecondary },
-                    ]}
-                  >
-                    {event.viewer_description}
-                  </Text>
-                ) : null}
-              </TouchableOpacity>
-            ))}
+                </TouchableOpacity>
+              ))}
 
-            {selectedDayEvents.length === 0 && (
-              <Text
+              {selectedDayEvents.length === 0 && (
+                <Text
+                  style={[
+                    styles.dayEventEmptyText,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  Nenhum evento para este dia.
+                </Text>
+              )}
+            </ScrollView>
+
+            {activeArtist ? (
+              <TouchableOpacity
                 style={[
-                  styles.dayEventEmptyText,
-                  { color: colors.textSecondary },
+                  styles.dayModalAddButton,
+                  {
+                    backgroundColor: colors.primary,
+                    opacity: isOpeningAddEventScreen ? 0.85 : 1,
+                  },
                 ]}
+                onPress={handleAddEventOnSelectedDay}
+                disabled={isOpeningAddEventScreen}
+                activeOpacity={0.85}
+                accessibilityLabel="Adicionar evento neste dia"
               >
-                Nenhum evento para este dia.
-              </Text>
-            )}
+                {isOpeningAddEventScreen ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="add" size={20} color="#fff" />
+                    <Text style={styles.dayModalAddButtonText}>
+                      Adicionar evento
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
       </Modal>
@@ -3297,16 +3343,17 @@ const styles = StyleSheet.create({
   },
   artistDetails: {
     flex: 1,
+    minWidth: 0,
   },
   artistNameRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
   },
   artistName: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: "bold",
     flex: 1,
+    marginRight: 4,
   },
   artistSubtitle: {
     fontSize: 14,
@@ -3650,6 +3697,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
+  artistHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    marginRight: -8,
+  },
   notificationButton: {
     position: "relative",
     padding: 8,
@@ -3769,6 +3822,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
     marginTop: 12,
+  },
+  dayModalEventsScroll: {
+    maxHeight: 320,
+  },
+  dayModalAddButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginTop: 8,
+  },
+  dayModalAddButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
   },
   // Modal: Evento não encontrado (deletado)
   deletedEventModalOverlay: {

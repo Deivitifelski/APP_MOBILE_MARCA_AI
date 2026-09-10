@@ -56,8 +56,8 @@ export default function PropostaEnviadaModal({
             {confirmando
               ? 'Ela some para o anunciante e você pode enviar outra depois, se quiser.'
               : isDemanda
-                ? 'Você já se candidatou neste anúncio. Acompanhe o status em Convites — não é preciso enviar outra.'
-                : 'Você já demonstrou interesse neste anúncio. Acompanhe o status em Convites — não é preciso enviar outra.'}
+                ? 'Você já se candidatou. O anunciante pode aceitar, ou você confirma em Convites — não é preciso enviar outra.'
+                : 'O artista da oferta recebe o convite e precisa aceitar. Enquanto estiver pendente, você pode desfazer.'}
           </Text>
 
           {confirmando ? (
@@ -85,13 +85,15 @@ export default function PropostaEnviadaModal({
             </>
           ) : (
             <>
-              <TouchableOpacity
-                style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
-                onPress={onVerConvites}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.primaryText}>Ver convites</Text>
-              </TouchableOpacity>
+              {isDemanda ? (
+                <TouchableOpacity
+                  style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
+                  onPress={onVerConvites}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.primaryText}>Ver convites</Text>
+                </TouchableOpacity>
+              ) : null}
               {podeDesfazer && onDesfazer ? (
                 <TouchableOpacity
                   style={styles.secondaryBtn}
@@ -101,8 +103,24 @@ export default function PropostaEnviadaModal({
                   <Text style={[styles.secondaryText, { color: colors.error }]}>Desfazer proposta</Text>
                 </TouchableOpacity>
               ) : null}
-              <TouchableOpacity style={styles.secondaryBtn} onPress={onClose} activeOpacity={0.85}>
-                <Text style={[styles.secondaryText, { color: colors.textSecondary }]}>Entendi</Text>
+              <TouchableOpacity
+                style={
+                  isDemanda
+                    ? styles.secondaryBtn
+                    : [styles.primaryBtn, { backgroundColor: colors.primary }]
+                }
+                onPress={onClose}
+                activeOpacity={0.85}
+              >
+                <Text
+                  style={
+                    isDemanda
+                      ? [styles.secondaryText, { color: colors.textSecondary }]
+                      : styles.primaryText
+                  }
+                >
+                  Entendi
+                </Text>
               </TouchableOpacity>
             </>
           )}

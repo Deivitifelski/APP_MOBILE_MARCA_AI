@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
@@ -14,6 +15,9 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import BrazilStatePickerModal, {
+  BrazilStateFieldButton,
+} from '../components/BrazilStatePickerModal';
 import PropostaEnviadaModal from '../components/PropostaEnviadaModal';
 import ArtistReputationBadge from '../components/ArtistReputationBadge';
 import ArtistReviewsModal from '../components/ArtistReviewsModal';
@@ -37,8 +41,23 @@ function formatTime(t: string) {
   return String(t).slice(0, 5);
 }
 
+function toHm(d: Date): string {
+  const h = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `${h}:${min}`;
+}
+
+function hmToDate(hm: string): Date {
+  const d = new Date();
+  const parts = String(hm || '').split(':');
+  const h = Number(parts[0]) || 0;
+  const m = Number(parts[1]) || 0;
+  d.setHours(h, m, 0, 0);
+  return d;
+}
+
 export default function NegociarFeedScreen() {
-  const { colors } = useTheme();
+  const { colors, isDarkMode } = useTheme();
   const { activeArtist } = useActiveArtist();
   const { canCreateEvents } = usePermissions();
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
@@ -46,6 +65,21 @@ export default function NegociarFeedScreen() {
   const [loading, setLoading] = useState(true);
   const [funcao, setFuncao] = useState('');
   const [mensagem, setMensagem] = useState('');
+  const [nomeEvento, setNomeEvento] = useState('');
+  const [cidade, setCidade] = useState('');
+  const [estadoUf, setEstadoUf] = useState('');
+  const [showEstados, setShowEstados] = useState(false);
+  const [inicio, setInicio] = useState(() => {
+    const d = new Date();
+    d.setHours(20, 0, 0, 0);
+    return d;
+  });
+  const [fim, setFim] = useState(() => {
+    const d = new Date();
+    d.setHours(23, 0, 0, 0);
+    return d;
+  });
+  const [picker, setPicker] = useState<'start' | 'end' | null>(null);
   const [sending, setSending] = useState(false);
   const [showPropostaEnviada, setShowPropostaEnviada] = useState(false);
   const [desfazendoProposta, setDesfazendoProposta] = useState(false);
@@ -71,6 +105,12 @@ export default function NegociarFeedScreen() {
       }
       const found = anuncios.find((a) => a.id === eventId) ?? null;
       setAnuncio(found);
+      if (found && found.feed_tipo === 'disponivel') {
+        setCidade(found.city || '');
+        setEstadoUf(found.state_uf || '');
+        if (found.start_time) setInicio(hmToDate(found.start_time));
+        if (found.end_time) setFim(hmToDate(found.end_time));
+      }
       setLoading(false);
       if (!found) {
         Alert.alert('Anúncio encerrado', 'A data deste show já passou. O anúncio não está mais disponível.', [
@@ -117,17 +157,36 @@ export default function NegociarFeedScreen() {
       Alert.alert('Sem permissão', 'Somente admin ou vendedor pode iniciar negociação.');
       return;
     }
-    const estaOferecendo = anuncio.feed_tipo === 'demanda';
-    if (estaOferecendo && !funcao.trim()) {
+    const estaProcurando = anuncio.feed_tipo === 'demanda';
+    if (estaProcurando && !funcao.trim()) {
       Alert.alert('Função', 'Informe a função que você está oferecendo (ex.: Vocalista).');
       return;
     }
+    if (!estaProcurando && !nomeEvento.trim()) {
+      Alert.alert('Nome do evento', 'Informe o nome do evento em que você está contratando.');
+      return;
+    }
+    if (!estaProcurando && !cidade.trim()) {
+      Alert.alert('Local', 'Informe a cidade do evento.');
+      return;
+    }
+    if (!estaProcurando && toHm(fim) <= toHm(inicio)) {
+      Alert.alert('Horário', 'O horário final precisa ser depois do início.');
+      return;
+    }
+    const funcoesOferta = anuncio.feed_funcoes.map((f) => f.trim()).filter(Boolean).join(' · ');
     setSending(true);
     const result = await iniciarNegociacaoFeed({
       eventoId: anuncio.id,
       artistaInteressadoId: activeArtist.id,
-      funcaoParticipacao: estaOferecendo ? funcao : 'Interesse',
+      funcaoParticipacao: estaProcurando ? funcao.trim() : funcoesOferta || 'Participação',
       mensagem,
+      nomeEvento: estaProcurando ? null : nomeEvento.trim(),
+      eventDate: estaProcurando ? null : anuncio.event_date,
+      startTime: estaProcurando ? null : toHm(inicio),
+      endTime: estaProcurando ? null : toHm(fim),
+      city: estaProcurando ? null : cidade.trim(),
+      stateUf: estaProcurando ? null : estadoUf.trim() || null,
     });
     setSending(false);
     if (!result.success) {
@@ -191,6 +250,9 @@ export default function NegociarFeedScreen() {
                 {anuncio.feed_tipo === 'demanda' ? 'Procurando' : 'Oferta'}
               </Text>
               <Text style={[styles.name, { color: colors.text }]}>{anuncio.artist_name}</Text>
+              {anuncio.evento_nome ? (
+                <Text style={[styles.meta, { color: colors.text }]}>{anuncio.evento_nome}</Text>
+              ) : null}
               <ArtistReputationBadge
                 reputation={{
                   mediaNota: anuncio.artist_media_nota,
@@ -294,7 +356,104 @@ export default function NegociarFeedScreen() {
                   ]}
                 />
               </>
-            ) : null}
+            ) : (
+              <>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                  Dados do seu evento
+                </Text>
+                <Text style={[styles.sectionHint, { color: colors.textSecondary }]}>
+                  A oferta é uma disponibilidade. Informe o evento em que você quer contratar.
+                </Text>
+                <Text style={[styles.label, { color: colors.text }]}>
+                  Nome do evento
+                </Text>
+                <TextInput
+                  value={nomeEvento}
+                  onChangeText={setNomeEvento}
+                  placeholder="Ex.: Casamento da Ana"
+                  placeholderTextColor={colors.textSecondary}
+                  maxLength={80}
+                  style={[
+                    styles.input,
+                    { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+                  ]}
+                />
+                <Text style={[styles.label, { color: colors.text }]}>Data</Text>
+                <View style={[styles.field, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+                  <Text style={[styles.fieldText, { color: colors.text }]}>
+                    {formatCalendarDate(anuncio.event_date)}
+                  </Text>
+                </View>
+                <Text style={[styles.sectionHint, { color: colors.textSecondary }]}>
+                  Data em que o artista está disponível.
+                </Text>
+                <View style={styles.timeRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.label, { color: colors.text }]}>Início</Text>
+                    <TouchableOpacity
+                      style={[styles.field, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                      onPress={() => setPicker('start')}
+                    >
+                      <Text style={[styles.fieldText, { color: colors.text }]}>{toHm(inicio)}</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.label, { color: colors.text }]}>Fim</Text>
+                    <TouchableOpacity
+                      style={[styles.field, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                      onPress={() => setPicker('end')}
+                    >
+                      <Text style={[styles.fieldText, { color: colors.text }]}>{toHm(fim)}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                {picker ? (
+                  <View>
+                    <DateTimePicker
+                      value={picker === 'start' ? inicio : fim}
+                      mode="time"
+                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      onChange={(ev, date) => {
+                        if (Platform.OS === 'android') setPicker(null);
+                        if (ev.type === 'dismissed' || !date) {
+                          if (Platform.OS === 'ios' && ev.type === 'dismissed') setPicker(null);
+                          return;
+                        }
+                        if (picker === 'start') setInicio(date);
+                        if (picker === 'end') setFim(date);
+                      }}
+                      themeVariant={isDarkMode ? 'dark' : 'light'}
+                    />
+                    {Platform.OS === 'ios' ? (
+                      <TouchableOpacity
+                        style={[styles.okPicker, { backgroundColor: colors.primary }]}
+                        onPress={() => setPicker(null)}
+                      >
+                        <Text style={styles.okPickerText}>OK</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                ) : null}
+                <Text style={[styles.label, { color: colors.text }]}>Estado</Text>
+                <BrazilStateFieldButton
+                  selectedUf={estadoUf}
+                  onPress={() => setShowEstados(true)}
+                  colors={colors}
+                />
+                <Text style={[styles.label, { color: colors.text }]}>Cidade</Text>
+                <TextInput
+                  value={cidade}
+                  onChangeText={setCidade}
+                  placeholder="Ex.: São Paulo"
+                  placeholderTextColor={colors.textSecondary}
+                  style={[
+                    styles.input,
+                    { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+                  ]}
+                />
+              </>
+            )}
 
             <Text style={[styles.label, { color: colors.text }]}>Mensagem (opcional)</Text>
             <TextInput
@@ -343,6 +502,12 @@ export default function NegociarFeedScreen() {
         artistImage={anuncio?.artist_image}
         onClose={() => setShowReviews(false)}
       />
+      <BrazilStatePickerModal
+        visible={showEstados}
+        onClose={() => setShowEstados(false)}
+        selectedUf={estadoUf}
+        onSelect={(uf) => setEstadoUf(uf || '')}
+      />
     </SafeAreaView>
   );
 }
@@ -383,6 +548,26 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   lockText: { flex: 1, fontSize: 13, lineHeight: 18 },
+  sectionTitle: { fontSize: 16, fontWeight: '800', marginTop: 8 },
+  sectionHint: { fontSize: 13, lineHeight: 18, marginTop: 2 },
+  timeRow: { flexDirection: 'row', gap: 10 },
+  field: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === 'ios' ? 14 : 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  fieldText: { fontSize: 16, fontWeight: '600' },
+  okPicker: {
+    marginTop: 8,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  okPickerText: { color: '#fff', fontWeight: '800' },
   whatsappBtn: {
     flexDirection: 'row',
     alignItems: 'center',

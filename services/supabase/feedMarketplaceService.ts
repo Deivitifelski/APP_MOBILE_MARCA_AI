@@ -16,6 +16,7 @@ export interface FeedAnuncio {
   city: string | null;
   state_uf: string | null;
   description: string | null;
+  evento_nome: string | null;
   feed_funcoes: string[];
   artist_whatsapp: string | null;
   created_at: string;
@@ -57,6 +58,7 @@ export interface PublicarFeedInput {
   feedFuncoes: string[];
   whatsapp?: string | null;
   mostrarCache?: boolean;
+  nome?: string | null;
 }
 
 export interface EditarFeedInput {
@@ -71,6 +73,7 @@ export interface EditarFeedInput {
   feedFuncoes: string[];
   whatsapp?: string | null;
   mostrarCache?: boolean;
+  nome?: string | null;
 }
 
 function pickRpcRow<T extends object>(data: T[] | T | null): T | null {
@@ -81,6 +84,11 @@ function pickRpcRow<T extends object>(data: T[] | T | null): T | null {
 
 function asBoolean(value: unknown): boolean {
   return value === true || value === 't' || value === 'true' || value === 1 || value === '1';
+}
+
+export function isNomeAutomaticoFeed(name: string): boolean {
+  const n = name.trim();
+  return n === 'Oferta' || n === 'Procurando' || /^(Oferta|Procurando)\s*[·\-–]\s*/i.test(n);
 }
 
 /** Data do anúncio ainda é hoje ou futura (parte YYYY-MM-DD, fuso local do aparelho). */
@@ -94,7 +102,12 @@ function isAnuncioFeedAtivo(eventDate: string): boolean {
 
 function mapAnuncio(row: Record<string, unknown>): FeedAnuncio {
   const tipo: FeedTipo = row.feed_tipo === 'demanda' ? 'demanda' : 'disponivel';
-  const cache = row.cache_valor ?? row.meu_cache_valor;
+  const isMine = asBoolean(row.is_mine);
+  const mostrarCache = asBoolean(row.feed_mostrar_cache);
+  const rawCache = row.cache_valor ?? (isMine ? row.meu_cache_valor : null);
+  const cacheNumero =
+    rawCache == null || rawCache === '' ? null : Number(rawCache);
+  const nomeBruto = row.evento_nome != null ? String(row.evento_nome).trim() : '';
   return {
     id: String(row.id),
     artist_id: String(row.artist_id),
@@ -108,20 +121,22 @@ function mapAnuncio(row: Record<string, unknown>): FeedAnuncio {
     city: row.city != null ? String(row.city) : null,
     state_uf: row.state_uf != null ? String(row.state_uf) : null,
     description: row.description != null ? String(row.description) : null,
+    evento_nome:
+      nomeBruto && !isNomeAutomaticoFeed(nomeBruto) ? nomeBruto : null,
     feed_funcoes: Array.isArray(row.feed_funcoes)
       ? (row.feed_funcoes as unknown[]).map((item) => String(item)).filter(Boolean)
       : [],
     artist_whatsapp: row.artist_whatsapp != null ? String(row.artist_whatsapp) : null,
     created_at: String(row.created_at ?? ''),
-    is_mine: asBoolean(row.is_mine),
-    cache_valor:
-      cache == null || cache === '' ? null : Number(cache),
-    feed_mostrar_cache: asBoolean(row.feed_mostrar_cache),
+    is_mine: isMine,
+    cache_valor: cacheNumero,
+    feed_mostrar_cache: mostrarCache,
     tem_cache: asBoolean(row.tem_cache),
     propostas_count: Number(row.propostas_count ?? 0) || 0,
-    propostas_avatars: Array.isArray(row.propostas_avatars)
-      ? (row.propostas_avatars as unknown[]).map((url) => String(url)).filter(Boolean)
-      : [],
+    propostas_avatars:
+      isMine && Array.isArray(row.propostas_avatars)
+        ? (row.propostas_avatars as unknown[]).map((url) => String(url)).filter(Boolean)
+        : [],
     ja_proposei: asBoolean(row.ja_proposei),
     pode_desfazer:
       row.pode_desfazer == null ? asBoolean(row.ja_proposei) : asBoolean(row.pode_desfazer),
@@ -219,6 +234,7 @@ export async function publicarFeed(
       p_feed_funcoes: input.feedFuncoes,
       p_whatsapp: input.whatsapp?.trim() || null,
       p_feed_mostrar_cache: input.mostrarCache === true,
+      p_nome: input.nome?.trim() || null,
     });
     if (error) return { success: false, error: error.message };
     const row = pickRpcRow<{ success: boolean; error: string | null; evento_id: string | null }>(data);
@@ -246,6 +262,7 @@ export async function editarAnuncioFeed(
       p_feed_funcoes: input.feedFuncoes,
       p_whatsapp: input.whatsapp?.trim() || null,
       p_feed_mostrar_cache: input.mostrarCache === true,
+      p_nome: input.nome?.trim() || null,
     });
     if (error) return { success: false, error: error.message };
     const row = pickRpcRow<{ success: boolean; error: string | null }>(data);
@@ -279,6 +296,12 @@ export async function iniciarNegociacaoFeed(input: {
   artistaInteressadoId: string;
   funcaoParticipacao: string;
   mensagem?: string | null;
+  nomeEvento?: string | null;
+  eventDate?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  city?: string | null;
+  stateUf?: string | null;
 }): Promise<{
   success: boolean;
   error: string | null;
@@ -292,6 +315,12 @@ export async function iniciarNegociacaoFeed(input: {
       p_artista_interessado_id: input.artistaInteressadoId,
       p_funcao_participacao: input.funcaoParticipacao.trim(),
       p_mensagem: input.mensagem?.trim() || null,
+      p_nome_evento: input.nomeEvento?.trim() || null,
+      p_event_date: input.eventDate?.trim() || null,
+      p_start_time: input.startTime?.trim() || null,
+      p_end_time: input.endTime?.trim() || null,
+      p_city: input.city?.trim() || null,
+      p_state_uf: input.stateUf?.trim() || null,
     });
     if (error) return { success: false, error: error.message };
     const row = pickRpcRow<{

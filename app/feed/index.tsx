@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Image } from 'expo-image';
 import { Stack, router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -21,6 +22,7 @@ import OptimizedImage from '../../components/OptimizedImage';
 import ArtistReputationBadge from '../../components/ArtistReputationBadge';
 import ArtistReviewsModal from '../../components/ArtistReviewsModal';
 import PermissionModal from '../../components/PermissionModal';
+import FeedComoFuncionaModal from '../../components/FeedComoFuncionaModal';
 import PropostaEnviadaModal from '../../components/PropostaEnviadaModal';
 import BrazilStatePickerModal from '../../components/BrazilStatePickerModal';
 import FeedFuncaoPickerModal, { FeedFuncaoFieldButton } from '../../components/FeedFuncaoPickerModal';
@@ -31,9 +33,8 @@ import { formatEventLocationSlash } from '../../lib/brazilGeo';
 import { formatCalendarDate, formatCalendarDateLongParts, weekdayFromCalendarDate } from '../../lib/dateUtils';
 import {
   ARTIST_WORK_ROLE_PRESETS,
-  buildOrderedOptionsForPicker,
-  parseArtistStringArrayFromJson,
 } from '../../constants/artistProfileLists';
+import { supabase } from '../../lib/supabase';
 import {
   desfazerPropostaFeed,
   encerrarAnuncioFeed,
@@ -43,11 +44,14 @@ import {
   type FeedFiltro,
   type FeedProposta,
 } from '../../services/supabase/feedMarketplaceService';
+import { aceitarConviteParticipacao } from '../../services/supabase/conviteParticipacaoEventoService';
 
 function formatTime(t: string) {
   if (!t) return '';
   return String(t).slice(0, 5);
 }
+
+const FEED_COMO_FUNCIONA_SEEN_KEY = 'feed_marketplace_como_funciona_visto';
 
 const FILTROS: { id: FeedFiltro; label: string; descricao: string }[] = [
   { id: 'todos', label: 'Todos', descricao: 'Todas as publicações' },
@@ -90,16 +94,15 @@ export default function FeedScreen() {
     image: string | null;
   } | null>(null);
   const [anuncioMenu, setAnuncioMenu] = useState<FeedAnuncio | null>(null);
+  const [aceitandoConviteId, setAceitandoConviteId] = useState<string | null>(null);
+  const [showComoFunciona, setShowComoFunciona] = useState(false);
 
   const loadGenerationRef = useRef(0);
 
-  const funcaoFilterOptions = useMemo(() => {
-    const artistRoles = parseArtistStringArrayFromJson(activeArtist?.work_roles);
-    if (artistRoles.length > 0) {
-      return buildOrderedOptionsForPicker(ARTIST_WORK_ROLE_PRESETS, artistRoles);
-    }
-    return [...ARTIST_WORK_ROLE_PRESETS];
-  }, [activeArtist?.work_roles]);
+  const funcaoFilterOptions = useMemo(
+    () => [...ARTIST_WORK_ROLE_PRESETS],
+    []
+  );
 
   const load = useCallback(async (silent = false) => {
     const generation = ++loadGenerationRef.current;
@@ -151,6 +154,26 @@ export default function FeedScreen() {
   }, [filtro, verMinhas, estadoUf, cidade, filtroFuncao, activeArtist?.id]);
 
   const skipNextFocusLoadRef = useRef(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    void AsyncStorage.getItem(FEED_COMO_FUNCIONA_SEEN_KEY).then((value) => {
+      if (cancelled || value === '1') return;
+      timer = setTimeout(() => {
+        if (!cancelled) setShowComoFunciona(true);
+      }, 350);
+    });
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
+
+  const fecharComoFunciona = useCallback(() => {
+    setShowComoFunciona(false);
+    void AsyncStorage.setItem(FEED_COMO_FUNCIONA_SEEN_KEY, '1');
+  }, []);
 
   useEffect(() => {
     setAnuncios([]);
@@ -231,7 +254,67 @@ export default function FeedScreen() {
     router.push({ pathname: '/negociar-feed', params: { eventId: item.id } });
   };
 
+  const nomeDespesaProposta = (proposta: FeedProposta) => {
+    const funcao =
+      proposta.funcao && proposta.funcao.trim().toLowerCase() !== 'interesse'
+        ? proposta.funcao.trim()
+        : null;
+    return funcao ? `${proposta.artista_nome} - ${funcao}` : proposta.artista_nome;
+  };
+
+  const aceitarPropostaFeed = async (_item: FeedAnuncio, proposta: FeedProposta) => {
+    if (!activeArtist?.id || aceitandoConviteId) return;
+    setAceitandoConviteId(proposta.convite_id);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const { success, error: err } = await aceitarConviteParticipacao(
+      proposta.convite_id,
+      user?.id ?? '',
+      proposta.artista_id
+    );
+    setAceitandoConviteId(null);
+    if (!success) {
+      Alert.alert('Não foi possível aceitar', err || 'Tente novamente.');
+      return;
+    }
+    void load();
+    Alert.alert(
+      'Aceito',
+      `Despesa lançada: ${nomeDespesaProposta(proposta)}. O evento entrou na agenda dos dois artistas.`
+    );
+  };
+
+  const handlePropostaPress = (item: FeedAnuncio, proposta: FeedProposta) => {
+    if (proposta.status === 'aceito') {
+      Alert.alert('Proposta aceita', 'Este artista já está na agenda deste evento.');
+      return;
+    }
+    if (item.feed_tipo === 'demanda') {
+      Alert.alert(
+        'Aceitar candidato',
+        `Confirmar ${proposta.artista_nome} neste evento?\n\nO cachê entra como despesa: ${nomeDespesaProposta(proposta)}.`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Aceitar',
+            onPress: () => void aceitarPropostaFeed(item, proposta),
+          },
+        ]
+      );
+      return;
+    }
+    router.push('/convites-participacao-evento');
+  };
+
   const handleEditar = (item: FeedAnuncio) => {
+    if (item.propostas_count > 0) {
+      Alert.alert(
+        'Não é possível editar',
+        'Este anúncio já tem candidatos. Para mudar a data ou outros dados, encerre e publique novamente.'
+      );
+      return;
+    }
     router.push({
       pathname: '/publicar-feed',
       params: { eventId: item.id, tipo: item.feed_tipo },
@@ -239,9 +322,12 @@ export default function FeedScreen() {
   };
 
   const handleEncerrar = (item: FeedAnuncio) => {
+    const temCandidatos = item.propostas_count > 0;
     Alert.alert(
       'Encerrar anúncio',
-      'Ele sai do feed. A agenda e o financeiro não são alterados.',
+      temCandidatos
+        ? 'Ele sai do feed e as candidaturas pendentes são canceladas. Quem já foi aceito permanece na agenda. O financeiro não é alterado.'
+        : 'Ele sai do feed. A agenda e o financeiro não são alterados.',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -279,21 +365,19 @@ export default function FeedScreen() {
             currency: 'BRL',
           })
         : null;
-    const cacheDisplay = meuAnuncio
+    const cacheDisplay = item.feed_mostrar_cache
       ? cacheTxt
-        ? item.feed_mostrar_cache
-          ? cacheTxt
-          : `${cacheTxt} · oculto no feed`
-        : item.feed_mostrar_cache
-          ? 'Não informado'
-          : 'Oculto no feed'
-      : cacheTxt;
+      : meuAnuncio
+        ? 'oculto no feed'
+        : null;
     const propostas = meuAnuncio ? propostasPorEvento[item.id] || [] : [];
-    const avatarUrls = (
-      item.propostas_avatars.length
-        ? item.propostas_avatars
-        : propostas.map((proposta) => proposta.artista_image).filter((url): url is string => !!url)
-    ).slice(0, 3);
+    const avatarUrls = meuAnuncio
+      ? (
+          item.propostas_avatars.length
+            ? item.propostas_avatars
+            : propostas.map((proposta) => proposta.artista_image).filter((url): url is string => !!url)
+        ).slice(0, 3)
+      : [];
     const timeLabel = item.start_time
       ? `${formatTime(item.start_time)} – ${formatTime(item.end_time)}`
       : 'A combinar';
@@ -346,66 +430,85 @@ export default function FeedScreen() {
         </View>
 
         <View style={styles.cardBody}>
-          {weekday ? (
-            <Text style={[styles.cardWeekday, { color: badgeColor }]}>{weekday}</Text>
-          ) : null}
-          {dateParts ? (
-            <View style={styles.cardDateHero}>
-              <Text style={[styles.cardDayNumber, { color: colors.text }]}>{dateParts.day}</Text>
-              <Text style={[styles.cardDateRest, { color: colors.text }]}>{dateParts.rest}</Text>
-            </View>
-          ) : null}
-
-          <View style={styles.cardArtistBlock}>
-            <View style={styles.cardTopRow}>
-              <View style={[styles.cardAvatar, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                {artistAvatarUrl ? (
-                  <OptimizedImage
-                    imageUrl={artistAvatarUrl}
-                    style={styles.cardAvatarImg}
-                    fallbackText={artistInitial}
-                    fallbackIconSize={16}
-                    showLoadingIndicator={false}
-                  />
-                ) : (
-                  <Text style={[styles.cardAvatarInitial, { color: colors.primary }]}>{artistInitial}</Text>
-                )}
-              </View>
-              <View style={styles.cardArtistMeta}>
-                <Text style={[styles.cardArtistKicker, { color: colors.textSecondary }]}>
-                  Publicado por
-                </Text>
-                <Text style={[styles.cardArtistName, { color: colors.text }]} numberOfLines={1}>
-                  {artistLabel}
-                </Text>
-              </View>
+          <View style={styles.cardHeaderRow}>
+            <View style={[styles.cardAvatar, { backgroundColor: colors.background, borderColor: colors.border }]}>
+              {artistAvatarUrl ? (
+                <OptimizedImage
+                  imageUrl={artistAvatarUrl}
+                  style={styles.cardAvatarImg}
+                  fallbackText={artistInitial}
+                  fallbackIconSize={16}
+                  showLoadingIndicator={false}
+                />
+              ) : (
+                <Text style={[styles.cardAvatarInitial, { color: colors.primary }]}>{artistInitial}</Text>
+              )}
             </View>
 
-            {!meuAnuncio ? (
-              <ArtistReputationBadge
-                compact
-                reputation={{
-                  mediaNota: item.artist_media_nota,
-                  totalAvaliacoes: item.artist_total_avaliacoes,
-                  showsRealizados: item.artist_shows_realizados,
-                }}
-                onPressReviews={
-                  item.artist_total_avaliacoes > 0
-                    ? () =>
-                        setReviewsArtist({
-                          id: item.artist_id,
-                          name: item.artist_name,
-                          image: item.artist_image,
-                        })
-                    : undefined
-                }
-              />
-            ) : null}
+            <View style={styles.cardDateCol}>
+              {weekday ? (
+                <Text style={[styles.cardWeekday, { color: badgeColor }]}>{weekday}</Text>
+              ) : null}
+              {dateParts ? (
+                <View style={styles.cardDateHero}>
+                  <Text style={[styles.cardDayNumber, { color: colors.text }]}>{dateParts.day}</Text>
+                  <Text style={[styles.cardDateRest, { color: colors.text }]}>{dateParts.rest}</Text>
+                </View>
+              ) : null}
+              <Text style={[styles.cardArtistName, { color: colors.text }]} numberOfLines={1}>
+                {artistLabel}
+              </Text>
+              {!meuAnuncio ? (
+                <ArtistReputationBadge
+                  compact
+                  reputation={{
+                    mediaNota: item.artist_media_nota,
+                    totalAvaliacoes: item.artist_total_avaliacoes,
+                    showsRealizados: item.artist_shows_realizados,
+                  }}
+                  onPressReviews={
+                    item.artist_total_avaliacoes > 0
+                      ? () =>
+                          setReviewsArtist({
+                            id: item.artist_id,
+                            name: item.artist_name,
+                            image: item.artist_image,
+                          })
+                      : undefined
+                  }
+                />
+              ) : null}
+            </View>
           </View>
 
-          <Text style={[styles.cardOfferLine, { color: colors.text }]} numberOfLines={2}>
-            {offerLine}
-          </Text>
+          {item.evento_nome ? (
+            <Text style={[styles.cardEventName, { color: colors.text }]} numberOfLines={2}>
+              {item.evento_nome}
+            </Text>
+          ) : null}
+
+          {item.feed_funcoes.length > 0 ? (
+            <View style={styles.cardTagsWrap}>
+              {item.feed_funcoes.map((funcao) => (
+                <View
+                  key={funcao}
+                  style={[
+                    styles.cardTag,
+                    {
+                      backgroundColor: `${badgeColor}14`,
+                      borderColor: `${badgeColor}33`,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.cardTagText, { color: badgeColor }]}>{funcao}</Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={[styles.cardOfferLine, { color: colors.text }]} numberOfLines={2}>
+              {offerLine}
+            </Text>
+          )}
 
           <View style={styles.cardMetaRow}>
             <View style={styles.cardMetaItem}>
@@ -437,6 +540,7 @@ export default function FeedScreen() {
 
           {item.propostas_count > 0 || meuAnuncio ? (
           <View style={styles.propostasResumo}>
+            {meuAnuncio ? (
             <View style={styles.avatarStack}>
               {avatarUrls.length
                 ? avatarUrls.map((url, index) => (
@@ -479,12 +583,17 @@ export default function FeedScreen() {
                     ))
                   : null}
             </View>
+            ) : null}
             <Text style={[styles.countPillText, { color: colors.textSecondary }]}>
-              {item.propostas_count === 0
-                ? 'Nenhuma proposta'
+              {meuAnuncio
+                ? item.propostas_count === 0
+                  ? 'Nenhuma proposta'
+                  : item.propostas_count === 1
+                    ? '1 proposta'
+                    : `${item.propostas_count} propostas`
                 : item.propostas_count === 1
-                  ? '1 proposta'
-                  : `${item.propostas_count} propostas`}
+                  ? '1 pessoa se candidatou'
+                  : `${item.propostas_count} pessoas se candidataram`}
             </Text>
           </View>
         ) : null}
@@ -495,8 +604,9 @@ export default function FeedScreen() {
               <TouchableOpacity
                 key={proposta.convite_id}
                 style={styles.propostaRow}
-                onPress={() => router.push('/convites-participacao-evento')}
+                onPress={() => handlePropostaPress(item, proposta)}
                 activeOpacity={0.8}
+                disabled={aceitandoConviteId === proposta.convite_id}
               >
                 <View style={[styles.propostaAvatar, { backgroundColor: colors.secondary }]}>
                   {proposta.artista_image ? (
@@ -515,13 +625,25 @@ export default function FeedScreen() {
                     {proposta.artista_nome}
                   </Text>
                   <Text style={[styles.propostaMeta, { color: colors.textSecondary }]} numberOfLines={1}>
-                    {proposta.status === 'aceito' ? 'Aceita' : 'Pendente'}
+                    {proposta.status === 'aceito'
+                      ? 'Aceita'
+                      : isDemanda
+                        ? 'Pendente · toque para aceitar'
+                        : 'Pendente · toque para aceitar o convite'}
                     {proposta.funcao && proposta.funcao !== 'Interesse'
                       ? ` · ${proposta.funcao}`
                       : ''}
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
+                {aceitandoConviteId === proposta.convite_id ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Ionicons
+                    name={proposta.status === 'aceito' ? 'checkmark-circle' : 'chevron-forward'}
+                    size={14}
+                    color={proposta.status === 'aceito' ? colors.primary : colors.textSecondary}
+                  />
+                )}
               </TouchableOpacity>
             ))}
           </View>
@@ -575,7 +697,21 @@ export default function FeedScreen() {
           >
             <Ionicons name="chevron-back" size={26} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.title, { color: colors.text }]}>Feed</Text>
+          <View style={styles.titleLeft}>
+            <Text style={[styles.title, { color: colors.text }]}>Feed</Text>
+            <View style={[styles.betaBadge, { backgroundColor: `${colors.primary}18` }]}>
+              <Text style={[styles.betaBadgeText, { color: colors.primary }]}>Beta</Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            onPress={() => setShowComoFunciona(true)}
+            hitSlop={10}
+            style={styles.helpBtn}
+            accessibilityLabel="Como funciona o Feed"
+            accessibilityRole="button"
+          >
+            <Ionicons name="help-circle-outline" size={24} color={colors.text} />
+          </TouchableOpacity>
         </View>
         <ScrollView
           horizontal
@@ -802,6 +938,7 @@ export default function FeedScreen() {
         artistImage={reviewsArtist?.image}
         onClose={() => setReviewsArtist(null)}
       />
+      <FeedComoFuncionaModal visible={showComoFunciona} onClose={fecharComoFunciona} />
       <PermissionModal
         visible={showPermissionModal}
         onClose={() => setShowPermissionModal(false)}
@@ -936,6 +1073,11 @@ export default function FeedScreen() {
                     .filter(Boolean)
                     .join(' · ')}
                 </Text>
+                {anuncioMenu.evento_nome ? (
+                  <Text style={[styles.menuSummaryFuncoes, { color: colors.text }]} numberOfLines={2}>
+                    {anuncioMenu.evento_nome}
+                  </Text>
+                ) : null}
                 <Text style={[styles.menuSummaryFuncoes, { color: colors.textSecondary }]} numberOfLines={1}>
                   {anuncioMenu.feed_funcoes.length > 0
                     ? anuncioMenu.feed_funcoes.join(' · ')
@@ -947,20 +1089,29 @@ export default function FeedScreen() {
             ) : null}
 
             <View style={[styles.menuGroup, { borderColor: colors.border }]}>
-              <TouchableOpacity
-                style={styles.menuRow}
-                onPress={() => {
-                  if (!anuncioMenu) return;
-                  const item = anuncioMenu;
-                  setAnuncioMenu(null);
-                  handleEditar(item);
-                }}
-                activeOpacity={0.75}
-              >
-                <Ionicons name="create-outline" size={20} color={colors.text} />
-                <Text style={[styles.menuRowText, { color: colors.text }]}>Editar anúncio</Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
-              </TouchableOpacity>
+              {anuncioMenu && anuncioMenu.propostas_count > 0 ? (
+                <View style={styles.menuRow}>
+                  <Ionicons name="lock-closed-outline" size={20} color={colors.textSecondary} />
+                  <Text style={[styles.menuRowText, { color: colors.textSecondary }]}>
+                    Não é possível editar com candidatos
+                  </Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.menuRow}
+                  onPress={() => {
+                    if (!anuncioMenu) return;
+                    const item = anuncioMenu;
+                    setAnuncioMenu(null);
+                    handleEditar(item);
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <Ionicons name="create-outline" size={20} color={colors.text} />
+                  <Text style={[styles.menuRowText, { color: colors.text }]}>Editar anúncio</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+                </TouchableOpacity>
+              )}
 
               {anuncioMenu && anuncioMenu.propostas_count > 0 ? (
                 <>
@@ -1028,7 +1179,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  title: { flex: 1, fontSize: 26, fontWeight: '800' },
+  titleLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  title: { fontSize: 26, fontWeight: '800' },
+  betaBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  betaBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  helpBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   chips: { paddingHorizontal: 16, gap: 8, paddingBottom: 10 },
   chip: {
     flexDirection: 'row',
@@ -1150,7 +1324,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cardWeekday: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
     letterSpacing: 0.3,
   },
@@ -1159,7 +1333,7 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
     flexWrap: 'wrap',
     gap: 6,
-    marginTop: -2,
+    marginTop: 1,
   },
   cardDayNumber: {
     fontSize: 28,
@@ -1168,14 +1342,58 @@ const styles = StyleSheet.create({
     letterSpacing: -0.6,
   },
   cardDateRest: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
-    lineHeight: 20,
+    lineHeight: 22,
+    flexShrink: 1,
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  cardDateCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  cardAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    borderWidth: 1,
+  },
+  cardAvatarImg: { width: 40, height: 40, borderRadius: 20 },
+  cardAvatarInitial: {
+    fontSize: 15,
+    fontWeight: '800',
   },
   cardOfferLine: {
     fontSize: 14,
     fontWeight: '700',
     lineHeight: 20,
+  },
+  cardEventName: {
+    fontSize: 16,
+    fontWeight: '800',
+    lineHeight: 22,
+  },
+  cardTagsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  cardTag: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  cardTagText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   cardMetaRow: {
     flexDirection: 'row',
@@ -1207,39 +1425,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   notes: { fontSize: 13, lineHeight: 18 },
-  cardArtistBlock: {
-    gap: 4,
-  },
-  cardTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  cardAvatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    borderWidth: 1,
-  },
-  cardAvatarImg: { width: 42, height: 42, borderRadius: 21 },
-  cardAvatarInitial: {
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  cardArtistMeta: {
-    flex: 1,
-    minWidth: 0,
-  },
-  cardArtistKicker: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
   cardArtistName: {
-    fontSize: 17,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 2,
   },
   propostasResumo: {
     flexDirection: 'row',

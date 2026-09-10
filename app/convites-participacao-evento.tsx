@@ -38,6 +38,14 @@ function formatTime(t: string) {
   return t.slice(0, 5);
 }
 
+function formatTimeRange(start: string, end: string) {
+  const s = formatTime(start) || '00:00';
+  const e = formatTime(end) || '00:00';
+  if (s === '00:00' && e === '00:00') return 'Horário não definido';
+  if (e && e !== s) return `${s} – ${e}`;
+  return s;
+}
+
 export default function ConvitesParticipacaoEventoScreen() {
   const { colors } = useTheme();
   const { activeArtist } = useActiveArtist();
@@ -235,7 +243,7 @@ export default function ConvitesParticipacaoEventoScreen() {
                 </View>
                 <Text style={[styles.cardTitle, { color: colors.text }]}>{item.nome_evento}</Text>
                 <Text style={[styles.cardMeta, { color: colors.textSecondary }]}>
-                  {formatCalendarDate(item.data_evento)} · {formatTime(item.hora_inicio)}–{formatTime(item.hora_fim)}
+                  {formatCalendarDate(item.data_evento)} · {formatTimeRange(item.hora_inicio, item.hora_fim)}
                 </Text>
                 {item.cache_valor != null ? (
                   <Text style={[styles.cardMeta, { color: colors.textSecondary }]}>
@@ -264,7 +272,8 @@ export default function ConvitesParticipacaoEventoScreen() {
                     ) : null}
                   </View>
                 ) : null}
-                {item.funcao_participacao ? (
+                {item.funcao_participacao &&
+                item.funcao_participacao.trim().toLowerCase() !== 'interesse' ? (
                   <Text style={[styles.cardMeta, { color: colors.textSecondary }]}>
                     Função sugerida: {item.funcao_participacao}
                   </Text>
@@ -392,13 +401,16 @@ export default function ConvitesParticipacaoEventoScreen() {
                     <View style={[styles.acceptInfoBox, { borderColor: colors.border, backgroundColor: colors.background }]}>
                       <Text style={[styles.acceptLabel, { color: colors.textSecondary }]}>Horário</Text>
                       <Text style={[styles.acceptValue, { color: colors.text }]}>
-                        {formatTime(selectedAcceptInvite.hora_inicio)} – {formatTime(selectedAcceptInvite.hora_fim)}
+                        {formatTimeRange(selectedAcceptInvite.hora_inicio, selectedAcceptInvite.hora_fim)}
                       </Text>
                     </View>
                     <View style={[styles.acceptInfoBox, { borderColor: colors.border, backgroundColor: colors.background }]}>
                       <Text style={[styles.acceptLabel, { color: colors.textSecondary }]}>Função</Text>
                       <Text style={[styles.acceptValue, { color: colors.text }]}>
-                        {selectedAcceptInvite.funcao_participacao?.trim() || 'Participante'}
+                        {selectedAcceptInvite.funcao_participacao?.trim() &&
+                        selectedAcceptInvite.funcao_participacao.trim().toLowerCase() !== 'interesse'
+                          ? selectedAcceptInvite.funcao_participacao.trim()
+                          : 'Participante'}
                       </Text>
                     </View>
                     {selectedAcceptInvite.cache_valor != null ? (
