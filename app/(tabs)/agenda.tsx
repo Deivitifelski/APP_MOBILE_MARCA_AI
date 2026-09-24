@@ -12,7 +12,6 @@ import React, {
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   Image,
   Keyboard,
   KeyboardAvoidingView,
@@ -45,6 +44,7 @@ import { cancelarParticipacaoAceita } from "../../services/supabase/conviteParti
 import {
   getEventById,
   getEventsByMonthWithRole,
+  rememberAgendaEventsForSuggestions,
 } from "../../services/supabase/eventService";
 import {
   accountNameForArtist,
@@ -78,6 +78,7 @@ const MAX_COLLAB_AVATARS_ON_CARD = 10;
 /** No modal de participantes (toque na badge), lista colapsada mostra só os primeiros N. */
 const PARTICIPANTS_COLLAPSED_PREVIEW = 4;
 const AGENDA_VALUES_VISIBILITY_KEY = "agenda-values-visible";
+const AGENDA_CALENDAR_VISIBLE_KEY = "agenda-calendar-visible";
 const PARTICIPANT_AVATAR_COLORS = [
   "#2563EB",
   "#0F766E",
@@ -116,7 +117,7 @@ export default function AgendaScreen() {
   const [selectedDayEvents, setSelectedDayEvents] = useState<any[]>([]);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [showDayModal, setShowDayModal] = useState(false);
-  const [isCalendarVisible, setIsCalendarVisible] = useState(false);
+  const [isCalendarVisible, setIsCalendarVisible] = useState(true);
   const [showRemovedModal, setShowRemovedModal] = useState(false);
   const [showDeletedEventModal, setShowDeletedEventModal] = useState(false);
   const [availableArtists, setAvailableArtists] = useState<any[]>([]);
@@ -375,6 +376,34 @@ export default function AgendaScreen() {
     );
   };
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadCalendarVisible = async () => {
+      const key = currentUserId
+        ? `${AGENDA_CALENDAR_VISIBLE_KEY}:${currentUserId}`
+        : AGENDA_CALENDAR_VISIBLE_KEY;
+      const saved = await AsyncStorage.getItem(key);
+      if (!cancelled && saved != null) {
+        setIsCalendarVisible(saved !== "false");
+      }
+    };
+    void loadCalendarVisible();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId]);
+
+  const toggleCalendarVisible = () => {
+    setIsCalendarVisible((prev) => {
+      const next = !prev;
+      const key = currentUserId
+        ? `${AGENDA_CALENDAR_VISIBLE_KEY}:${currentUserId}`
+        : AGENDA_CALENDAR_VISIBLE_KEY;
+      void AsyncStorage.setItem(key, String(next));
+      return next;
+    });
+  };
+
   // Verificar se usuário tem artistas disponíveis
   useEffect(() => {
     checkIfUserHasArtists();
@@ -594,17 +623,42 @@ export default function AgendaScreen() {
     if (!dateString) return "";
     const [y, m, d] = dateString.split("-").map(Number);
     const date = new Date(y, m - 1, d);
-    return date.toLocaleDateString("pt-BR", {
+    const formatted = date.toLocaleDateString("pt-BR", {
       weekday: "long",
       day: "2-digit",
       month: "long",
     });
+    return formatted.charAt(0).toUpperCase() + formatted.slice(1);
   };
 
   const todayString = useMemo(() => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   }, []);
+
+  const tomorrowString = useMemo(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
+  }, []);
+
+  const eventsGroupedByDay = useMemo(() => {
+    const dates = Object.keys(eventsByDate).sort();
+    return dates.map((dateString) => {
+      let title = formatDisplayDate(dateString);
+      if (dateString === todayString) title = "Hoje";
+      else if (dateString === tomorrowString) title = "Amanhã";
+      return {
+        dateString,
+        title,
+        events: [...(eventsByDate[dateString] || [])].sort((a, b) => {
+          const ta = toHHMM(a.start_time) || "99:99";
+          const tb = toHHMM(b.start_time) || "99:99";
+          return ta.localeCompare(tb);
+        }),
+      };
+    });
+  }, [eventsByDate, todayString, tomorrowString]);
 
   useEffect(() => {
     refreshActiveArtist();
@@ -640,6 +694,12 @@ export default function AgendaScreen() {
       cancelled = true;
     };
   }, [events]);
+
+  useEffect(() => {
+    if (activeArtist?.id) {
+      rememberAgendaEventsForSuggestions(activeArtist.id, events);
+    }
+  }, [activeArtist?.id, events]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1336,7 +1396,12 @@ export default function AgendaScreen() {
   }, [artistPickerList, artistPickerSearch]);
 
   const handleAddShow = () => {
-    const selectedDate = new Date(currentYear, currentMonth, 1);
+    const now = new Date();
+    const useToday =
+      now.getFullYear() === currentYear && now.getMonth() === currentMonth;
+    const selectedDate = useToday
+      ? now
+      : new Date(currentYear, currentMonth, 1);
     void openAddEventScreen({
       selectedMonth: currentMonth,
       selectedYear: currentYear,
@@ -1518,13 +1583,6 @@ export default function AgendaScreen() {
       return null;
     }
 
-    // Parse da data sem conversão de fuso horário
-    const [year, month, day] = item.event_date.split("-").map(Number);
-    const eventDate = new Date(year, month - 1, day);
-    const dayOfWeek = eventDate.toLocaleDateString("pt-BR", {
-      weekday: "short",
-    });
-
     const conviteIdForCard =
       item.convite_participacao_id || conviteIdByEventId[item.id];
     const isInvitedEvent = !!conviteIdForCard;
@@ -1575,16 +1633,6 @@ export default function AgendaScreen() {
         activeOpacity={canSeeEventValue(item) ? 0.7 : 1}
       >
         <View style={styles.showContent}>
-          <View
-            style={[
-              styles.showDateSection,
-              { backgroundColor: colors.primary },
-            ]}
-          >
-            <Text style={styles.showDateNumber}>{day}</Text>
-            <Text style={styles.showDateText}>{dayOfWeek}</Text>
-          </View>
-
           <View style={styles.showInfoSection}>
             <View style={styles.eventNameContainer}>
               <Text
@@ -1759,11 +1807,10 @@ export default function AgendaScreen() {
     });
   };
 
-  const handleDayPress = async (dateString: string | null) => {
+  const handleDayPress = (dateString: string | null) => {
     if (!dateString) return;
     const dayEvents = eventsByDate[dateString];
 
-    // Se houver eventos, mostrar modal com os eventos
     if (dayEvents && dayEvents.length > 0) {
       setSelectedDay(dateString);
       setSelectedDayEvents(dayEvents);
@@ -1771,7 +1818,6 @@ export default function AgendaScreen() {
       return;
     }
 
-    // Se não houver eventos, navegar para criar evento com a data setada
     openAddEventForDateString(dateString);
   };
 
@@ -2112,7 +2158,7 @@ export default function AgendaScreen() {
                 styles.calendarToggleButton,
                 { backgroundColor: colors.surface, borderColor: colors.border },
               ]}
-              onPress={() => setIsCalendarVisible((prev) => !prev)}
+              onPress={toggleCalendarVisible}
               activeOpacity={0.85}
             >
               <Ionicons
@@ -2169,6 +2215,8 @@ export default function AgendaScreen() {
                       const dayEvents = eventsByDate[day.dateString] || [];
                       const hasEvents = dayEvents.length > 0;
                       const isToday = day.dateString === todayString;
+                      const isSelected =
+                        showDayModal && selectedDay === day.dateString;
 
                       return (
                         <TouchableOpacity
@@ -2180,6 +2228,9 @@ export default function AgendaScreen() {
                               borderWidth: 1.5,
                             },
                             hasEvents && { backgroundColor: colors.secondary },
+                            isSelected && {
+                              backgroundColor: `${colors.primary}22`,
+                            },
                           ]}
                           onPress={() => handleDayPress(day.dateString)}
                           activeOpacity={0.7}
@@ -2215,13 +2266,22 @@ export default function AgendaScreen() {
             )}
 
             <View style={styles.showsSection}>
-              {events.length > 0 ? (
-                <FlatList
-                  data={events}
-                  renderItem={renderShow}
-                  keyExtractor={(item) => item.id}
-                  scrollEnabled={false}
-                />
+              {eventsGroupedByDay.length > 0 ? (
+                eventsGroupedByDay.map((group) => (
+                  <View key={group.dateString} style={styles.dayGroup}>
+                    <Text
+                      style={[
+                        styles.dayGroupTitle,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      {group.title}
+                    </Text>
+                    {group.events.map((item) => (
+                      <View key={item.id}>{renderShow({ item })}</View>
+                    ))}
+                  </View>
+                ))
               ) : (
                 <View style={styles.noShowsContainer}>
                   <Ionicons
@@ -2364,7 +2424,7 @@ export default function AgendaScreen() {
                     { color: colors.textSecondary },
                   ]}
                 >
-                  Nenhum evento para este dia.
+                  Nenhum show neste dia.
                 </Text>
               )}
             </ScrollView>
@@ -3512,6 +3572,17 @@ const styles = StyleSheet.create({
   },
   showsSection: {
     padding: 20,
+  },
+  dayGroup: {
+    marginBottom: 18,
+  },
+  dayGroupTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+    textTransform: "capitalize",
+    marginBottom: 8,
+    marginLeft: 2,
   },
   calendarContainer: {
     marginHorizontal: 20,

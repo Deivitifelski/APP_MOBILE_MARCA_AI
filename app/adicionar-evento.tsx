@@ -1,12 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+    ActivityIndicator,
     Alert,
+    Dimensions,
     KeyboardAvoidingView,
     Modal,
+    PanResponder,
     Platform,
+    Pressable,
     ScrollView,
     StyleSheet,
     Text,
@@ -14,15 +18,25 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { Gesture, GestureDetector, GestureHandlerRootView, ScrollView as GHScrollView } from 'react-native-gesture-handler';
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
+import { useActiveArtistContext } from '../contexts/ActiveArtistContext';
 import { getArtists } from '../services/supabase/artistService';
 import { getCurrentUser } from '../services/supabase/authService';
 import { uploadEventContractFile } from '../services/supabase/eventContractUploadService';
-import { createEvent, CreateExpenseData } from '../services/supabase/eventService';
+import { createEvent, CreateExpenseData, getRecentEventNameSuggestions, type RecentEventSuggestion } from '../services/supabase/eventService';
 import { useActiveArtist } from '../services/useActiveArtist';
 import {
   extractNumericValueString,
+  formatCurrencyBRLFromAmount,
   formatCurrencyBRLInput,
 } from '../utils/currencyBRLInput';
 import { maybeShowConnectionError } from '../utils/maybeShowConnectionError';
@@ -56,6 +70,10 @@ function maskPhone(value: string): string {
   if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }
+
+const PREVIOUS_EVENTS_SHEET_HEIGHT = Math.round(Dimensions.get('window').height * 0.94);
+const PREVIOUS_EVENTS_DISMISS_DRAG = 90;
+const PREVIOUS_EVENTS_DISMISS_VELOCITY = 900;
 
 // Componente para seleção de data
 const DatePickerComponent = ({
@@ -305,7 +323,85 @@ export default function AdicionarEventoScreen() {
   const [contractUri, setContractUri] = useState<string | null>(null);
   const [contractName, setContractName] = useState<string | null>(null);
   const [contractMime, setContractMime] = useState<string | null>(null);
-  const { activeArtist } = useActiveArtist();
+  const { activeArtist: contextArtist } = useActiveArtistContext();
+  const { activeArtist: storedArtist } = useActiveArtist();
+  const artistId = contextArtist?.id || storedArtist?.id;
+  const [recentSuggestions, setRecentSuggestions] = useState<RecentEventSuggestion[]>([]);
+  const [showPreviousEventsModal, setShowPreviousEventsModal] = useState(false);
+  const [loadingPreviousEvents, setLoadingPreviousEvents] = useState(false);
+  const previousSheetTranslateY = useSharedValue(0);
+  const previousListScrollY = useSharedValue(0);
+
+  const closePreviousEventsModal = useCallback(() => {
+    previousSheetTranslateY.value = 0;
+    previousListScrollY.value = 0;
+    setShowPreviousEventsModal(false);
+  }, [previousListScrollY, previousSheetTranslateY]);
+
+  const finishPreviousEventsDismiss = useCallback(
+    (dy: number, vy: number) => {
+      if (dy > PREVIOUS_EVENTS_DISMISS_DRAG || vy > PREVIOUS_EVENTS_DISMISS_VELOCITY) {
+        previousSheetTranslateY.value = withTiming(
+          PREVIOUS_EVENTS_SHEET_HEIGHT,
+          { duration: 220 },
+          (finished) => {
+            if (finished) runOnJS(closePreviousEventsModal)();
+          },
+        );
+        return;
+      }
+      previousSheetTranslateY.value = withSpring(0, { damping: 22, stiffness: 220 });
+    },
+    [closePreviousEventsModal, previousSheetTranslateY],
+  );
+
+  useEffect(() => {
+    if (showPreviousEventsModal) {
+      previousSheetTranslateY.value = 0;
+      previousListScrollY.value = 0;
+    }
+  }, [previousListScrollY, previousSheetTranslateY, showPreviousEventsModal]);
+
+  const previousHandlePan = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: (_, gesture) =>
+          gesture.dy > 2 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+        onPanResponderMove: (_, gesture) => {
+          if (gesture.dy > 0) previousSheetTranslateY.value = gesture.dy;
+        },
+        onPanResponderRelease: (_, gesture) => {
+          finishPreviousEventsDismiss(gesture.dy, gesture.vy);
+        },
+        onPanResponderTerminate: () => {
+          previousSheetTranslateY.value = withSpring(0, { damping: 22, stiffness: 220 });
+        },
+      }),
+    [finishPreviousEventsDismiss, previousSheetTranslateY],
+  );
+
+  const previousListScrollGesture = Gesture.Native();
+  const previousDismissPanGesture = Gesture.Pan()
+    .activeOffsetY(8)
+    .failOffsetX([-24, 24])
+    .simultaneousWithExternalGesture(previousListScrollGesture)
+    .onUpdate((event) => {
+      if (previousListScrollY.value <= 1 && event.translationY > 0) {
+        previousSheetTranslateY.value = event.translationY;
+      }
+    })
+    .onEnd((event) => {
+      if (previousListScrollY.value <= 1) {
+        runOnJS(finishPreviousEventsDismiss)(event.translationY, event.velocityY);
+        return;
+      }
+      previousSheetTranslateY.value = withSpring(0, { damping: 22, stiffness: 220 });
+    });
+
+  const previousSheetStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: previousSheetTranslateY.value }],
+  }));
 
   const pickContract = async () => {
     try {
@@ -376,7 +472,7 @@ export default function AdicionarEventoScreen() {
         return;
       }
 
-      const artistId = activeArtist?.id || artists[0].id;
+      const saveArtistId = artistId || artists[0].id;
 
       let contractUrl: string | undefined;
       let contractFileName: string | undefined;
@@ -407,7 +503,7 @@ export default function AdicionarEventoScreen() {
         }));
 
       const eventData = {
-        artist_id: artistId,
+        artist_id: saveArtistId,
         user_id: user.id,
         name: form.nome.trim(),
         description: form.descricao.trim() || undefined,
@@ -462,6 +558,39 @@ export default function AdicionarEventoScreen() {
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
+  const applyRecentSuggestion = (suggestion: RecentEventSuggestion) => {
+    const valorFromEvent =
+      suggestion.value != null ? formatCurrencyBRLFromAmount(suggestion.value) : '';
+    setForm((prev) => ({
+      ...prev,
+      nome: suggestion.name,
+      valor: valorFromEvent || prev.valor,
+    }));
+    closePreviousEventsModal();
+  };
+
+  const openPreviousEventsModal = async () => {
+    setShowPreviousEventsModal(true);
+    setLoadingPreviousEvents(true);
+    try {
+      let id = artistId;
+      if (!id) {
+        const { user } = await getCurrentUser();
+        if (!user) return;
+        const { artists } = await getArtists(user.id);
+        id = artists?.[0]?.id;
+      }
+      if (!id) {
+        setRecentSuggestions([]);
+        return;
+      }
+      const { suggestions } = await getRecentEventNameSuggestions(id, 20);
+      setRecentSuggestions(suggestions);
+    } finally {
+      setLoadingPreviousEvents(false);
+    }
+  };
+
   const addDespesa = () => {
     setDespesas(prev => [...prev, { nome: '', valor: '' }]);
   };
@@ -512,7 +641,20 @@ export default function AdicionarEventoScreen() {
         >
         {/* Nome do Evento */}
         <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: colors.text }]}>Nome do Evento *</Text>
+          <View style={styles.nameLabelRow}>
+            <Text style={[styles.label, styles.nameLabel, { color: colors.text }]}>
+              Nome do Evento *
+            </Text>
+            <TouchableOpacity
+              onPress={() => void openPreviousEventsModal()}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.previousEventsLink, { color: colors.textSecondary }]}>
+                Reutilizar
+              </Text>
+            </TouchableOpacity>
+          </View>
           <TextInput
             style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
             value={form.nome}
@@ -544,6 +686,168 @@ export default function AdicionarEventoScreen() {
             blurOnSubmit={true}
           />
         </View>
+
+        {/* Data */}
+        <View style={styles.inputGroup}>
+          <Text style={[styles.label, { color: colors.text }]}>Data do Evento *</Text>
+          <TouchableOpacity
+            style={[styles.dateButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={openDatePicker}
+          >
+            <Ionicons name="calendar" size={20} color={colors.primary} />
+            <Text style={[styles.dateButtonText, { color: colors.text }]}>{formatDate(form.data)}</Text>
+            <Ionicons name="chevron-down" size={16} color={colors.primary} style={styles.chevronIcon} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Horário de Início */}
+        <View style={styles.inputGroup}>
+          <Text style={[styles.label, { color: colors.text }]}>Horário de Início</Text>
+          <TouchableOpacity
+            style={[styles.dateButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={openTimeInicioPicker}
+          >
+            <Ionicons name="time" size={20} color={colors.primary} />
+            <Text style={[styles.dateButtonText, { color: colors.text }]}>{formatTime(form.horarioInicio)}</Text>
+            <Ionicons name="chevron-down" size={16} color={colors.primary} style={styles.chevronIcon} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Horário de Fim */}
+        <View style={styles.inputGroup}>
+          <Text style={[styles.label, { color: colors.text }]}>Horário de Fim</Text>
+          <TouchableOpacity
+            style={[styles.dateButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={openTimeFimPicker}
+          >
+            <Ionicons name="time" size={20} color={colors.primary} />
+            <Text style={[styles.dateButtonText, { color: colors.text }]}>{formatTime(form.horarioFim)}</Text>
+            <Ionicons name="chevron-down" size={16} color={colors.primary} style={styles.chevronIcon} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Tipo de Evento (Tag) */}
+        <View style={styles.inputGroup}>
+          <Text style={[styles.label, { color: colors.text }]}>Tipo de Evento</Text>
+          <View style={styles.tagContainer}>
+            <TouchableOpacity
+              style={[
+                styles.tagButton,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+                form.tag === 'ensaio' && { backgroundColor: '#10B981', borderColor: '#10B981' }
+              ]}
+              onPress={() => updateForm('tag', 'ensaio')}
+            >
+              <Ionicons 
+                name="musical-notes" 
+                size={20} 
+                color={form.tag === 'ensaio' ? '#fff' : '#10B981'} 
+              />
+              <Text style={[
+                styles.tagButtonText,
+                { color: form.tag === 'ensaio' ? '#fff' : colors.text }
+              ]}>
+                Ensaio
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.tagButton,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+                form.tag === 'evento' && { backgroundColor: colors.primary, borderColor: colors.primary }
+              ]}
+              onPress={() => updateForm('tag', 'evento')}
+            >
+              <Ionicons 
+                name="mic" 
+                size={20} 
+                color={form.tag === 'evento' ? '#fff' : colors.primary} 
+              />
+              <Text style={[
+                styles.tagButtonText,
+                { color: form.tag === 'evento' ? '#fff' : colors.text }
+              ]}>
+                Evento
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.tagButton,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+                form.tag === 'reunião' && { backgroundColor: '#F59E0B', borderColor: '#F59E0B' }
+              ]}
+              onPress={() => updateForm('tag', 'reunião')}
+            >
+              <Ionicons 
+                name="people" 
+                size={20} 
+                color={form.tag === 'reunião' ? '#fff' : '#F59E0B'} 
+              />
+              <Text style={[
+                styles.tagButtonText,
+                { color: form.tag === 'reunião' ? '#fff' : colors.text }
+              ]}>
+                Reunião
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Status */}
+        <View style={styles.inputGroup}>
+          <Text style={[styles.label, { color: colors.text }]}>Status</Text>
+          <View style={styles.statusContainer}>
+            <TouchableOpacity
+              style={[
+                styles.statusButton,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+                form.status === 'a_confirmar' && [styles.statusButtonActive, { backgroundColor: colors.warning, borderColor: colors.warning }]
+              ]}
+              onPress={() => updateForm('status', 'a_confirmar')}
+            >
+              <Ionicons 
+                name="time" 
+                size={20} 
+                color={form.status === 'a_confirmar' ? '#fff' : colors.warning} 
+              />
+              <Text style={[
+                styles.statusButtonText,
+                { color: form.status === 'a_confirmar' ? '#fff' : colors.text },
+                form.status === 'a_confirmar' && styles.statusButtonTextActive
+              ]}>
+                A Confirmar
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.statusButton,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+                form.status === 'confirmado' && [styles.statusButtonActive, { backgroundColor: colors.success, borderColor: colors.success }]
+              ]}
+              onPress={() => updateForm('status', 'confirmado')}
+            >
+              <Ionicons 
+                name="checkmark-circle" 
+                size={20} 
+                color={form.status === 'confirmado' ? '#fff' : colors.success} 
+              />
+              <Text style={[
+                styles.statusButtonText,
+                { color: form.status === 'confirmado' ? '#fff' : colors.text },
+                form.status === 'confirmado' && styles.statusButtonTextActive
+              ]}>
+                Confirmado
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <Text style={[styles.moreDetailsTitle, { color: colors.textSecondary }]}>
+          Mais detalhes
+        </Text>
 
         {/* Cidade e estado (opcionais) */}
         <View style={styles.inputGroup}>
@@ -618,164 +922,6 @@ export default function AdicionarEventoScreen() {
             autoCapitalize="sentences"
             returnKeyType="default"
           />
-        </View>
-
-        {/* Data */}
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: colors.text }]}>Data do Evento *</Text>
-          <TouchableOpacity
-            style={[styles.dateButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={openDatePicker}
-          >
-            <Ionicons name="calendar" size={20} color={colors.primary} />
-            <Text style={[styles.dateButtonText, { color: colors.text }]}>{formatDate(form.data)}</Text>
-            <Ionicons name="chevron-down" size={16} color={colors.primary} style={styles.chevronIcon} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Horário de Início */}
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: colors.text }]}>Horário de Início</Text>
-          <TouchableOpacity
-            style={[styles.dateButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={openTimeInicioPicker}
-          >
-            <Ionicons name="time" size={20} color={colors.primary} />
-            <Text style={[styles.dateButtonText, { color: colors.text }]}>{formatTime(form.horarioInicio)}</Text>
-            <Ionicons name="chevron-down" size={16} color={colors.primary} style={styles.chevronIcon} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Horário de Fim */}
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: colors.text }]}>Horário de Fim</Text>
-          <TouchableOpacity
-            style={[styles.dateButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={openTimeFimPicker}
-          >
-            <Ionicons name="time" size={20} color={colors.primary} />
-            <Text style={[styles.dateButtonText, { color: colors.text }]}>{formatTime(form.horarioFim)}</Text>
-            <Ionicons name="chevron-down" size={16} color={colors.primary} style={styles.chevronIcon} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Status */}
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: colors.text }]}>Status</Text>
-          <View style={styles.statusContainer}>
-            <TouchableOpacity
-              style={[
-                styles.statusButton,
-                { backgroundColor: colors.surface, borderColor: colors.border },
-                form.status === 'a_confirmar' && [styles.statusButtonActive, { backgroundColor: colors.warning, borderColor: colors.warning }]
-              ]}
-              onPress={() => updateForm('status', 'a_confirmar')}
-            >
-              <Ionicons 
-                name="time" 
-                size={20} 
-                color={form.status === 'a_confirmar' ? '#fff' : colors.warning} 
-              />
-              <Text style={[
-                styles.statusButtonText,
-                { color: form.status === 'a_confirmar' ? '#fff' : colors.text },
-                form.status === 'a_confirmar' && styles.statusButtonTextActive
-              ]}>
-                A Confirmar
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.statusButton,
-                { backgroundColor: colors.surface, borderColor: colors.border },
-                form.status === 'confirmado' && [styles.statusButtonActive, { backgroundColor: colors.success, borderColor: colors.success }]
-              ]}
-              onPress={() => updateForm('status', 'confirmado')}
-            >
-              <Ionicons 
-                name="checkmark-circle" 
-                size={20} 
-                color={form.status === 'confirmado' ? '#fff' : colors.success} 
-              />
-              <Text style={[
-                styles.statusButtonText,
-                { color: form.status === 'confirmado' ? '#fff' : colors.text },
-                form.status === 'confirmado' && styles.statusButtonTextActive
-              ]}>
-                Confirmado
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Tipo de Evento (Tag) */}
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: colors.text }]}>Tipo de Evento</Text>
-          <View style={styles.tagContainer}>
-            <TouchableOpacity
-              style={[
-                styles.tagButton,
-                { backgroundColor: colors.surface, borderColor: colors.border },
-                form.tag === 'ensaio' && { backgroundColor: '#10B981', borderColor: '#10B981' }
-              ]}
-              onPress={() => updateForm('tag', 'ensaio')}
-            >
-              <Ionicons 
-                name="musical-notes" 
-                size={20} 
-                color={form.tag === 'ensaio' ? '#fff' : '#10B981'} 
-              />
-              <Text style={[
-                styles.tagButtonText,
-                { color: form.tag === 'ensaio' ? '#fff' : colors.text }
-              ]}>
-                Ensaio
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.tagButton,
-                { backgroundColor: colors.surface, borderColor: colors.border },
-                form.tag === 'evento' && { backgroundColor: colors.primary, borderColor: colors.primary }
-              ]}
-              onPress={() => updateForm('tag', 'evento')}
-            >
-              <Ionicons 
-                name="mic" 
-                size={20} 
-                color={form.tag === 'evento' ? '#fff' : colors.primary} 
-              />
-              <Text style={[
-                styles.tagButtonText,
-                { color: form.tag === 'evento' ? '#fff' : colors.text }
-              ]}>
-                Evento
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.tagButton,
-                { backgroundColor: colors.surface, borderColor: colors.border },
-                form.tag === 'reunião' && { backgroundColor: '#F59E0B', borderColor: '#F59E0B' }
-              ]}
-              onPress={() => updateForm('tag', 'reunião')}
-            >
-              <Ionicons 
-                name="people" 
-                size={20} 
-                color={form.tag === 'reunião' ? '#fff' : '#F59E0B'} 
-              />
-              <Text style={[
-                styles.tagButtonText,
-                { color: form.tag === 'reunião' ? '#fff' : colors.text }
-              ]}>
-                Reunião
-              </Text>
-            </TouchableOpacity>
-          </View>
         </View>
 
         {/* Contrato (opcional) */}
@@ -1013,6 +1159,109 @@ export default function AdicionarEventoScreen() {
         </View>
       </Modal>
 
+      <Modal
+        visible={showPreviousEventsModal}
+        transparent
+        animationType="slide"
+        onRequestClose={closePreviousEventsModal}
+        statusBarTranslucent
+      >
+        <GestureHandlerRootView style={styles.previousEventsRoot}>
+          <Pressable
+            style={styles.previousEventsBackdrop}
+            onPress={closePreviousEventsModal}
+          />
+          <GestureDetector gesture={previousDismissPanGesture}>
+            <Animated.View
+              style={[
+                styles.previousEventsSheet,
+                previousSheetStyle,
+                { backgroundColor: colors.surface, height: PREVIOUS_EVENTS_SHEET_HEIGHT },
+              ]}
+            >
+              <View {...previousHandlePan.panHandlers}>
+                <View style={styles.previousEventsHandleArea}>
+                  <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+                </View>
+                <View style={styles.modalHeader}>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>
+                    Usar evento anterior
+                  </Text>
+                  <TouchableOpacity
+                    onPress={closePreviousEventsModal}
+                    style={styles.modalCloseButton}
+                  >
+                    <Ionicons name="close" size={24} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <Text style={[styles.previousEventsHint, { color: colors.textSecondary }]}>
+                Toque em um evento para copiar o nome e o valor.
+              </Text>
+              {loadingPreviousEvents && recentSuggestions.length === 0 ? (
+                <View style={styles.previousEventsEmpty}>
+                  <ActivityIndicator color={colors.primary} />
+                </View>
+              ) : recentSuggestions.length === 0 ? (
+                <View style={styles.previousEventsEmpty}>
+                  <Text style={[styles.previousEventsEmptyText, { color: colors.textSecondary }]}>
+                    Nenhum evento anterior neste perfil ainda.
+                  </Text>
+                </View>
+              ) : (
+                <GestureDetector gesture={previousListScrollGesture}>
+                  <GHScrollView
+                    style={styles.previousEventsList}
+                    contentContainerStyle={{
+                      paddingHorizontal: 20,
+                      paddingBottom: Math.max(insets.bottom, 24) + 16,
+                    }}
+                    showsVerticalScrollIndicator
+                    keyboardShouldPersistTaps="handled"
+                    bounces
+                    alwaysBounceVertical
+                    onScroll={(event) => {
+                      previousListScrollY.value = event.nativeEvent.contentOffset.y;
+                    }}
+                    scrollEventThrottle={16}
+                  >
+                    {recentSuggestions.map((suggestion) => {
+                      const valueLabel =
+                        suggestion.value != null
+                          ? formatCurrencyBRLFromAmount(suggestion.value)
+                          : '';
+                      return (
+                        <TouchableOpacity
+                          key={suggestion.name}
+                          style={[
+                            styles.previousEventRow,
+                            { borderColor: colors.border, backgroundColor: colors.background },
+                          ]}
+                          onPress={() => applyRecentSuggestion(suggestion)}
+                          activeOpacity={0.8}
+                        >
+                          <View style={styles.previousEventRowText}>
+                            <Text style={[styles.suggestionName, { color: colors.text }]} numberOfLines={2}>
+                              {suggestion.name}
+                            </Text>
+                            {valueLabel ? (
+                              <Text style={[styles.suggestionValue, { color: colors.primary }]}>
+                                {valueLabel}
+                              </Text>
+                            ) : null}
+                          </View>
+                          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </GHScrollView>
+                </GestureDetector>
+              )}
+            </Animated.View>
+          </GestureDetector>
+        </GestureHandlerRootView>
+      </Modal>
+
       <BrazilStatePickerModal
         visible={showEstadoModal}
         onClose={() => setShowEstadoModal(false)}
@@ -1057,6 +1306,91 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 8,
+  },
+  nameLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  nameLabel: {
+    marginBottom: 0,
+    flex: 1,
+    marginRight: 12,
+  },
+  previousEventsLink: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  moreDetailsTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  previousEventsRoot: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  previousEventsBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  previousEventsSheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    overflow: 'hidden',
+  },
+  previousEventsHandleArea: {
+    paddingTop: 10,
+    paddingBottom: 6,
+    alignItems: 'center',
+  },
+  previousEventsHint: {
+    fontSize: 13,
+    lineHeight: 18,
+    paddingHorizontal: 20,
+    marginBottom: 8,
+  },
+  previousEventsList: {
+    flex: 1,
+  },
+  previousEventRow: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  previousEventRowText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  previousEventsEmpty: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previousEventsEmptyText: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  suggestionName: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  suggestionValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 4,
   },
   input: {
     borderRadius: 12,

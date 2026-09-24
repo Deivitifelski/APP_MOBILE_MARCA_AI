@@ -1,4 +1,5 @@
 import { supabase } from "../../lib/supabase";
+import { cacheService } from "../cacheService";
 import { getUserPermissions, hasPermission } from "./permissionsService";
 
 const SUPABASE_URL = "https://ctulmpyaikxsnjqmrzxf.supabase.co";
@@ -253,6 +254,134 @@ export const getEventsByArtist = async (
     return { success: true, error: null, events: excludeFeedMarketplaceEvents(data) };
   } catch {
     return { success: false, error: "Erro de conexão" };
+  }
+};
+
+export type RecentEventSuggestion = {
+  name: string;
+  value: number | null;
+};
+
+const rememberedAgendaEventsByArtist = new Map<string, Array<{ name?: string | null; value?: unknown; created_at?: string; event_date?: string }>>();
+
+export function rememberAgendaEventsForSuggestions(
+  artistId: string,
+  events: Array<{ name?: string | null; value?: unknown; created_at?: string; event_date?: string }>,
+) {
+  if (!artistId) return;
+  rememberedAgendaEventsByArtist.set(artistId, Array.isArray(events) ? events : []);
+}
+
+function toSuggestionValue(rawValue: unknown): number | null {
+  if (typeof rawValue === "number") {
+    return Number.isFinite(rawValue) ? rawValue : null;
+  }
+  if (rawValue == null || rawValue === "") return null;
+  const parsed = Number(rawValue);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function uniqueRecentSuggestions(
+  rows: Array<{ name?: string | null; value?: unknown; created_at?: string; event_date?: string }>,
+  limit: number,
+): RecentEventSuggestion[] {
+  const sorted = [...rows].sort((a, b) => {
+    const aKey = String(a.created_at || a.event_date || "");
+    const bKey = String(b.created_at || b.event_date || "");
+    return bKey.localeCompare(aKey);
+  });
+  const seen = new Set<string>();
+  const suggestions: RecentEventSuggestion[] = [];
+  for (const row of sorted) {
+    const name = String(row?.name || "").trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    suggestions.push({
+      name,
+      value: toSuggestionValue(row?.value),
+    });
+    if (suggestions.length >= limit) break;
+  }
+  return suggestions;
+}
+
+/** Últimos nomes de evento do artista (mais recentes primeiro), sem repetir. */
+export function getRecentEventNameSuggestionsSync(
+  artistId: string,
+  limit = 8,
+): RecentEventSuggestion[] {
+  return uniqueRecentSuggestions(
+    rememberedAgendaEventsByArtist.get(artistId) || [],
+    limit,
+  );
+}
+
+export const getRecentEventNameSuggestions = async (
+  artistId: string,
+  limit = 8,
+): Promise<{ suggestions: RecentEventSuggestion[]; error: string | null }> => {
+  try {
+    const collected: Array<{
+      name?: string | null;
+      value?: unknown;
+      created_at?: string;
+      event_date?: string;
+    }> = [...(rememberedAgendaEventsByArtist.get(artistId) || [])];
+
+    const now = new Date();
+    for (let i = 0; i < 6; i += 1) {
+      const cursor = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const cached = await cacheService.getEventsData<typeof collected>(
+        artistId,
+        cursor.getFullYear(),
+        cursor.getMonth(),
+      );
+      if (cached?.length) collected.push(...cached);
+    }
+
+    if (collected.length > 0) {
+      const fromLocal = uniqueRecentSuggestions(collected, limit);
+      if (fromLocal.length > 0) {
+        return { suggestions: fromLocal, error: null };
+      }
+    }
+
+    const byRole = await getEventsByArtistWithRole(artistId);
+    if (!byRole.error && byRole.events && byRole.events.length > 0) {
+      return {
+        suggestions: uniqueRecentSuggestions(byRole.events, limit),
+        error: null,
+      };
+    }
+
+    const { data, error } = await supabase
+      .from("events")
+      .select("name, value, event_date, created_at, feed_tipo")
+      .eq("artist_id", artistId)
+      .order("event_date", { ascending: false })
+      .limit(80);
+
+    if (error) {
+      return { suggestions: uniqueRecentSuggestions(collected, limit), error: error.message };
+    }
+
+    return {
+      suggestions: uniqueRecentSuggestions(
+        [...collected, ...excludeFeedMarketplaceEvents(data || [])],
+        limit,
+      ),
+      error: null,
+    };
+  } catch {
+    return {
+      suggestions: uniqueRecentSuggestions(
+        rememberedAgendaEventsByArtist.get(artistId) || [],
+        limit,
+      ),
+      error: "Erro de conexão",
+    };
   }
 };
 
