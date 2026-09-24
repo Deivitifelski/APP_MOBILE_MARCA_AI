@@ -36,6 +36,33 @@ export interface CreateArtistData {
   show_formats?: string[];
 }
 
+function mapCreateArtistError(message: string): string {
+  const m = (message || '').toLowerCase();
+  if (
+    m.includes('network') ||
+    m.includes('fetch') ||
+    m.includes('failed to') ||
+    m.includes('timeout')
+  ) {
+    return 'Sem conexão. Verifique a internet e tente de novo.';
+  }
+  if (m.includes('jwt') || m.includes('not authenticated') || m.includes('auth')) {
+    return 'Sessão expirada. Faça login novamente.';
+  }
+  if (
+    m.includes('row-level security') ||
+    m.includes('rls') ||
+    m.includes('permission') ||
+    m.includes('policy')
+  ) {
+    return 'Sem permissão para criar o perfil agora. Saia e entre de novo.';
+  }
+  if (m.includes('duplicate') || m.includes('unique')) {
+    return 'Já existe um perfil com esses dados.';
+  }
+  return message.trim() || 'Não foi possível criar o perfil. Tente de novo.';
+}
+
 // Criar perfil do artista
 export const createArtist = async (artistData: CreateArtistData): Promise<{ success: boolean; error: string | null; artist?: Artist }> => {
   try {
@@ -82,7 +109,7 @@ export const createArtist = async (artistData: CreateArtistData): Promise<{ succ
 
     if (artistError) {
       console.error('❌ Erro ao criar artista:', artistError.message);
-      return { success: false, error: 'Aconteceu um erro ao tentar criar artista' };
+      return { success: false, error: mapCreateArtistError(artistError.message) };
     }
 
     // Depois, criar o relacionamento na tabela artist_members como admin (criador sempre é admin)
@@ -97,14 +124,13 @@ export const createArtist = async (artistData: CreateArtistData): Promise<{ succ
       });
 
     if (memberError) {
-      // Se der erro no relacionamento, deletar o artista criado
       await supabase.from('artists').delete().eq('id', artistData_result.id);
-      return { success: false, error: memberError.message };
+      return { success: false, error: mapCreateArtistError(memberError.message) };
     }
 
     return { success: true, error: null, artist: artistData_result };
   } catch {
-    return { success: false, error: 'Erro de conexão' };
+    return { success: false, error: 'Sem conexão. Verifique a internet e tente de novo.' };
   }
 };
 

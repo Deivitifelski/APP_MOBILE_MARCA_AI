@@ -214,7 +214,14 @@ export default function FeedScreen() {
 
   const handlePublicar = () => {
     if (!activeArtist) {
-      Alert.alert('Artista', 'Selecione um artista nas Configurações para publicar.');
+      Alert.alert(
+        'Perfil de artista',
+        'Crie ou selecione um perfil de artista para publicar no feed.',
+        [
+          { text: 'Agora não', style: 'cancel' },
+          { text: 'Criar perfil', onPress: () => router.push('/cadastro-artista') },
+        ],
+      );
       return;
     }
     setShowPublicarOpcoes(true);
@@ -244,7 +251,14 @@ export default function FeedScreen() {
       return;
     }
     if (!activeArtist) {
-      Alert.alert('Artista', 'Selecione um artista nas Configurações para negociar.');
+      Alert.alert(
+        'Perfil de artista',
+        'Crie ou selecione um perfil de artista para negociar no feed.',
+        [
+          { text: 'Agora não', style: 'cancel' },
+          { text: 'Criar perfil', onPress: () => router.push('/cadastro-artista') },
+        ],
+      );
       return;
     }
     if (!canCreateEvents) {
@@ -864,10 +878,17 @@ export default function FeedScreen() {
       {!activeArtist ? (
         <View style={styles.center}>
           <Ionicons name="people-outline" size={42} color={colors.textSecondary} />
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>Selecione um artista</Text>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>Crie um perfil de artista</Text>
           <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
-            O feed usa o artista ativo nas Configurações.
+            O feed precisa de um perfil ativo para publicar e negociar.
           </Text>
+          <TouchableOpacity
+            style={[styles.emptyCta, { backgroundColor: colors.primary }]}
+            onPress={() => router.push('/cadastro-artista')}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.emptyCtaText}>Criar perfil</Text>
+          </TouchableOpacity>
         </View>
       ) : loading && anuncios.length === 0 ? (
         <View style={styles.center}>
@@ -1284,6 +1305,13 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, gap: 8 },
   emptyTitle: { fontSize: 18, fontWeight: '700', textAlign: 'center', marginTop: 8 },
   emptySub: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
+  emptyCta: {
+    marginTop: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  emptyCtaText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   card: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 14,

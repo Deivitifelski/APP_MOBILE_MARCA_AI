@@ -207,6 +207,17 @@ export const getUserProfile = async (userId: string): Promise<{ profile: UserPro
   }
 };
 
+/** Nome da conta que dá para reutilizar no artista (ignora e-mail Apple, "Usuário", vazio). */
+export function accountNameForArtist(name?: string | null): string | null {
+  const n = String(name ?? '').trim();
+  if (n.length < 2 || n.length > 50) return null;
+  const lower = n.toLowerCase();
+  if (lower === 'usuário' || lower === 'usuario') return null;
+  if (n.includes('@')) return null;
+  if (/privaterelay\.appleid\.com/i.test(n)) return null;
+  return n;
+}
+
 // Atualizar perfil do usuário
 export const updateUserProfile = async (userId: string, userData: Partial<CreateUserProfileData>): Promise<{ success: boolean; error: string | null }> => {
   try {

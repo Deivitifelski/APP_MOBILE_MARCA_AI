@@ -97,15 +97,23 @@ const estilosMusicais = [
 
 export default function ArtistProfileScreen() {
   const { colors } = useTheme();
-  const params = useLocalSearchParams();
+  const params = useLocalSearchParams<{
+    fromSettings?: string;
+    secondary?: string;
+    onboarding?: string;
+    nome?: string;
+  }>();
   const fromSettings = params.fromSettings === 'true';
   /** Fluxo “mais um artista” (ex.: agenda) — mesmo formulário, com voltar/cancelar sem alerta de onboarding. */
   const fromSecondary = params.secondary === 'true';
+  const fromOnboarding = params.onboarding === 'true';
   const hasBackNavigation = fromSettings || fromSecondary;
-  const isFirstOnboarding = !fromSettings && !fromSecondary;
+  const isFirstOnboarding = fromOnboarding || (!fromSettings && !fromSecondary);
   const { setActiveArtist } = useActiveArtistContext();
   
-  const [name, setName] = useState('');
+  const [name, setName] = useState(
+    typeof params.nome === 'string' ? params.nome.trim() : ''
+  );
   const [musicalStyle, setMusicalStyle] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [city, setCity] = useState('');
@@ -125,6 +133,7 @@ export default function ArtistProfileScreen() {
   const [workRoleDraft, setWorkRoleDraft] = useState('');
   const [showFormatDraft, setShowFormatDraft] = useState('');
   const [createdArtistName, setCreatedArtistName] = useState('');
+  const [photoSkippedWarning, setPhotoSkippedWarning] = useState(false);
 
   const formatCurrencyInput = (raw: string): string => {
     const digitsOnly = raw.replace(/\D/g, '');
@@ -244,7 +253,7 @@ export default function ArtistProfileScreen() {
       return;
     }
 
-    if (!musicalStyle) {
+    if (!isFirstOnboarding && !musicalStyle) {
       Alert.alert('Atenção', 'Por favor, selecione o estilo musical');
       return;
     }
@@ -314,30 +323,22 @@ export default function ArtistProfileScreen() {
       console.log('✅ [ArtistProfileScreen] Usuário pode criar artista!');
 
       let finalProfileUrl = null;
+      let photoFailed = false;
 
-      // Se há uma imagem selecionada, fazer upload agora
       if (selectedImageUri) {
-        console.log('📤 Fazendo upload da imagem do artista no momento do cadastro...');
         setIsUploadingImage(true);
-        
         const uploadResult = await uploadImageToSupabase(selectedImageUri, 'image_artists');
-        
         if (uploadResult.success && uploadResult.url) {
           finalProfileUrl = uploadResult.url;
-          console.log('✅ Upload realizado com sucesso:', uploadResult.url);
         } else {
-          console.error('❌ Erro no upload:', uploadResult.error);
-          Alert.alert('Erro', `Erro ao fazer upload da imagem: ${uploadResult.error}`);
-          setIsUploadingImage(false);
-          setLoading(false);
-          return;
+          photoFailed = true;
         }
         setIsUploadingImage(false);
       }
 
       const { success, error, artist } = await createArtist({
         name: name.trim(),
-        musical_style: musicalStyle,
+        musical_style: musicalStyle || undefined,
         profile_url: finalProfileUrl || undefined,
         user_id: user.id,
         whatsapp: isAvailableForGigs ? whatsapp.trim() || undefined : undefined,
@@ -358,7 +359,7 @@ export default function ArtistProfileScreen() {
 
       if (!success || !artist) {
         console.error('❌ [ArtistProfileScreen] Falha ao criar artista:', error);
-        Alert.alert('Atenção', 'Erro ao criar perfil do artista: ' + error);
+        Alert.alert('Atenção', error || 'Não foi possível criar o perfil. Tente de novo.');
         return;
       }
 
@@ -379,6 +380,7 @@ export default function ArtistProfileScreen() {
 
       // Mostrar modal de sucesso personalizado
       setCreatedArtistName(artist.name);
+      setPhotoSkippedWarning(photoFailed);
       setShowSuccessModal(true);
     } catch (error) {
       console.error('❌ [ArtistProfileScreen] Erro inesperado:', error);
@@ -420,7 +422,9 @@ export default function ArtistProfileScreen() {
               <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                 {fromSettings || fromSecondary
                   ? 'Adicione um novo perfil de artista'
-                  : 'Configure o perfil do artista'}
+                  : fromOnboarding
+                    ? 'Pode ser o nome da banda ou o seu. Dá para editar depois.'
+                    : 'Configure o perfil do artista'}
               </Text>
             </View>
 
@@ -475,7 +479,9 @@ export default function ArtistProfileScreen() {
 
               {/* Estilo Musical */}
               <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: colors.text }]}>Estilo Musical *</Text>
+                <Text style={[styles.label, { color: colors.text }]}>
+                  {isFirstOnboarding ? 'Estilo Musical' : 'Estilo Musical *'}
+                </Text>
                 <TouchableOpacity
                   style={[styles.inputContainer, { backgroundColor: colors.background, borderColor: colors.border }]}
                   onPress={() => setShowEstilos(true)}
@@ -797,7 +803,9 @@ export default function ArtistProfileScreen() {
 
             {/* Mensagem */}
             <Text style={[styles.successMessage, { color: colors.textSecondary }]}>
-              O perfil do artista foi criado com sucesso! Você está agora gerenciando este artista.
+              {photoSkippedWarning
+                ? 'Perfil criado. A foto não foi enviada — você pode adicionar depois em Configurações.'
+                : 'O perfil do artista foi criado com sucesso! Você está agora gerenciando este artista.'}
             </Text>
 
             {/* Features */}

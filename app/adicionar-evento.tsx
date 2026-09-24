@@ -58,84 +58,84 @@ function maskPhone(value: string): string {
 }
 
 // Componente para seleção de data
-const DatePickerComponent = ({ 
-  selectedDate, 
-  onDateChange, 
-  initialMonth, 
-  initialYear,
-  colors
-}: { 
-  selectedDate: Date; 
+const DatePickerComponent = ({
+  selectedDate,
+  onDateChange,
+  visible = true,
+  colors,
+}: {
+  selectedDate: Date;
   onDateChange: (date: Date) => void;
-  initialMonth?: number;
-  initialYear?: number;
+  visible?: boolean;
   colors: any;
 }) => {
-  const [selectedDay, setSelectedDay] = useState(selectedDate.getDate());
+  const [viewYear, setViewYear] = useState(selectedDate.getFullYear());
+  const [viewMonth, setViewMonth] = useState(selectedDate.getMonth());
 
-  // Atualizar dia selecionado quando selectedDate mudar
   React.useEffect(() => {
-    setSelectedDay(selectedDate.getDate());
-  }, [selectedDate]);
+    if (!visible) return;
+    setViewYear(selectedDate.getFullYear());
+    setViewMonth(selectedDate.getMonth());
+  }, [visible, selectedDate]);
 
-  // Sempre usar dados atualizados - priorizar parâmetros ou usar data atual
-  const currentDate = new Date();
-  // Se selectedDate foi passado, usar mês/ano dessa data, senão usar parâmetros ou data atual
-  const year = initialYear !== undefined ? initialYear : (selectedDate ? selectedDate.getFullYear() : currentDate.getFullYear());
-  const month = initialMonth !== undefined ? initialMonth : (selectedDate ? selectedDate.getMonth() : currentDate.getMonth());
-
-  // Calcular quantos dias tem o mês selecionado
   const getDaysInMonth = (year: number, month: number) => {
     return new Date(year, month + 1, 0).getDate();
   };
 
-  const daysInSelectedMonth = getDaysInMonth(year, month);
-  
-  // Criar calendário completo com dias vazios no início
-  // Usar fuso horário local para evitar problemas
-  const firstDayOfMonth = new Date(year, month, 1);
-  const firstDayWeekday = firstDayOfMonth.getDay(); // 0 = Domingo, 1 = Segunda, etc.
-  
-  
-  // Criar array com dias vazios no início + dias do mês
-  const calendarDays = [];
-  
-  // Adicionar dias vazios no início para alinhar com o primeiro dia do mês
+  const daysInSelectedMonth = getDaysInMonth(viewYear, viewMonth);
+  const firstDayWeekday = new Date(viewYear, viewMonth, 1).getDay();
+
+  const calendarDays: { day: number | null; date: Date | null }[] = [];
+
   for (let i = 0; i < firstDayWeekday; i++) {
-    calendarDays.push({ day: null, weekday: null, date: null });
+    calendarDays.push({ day: null, date: null });
   }
-  
-  // Adicionar dias do mês
+
   for (let day = 1; day <= daysInSelectedMonth; day++) {
-    const date = new Date(year, month, day);
     calendarDays.push({
-      day: day,
-      weekday: null,
-      date: date
+      day,
+      date: new Date(viewYear, viewMonth, day),
     });
-    
   }
 
+  const isSelectedDay = (day: number) =>
+    day === selectedDate.getDate() &&
+    viewMonth === selectedDate.getMonth() &&
+    viewYear === selectedDate.getFullYear();
 
-  const updateDate = (day: number) => {
-    // Criar data usando fuso horário local
-    const newDate = new Date(year, month, day);
-    onDateChange(newDate);
+  const goToMonth = (offset: number) => {
+    const next = new Date(viewYear, viewMonth + offset, 1);
+    setViewYear(next.getFullYear());
+    setViewMonth(next.getMonth());
   };
 
-  // Obter nome do mês
   const monthNames = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
   ];
 
   return (
     <View style={styles.datePickerContainer}>
-      <Text style={[styles.monthYearLabel, { color: colors.text }]}>
-        {monthNames[month]} / {year}
-      </Text>
-      
-      {/* Cabeçalho dos dias da semana */}
+      <View style={styles.monthNav}>
+        <TouchableOpacity
+          style={[styles.monthNavBtn, { backgroundColor: colors.secondary }]}
+          onPress={() => goToMonth(-1)}
+          accessibilityLabel="Mês anterior"
+        >
+          <Ionicons name="chevron-back" size={20} color={colors.primary} />
+        </TouchableOpacity>
+        <Text style={[styles.monthYearLabel, { color: colors.text }]}>
+          {monthNames[viewMonth]} / {viewYear}
+        </Text>
+        <TouchableOpacity
+          style={[styles.monthNavBtn, { backgroundColor: colors.secondary }]}
+          onPress={() => goToMonth(1)}
+          accessibilityLabel="Próximo mês"
+        >
+          <Ionicons name="chevron-forward" size={20} color={colors.primary} />
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.weekdayHeader}>
         {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((weekday) => (
           <Text key={weekday} style={[styles.weekdayHeaderText, { color: colors.textSecondary }]}>
@@ -143,37 +143,38 @@ const DatePickerComponent = ({
           </Text>
         ))}
       </View>
-      
-      {/* Grid dos dias */}
+
       <View style={styles.daysGrid}>
-        {calendarDays.map((dayInfo, index) => (
-          <TouchableOpacity
-            key={index}
-            style={[
-              styles.dayItem,
-              { backgroundColor: colors.background },
-              dayInfo.day && selectedDay === dayInfo.day ? [styles.dayItemSelected, { backgroundColor: colors.primary }] : null,
-              !dayInfo.day ? styles.dayItemEmpty : null
-            ]}
-            onPress={() => {
-              if (dayInfo.day) {
-                setSelectedDay(dayInfo.day);
-                updateDate(dayInfo.day);
-              }
-            }}
-            disabled={!dayInfo.day}
-          >
-            {dayInfo.day && (
-              <Text style={[
-                styles.dayNumberText,
-                { color: colors.text },
-                selectedDay === dayInfo.day && styles.dayNumberTextSelected
-              ]}>
-                {dayInfo.day}
-              </Text>
-            )}
-          </TouchableOpacity>
-        ))}
+        {calendarDays.map((dayInfo, index) => {
+          const selected = !!dayInfo.day && isSelectedDay(dayInfo.day);
+          return (
+            <TouchableOpacity
+              key={index}
+              style={[
+                styles.dayItem,
+                { backgroundColor: colors.background },
+                selected ? [styles.dayItemSelected, { backgroundColor: colors.primary }] : null,
+                !dayInfo.day ? styles.dayItemEmpty : null,
+              ]}
+              onPress={() => {
+                if (dayInfo.date) onDateChange(dayInfo.date);
+              }}
+              disabled={!dayInfo.day}
+            >
+              {dayInfo.day ? (
+                <Text
+                  style={[
+                    styles.dayNumberText,
+                    { color: colors.text },
+                    selected && styles.dayNumberTextSelected,
+                  ]}
+                >
+                  {dayInfo.day}
+                </Text>
+              ) : null}
+            </TouchableOpacity>
+          );
+        })}
       </View>
     </View>
   );
@@ -921,8 +922,7 @@ export default function AdicionarEventoScreen() {
               <DatePickerComponent
                 selectedDate={form.data}
                 onDateChange={(date) => updateForm('data', date)}
-                initialMonth={selectedMonth}
-                initialYear={selectedYear}
+                visible={showDateModal}
                 colors={colors}
               />
             </View>
@@ -1319,12 +1319,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 20,
   },
+  monthNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    gap: 8,
+  },
+  monthNavBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   monthYearLabel: {
+    flex: 1,
     fontSize: 18,
     fontWeight: '600',
     color: '#333',
     textAlign: 'center',
-    marginBottom: 20,
   },
   weekdayHeader: {
     flexDirection: 'row',

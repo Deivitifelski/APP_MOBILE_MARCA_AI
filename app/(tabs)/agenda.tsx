@@ -39,7 +39,7 @@ import { supabase } from "../../lib/supabase";
 import { setAppIconBadge } from "../../services/appIconBadge";
 import { artistImageUpdateService } from "../../services/artistImageUpdateService";
 import { cacheService } from "../../services/cacheService";
-import { getArtists } from "../../services/supabase/artistService";
+import { createArtist, getArtists } from "../../services/supabase/artistService";
 import { getCurrentUser } from "../../services/supabase/authService";
 import { cancelarParticipacaoAceita } from "../../services/supabase/conviteParticipacaoEventoService";
 import {
@@ -47,8 +47,10 @@ import {
   getEventsByMonthWithRole,
 } from "../../services/supabase/eventService";
 import {
+  accountNameForArtist,
   canCreateArtist,
   FREE_PLAN_MAX_OWNED_ARTIST_PROFILES,
+  getUserProfile,
 } from "../../services/supabase/userService";
 import { useNotifications } from "../../services/useNotifications";
 import { buildWhatsAppUrl } from "../../utils/brazilPhone";
@@ -125,6 +127,11 @@ export default function AgendaScreen() {
   const [isLoadingArtistPicker, setIsLoadingArtistPicker] = useState(false);
   const [showNewUserModal, setShowNewUserModal] = useState(false);
   const [welcomeStep, setWelcomeStep] = useState(0);
+  const [accountArtistName, setAccountArtistName] = useState<string | null>(
+    null,
+  );
+  const [accountNameReady, setAccountNameReady] = useState(false);
+  const [creatingQuickArtist, setCreatingQuickArtist] = useState(false);
   const params = useLocalSearchParams<{
     showNewUserModal?: string;
     eventCreatedToast?: string;
@@ -170,6 +177,31 @@ export default function AgendaScreen() {
   }, [params.showNewUserModal]);
 
   useEffect(() => {
+    if (!showNewUserModal) return;
+    let cancelled = false;
+    setAccountNameReady(false);
+    void (async () => {
+      const { user } = await getCurrentUser();
+      if (!user || cancelled) {
+        if (!cancelled) setAccountNameReady(true);
+        return;
+      }
+      const { profile } = await getUserProfile(user.id);
+      if (cancelled) return;
+      const fromProfile = accountNameForArtist(profile?.name);
+      const fromMeta = accountNameForArtist(
+        (user.user_metadata?.full_name as string | undefined) ||
+          (user.user_metadata?.name as string | undefined),
+      );
+      setAccountArtistName(fromProfile || fromMeta);
+      setAccountNameReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showNewUserModal]);
+
+  useEffect(() => {
     if (params.eventCreatedToast !== "1") return;
     setAgendaToastMessage("Evento criado com sucesso!");
     router.setParams({ eventCreatedToast: undefined });
@@ -200,35 +232,15 @@ export default function AgendaScreen() {
     {
       title: "Conta criada com sucesso!",
       subtitle:
-        "Bem-vindo ao Marca AI. Veja em poucos passos como aproveitar o app.",
+        "O Marca AI organiza shows e o financeiro dentro de um perfil de artista. No próximo passo você cria o seu.",
       image: true,
       icon: null as string | null,
     },
     {
-      title: "Crie seu perfil artista",
-      subtitle:
-        "Configure seu nome artístico, foto e informações. Você pode gerenciar vários artistas ou bandas.",
-      image: false,
-      icon: "person-outline" as const,
-    },
-    {
-      title: "Gerencie seus eventos",
-      subtitle:
-        "Organize shows, ensaios e compromissos na agenda. Crie eventos, defina datas e convide sua equipe.",
-      image: false,
-      icon: "calendar-outline" as const,
-    },
-    {
-      title: "Controle financeiro",
-      subtitle:
-        "Acompanhe receitas, despesas e lucros por evento. Relatórios simples para você tomar melhores decisões.",
-      image: false,
-      icon: "wallet-outline" as const,
-    },
-    {
-      title: "Pronto para começar",
-      subtitle:
-        "O app funciona dentro de um perfil de artista: crie o seu se você administra a carreira, ou aguarde um convite se faz parte da equipe de outro artista.",
+      title: "Organize sua agenda",
+      subtitle: accountArtistName
+        ? `Criar o perfil de artista “${accountArtistName}” com o mesmo nome da sua conta? Você pode editar depois em Configurações.`
+        : "Crie um perfil de artista para organizar shows e o financeiro. Você pode editar o nome depois.",
       image: false,
       icon: "rocket-outline" as const,
     },
@@ -241,7 +253,9 @@ export default function AgendaScreen() {
     setSelectedDayEvents([]);
   };
 
-  const tryNavigateToCadastroArtista = async () => {
+  const tryNavigateToCadastroArtista = async (
+    mode: "secondary" | "onboarding" = "secondary",
+  ) => {
     const { user, error: userError } = await getCurrentUser();
     if (userError || !user) {
       Alert.alert("Erro", "Faça login novamente.");
@@ -273,7 +287,51 @@ export default function AgendaScreen() {
       );
       return;
     }
-    router.push("/cadastro-artista?secondary=true");
+    router.push({
+      pathname: "/cadastro-artista",
+      params:
+        mode === "onboarding"
+          ? { onboarding: "true" }
+          : { secondary: "true" },
+    });
+  };
+
+  const createArtistWithAccountName = async () => {
+    if (!accountArtistName || creatingQuickArtist) return;
+    setCreatingQuickArtist(true);
+    try {
+      const { user, error: userError } = await getCurrentUser();
+      if (userError || !user) {
+        Alert.alert("Erro", "Faça login novamente.");
+        return;
+      }
+      const { success, error, artist } = await createArtist({
+        name: accountArtistName,
+        user_id: user.id,
+      });
+      if (!success || !artist) {
+        Alert.alert(
+          "Não foi possível criar",
+          error || "Tente de novo ou escolha outro nome.",
+        );
+        return;
+      }
+      await setActiveArtist({
+        id: artist.id,
+        name: artist.name,
+        role: "admin",
+        profile_url: artist.profile_url,
+        musical_style: artist.musical_style,
+      });
+      setShowNewUserModal(false);
+      setAgendaToastMessage(
+        "Perfil criado. Você pode editar o nome em Configurações.",
+      );
+    } catch {
+      Alert.alert("Erro", "Não foi possível criar o perfil agora.");
+    } finally {
+      setCreatingQuickArtist(false);
+    }
   };
 
   // ✅ VERIFICAR ROLE DIRETAMENTE NO BANCO
@@ -1287,7 +1345,7 @@ export default function AgendaScreen() {
   };
 
   const handleCreateArtist = () => {
-    void tryNavigateToCadastroArtista();
+    void tryNavigateToCadastroArtista("onboarding");
   };
 
   const handleWaitForInvite = () => {
@@ -2017,9 +2075,8 @@ export default function AgendaScreen() {
                     { color: colors.textSecondary },
                   ]}
                 >
-                  O app funciona dentro de um perfil de artista. Crie o seu se
-                  você administra a carreira, ou aguarde um convite se faz parte
-                  da equipe de outro artista.
+                  O app funciona dentro de um perfil de artista. Crie o seu para
+                  começar a usar a agenda.
                 </Text>
 
                 <View style={styles.emptyStateActions}>
@@ -2035,17 +2092,13 @@ export default function AgendaScreen() {
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={[
-                      styles.waitButton,
-                      { backgroundColor: colors.secondary },
-                    ]}
+                    style={styles.waitButton}
                     onPress={handleWaitForInvite}
                   >
-                    <Ionicons name="time" size={20} color={colors.primary} />
                     <Text
-                      style={[styles.waitButtonText, { color: colors.primary }]}
+                      style={[styles.waitButtonText, { color: colors.textSecondary }]}
                     >
-                      Aguardar Convite
+                      Faço parte da equipe de outro artista
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -2836,26 +2889,71 @@ export default function AgendaScreen() {
                   <Ionicons name="arrow-forward" size={20} color="#fff" />
                 </TouchableOpacity>
               </View>
+            ) : !accountNameReady ? (
+              <View style={styles.welcomeModalFinalButtons}>
+                <ActivityIndicator color={colors.primary} />
+              </View>
             ) : (
               <View style={styles.welcomeModalFinalButtons}>
+                {accountArtistName ? (
+                  <TouchableOpacity
+                    style={[
+                      styles.welcomeModalButtonDone,
+                      { backgroundColor: colors.primary },
+                      creatingQuickArtist ? { opacity: 0.7 } : null,
+                    ]}
+                    onPress={() => void createArtistWithAccountName()}
+                    disabled={creatingQuickArtist}
+                    activeOpacity={0.8}
+                  >
+                    {creatingQuickArtist ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.welcomeModalButtonDoneText}>
+                        Sim, usar {accountArtistName}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                ) : null}
                 <TouchableOpacity
                   style={[
-                    styles.welcomeModalButtonDone,
-                    { backgroundColor: colors.primary },
+                    accountArtistName
+                      ? [
+                          styles.welcomeModalOtherNameButton,
+                          { borderColor: colors.border },
+                        ]
+                      : [
+                          styles.welcomeModalButtonDone,
+                          { backgroundColor: colors.primary },
+                        ],
+                    creatingQuickArtist ? { opacity: 0.7 } : null,
                   ]}
                   onPress={() => {
                     setShowNewUserModal(false);
-                    void tryNavigateToCadastroArtista();
+                    void tryNavigateToCadastroArtista("onboarding");
                   }}
+                  disabled={creatingQuickArtist}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.welcomeModalButtonDoneText}>
-                    Criar meu artista agora
+                  <Text
+                    style={
+                      accountArtistName
+                        ? [
+                            styles.welcomeModalOtherNameButtonText,
+                            { color: colors.text },
+                          ]
+                        : styles.welcomeModalButtonDoneText
+                    }
+                  >
+                    {accountArtistName
+                      ? "Usar outro nome"
+                      : "Criar meu artista"}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.welcomeModalSkipButton}
                   onPress={() => setShowNewUserModal(false)}
+                  disabled={creatingQuickArtist}
                   activeOpacity={0.7}
                 >
                   <Text
@@ -2864,7 +2962,7 @@ export default function AgendaScreen() {
                       { color: colors.textSecondary },
                     ]}
                   >
-                    Fazer isso depois
+                    Agora não
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -3675,16 +3773,15 @@ const styles = StyleSheet.create({
   },
   waitButton: {
     borderRadius: 12,
-    paddingVertical: 16,
+    paddingVertical: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
   },
   waitButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: "500",
+    textAlign: "center",
   },
   noArtistHeader: {
     flexDirection: "row",
@@ -4109,6 +4206,18 @@ const styles = StyleSheet.create({
   welcomeModalButtonDoneText: {
     color: "#FFFFFF",
     fontSize: 17,
+    fontWeight: "600",
+  },
+  welcomeModalOtherNameButton: {
+    width: "100%",
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  welcomeModalOtherNameButtonText: {
+    fontSize: 16,
     fontWeight: "600",
   },
   welcomeModalFinalButtons: {

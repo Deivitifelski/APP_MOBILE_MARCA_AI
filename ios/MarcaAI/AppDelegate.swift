@@ -176,10 +176,14 @@ class ReactNativeDelegate: ExpoReactNativeFactoryDelegate {
 
   /// Host do Metro no Mac (Info.plist → MetroBundlerHost). Evita IP antigo gravado no device.
   private func metroBundlerHost() -> String? {
+#if targetEnvironment(simulator)
+    return "localhost:8081"
+#else
     let raw = (Bundle.main.object(forInfoDictionaryKey: "MetroBundlerHost") as? String)?
       .trimmingCharacters(in: .whitespacesAndNewlines)
     guard let raw, !raw.isEmpty else { return nil }
     return raw.contains(":") ? raw : "\(raw):8081"
+#endif
   }
 
   private func applyMetroHost(_ url: URL) -> URL {
